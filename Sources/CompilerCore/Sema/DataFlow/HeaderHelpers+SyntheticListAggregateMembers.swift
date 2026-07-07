@@ -1187,6 +1187,130 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // zip(other: Iterable<R>): List<Pair<E, R>>
+        let zipName = interner.intern("zip")
+        let zipFQName = listFQName + [zipName]
+        if symbols.lookup(fqName: zipFQName) == nil {
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: zipFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let otherListType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(rType)],
+                nullability: .nonNull
+            )))
+            let pairType: TypeID
+            if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")])
+                ?? symbols.lookupByShortName(interner.intern("Pair")).first
+            {
+                pairType = types.make(.classType(ClassType(
+                    classSymbol: pairSymbol,
+                    args: [.out(listTypeParamType), .out(rType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                pairType = types.anyType
+            }
+            let zippedListType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(pairType)],
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: zipName,
+                fqName: zipFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_zip", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [otherListType],
+                    returnType: zippedListType,
+                    typeParameterSymbols: [listTypeParamSymbol, rSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+
+        // zip(other: Iterable<R>, transform: (E, R) -> V): List<V>
+        let existingZipOverloads = symbols.lookupAll(fqName: zipFQName)
+        let hasTwoParamZip = existingZipOverloads.contains { symID in
+            guard let sig = symbols.functionSignature(for: symID) else { return false }
+            return sig.parameterTypes.count == 2
+        }
+        if !hasTwoParamZip {
+            let zipTransformScope = zipFQName + [interner.intern("transform")]
+            let otherRName = interner.intern("R")
+            let otherRSymbol = symbols.define(
+                kind: .typeParameter,
+                name: otherRName,
+                fqName: zipTransformScope + [otherRName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let otherRType = types.make(.typeParam(TypeParamType(symbol: otherRSymbol, nullability: .nonNull)))
+            let otherListTypeForTransform = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(otherRType)],
+                nullability: .nonNull
+            )))
+            let vName = interner.intern("V")
+            let vSymbol = symbols.define(
+                kind: .typeParameter,
+                name: vName,
+                fqName: zipTransformScope + [vName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let vType = types.make(.typeParam(TypeParamType(symbol: vSymbol, nullability: .nonNull)))
+            let transformFnType = types.make(.functionType(FunctionType(
+                params: [listTypeParamType, otherRType],
+                returnType: vType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let transformResultListType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(vType)],
+                nullability: .nonNull
+            )))
+            let transformMemberSymbol = symbols.define(
+                kind: .function,
+                name: zipName,
+                fqName: zipFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: transformMemberSymbol)
+            symbols.setExternalLinkName("kk_list_zip_transform", for: transformMemberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [otherListTypeForTransform, transformFnType],
+                    returnType: transformResultListType,
+                    typeParameterSymbols: [listTypeParamSymbol, otherRSymbol, vSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: transformMemberSymbol
+            )
+        }
+
         // unzip(): Pair<List<A>, List<B>> for List<Pair<A, B>>
         let unzipName = interner.intern("unzip")
         let unzipFQName = listFQName + [unzipName]
