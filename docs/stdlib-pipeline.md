@@ -339,6 +339,99 @@ should follow the same shape:
 4. Continue RF-STUB-003 residual table migration only on files classified (c); do not table-drive code
    that is already scheduled for deletion or Kotlin source migration.
 
+### KSP-498: `kotlin.coroutines` / Flow / Channel の (c)/(b) 分類確定
+
+対象は `HeaderHelpers+SyntheticCoroutineRegistry.swift`（上表で (c) 一括計上済み）が橋渡しする Runtime 実装。
+1ファイルに (b) 候補と (c) 確定が混在するため、上表のファイル単位より一段細かいシンボル系統単位で分類する。
+**本節はコード変更を含まない**（棚卸しと分類の記録のみ）。
+
+#### 対象 Runtime ファイル（2026-07-08 時点で再計測）
+
+| File | Lines | `kk_*` 関数数 | 主な内容 |
+|---|---:|---:|---|
+| `RuntimeCoroutine.swift` | 3159 | 65 | suspend/continuation、builder (`kxmini_*`)、Job、`coroutineScope`/`supervisorScope` の内部プリミティブ、timing、context の一部 |
+| `RuntimeCoroutineContext.swift` | 726 | 18 | `CoroutineContext`、`Dispatchers`、`ExceptionHandler`、`ContinuationInterceptor` |
+| `RuntimeCoroutineChannel.swift` | 656 | 10 | `Channel` 全操作 |
+| `RuntimeCoroutineFlow.swift` | 1971 | 33 | `Flow`/`SharedFlow`/`StateFlow` |
+| `RuntimeAtomic.swift` | 1550 | 91 | `AtomicInt`/`AtomicLong`/`AtomicBoolean`/`AtomicReference`（配列版含む） |
+| `RuntimeSync.swift` | 489 | 16 | `Mutex`/`Semaphore`/`ReadWriteLock` |
+| `RuntimeGC.swift`（該当関数のみ） | 15（うち対象2） | 2 | coroutine root の GC 登録・解除 |
+
+6ファイル計 233 関数 + `RuntimeGC.swift` の該当2関数でファイル数は 6+1 = **7**（TODO.md の「7 ファイル」に一致）。
+関数総数「279」は 2026-07-01 棚卸し時点の値で、その後の dead code 削除（例: `kk_java_atomic_int_asKotlinAtomic`
+削除（CLEANUP-STUB-024, #4409）、test-only dead code 削除 #4478）により減少している。以降の数値は本節時点の実測を正とする。
+
+#### スタブ（Sema 宣言）側の現状
+
+TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。2026-07-06 の RF-STUB-005（#4544, commit `8e05a7cd6`）で
+`HeaderHelpers+SyntheticCoroutineHelpers.swift`・`HeaderHelpers+SyntheticCoroutinesStubs.swift` 等の分割ファイルが
+`HeaderHelpers+SyntheticCoroutineRegistry.swift`（3552 行、上表で (c) 計上済み）へ統合された。`Mutex`/`Semaphore`/
+`Channel`/`Flow`/`SharedFlow`/`StateFlow` の宣言は現在すべてこの1ファイルに集約されている。`Atomic` 系宣言のみ
+従来どおり `HeaderHelpers+SyntheticAtomicStubs.swift`（2541 行、上表で (b) 計上済み）に分離されている。
+**KSP-499 以降が触るスタブファイルはこの2つのみ**（棚卸し時点の分割ファイル群は現存しない）。
+
+#### (c) 残留（`__kk_` 降格のみ）— 112 関数
+
+| 系統 | 代表シンボル | 数 | ファイル |
+|---|---|---:|---|
+| suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |
+| builder・Job・構造化並行の内部プリミティブ | `kk_kxmini_{launch,launch_with_cont,launch_with_dispatcher,launch_with_dispatcher_and_cont,launch_with_exception_handler,async,async_await,async_with_cont,run_blocking,run_blocking_with_cont,produce_with_cont}`, `kk_produce`, `kk_job_{join,await_completion,cancel,cancel_with_cause,complete,complete_exceptionally,is_active,is_cancelled,is_completed,is_failed}`, `kk_coroutine_scope_*`(8), `kk_supervisor_scope_*`(3), `kk_coroutine_launcher_arg_{get,set}` | 35 | Coroutine |
+| Channel | `kk_channel_{send,receive,create,close,is_closed_for_send,is_closed_for_receive,is_closed_token,iterator,iterator_hasNext,iterator_next}` | 10 | Channel（全関数） |
+| timing | `kk_kxmini_delay`, `kk_with_timeout`, `kk_with_timeout_or_null`, `kk_coroutine_yield` | 4 | Coroutine |
+| 同期プリミティブ | `kk_mutex_*`(7), `kk_lock_withLock`, `kk_semaphore_*`(5), `kk_{read_write_lock,reentrant_read_write_lock}_*`(3) | 16 | Sync（全関数） |
+| context | `kk_context_*`(9), `kk_coroutine_name_{create,get}`, `kk_dispatcher_{default,io,main}`, `kk_with_context{,_full}`, `kk_coroutine_{current_context,cancel,cancel_current,check_cancellation}` | 20 | Context / Coroutine |
+| Flow ブリッジ（cold Flow の最小核） | `kk_flow_create`, `kk_flow_emit`, `kk_flow_collect` | 3 | Flow |
+| （参考・別系統だが同性質）GC root 登録 | `kk_register_coroutine_root`, `kk_unregister_coroutine_root` | 2 | GC |
+
+#### (b) 候補（KSP-499 以降で移行）— 103 関数 + 新規実装分
+
+| 系統 | 代表シンボル | 数 | ファイル | 備考 |
+|---|---|---:|---|---|
+| Flow terminal（到達可能・要 Lowering 変更） | `kk_flow_{to_list,first,single}` | 3 | Flow | 下記「Flow (b) 移行の前提条件」参照 |
+| Flow terminal（未到達・デッドコード） | `kk_flow_{fold,reduce,count}` | 3 | Flow | Sema 宣言・Lowering 書き換えのどちらの対象にもなっておらず、現状呼び出す経路が存在しない |
+| Flow 合成（到達可能・要 Lowering 変更） | `kk_flow_{merge,zip,combine,flat_map_concat,flat_map_latest,flat_map_merge}` | 6 | Flow | 下記「Flow (b) 移行の前提条件」参照 |
+| Atomic 全般 | `kk_atomic_{int,long,bool,ref}_*`（scalar + 配列 `*At`） | 91 | Atomic | 詳細は下記 |
+| `coroutineScope`/`supervisorScope`（公開ラッパー） | ― | 新規 | ― | 内部は (c) の `kk_coroutine_scope_*`/`kk_supervisor_scope_*` へ委譲する薄い Kotlin 関数にする。primitives 自体は (c) のまま |
+| Flow per-element | `map`/`filter`/`take`/`debounce` | 0（未実装） | ― | 既存 Swift 実装なし。移行ではなく KSP-499 での新規 Kotlin 実装（`collect`+`emit` 合成）として着手 |
+
+**Flow (b) 移行の前提条件（要 verify、コード確認済み 2026-07-08）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift`
+の `lowerFlowExpressions` は `map`/`filter`/`take`/`transform`/`single`/`takeWhile`/`dropWhile`/`flatMapConcat`/`flatMapMerge`/
+`flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`delayEach`/`catch`/`retry`/`retryWhen`/
+`onErrorReturn`/`onErrorResume`/`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
+「レシーバが flow 由来の式かどうか（`flowExprIDs`/`flowGlobalSymbols` による provenance 追跡）」+「呼び出し名の文字列一致」
+だけで `kk_flow_*` へ KIR 構造的に書き換える。したがって、これらの名前を持つ Kotlin 実装を bundled stdlib に追加しても
+**Lowering 段階で無条件に上書きされ、呼ばれない**（`FlowLoweringNames` 構造体・その初期化コードに列挙された名前が対象）。
+Flow terminal/合成を (b) 化するには、このパスを「対象シンボルが `kk_flow_*` 系の合成スタブ由来と確認できる場合のみ」に
+絞るか、対象名を初期化リストから外す変更が**同一 PR で必須**（`docs/stdlib-pipeline.md` の他モジュールで確立している
+「.kt を書いて stub/cdecl を消せば移行完了」という Template T はここでは通用しない）。着手前に必ずダミー実装の
+差し替えテスト（例: `suspend fun <T> Flow<T>.toList(): List<T> = listOf()` を bundle し、実際の `flowOf(1,2,3).toList()`
+の戻り値がダミーの空リストになるかを確認）で再検証すること。
+
+Atomic の内訳:
+
+- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet`（`AtomicInt`/`AtomicLong`/
+  `AtomicReference`）は `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt`（47行）で Kotlin 化済み。
+  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch}` は実質
+  (c) ブリッジ（`__kk_` 未リネームのみが残タスク）
+- **未着手**: `compareAndSet`/`compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`
+  は上記委譲が未実施のため全操作が対象）。`updateAndGet`/`getAndUpdate` は `while(true)` ループを要するため、
+  `AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで**ブロック**。
+  `compareAndSet`/`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_`
+  残留になると想定される
+
+#### 未分類・KSP-499 着手前に個別判断が必要な項目 — 18 関数
+
+指示された分類に直接対応がない `RuntimeCoroutineFlow.swift` の残り:
+
+- **SharedFlow/StateFlow（hot flow）**: `kk_mutable_shared_flow_{create,emit,try_emit}`, `kk_mutable_state_flow_{create,emit,try_emit}`,
+  `kk_shared_flow_{collect,replay_cache}`, `kk_state_flow_value`, `kk_flow_{share_in,state_in,stopped,release,retain}`（計14関数）。
+  replay buffer・購読者管理を伴い Channel に近い可能性があり (c) 寄りと推測するが要検証
+- **Flow builder**: `kk_flow_{as_flow,empty,of}`（計3関数）。`kk_flow_create` + `kk_flow_emit` の合成で (b) 化できる
+  可能性が高い。なお `channelFlow`/`callbackFlow` は Sema 側のみ登録されており Runtime 実装は未確認（Channel 実体を
+  持つ可能性が高く (c) 濃厚）
+- `kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
+  KSP-499 着手時に再調査
+
 ## 10. モジュール移行プレイブック
 
 各 M フェーズ（および RF-STDLIB-004/005 の縦切り）は同一手順で回す。
