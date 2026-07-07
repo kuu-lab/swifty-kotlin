@@ -196,9 +196,9 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(failFn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(failFn, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1)
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
 
         let sem = DispatchSemaphore(value: 0)
 
@@ -233,9 +233,9 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(successFn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(successFn, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 1)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1)
 
         let sem = DispatchSemaphore(value: 0)
 
