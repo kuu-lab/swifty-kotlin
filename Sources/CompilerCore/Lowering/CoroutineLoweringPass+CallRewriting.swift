@@ -32,7 +32,9 @@ extension CoroutineLoweringPass {
         let sequenceBuilderYieldAllCallee: InternedString
         let iteratorBuilderBuildCallee: InternedString
         let iteratorBuilderBuildCoroCallee: InternedString
+        let sequenceBuilderThunkByOriginalSymbol: [SymbolID: LoweredSuspendFunction]
         let loweredBySymbol: [SymbolID: LoweredSuspendFunction]
+        let originalByLoweredName: [InternedString: (original: SymbolID, lowered: LoweredSuspendFunction)]
         let continuationTypeByLoweredSymbol: [SymbolID: TypeID]
         let suspendFunctionArityBySymbol: [SymbolID: Int]
         let loweredByUniqueNameArity: [SuspendCallLookupKey: LoweredSuspendFunction]
@@ -63,6 +65,11 @@ extension CoroutineLoweringPass {
             }
 
             updated.replaceBody(rewriteFunctionBody(function, using: rewrite))
+            return updated
+        }
+        rewrite.module.arena.transformFunctions { function in
+            var updated = function
+            updated.replaceBody(rewriteCoroutineBuilderBuildCalls(function, using: rewrite))
             return updated
         }
     }
@@ -276,6 +283,45 @@ extension CoroutineLoweringPass {
             }
 
             loweredBody.append(instruction)
+        }
+        return loweredBody
+    }
+
+    func rewriteCoroutineBuilderBuildCalls(
+        _ function: KIRFunction,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let symbolByExprRaw = propagatedSymbolReferences(
+            for: function,
+            callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
+        )
+        var loweredBody: [KIRInstruction] = []
+        loweredBody.reserveCapacity(function.body.count)
+
+        for instruction in function.body {
+            guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
+                loweredBody.append(instruction)
+                continue
+            }
+            let call = CallRewriteInput(
+                instruction: instruction,
+                symbol: symbol,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
+                isSuperCall: isSuperCall
+            )
+            if let builderInstruction = rewriteCoroutineBuilderBuildCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(builderInstruction)
+            } else {
+                loweredBody.append(instruction)
+            }
         }
         return loweredBody
     }
@@ -687,9 +733,25 @@ extension CoroutineLoweringPass {
             return nil
         }
 
+        let producer: (original: SymbolID, lowered: LoweredSuspendFunction, entryPoint: SymbolID)?
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           let innerProducer = sequenceBuilderInnerProducer(from: loweredTarget.symbol, using: rewrite),
+           let builderThunk = rewrite.sequenceBuilderThunkByOriginalSymbol[innerProducer.original]
+        {
+            producer = (
+                original: innerProducer.original,
+                lowered: innerProducer.lowered,
+                entryPoint: builderThunk.symbol
+            )
+        } else {
+            producer = nil
+        }
+        let producerOriginalSymbol = producer?.original ?? referencedSymbol
+        let producerLoweredTarget = producer?.lowered ?? loweredTarget
+
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsCallee(
-               symbol: loweredTarget.symbol,
+               symbol: producerLoweredTarget.symbol,
                callee: rewrite.sequenceBuilderYieldAllCallee,
                module: rewrite.module
            )
@@ -698,12 +760,9 @@ extension CoroutineLoweringPass {
         }
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsAnyCallee(
-               symbol: loweredTarget.symbol,
+               symbol: producerLoweredTarget.symbol,
                callees: [
                    rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
-                   rewrite.ctx.interner.intern("kk_range_iterator"),
-                   rewrite.ctx.interner.intern("kk_range_hasNext"),
-                   rewrite.ctx.interner.intern("kk_range_next"),
                ],
                module: rewrite.module
            )
@@ -712,7 +771,7 @@ extension CoroutineLoweringPass {
         }
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsCalleeNamedLike(
-               symbol: loweredTarget.symbol,
+               symbol: producerLoweredTarget.symbol,
                module: rewrite.module,
                interner: rewrite.ctx.interner,
                isMatch: { name in
@@ -723,9 +782,9 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        let entryPointSymbol = entryPointSymbol(
-            for: referencedSymbol,
-            loweredTarget: loweredTarget,
+        let entryPointSymbol = producer?.entryPoint ?? entryPointSymbol(
+            for: producerOriginalSymbol,
+            loweredTarget: producerLoweredTarget,
             hasLauncherArg: true,
             using: rewrite
         )
@@ -734,7 +793,7 @@ extension CoroutineLoweringPass {
             type: rewrite.intType
         )
         let functionIDExpr = rewrite.module.arena.appendExpr(
-            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            .intLiteral(Int64(producerLoweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
         let closureRawExpr: KIRExprID
@@ -756,6 +815,45 @@ extension CoroutineLoweringPass {
             thrownResult: call.thrownResult,
             isSuperCall: call.isSuperCall
         )
+    }
+
+    private func sequenceBuilderInnerProducer(
+        from loweredAdapterSymbol: SymbolID,
+        using rewrite: SuspendRewriteContext
+    ) -> (original: SymbolID, lowered: LoweredSuspendFunction)? {
+        var candidates: [(original: SymbolID, lowered: LoweredSuspendFunction)] = []
+        for decl in rewrite.module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == loweredAdapterSymbol
+            else {
+                continue
+            }
+            for instruction in function.body {
+                let callee: InternedString?
+                switch instruction {
+                case let .call(_, instructionCallee, _, _, _, _, _, _):
+                    callee = instructionCallee
+                case let .virtualCall(_, instructionCallee, _, _, _, _, _, _):
+                    callee = instructionCallee
+                default:
+                    callee = nil
+                }
+                guard let callee,
+                      let producer = rewrite.originalByLoweredName[callee],
+                      producer.lowered.symbol != loweredAdapterSymbol
+                else {
+                    continue
+                }
+                if !candidates.contains(where: { $0.original == producer.original }) {
+                    candidates.append(producer)
+                }
+            }
+            break
+        }
+        guard candidates.count == 1 else {
+            return nil
+        }
+        return candidates[0]
     }
 
     private func loweredFunctionContainsCallee(

@@ -96,7 +96,7 @@
 - [x] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
-- [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` は producer を専用 `Thread` へ逃がし、consumer 側 continuation API（`nextElementAsync` / `probeHasNextAsync`）まで実装済み。残りは `yield()` 自体を suspend point として CPS lowering へ接続し、専用 producer thread を撤去する
+- [x] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` の compiler-generated plain `yield()` producer（range-loop 内 `yield` を含む）は CPS lowering の suspend point として扱い、`kk_*_builder_build_coro` 経由で専用 producer thread を使わない経路へ移行済み。`yieldAll` と legacy direct ABI callback 用の `Thread` fallback は互換経路として維持する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
 
 ### KIR / Lowering
