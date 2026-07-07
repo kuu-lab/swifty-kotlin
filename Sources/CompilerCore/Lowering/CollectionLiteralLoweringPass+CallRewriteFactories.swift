@@ -17,27 +17,15 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-        // --- Rewrite listOf/mutableListOf/emptyList/emptyArray → kk_list_of / kk_emptyList / kk_empty_array ---
-        // --- Rewrite arrayOf/intArrayOf/... → kk_array_of ---
-        // Only rewrite calls whose symbol resolves to a known
-        // kotlin.collections.* factory to avoid accidentally
-        // lowering user-defined functions with the same name.
+        // --- Rewrite list factories to runtime helpers. ---
+        // Keep the Kotlin-source declarations visible to sema, but preserve the
+        // runtime lowering path for primitive boxing and tracked collection IDs.
         if lookup.listFactoryNames.contains(callee),
            isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {
             let count = arguments.count
             if count == 0 && callee != lookup.mutableListOfName && callee != lookup.arrayListOfName {
-                if callee == lookup.emptyListName {
-                    // emptyList() → kk_emptyList()
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkEmptyListName,
-                        arguments: [],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                } else if callee == lookup.emptyArrayName {
-                    // emptyArray() → kk_empty_array()
+                if callee == lookup.emptyArrayName {
+                    // emptyArray() -> kk_empty_array()
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkEmptyArrayName,
@@ -47,7 +35,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 } else {
-                    // listOf() → kk_emptyList()
+                    // emptyList(), listOf(), listOfNotNull() -> kk_emptyList()
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkEmptyListName,
@@ -58,7 +46,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
             } else if count == 0 {
-                // mutableListOf()/arrayListOf() → fresh instance via kk_list_of(null, 0)
+                // mutableListOf()/arrayListOf() -> fresh instance via kk_list_of(null, 0)
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -72,8 +60,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else {
-                // listOf(a, b, c) → create array, populate, call kk_list_of
-                // listOfNotNull(a, b, c) → create array, populate, call kk_list_of_not_null
+                // listOf(a, b, c), mutableListOf(a, b, c), arrayListOf(a, b, c) -> kk_list_of
+                // listOfNotNull(a, b, c) -> kk_list_of_not_null
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
                 let arrayExpr = module.arena.appendTemporary(type: nil
@@ -273,7 +261,7 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite setOf/mutableSetOf/hashSetOf/linkedSetOf/emptySet -> kk_set_of / kk_emptySet ---
+        // --- Rewrite set factories to runtime helpers. ---
         if lookup.setFactoryNames.contains(callee),
            isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {
             let count = arguments.count
@@ -281,7 +269,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.mutableSetOfName
                 && callee != lookup.hashSetOfName
                 && callee != lookup.linkedSetOfName {
-                // emptySet() / setOf() → kk_emptySet()
+                // emptySet(), setOf(), setOfNotNull() -> kk_emptySet()
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkEmptySetName,
@@ -291,7 +279,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // Mutable set factories produce a fresh instance via kk_set_of(null, 0).
+                // Mutable/hash/linked set factories produce a fresh instance via kk_set_of(null, 0).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -367,7 +355,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite mapOf/mutableMapOf/hashMapOf/linkedMapOf/emptyMap → kk_map_of / kk_emptyMap ---
+        // --- Rewrite map factories to runtime helpers. ---
         if lookup.mapFactoryNames.contains(callee),
            isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {
             let count = arguments.count
@@ -375,7 +363,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.mutableMapOfName
                 && callee != lookup.hashMapOfName
                 && callee != lookup.linkedMapOfName {
-                // emptyMap() / mapOf() → kk_emptyMap()
+                // emptyMap(), mapOf() -> kk_emptyMap()
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkEmptyMapName,
@@ -385,7 +373,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf()/linkedMapOf() → fresh instance via kk_map_of(null, null, 0)
+                // mutableMapOf()/hashMapOf()/linkedMapOf() -> fresh instance via kk_map_of(null, null, 0)
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -401,7 +389,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else {
-                // mapOf(pair1, pair2, ...) → kk_map_of(keysArray, valuesArray, count)
+                // mapOf(pair1, pair2, ...), mutableMapOf(...), hashMapOf(...), linkedMapOf(...) -> kk_map_of
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
                 let keysArrayExpr = module.arena.appendTemporary(type: nil
