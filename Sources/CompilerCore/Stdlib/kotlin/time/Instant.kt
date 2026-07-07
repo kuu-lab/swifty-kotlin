@@ -42,4 +42,4 @@ public fun Instant.until(other: Instant): Duration =
     this.__kk_instant_until(other)
 
 public fun Instant.elapsed(): Duration =
-    this.until(Instant.now())
+    this.__kk_instant_until(Instant.now())
