@@ -131,9 +131,11 @@ extension CallLowerer {
                  "kk_comparator_from_multi_selectors3",
                  "kk_comparator_from_multi_selectors_vararg":
                 return "kk_comparator_from_multi_selectors_trampoline"
-            case "kk_comparator_nulls_first":
+            case "kk_comparator_nulls_first",
+                 "kk_comparator_nulls_first_of":
                 return "kk_comparator_nulls_first_trampoline"
-            case "kk_comparator_nulls_last":
+            case "kk_comparator_nulls_last",
+                 "kk_comparator_nulls_last_of":
                 return "kk_comparator_nulls_last_trampoline"
             case "kk_comparator_nulls_last_natural":
                 return "kk_comparator_nulls_last_natural_trampoline"
