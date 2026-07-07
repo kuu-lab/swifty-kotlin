@@ -144,10 +144,38 @@ extension CallTypeChecker {
         if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
             return !sym.flags.contains(.synthetic)
+                && !isSourceBackedStdlibBuilderDSLSymbol(sym, calleeName: calleeName, interner: ctx.interner)
         }) {
             return false
         }
         return true
+    }
+
+    private func isSourceBackedStdlibBuilderDSLSymbol(
+        _ symbol: SemanticSymbol,
+        calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        let kotlinName = interner.intern("kotlin")
+        let textName = interner.intern("text")
+        let collectionsName = interner.intern("collections")
+        guard symbol.fqName.count == 3,
+              symbol.fqName[0] == kotlinName,
+              symbol.fqName[2] == calleeName
+        else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        if symbol.fqName[1] == textName {
+            return calleeName == knownNames.buildString
+                || calleeName == knownNames.buildStringBuilder
+        }
+        if symbol.fqName[1] == collectionsName {
+            return calleeName == knownNames.buildList
+                || calleeName == knownNames.buildSet
+                || calleeName == knownNames.buildMap
+        }
+        return false
     }
 
     func isValidBuilderLambdaArgument(_ argumentExprID: ExprID, ast: ASTModule) -> Bool {
@@ -1308,26 +1336,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let symbols = sema.symbols
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let kotlinTextPkg: [InternedString] = kotlinPkg + [interner.intern("text")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
-        _ = ensureSyntheticPackage(fqName: kotlinTextPkg, symbols: symbols)
-
-        let stringBuilderName = interner.intern("StringBuilder")
-        let stringBuilderFQName = kotlinTextPkg + [stringBuilderName]
-        let stringBuilderSymbol: SymbolID = if let existing = symbols.lookup(fqName: stringBuilderFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: stringBuilderName,
-                fqName: stringBuilderFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
+        let stringBuilderSymbol = ensureKotlinTextStringBuilderSymbol(symbols: sema.symbols, interner: interner)
         return sema.types.make(.classType(ClassType(
             classSymbol: stringBuilderSymbol,
             args: [],

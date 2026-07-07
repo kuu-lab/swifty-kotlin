@@ -1,10 +1,49 @@
-
-/// Synthetic stubs for StringBuilder type (STDLIB-255/256/257).
+/// Synthetic signatures for the source-backed StringBuilder type.
 ///
-/// NOTE: Kotlin source exists at Stdlib/kotlin/text/StringBuilder.kt (MIGRATION-SB-001).
-/// These stubs remain active and set external link names on the class members so that
-/// every call site dispatches directly to the kk_string_builder_* runtime functions.
+/// The Kotlin stdlib source owns StringBuilder behavior. These signatures keep
+/// Sema contexts that do not load the bundled source directly from losing the
+/// type surface, but they intentionally do not attach kk_string_builder_* links
+/// to public API members.
+func ensureKotlinTextStringBuilderSymbol(symbols: SymbolTable, interner: StringInterner) -> SymbolID {
+    let kotlinPkg = [interner.intern("kotlin")]
+    let kotlinTextPkg = kotlinPkg + [interner.intern("text")]
+    _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
+    _ = ensureSyntheticPackage(fqName: kotlinTextPkg, symbols: symbols)
+
+    let stringBuilderName = interner.intern("StringBuilder")
+    let stringBuilderFQName = kotlinTextPkg + [stringBuilderName]
+    if let existing = symbols.lookup(fqName: stringBuilderFQName) {
+        return existing
+    }
+    return symbols.define(
+        kind: .class,
+        name: stringBuilderName,
+        fqName: stringBuilderFQName,
+        declSite: nil,
+        visibility: .public,
+        flags: [.synthetic]
+    )
+}
+
 extension DataFlowSemaPhase {
+    func patchSourceBackedStringBuilderSupertypes(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinTextPkg = ensureKotlinTextPackage(symbols: symbols, interner: interner)
+        let sbName = interner.intern("StringBuilder")
+        guard let sbSymbol = symbols.lookup(fqName: kotlinTextPkg + [sbName]) else {
+            return
+        }
+        patchStringBuilderSupertypes(
+            sbSymbol: sbSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
     func registerSyntheticStringBuilderStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -15,18 +54,22 @@ extension DataFlowSemaPhase {
         let sbType = types.make(.classType(ClassType(
             classSymbol: sbSymbol, args: [], nullability: .nonNull
         )))
-        let stringType = types.stringType
-        let appendableSymbol = ensureInterfaceSymbol(
-            named: "Appendable",
-            in: kotlinTextPkg,
+        patchStringBuilderSupertypes(
+            sbSymbol: sbSymbol,
             symbols: symbols,
+            types: types,
             interner: interner
         )
-        if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-            symbols.setParentSymbol(kotlinTextPkgSymbol, for: appendableSymbol)
-        }
-        symbols.setDirectSupertypes([appendableSymbol], for: sbSymbol)
-        types.setNominalDirectSupertypes([appendableSymbol], for: sbSymbol)
+
+        let stringType = types.stringType
+        let nullableStringType = types.makeNullable(stringType)
+        let nullableAnyType = types.makeNullable(types.anyType)
+        let intType = types.intType
+        let charType = types.make(.primitive(.char, .nonNull))
+        let booleanType = types.make(.primitive(.boolean, .nonNull))
+        let longType = types.make(.primitive(.long, .nonNull))
+        let floatType = types.make(.primitive(.float, .nonNull))
+        let doubleType = types.make(.primitive(.double, .nonNull))
         let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
         let charSequenceSymbol = ensureInterfaceSymbol(
             named: "CharSequence",
@@ -35,152 +78,71 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         let charSequenceType = types.make(.classType(ClassType(
-            classSymbol: charSequenceSymbol, args: [], nullability: .nonNull
+            classSymbol: charSequenceSymbol,
+            args: [],
+            nullability: .nonNull
         )))
-        if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(kotlinPkgSymbol, for: charSequenceSymbol)
-        }
-        let intType = types.intType
-        let nullableAnyType = types.makeNullable(types.anyType)
-        let charType = types.make(.primitive(.char, .nonNull))
-        let booleanType = types.make(.primitive(.boolean, .nonNull))
-        let longType = types.make(.primitive(.long, .nonNull))
-        let floatType = types.make(.primitive(.float, .nonNull))
-        let doubleType = types.make(.primitive(.double, .nonNull))
-        let nullableStringType = types.makeNullable(stringType)
+        let nullableCharSequenceType = types.makeNullable(charSequenceType)
 
-        // append(Any?): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", nullableAnyType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder.
-        // String?, Int, Long delegate to kk_string_builder_append_obj (runtimeElementToString handles them).
-        // Boolean, Char, Float, Double use dedicated runtime functions for correct type-specific conversion.
-
-        // append(value: String?): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", nullableStringType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Char): StringBuilder
-        // Uses dedicated runtime function that correctly converts raw char code point to character.
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_char",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", charType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Boolean): StringBuilder
-        // Uses dedicated runtime function that correctly converts raw 0/1 to "false"/"true".
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_bool",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", booleanType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Int): StringBuilder
-        // kk_string_builder_append_obj correctly handles raw Int values via runtimeElementToString.
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Long): StringBuilder
-        // kk_string_builder_append_obj correctly handles raw Long values via runtimeElementToString.
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", longType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Float): StringBuilder
-        // Uses dedicated runtime function that correctly converts raw float bits to string.
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_float",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", floatType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // append(value: Double): StringBuilder
-        // Uses dedicated runtime function that correctly converts raw double bits to string.
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_double",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", doubleType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // toString(): String
-        registerStringBuilderMemberFunction(
-            named: "toString",
-            externalLinkName: "kk_string_builder_toString",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [],
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // length: Int (property)
         registerStringBuilderMemberProperty(
             named: "length",
-            externalLinkName: "kk_string_builder_length_prop",
             ownerSymbol: sbSymbol,
             returnType: intType,
             symbols: symbols,
             interner: interner
         )
 
-        // appendLine(Any?): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "get",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false)],
+            returnType: charType,
+            symbols: symbols,
+            interner: interner,
+            extraFlags: [.operatorFunction]
+        )
+        registerStringBuilderMemberFunction(
+            named: "subSequence",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
+            returnType: charSequenceType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        let appendOverloads: [[(String, TypeID, Bool, Bool)]] = [
+            [("value", charType, false, false)],
+            [("value", nullableCharSequenceType, false, false)],
+            [
+                ("value", nullableCharSequenceType, false, false),
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            [("value", nullableStringType, false, false)],
+            [("value", booleanType, false, false)],
+            [("value", intType, false, false)],
+            [("value", longType, false, false)],
+            [("value", floatType, false, false)],
+            [("value", doubleType, false, false)],
+            [("value", nullableStringType, false, true)],
+            [("value", nullableAnyType, false, true)],
+        ]
+        for overload in appendOverloads {
+            registerStringBuilderMemberFunction(
+                named: "append",
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: overload,
+                returnType: sbType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         registerStringBuilderMemberFunction(
             named: "appendLine",
-            externalLinkName: "kk_string_builder_append_line_obj",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("value", nullableAnyType, false, false)],
@@ -188,11 +150,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // appendLine(): StringBuilder (no-arg overload)
         registerStringBuilderMemberFunction(
             named: "appendLine",
-            externalLinkName: "kk_string_builder_append_line_noarg_obj",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [],
@@ -201,171 +160,128 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // insert(Int, Any?): StringBuilder
+        let insertOverloads: [[(String, TypeID, Bool, Bool)]] = [
+            [("index", intType, false, false), ("value", nullableAnyType, false, false)],
+            [("index", intType, false, false), ("value", nullableStringType, false, false)],
+            [("index", intType, false, false), ("value", charType, false, false)],
+            [("index", intType, false, false), ("value", booleanType, false, false)],
+            [("index", intType, false, false), ("value", intType, false, false)],
+            [("index", intType, false, false), ("value", longType, false, false)],
+            [("index", intType, false, false), ("value", floatType, false, false)],
+            [("index", intType, false, false), ("value", doubleType, false, false)],
+        ]
+        for overload in insertOverloads {
+            registerStringBuilderMemberFunction(
+                named: "insert",
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: overload,
+                returnType: sbType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        for name in ["delete", "deleteRange"] {
+            registerStringBuilderMemberFunction(
+                named: name,
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
+                returnType: sbType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        for name in ["clear", "reverse"] {
+            registerStringBuilderMemberFunction(
+                named: name,
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: [],
+                returnType: sbType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        for name in ["deleteCharAt", "deleteAt"] {
+            registerStringBuilderMemberFunction(
+                named: name,
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: [("index", intType, false, false)],
+                returnType: sbType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_obj",
+            named: "appendRange",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", nullableAnyType, false, false)],
+            parameters: [
+                ("value", charSequenceType, false, false),
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
             returnType: sbType,
             symbols: symbols,
             interner: interner
         )
-
-        // STDLIB-TEXT-FN-024: Typed insert overloads for StringBuilder.
-        // Char, Boolean, Float, Double require dedicated runtime functions for correct type-specific conversion.
-        // String?, Int, Long delegate to kk_string_builder_insert_obj (runtimeElementToString handles them).
-
-        // insert(Int, Char): StringBuilder
         registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_char",
+            named: "insertRange",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("index", intType, false, false),
+                ("value", charSequenceType, false, false),
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "setRange",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+                ("value", stringType, false, false),
+            ],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "replace",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("start", intType, false, false),
+                ("end", intType, false, false),
+                ("str", stringType, false, false),
+            ],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "setCharAt",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("index", intType, false, false), ("value", charType, false, false)],
-            returnType: sbType,
+            returnType: types.unitType,
             symbols: symbols,
             interner: interner
         )
-
-        // insert(Int, Boolean): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_bool",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", booleanType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // insert(Int, Float): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_float",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", floatType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // insert(Int, Double): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_double",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", doubleType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // insert(Int, String?): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "insert",
-            externalLinkName: "kk_string_builder_insert_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", nullableStringType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // delete(Int, Int): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "delete",
-            externalLinkName: "kk_string_builder_delete_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // deleteRange(Int, Int): StringBuilder (STDLIB-TEXT-BUILDER-002)
-        registerStringBuilderMemberFunction(
-            named: "deleteRange",
-            externalLinkName: "kk_string_builder_deleteRange",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // clear(): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "clear",
-            externalLinkName: "kk_string_builder_clear",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // reverse(): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "reverse",
-            externalLinkName: "kk_string_builder_reverse",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // deleteCharAt(Int): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "deleteCharAt",
-            externalLinkName: "kk_string_builder_deleteCharAt",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // deleteAt(Int): StringBuilder (STDLIB-TEXT-BUILDER-001)
-        registerStringBuilderMemberFunction(
-            named: "deleteAt",
-            externalLinkName: "kk_string_builder_deleteAt",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // get(Int): Char (operator)
-        registerStringBuilderMemberFunction(
-            named: "get",
-            externalLinkName: "kk_string_builder_get",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false)],
-            returnType: charType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // set(Int, Char): Unit (STDLIB-TEXT-FN-064: operator fun set(index, value))
-        // sb[i] = 'c' desugars to sb.set(i, 'c'); runtime delegate is kk_string_builder_setCharAt.
         registerStringBuilderMemberFunction(
             named: "set",
-            externalLinkName: "kk_string_builder_setCharAt",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("index", intType, false, false), ("value", charType, false, false)],
@@ -375,73 +291,8 @@ extension DataFlowSemaPhase {
             extraFlags: [.operatorFunction]
         )
 
-        // appendRange(CharSequence, Int, Int): StringBuilder (STDLIB-580)
-        // The runtime boundary receives flattened String fields.
-        registerStringBuilderMemberFunction(
-            named: "appendRange",
-            externalLinkName: "kk_string_builder_appendRange_obj_flat",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // insertRange(Int, CharSequence, Int, Int): StringBuilder (STDLIB-TEXT-BUILDER-003)
-        registerStringBuilderMemberFunction(
-            named: "insertRange",
-            externalLinkName: "kk_string_builder_insertRange_obj_flat",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // setRange(Int, Int, String): StringBuilder (STDLIB-TEXT-BUILDER-004)
-        registerStringBuilderMemberFunction(
-            named: "setRange",
-            externalLinkName: "kk_string_builder_setRange_flat",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false), ("value", stringType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-STR-123: Additional StringBuilder methods
-
-        // replace(Int, Int, String): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "replace",
-            externalLinkName: "kk_string_builder_replace_obj_flat",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("start", intType, false, false), ("end", intType, false, false), ("str", stringType, false, false)],
-            returnType: sbType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // setCharAt(Int, Char): Unit
-        registerStringBuilderMemberFunction(
-            named: "setCharAt",
-            externalLinkName: "kk_string_builder_setCharAt",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("index", intType, false, false), ("value", charType, false, false)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // capacity(): Int
         registerStringBuilderMemberFunction(
             named: "capacity",
-            externalLinkName: "kk_string_builder_capacity",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [],
@@ -449,11 +300,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // ensureCapacity(Int): Unit
         registerStringBuilderMemberFunction(
             named: "ensureCapacity",
-            externalLinkName: "kk_string_builder_ensureCapacity",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("minimumCapacity", intType, false, false)],
@@ -461,11 +309,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // trimToSize(): Unit
         registerStringBuilderMemberFunction(
             named: "trimToSize",
-            externalLinkName: "kk_string_builder_trimToSize",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [],
@@ -473,30 +318,54 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // STDLIB-TEXT-EDGE-012: append(vararg value: String?): StringBuilder
         registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_vararg_obj",
+            named: "toString",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
-            parameters: [("value", types.makeNullable(stringType), false, true)],
-            returnType: sbType,
+            parameters: [],
+            returnType: stringType,
             symbols: symbols,
             interner: interner
         )
+    }
 
-        // STDLIB-TEXT-EDGE-012: append(vararg value: Any?): StringBuilder
-        registerStringBuilderMemberFunction(
-            named: "append",
-            externalLinkName: "kk_string_builder_append_vararg_obj",
-            ownerSymbol: sbSymbol,
-            ownerType: sbType,
-            parameters: [("value", nullableAnyType, false, true)],
-            returnType: sbType,
+    private func patchStringBuilderSupertypes(
+        sbSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinTextPkg = ensureKotlinTextPackage(symbols: symbols, interner: interner)
+        let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
+        let appendableSymbol = ensureInterfaceSymbol(
+            named: "Appendable",
+            in: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
+        let charSequenceSymbol = ensureInterfaceSymbol(
+            named: "CharSequence",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
+            symbols.setParentSymbol(kotlinTextPkgSymbol, for: appendableSymbol)
+        }
+        if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(kotlinPkgSymbol, for: charSequenceSymbol)
+        }
+        symbols.setDirectSupertypes([appendableSymbol, charSequenceSymbol], for: sbSymbol)
+        types.setNominalDirectSupertypes([appendableSymbol, charSequenceSymbol], for: sbSymbol)
+        if let ownerInfo = symbols.symbol(sbSymbol) {
+            let lengthName = interner.intern("length")
+            for candidate in symbols.lookupAll(fqName: ownerInfo.fqName + [lengthName]) {
+                guard symbols.symbol(candidate)?.kind == .property else {
+                    continue
+                }
+                symbols.setExternalLinkName("kk_string_builder_length_prop", for: candidate)
+            }
+        }
     }
 
     private func ensureKotlinTextPackage(
@@ -519,7 +388,6 @@ extension DataFlowSemaPhase {
 
     private func registerStringBuilderMemberFunction(
         named name: String,
-        externalLinkName: String,
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
@@ -533,15 +401,16 @@ extension DataFlowSemaPhase {
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+        let expectedParameterTypes = parameters.map(\.type)
+        let expectedParameterVarargs = parameters.map(\.isVararg)
+        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return existingSignature.receiverType == ownerType
-                && existingSignature.parameterTypes == parameters.map(\.type)
-                && existingSignature.valueParameterIsVararg == parameters.map(\.isVararg)
+                && existingSignature.parameterTypes == expectedParameterTypes
+                && existingSignature.valueParameterIsVararg == expectedParameterVarargs
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
             return
         }
 
@@ -554,7 +423,6 @@ extension DataFlowSemaPhase {
             flags: SymbolFlags.synthetic.union(extraFlags)
         )
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
 
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
@@ -595,7 +463,6 @@ extension DataFlowSemaPhase {
 
     private func registerStringBuilderMemberProperty(
         named name: String,
-        externalLinkName: String,
         ownerSymbol: SymbolID,
         returnType: TypeID,
         symbols: SymbolTable,
@@ -609,8 +476,10 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
             symbols.setPropertyType(returnType, for: existing)
+            if name == "length" {
+                symbols.setExternalLinkName("kk_string_builder_length_prop", for: existing)
+            }
             return
         }
 
@@ -623,7 +492,9 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
+        if name == "length" {
+            symbols.setExternalLinkName("kk_string_builder_length_prop", for: propertySymbol)
+        }
     }
 }
