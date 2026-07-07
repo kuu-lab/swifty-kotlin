@@ -210,7 +210,7 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func ksSymbolNameArgument(in line: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: #"@KsSymbolName\("([^"]+)"\)"#) else {
+        guard let regex = try? NSRegularExpression(pattern: #"@KsSymbolName\(\s*(?:name\s*=\s*)?"([^"]+)"\s*\)"#) else {
             return nil
         }
         let range = NSRange(line.startIndex..<line.endIndex, in: line)

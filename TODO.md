@@ -4,104 +4,6 @@
 
 ---
 
-## 使い方（簡略）
-- `[ ]` は未完了、`[~]` は部分完了（本文に残タスクを記載）
-- `kotlin.*` の common / Kotlin/Native 相当を主対象とする
-- JVM/JS/JVM専用・`kotlinx`・プラグイン系は「ターゲット外バックログ」へ
-- 参照は必要最小に留め、詳細は都度 task 本文に反映する
-
-### 主要参照
-- Kotlin stdlib 2.3.10 API: https://kotlinlang.org/api/core/kotlin-stdlib/
-- Kotlin release process: https://kotlinlang.org/docs/releases.html
-- Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
-
-## Stdlib API backlog（legacy）
-
-### Phase 4: リフレクション・数値・テキスト・その他 stdlib
-
-#### kotlin.coroutines 関数の実装
-
-- [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
-
-### Phase 5: 非スコープ/高度領域
-- [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
-- [ ] STDLIB-JVM-166: Java プレビュー機能の実装
-- [ ] STDLIB-REFL-175: アノテーション処理高度機能実装
-
-## Kotlin Stdlib Source Migration（bundled source 層への移行）
-
-Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.internal.*` または `__*` ブリッジに委譲する移行パターンを、残りの stdlib 領域にも適用する。現在の読み込み対象は `Sources/CompilerCore/Stdlib/` 配下の auto-discovered `.kt` と `BundledKotlinStdlib` の residual source。ルート `Stdlib/` 配下は legacy inventory であり、コンパイラの implicit stdlib としては読み込まれない。
-
-### 移行方針
-- M1–M17 は「`.kt` 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」を共通の完了条件にする。`.kt` ファイルの存在だけでは完了扱いにしない
-- 純ロジック（イテレーション・変換・比較等）は **Kotlin のみ** で実装し、対応する `HeaderHelpers+Synthetic*` の public stub 登録を同一 PR で削除する
-- OS/ハードウェアアクセス、ストレージ直アクセス、時刻・乱数・I/O・Foundation 依存など Kotlin だけで持つべきでない箇所は `@KsSymbolName("__kk_*")` 経由の internal bridge に降格する
-- 既存の public `kk_*` runtime/spec エントリは、Kotlin 化できるものは削除し、bridge 残留が必要なものだけ `__kk_*` へ改名して RuntimeABI / 呼び出し側を更新する
-- String 同様に boxed 表現を flat/aggregate 表現に段階的に移行する
-- 完了判定は、対象 API が implicit stdlib として読み込まれる `.kt` から解決され、同シグネチャの合成 public stub と KIR/TypeCheck の public `kk_*` 直接 dispatch が残らず、runtime/spec 側も削除または `__` bridge 降格済みであることを rg とゲートで確認する
-
-### Phase M1: kotlin.text 残りの String 操作
-> 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/text/`
-
-- [~] MIGRATION-TEXT-004: String split / join / chunk / window 系を Kotlin source に移行する。2026-07-06 RF-STDLIB-005: `StringSplitJoin.kt` を実配線し、`String.split` / `String.splitToSequence` の public overload は Kotlin source wrapper 経由へ移行。`kk_string_split*` / `kk_string_splitToSequence*` runtime 直結は private `__kk_*` bridge 側へ降格済み。`joinToString` / chunk / window 系は未完。
-- [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
-- [x] MIGRATION-TEXT-009: `commonPrefixWith` / `commonSuffixWith` を Kotlin source に移行する。2026-07-06 完了: `StringComparison.kt` は implicit stdlib として読み込まれ、TypeCheck fallback / KIR direct lowering / `RuntimeABISpec` / `RuntimeStringHOF.swift` / flat runtime wrappers の `kk_string_common*` 経路を削除済み。`common_prefix_with.kt` の `kswiftc` 実行と関連 XCTest は通過。
-
-### Phase M2: kotlin.text StringBuilder
-> 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/text/StringBuilder.kt`
-
-
-### Phase M3: kotlin.collections ファクトリ・HOF
-> 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/collections/`
-
-- [x] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）。2026-07-07 完了: `ListFilterHOF.kt` を implicit stdlib として有効化し、`*To` 変種も Kotlin source 側へ追加。synthetic List member / lowering direct runtime rewrite / `RuntimeABISpec` / `StdlibSurfaceSpec` / `RuntimeCollectionHOF.swift` の public legacy List filter 経路を削除し、`ListFilterHOFSourceMigrationTests` で source bind と旧 member link 不在を確認する形に更新。
-
-### Phase M4: kotlin.sequences
-> 移行元: `Sources/Runtime/RuntimeSequence.swift` (105), `RuntimeSequenceBuilders.swift` (20), `RuntimeSequenceAssociation.swift` (25), `RuntimeSequenceFoldScan.swift` (9)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/sequences/`
-
-- [x] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
-- [x] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
-
-### Phase M5: kotlin.comparisons
-> 移行元: `Sources/Runtime/RuntimeComparator.swift` (47 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt`
-
-- [x] MIGRATION-COMP-001: Comparator ファクトリ・合成を Kotlin source に移行する（`compareBy`, `compareByDescending`, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`）
-- [x] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
-
-### Phase M12: kotlin.uuid
-> 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt`
-
-- [x] MIGRATION-UUID-001: `Uuid` クラス API を Kotlin source に移行する（`Uuid.random`, `Uuid.parse`, `toString`, `toLongs`, `toByteArray`）
-
-### Phase M13: kotlin (Result)
-> 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/Result.kt`
-
-- [x] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
-
-## ターゲット外バックログ（本体非追跡）
-#### JS/Wasm/JVM stub登録呼び出し削除
-
-## 公式ドキュメント整合性チェック（Kotlin docs parity）
-
-## 仕様準拠監査（Spec Conformance Audit）
-
-Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、差異を記録・修正する継続タスク。
-
-### 方法論
-- 公式に文書化された挙動を真とし、二層で検証する:
-  1. **doc 由来ユニットテスト**（kotlinc 非依存・CI 強制）: 期待値を直接アサート。例: `Tests/RuntimeTests/RuntimeFloatingPointToStringTests.swift`。
-  2. **kotlinc 比較 diff ケース**: `Scripts/diff_cases/num_*.kt` を `Scripts/diff_kotlinc.sh` で本物の kotlinc(2.3.10) と突き合わせる。
-- 採番は `SPEC-NUM-{NUMBER}`。修正できない大規模/横断要因は再現 diff ケースを `// SKIP-DIFF` で残し追跡する（修正後にマーカーを外せば回帰テストになる）。
-
-### 数値・プリミティブ型（第1バッチ）
-
 ## 全体リファクタリング計画（RF0–RF9）
 
 > 調査日: 2026-06-10。実測: CompilerCore ~229k 行（うち Sema/DataFlow ~104k、合成スタブ約100ファイル/~9万行）、
@@ -120,8 +22,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### Phase RF2: Stdlib ソースパイプライン基盤（本計画のクリティカルパス）
 > 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」は基本配線済みだが、opt-out、source origin、合成スタブとの優先順位、incremental/golden 安定化を設計として固定する必要がある。
 - [x] RF-STDLIB-001: 設計メモ `docs/stdlib-pipeline.md` を作成する（読み込みフェーズ・合成スタブとの優先順位・インクリメンタルキャッシュ / golden への影響・コンパイル時間戦略。実装前に 1 PR でレビュー）
-- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `-no-default-stdlib-sources` での opt-out、source origin、ユーザー入力との診断パス区別）
-- [ ] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）
+- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `--no-stdlib` での opt-out、source origin、ユーザー入力との診断パス区別）
+- [x] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）。2026-07-07 完了: KSP-001〜003 で bundled 宣言インデックス、合成スタブ skip guard、`KSWIFTK-SEMA-0102` overlap warning を実装。
 - [x] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）。2026-07-06 完了。
 - [x] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
 - [x] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する。2026-07-06 再計測では bundled Lex+Parse 中央値が trigger 未満のため cache 追加は見送り。
@@ -275,22 +177,24 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### KSP-W0: 基盤（RF-STDLIB-003/006/007 の細分化。直列で実施）
 
-- [ ] KSP-001: bundled 宣言インデックスを構築する
+- [x] KSP-001: bundled 宣言インデックスを構築する
   - 前提: なし
   - 変更: 新規 `Sources/CompilerCore/Sema/DataFlow/BundledDeclarationIndex.swift` / `Sources/CompilerCore/Sema/DataFlow/Phase.swift` / `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` の `registerSyntheticDelegateStubs(symbols:types:interner:)`
   - 手順: (0) `Phase.swift` の `run()` では synthetic 型基盤が先に必要なため、bundled ソース宣言の SymbolTable 登録は `registerSyntheticDelegateStubs` より後に残す (1) パスが `__bundled_` で始まる fileID 集合を `ctx.sourceManager` から取り、AST から bundled 関数/プロパティ/nominal member の `(所有型FQName, メンバ名, パラメータ数)` Set を持つ struct `BundledDeclarationIndex` を実装する。post-header 利用向けの SymbolTable builder は同じ key 規則で保持する (2) `registerSyntheticDelegateStubs` に引数 `bundledIndex`（既定 `.empty`）を追加し `Phase.swift` から渡す
   - 検証: `swift build` + G（このタスクでは挙動不変）
-- [ ] KSP-002: 優先規則（Kotlin ソース > 合成スタブ）を実装する
+  - 完了: `BundledDeclarationIndex` を追加し、`Phase.swift` から `registerSyntheticDelegateStubs(... bundledIndex:)` へ渡す。
+- [x] KSP-002: 優先規則（Kotlin ソース > 合成スタブ）を実装する
   - 前提: KSP-001
   - 変更: `HeaderHelpers.swift` と各 `HeaderHelpers+Synthetic*` が使う共通登録ヘルパ
   - 手順: (1) `rg -n 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` で、メンバ/トップレベル関数シンボルを SymbolTable へ insert する共通ヘルパを特定 (2) insert 直前に `bundledIndex` に同 `(owner, name, arity)` があれば登録をスキップ (3) スキップ件数を debug ログ可能にする
   - 検証: G + U（bundled 由来 API のスタブが消えるため Sema golden 差分が出る — 機械的差分であることを確認）
   - 完了: `BundledKotlinStdlib.kotlinCollectionsSource` の `count`/`any`/`all` に対応する合成スタブが登録されないことをテストで assert
-- [ ] KSP-003: 二重定義 warning 診断を追加する
+- [x] KSP-003: 二重定義 warning 診断を追加する
   - 前提: KSP-002
   - 変更: `Sources/CompilerCore/Driver/DiagnosticRegistry.swift` の `semaDescriptors` / `Phase.swift`
   - 手順: (1) `rg 'KSWIFTK-SEMA-' Sources/CompilerCore/Driver/DiagnosticRegistry.swift` で未使用番号を採番し descriptor 追加 (2) `registerSyntheticDelegateStubs` 完了後、bundled インデックスと `.synthetic` フラグ付きシンボルの `(owner, name, arity)` 交差を検出したら `ctx.diagnostics.warning(...)`（= KSP-002 のガード漏れ検知） (3) 診断テスト追加
   - 検証: G
+  - 完了: `KSWIFTK-SEMA-0102` を登録し、synthetic/bundled overlap の warning 診断テストを追加。
 - [x] KSP-004: bundled ソースの fileID 順序不変条件テストを追加する
   - 前提: なし（並列可）
   - 変更: 新規 `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift`
@@ -310,32 +214,37 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 前提: KSP-006
   - 変更: `docs/refactoring-metrics.md`
   - 手順: (1) `rg -n 'phaseRecords' Sources` で PhaseTimer 出力の表示経路を確認 (2) `.build/debug/kswiftc Scripts/diff_cases/hello.kt -o /tmp/ksp_out` で計測 3 回の中央値を取得 (3) 「bundled stdlib 注入コスト」節を追記し、キャッシュ着手トリガー閾値（+100ms）を正式化
-- [ ] KSP-008: 設計文書の opt-out フラグ名を実装に合わせる
+- [x] KSP-008: 設計文書の opt-out フラグ名を実装に合わせる
   - 前提: なし（並列可）
   - 変更: `docs/stdlib-pipeline.md` §4
-  - 手順: `-no-default-stdlib-sources` の記述を実名 `--no-stdlib`（`Sources/KSwiftKCLI/CLIParser.swift` / `CompilerOptions.includeStdlib`）へ修正
+  - 手順: opt-out フラグ名を実名 `--no-stdlib`（`Sources/KSwiftKCLI/CLIParser.swift` / `CompilerOptions.includeStdlib`）で記述する
+  - 完了: `docs/stdlib-pipeline.md` §4 を `Sources/KSwiftKCLI/CLIParser.swift` の `--no-stdlib` / `CompilerOptions.includeStdlib` 表記に同期。
 
 ### KSP-W1: @KsSymbolName ブリッジ機構（W0 完了後、直列）
 
-- [ ] KSP-101: `@KsSymbolName` 注釈と Sema での externalLinkName 記録を実装する
+- [x] KSP-101: `@KsSymbolName` 注釈と Sema での externalLinkName 記録を実装する
   - 前提: KSP-002
   - 変更: 新規 `Sources/CompilerCore/Stdlib/kotlin/internal/Annotations.kt`（`package kotlin.internal` / `internal annotation class KsSymbolName(val name: String)`）/ Sema のヘッダ収集（関数シンボル生成箇所）
   - 手順: (1) `rg -n 'setExternalLinkName' Sources/CompilerCore` で既存の記録パターンを確認（`SemanticsModels.swift` の `setExternalLinkName(_:for:)`） (2) `FunctionDecl.annotations`（`AnnotationNode(name:arguments:)`）に `KsSymbolName` があれば引数文字列（引用符除去）を externalLinkName として記録 (3) 記録された関数の呼び出しが KIR で当該シンボル名の外部 call になるユニットテスト追加
   - 検証: G
-- [ ] KSP-102: `external fun` の本体なしを検証する
+  - 完了: `KsSymbolName(name = "...")` を `externalLinkName` として記録し、KIR call callee が指定名になることを `KsSymbolNameSemaTests` で確認。
+- [x] KSP-102: `external fun` の本体なしを検証する
   - 前提: KSP-101
   - 手順: (1) `external` 修飾子付き fun（本体なし）が診断なしで通ることを確認（出る場合は body-required 診断を external 免除に） (2) `external` なし・本体なし fun がエラーのままであることをテストで固定
   - 検証: G
-- [ ] KSP-103: @KsSymbolName ↔ RuntimeABISpec 突合テストを追加する
+  - 完了: bundled `external fun` 本体なしは `KSWIFTK-SEMA-0008/0009` なし、非 `external` 本体なしは `KSWIFTK-SEMA-0009` のまま `KsSymbolNameSemaTests` で固定。
+- [x] KSP-103: @KsSymbolName ↔ RuntimeABISpec 突合テストを追加する
   - 前提: KSP-101
   - 変更: 新規テスト（`Tests/` 配下、`RuntimeABIExternalLinkValidationTests` のパターンを流用）
   - 手順: bundled 全 .kt から `@KsSymbolName\("([^"]+)"\)` を抽出し、全値が `RuntimeABISpec` に宣言されアリティが一致することを assert（enforcing）
   - 検証: G
-- [ ] KSP-104: `@KsSymbolName` / `external` のユーザーコード使用を禁止する
+  - 完了: `RuntimeABIExternalLinkValidationTests.testBundledKsSymbolNameDeclarationsMatchRuntimeABIArity` で bundled `.kt` の `@KsSymbolName` 値と `RuntimeABISpec` の宣言・アリティを enforcing 検証。
+- [x] KSP-104: `@KsSymbolName` / `external` のユーザーコード使用を禁止する
   - 前提: KSP-101
   - 変更: Sema + `DiagnosticRegistry.swift`（KSWIFTK-SEMA 新番号）
   - 手順: 宣言ファイルのパスが `__bundled_` で始まらない場合に error 診断。テスト追加
   - 検証: G
+  - 完了: `KSWIFTK-SEMA-0007` / `KSWIFTK-SEMA-0008` でユーザーコード側の `@KsSymbolName` / `external` を拒否し、combined case を `KsSymbolNameSemaTests` で固定。
 
 ### KSP-W2: 縦切りテンプレート（1 タスク = 1 PR。以後の移行の見本）
 
@@ -373,8 +282,9 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 削除: `CallLowerer+StdlibArrayConstructor.swift` のファクトリ特例 / 各 `HeaderHelpers+Synthetic{List,Set,Map,Array}Stubs.swift` のファクトリ登録
   - 手順: T / diff: `collection_builders.kt`（既存）
 - [x] KSP-306: ListFilterHOF を配線する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
-  - 削除: legacy List filter runtime entry points + `*To` 変種（`RuntimeCollectionHOF.swift`）/ `HeaderHelpers+SyntheticListTransformMembers.swift` の同登録 / `CallLowerer+CollectionHOFMemberCalls.swift` の同 case
-  - 完了: `ListFilterHOF.kt` の除外解除、`*To` 変種追加、runtime/synthetic/ABI/surface/lowering 参照削除、source-backed Sema bind test 追加
+  - 済み: 上記 5 関数は bundled Kotlin source へ bind し、同名 synthetic member stub を抑制済み
+  - 完了: `*To` 変種も Kotlin source 側へ追加し、synthetic List member / lowering direct runtime rewrite / `RuntimeABISpec` / `StdlibSurfaceSpec` / `RuntimeCollectionHOF.swift` の public legacy List filter 経路を削除。`ListFilterHOFSourceMigrationTests` で source bind と旧 member link 不在を確認。
+  - 削除: `kk_list_filter`, `kk_list_filterNot`, `kk_list_filterNotNull`, `kk_list_filterIndexed`, `kk_list_filterIsInstance` + `*To` 変種（`RuntimeCollectionHOF.swift`）/ `HeaderHelpers+SyntheticListTransformMembers.swift` の同登録 / `CallLowerer+CollectionHOFMemberCalls.swift` の同 case
   - 手順: T
 - [ ] KSP-307: ListWindowChunk を配線する（`chunked`, `windowed`, `zip`, `zipWithNext`, `withIndex`）
   - 削除: `kk_list_chunked`, `kk_list_chunked_transform`, `kk_list_windowed`, `kk_list_windowed_default`, `kk_list_windowed_partial`, `kk_list_windowed_transform`, `kk_list_zip`, `kk_list_zipWithNext`, `kk_list_zipWithNextTransform` / 対応スタブ（`HeaderHelpers+SyntheticListTransformMembers.swift`, `+SyntheticListAggregateMembers.swift`）

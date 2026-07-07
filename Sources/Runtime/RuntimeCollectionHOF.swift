@@ -1505,6 +1505,24 @@ public func kk_list_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
+@_cdecl("kk_list_zip_transform")
+public func kk_list_zip_transform(_ listRaw: Int, _ otherRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let lhsBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    guard let rhsBox = runtimeListBox(from: otherRaw) else { invalidContainerPanic(#function, "list") }
+    let lhs = lhsBox.elements
+    let rhs = rhsBox.elements
+    let count = min(lhs.count, rhs.count)
+    var result: [Int] = []
+    result.reserveCapacity(count)
+    for index in 0 ..< count {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: lhs[index], rhs: rhs[index], outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        result.append(maybeUnbox(transformed))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
 @_cdecl("kk_list_unzip")
 public func kk_list_unzip(_ listRaw: Int) -> Int {
     guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
