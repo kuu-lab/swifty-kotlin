@@ -3965,6 +3965,17 @@ final class CallTypeChecker {
                 }
             }
 
+            if let resultType = inferSequenceScopeYieldAllImplicitReceiverCall(
+                id,
+                calleeName: calleeName,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                explicitTypeArgs: explicitTypeArgs
+            ) {
+                return resultType
+            }
+
             // General member function lookup via implicit receiver
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
