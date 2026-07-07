@@ -968,6 +968,14 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
+        if (loweredCallee == interner.intern("kk_comparator_nulls_first")
+            || loweredCallee == interner.intern("kk_comparator_nulls_last")),
+           finalArguments.count == 1
+        {
+            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
+            finalArguments.append(zeroClosureExpr)
+        }
         // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation) and
         // kk_semaphore_withPermit(handle, actionFnPtr, actionEnvPtr, continuation): split the
         // lambda argument at index 1 into a function pointer and environment pointer,
