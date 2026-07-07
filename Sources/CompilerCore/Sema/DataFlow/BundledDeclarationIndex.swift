@@ -236,8 +236,12 @@ struct BundledDeclarationIndex: Sendable {
         switch interner.resolve(key.name) {
         case "fold", "scan":
             return key.arity == 2
+        case "flatMap", "flatMapIndexed":
+            return key.arity == 1
         case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
             return key.arity == 1
+        case "requireNoNulls":
+            return key.arity == 0
         case "toList", "toSet", "toMutableList":
             // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
             // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
