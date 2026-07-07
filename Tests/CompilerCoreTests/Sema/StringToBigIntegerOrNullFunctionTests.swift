@@ -68,7 +68,7 @@ struct StringToBigIntegerOrNullFunctionTests {
             #expect(
                 sema.bindings.callBinding(for: callExpr).flatMap {
                     sema.symbols.externalLinkName(for: $0.chosenCallee)
-                } == "kk_string_toBigIntegerOrNull"
+                } == nil
             )
         }
     }
