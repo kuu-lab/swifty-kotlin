@@ -117,6 +117,7 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/ranges/RangeMembership",
         "kotlin/text/StringBuilder",
         "kotlin/text/StringIndentFormat",
+        "kotlin/text/StringSearchReplace",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {
