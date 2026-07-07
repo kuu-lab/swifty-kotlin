@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-001): uses KSwiftK UUID APIs that are not available in the kotlinc JVM reference.
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
 import kotlin.uuid.Uuid
