@@ -65,9 +65,14 @@ func runtimeResultRunCatching(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var thrown = 0
-    let result = lambda(closureRaw, &thrown)
+    let result: Int
+    if runtimeFunctionValueBox(from: fnPtr) != nil {
+        result = kk_function_invoke_0(fnPtr, &thrown)
+    } else {
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        result = lambda(closureRaw, &thrown)
+    }
     if thrown != 0 {
         return runtimeResultFailure(thrown)
     }
@@ -110,12 +115,17 @@ private func runtimeResultInvoke1(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     var thrown = 0
-    let result = runtimeInvokeCollectionLambda1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: value,
-        outThrown: &thrown
-    )
+    let result: Int
+    if runtimeFunctionValueBox(from: fnPtr) != nil {
+        result = kk_function_invoke(fnPtr, value, &thrown)
+    } else {
+        result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: value,
+            outThrown: &thrown
+        )
+    }
     if thrown != 0 {
         outThrown?.pointee = thrown
         return 0
@@ -274,7 +284,7 @@ func runtimeResultRecoverCatching(
         return runtimeResultSuccess(box.value)
     }
     var thrown = 0
-    let recovered = runtimeInvokeCollectionLambda1(
+    let recovered = runtimeResultInvoke1(
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         value: box.exception,
