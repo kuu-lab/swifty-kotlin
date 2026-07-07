@@ -103,6 +103,189 @@ func runtimeResultGetOrThrow(
     return 0
 }
 
+private func runtimeResultInvoke1(
+    fnPtr: Int,
+    closureRaw: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        value: value,
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
+}
+
+func runtimeResultGetOrElse(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if box.isSuccess {
+        return box.value
+    }
+    return runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: outThrown)
+}
+
+func runtimeResultMap(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if !box.isSuccess {
+        return runtimeResultFailure(box.exception)
+    }
+    var thrown = 0
+    let transformed = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return runtimeResultSuccess(transformed)
+}
+
+func runtimeResultFold(
+    _ resultRaw: Int,
+    _ successFnPtr: Int,
+    _ successClosureRaw: Int,
+    _ failureFnPtr: Int,
+    _ failureClosureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if box.isSuccess {
+        return runtimeResultInvoke1(
+            fnPtr: successFnPtr,
+            closureRaw: successClosureRaw,
+            value: box.value,
+            outThrown: outThrown
+        )
+    }
+    return runtimeResultInvoke1(
+        fnPtr: failureFnPtr,
+        closureRaw: failureClosureRaw,
+        value: box.exception,
+        outThrown: outThrown
+    )
+}
+
+func runtimeResultOnSuccess(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if box.isSuccess {
+        var thrown = 0
+        _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+    }
+    return resultRaw
+}
+
+func runtimeResultOnFailure(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if !box.isSuccess {
+        var thrown = 0
+        _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+    }
+    return resultRaw
+}
+
+func runtimeResultRecover(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if box.isSuccess {
+        return runtimeResultSuccess(box.value)
+    }
+    var thrown = 0
+    let recovered = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return runtimeResultSuccess(recovered)
+}
+
+func runtimeResultRecoverCatching(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return 0
+    }
+    if box.isSuccess {
+        return runtimeResultSuccess(box.value)
+    }
+    var thrown = 0
+    let recovered = runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        value: box.exception,
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        return runtimeResultFailure(thrown)
+    }
+    return runtimeResultSuccess(recovered)
+}
+
 // MARK: - Bundled Result.kt Runtime Bridges
 
 @_cdecl("kk_runtime_result_success")
@@ -120,12 +303,106 @@ public func kk_runtime_result_is_success(_ resultRaw: Int) -> Int {
     runtimeResultIsSuccess(resultRaw) ? 1 : 0
 }
 
+@_cdecl("kk_runtime_result_is_failure")
+public func kk_runtime_result_is_failure(_ resultRaw: Int) -> Int {
+    runtimeResultIsFailure(resultRaw) ? 1 : 0
+}
+
 @_cdecl("kk_runtime_result_value_or_null")
 public func kk_runtime_result_value_or_null(_ resultRaw: Int) -> Int {
     runtimeResultValueOrNull(resultRaw)
 }
 
+@_cdecl("kk_runtime_result_get_or_throw")
+public func kk_runtime_result_get_or_throw(
+    _ resultRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultGetOrThrow(resultRaw, outThrown)
+}
+
 @_cdecl("kk_runtime_result_exception_or_null")
 public func kk_runtime_result_exception_or_null(_ resultRaw: Int) -> Int {
     runtimeResultExceptionOrNull(resultRaw)
+}
+
+@_cdecl("kk_runtime_result_run_catching")
+public func kk_runtime_result_run_catching(
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultRunCatching(fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_get_or_else")
+public func kk_runtime_result_get_or_else(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultGetOrElse(resultRaw, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_map")
+public func kk_runtime_result_map(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultMap(resultRaw, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_fold")
+public func kk_runtime_result_fold(
+    _ resultRaw: Int,
+    _ successFnPtr: Int,
+    _ successClosureRaw: Int,
+    _ failureFnPtr: Int,
+    _ failureClosureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultFold(resultRaw, successFnPtr, successClosureRaw, failureFnPtr, failureClosureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_on_success")
+public func kk_runtime_result_on_success(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultOnSuccess(resultRaw, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_on_failure")
+public func kk_runtime_result_on_failure(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultOnFailure(resultRaw, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_recover")
+public func kk_runtime_result_recover(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultRecover(resultRaw, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_runtime_result_recover_catching")
+public func kk_runtime_result_recover_catching(
+    _ resultRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeResultRecoverCatching(resultRaw, fnPtr, closureRaw, outThrown)
 }

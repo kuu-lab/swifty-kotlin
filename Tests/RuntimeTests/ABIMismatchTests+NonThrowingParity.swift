@@ -879,6 +879,7 @@ extension ABIMismatchTests {
         "kk_resource_stream_read",
         "kk_runtime_result_exception_or_null",
         "kk_runtime_result_failure",
+        "kk_runtime_result_is_failure",
         "kk_runtime_result_is_success",
         "kk_runtime_result_success",
         "kk_runtime_result_value_or_null",

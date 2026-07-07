@@ -493,6 +493,7 @@ extension CallLowerer {
         // points receive lambda arguments as (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
             "kk_auto_closeable_create",
+            "kk_runtime_result_run_catching",
         ]
         if function0RuntimeNames.contains(externalLinkName), loweredArguments.count == 1 {
             return makeClosureThunkExpandedArguments(
