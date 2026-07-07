@@ -290,6 +290,11 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
+@_cdecl("__kk_string_split")
+public func __kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
+    kk_string_split(strRaw, delimRaw)
+}
+
 @_cdecl("kk_string_split_flat")
 public func kk_string_split_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -322,6 +327,11 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
+}
+
+@_cdecl("__kk_string_split_limit")
+public func __kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
+    kk_string_split_limit(strRaw, delimRaw, ignoreCaseRaw, limitRaw)
 }
 
 @_cdecl("kk_string_split_limit_flat")

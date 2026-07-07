@@ -423,13 +423,13 @@ struct RegexAPISurfaceInventoryTests {
     @Test func testStringSplitWithRegexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // String.split(Regex) is registered in HeaderHelpers+SyntheticStringStubs
-        // as kotlin.text.split with externalLinkName kk_string_split_regex.
+        // as kotlin.text.split with an internal __kk_* bridge link.
         let fq = ["kotlin", "text", "split"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_string_split_regex_flat"),
-            Comment(rawValue: "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)")
+            links.contains("__kk_string_split_regex_flat"),
+            Comment(rawValue: "kotlin.text.split(Regex) must link to __kk_string_split_regex_flat; found: \(links)")
         )
     }
 
@@ -746,7 +746,7 @@ struct RegexAPISurfaceInventoryTests {
             (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
             (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
             (["kotlin", "text", "replaceFirst"], "kk_string_replaceFirst_regex"),
-            (["kotlin", "text", "split"], "kk_string_split_regex_flat"),
+            (["kotlin", "text", "split"], "__kk_string_split_regex_flat"),
             (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
             (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
             (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),

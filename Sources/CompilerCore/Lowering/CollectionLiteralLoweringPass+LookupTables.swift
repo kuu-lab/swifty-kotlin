@@ -900,7 +900,7 @@ struct CollectionLiteralLookupTables {
         kkSetToStringName = interner.intern("kk_set_to_string")
         kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
         kkSetToListName = interner.intern("kk_set_toList")
-        kkStringSplitName = interner.intern("kk_string_split_flat")
+        kkStringSplitName = interner.intern("__kk_string_split")
         kkStringAsSequenceName = interner.intern("kk_string_asSequence_flat")
         kkStringAsIterableName = interner.intern("kk_string_asIterable_flat")
         kkStringIteratorName = interner.intern("kk_string_iterator_flat")

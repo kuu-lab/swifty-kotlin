@@ -94,18 +94,18 @@ struct StringSyntheticMemberLinkTests {
         )
         #expect(
             externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
-                .contains("kk_string_split_flat"),
-            "String.__kk_string_split should bridge to kk_string_split_flat"
+                .contains("__kk_string_split"),
+            "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
         )
         #expect(
             externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
-                .contains("kk_string_split_limit_flat"),
-            "String.__kk_string_split_limit should bridge to kk_string_split_limit_flat"
+                .contains("__kk_string_split_limit"),
+            "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
         )
         #expect(
             externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
-                .contains("kk_string_splitToSequence_flat"),
-            "String.__kk_string_splitToSequence should bridge to kk_string_splitToSequence_flat"
+                .contains("__kk_string_splitToSequence"),
+            "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
         )
         #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
