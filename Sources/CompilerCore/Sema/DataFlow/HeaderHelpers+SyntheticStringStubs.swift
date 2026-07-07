@@ -363,36 +363,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // RF-STDLIB-005: private split bridges called from
-        // Stdlib/kotlin/text/StringSplitJoin.kt.
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_string_split",
-            externalLinkName: "kk_string_split_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-            ],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_string_split_limit",
-            externalLinkName: "kk_string_split_limit_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-                ("limit", intType, false, false),
-            ],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         registerSyntheticStringExtensionFunction(
             named: "startsWith",
             externalLinkName: "kk_string_startsWith_flat",
@@ -2077,6 +2047,63 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: stringType
         )
+
+        // RF-STDLIB-005: Kotlin source in StringSplitJoin.kt owns the public
+        // split/joinToString surface. These __kk_* bridge stubs are only called
+        // from that source and lower to private runtime ABI aliases.
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_split",
+            externalLinkName: "__kk_string_split",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", stringType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_split_limit",
+            externalLinkName: "__kk_string_split_limit",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+                ("limit", intType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_splitToSequence",
+            externalLinkName: "__kk_string_splitToSequence",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", stringType, false, false),
+            ],
+            returnType: sequenceStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_joinToString",
+            externalLinkName: "__kk_string_joinToString",
+            receiverType: listAnyType,
+            parameters: [
+                ("separator", stringType, false, false),
+                ("prefix", stringType, false, false),
+                ("postfix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "filter",
             externalLinkName: "kk_string_filter",
@@ -2612,17 +2639,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_string_splitToSequence",
-            externalLinkName: "kk_string_splitToSequence_flat",
-            receiverType: stringType,
-            parameters: [("delimiter", stringType, false, false)],
-            returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- String.indexOfFirst / indexOfLast ---
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
