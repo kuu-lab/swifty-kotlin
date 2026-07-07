@@ -342,6 +342,7 @@ extension ABIMismatchTests {
         "kk_int_to_uint",
         "kk_int_to_ulong",
         "kk_int_to_ushort",
+        "kk_indexed_value_new",
         "kk_iterable_joinTo",
         "kk_iterable_joinToString",
         "kk_iterable_toHashSet",
