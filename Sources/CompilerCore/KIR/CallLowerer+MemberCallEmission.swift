@@ -450,7 +450,7 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_byteArray_toKString")
+           loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
                 normalized.defaultMask,

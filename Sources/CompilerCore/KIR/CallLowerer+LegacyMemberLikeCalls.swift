@@ -1888,20 +1888,7 @@ extension CallLowerer {
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "encodeToByteArray":
-                    if loweredArgIDs.count == 1 {
-                        ("kk_string_encodeToByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
-                case "toByteArray":
-                    if loweredArgIDs.count == 1 {
-                        // toByteArray(charset) returns the ByteArray handle produced by the charset-aware runtime.
-                        ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        // toByteArray(startIndex, endIndex) shares the ByteArray-returning range function with encodeToByteArray.
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
+
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":

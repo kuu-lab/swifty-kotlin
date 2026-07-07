@@ -172,3 +172,28 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     }
     return sb.toString()
 }
+
+public fun String.indent(): String = indent(4)
+
+public fun String.indent(n: Int): String {
+    if (n == 0) return this
+    val lines = splitIntoLines()
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (n > 0) {
+            var j = 0
+            while (j < n) { sb.append(' '); j++ }
+            sb.append(line)
+        } else {
+            val remove = -n
+            val leading = line.leadingWhitespaceCount()
+            val drop = if (remove < leading) remove else leading
+            sb.append(line.substring(drop))
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
