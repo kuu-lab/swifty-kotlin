@@ -5,8 +5,8 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
-            switch externalLinkName {
+                if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
+                    switch externalLinkName {
             case "kk_list_contains", "kk_list_containsAll", "kk_list_indexOf", "kk_list_lastIndexOf",
                  "kk_list_getOrElse", "kk_list_elementAtOrElse",
                  "kk_list_binarySearch",
@@ -24,6 +24,7 @@ extension CallTypeChecker {
                  "kk_list_maxOfWith", "kk_list_maxOfWithOrNull",
                  "kk_list_minOfWith", "kk_list_minOfWithOrNull",
                  "kk_list_minus_element",
+                 "kk_list_zip_transform",
                  "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
                  "kk_sequence_contains", "kk_sequence_indexOf",
                 "kk_sequence_chunked_transform",
