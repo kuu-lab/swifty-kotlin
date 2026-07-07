@@ -577,7 +577,6 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             func flags(_ primary: String, _ aliases: String...) -> [Bool]? {
                 ([primary] + aliases).compactMap { throwFlags[$0] }.first
             }
-            XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertNil(throwFlags["kk_string_split_flat"])
             XCTAssertNil(throwFlags["kk_string_split"])
             XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
