@@ -22,6 +22,31 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+        if sema.bindings.isFloatingPointRangeExpr(receiverID),
+           let floatingPointResult = tryRangeMembershipFallback(
+            memberName: memberName,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+           )
+        {
+            sema.bindings.bindExprType(id, type: floatingPointResult)
+            return floatingPointResult
+        }
+        if let receiverType = sema.bindings.exprType(for: receiverID),
+           driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: interner),
+           let openEndResult = tryRangeMembershipFallback(
+            memberName: memberName,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+           )
+        {
+            sema.bindings.bindExprType(id, type: openEndResult)
+            return openEndResult
+        }
         guard isSupportedRangeMember(memberName),
               isValidRangeMemberArity(memberName, argCount: args.count)
         else {
@@ -134,6 +159,26 @@ extension CallTypeChecker {
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
+    }
+
+    private func tryRangeMembershipFallback(
+        memberName: String,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        switch memberName {
+        case "contains":
+            guard args.count == 1 else { return nil }
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        case "isEmpty":
+            guard args.isEmpty else { return nil }
+        default:
+            return nil
+        }
+        let resultType = ctx.sema.types.booleanType
+        return safeCall ? ctx.sema.types.makeNullable(resultType) : resultType
     }
 
     private func isSupportedRangeMember(_ memberName: String) -> Bool {

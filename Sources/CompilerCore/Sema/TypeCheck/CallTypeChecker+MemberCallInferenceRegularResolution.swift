@@ -1310,7 +1310,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        guard let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+        guard let rangeKind = sourceLevelRangeMemberReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
             sema: sema,
@@ -1357,6 +1357,64 @@ extension CallTypeChecker {
             args: [],
             nullability: .nonNull
         )))
+    }
+
+    private func sourceLevelRangeMemberReceiverKind(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> MemberDispatchReceiverKind? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
+            switch interner.resolve(symbol.name) {
+            case "IntRange":
+                return .intRange
+            case "LongRange":
+                return .longRange
+            case "CharRange":
+                return .charRange
+            case "UIntRange":
+                return .uintRange
+            case "ULongRange":
+                return .ulongRange
+            case "IntProgression":
+                return .intProgression
+            case "LongProgression":
+                return .longProgression
+            case "CharProgression":
+                return .charProgression
+            case "UIntProgression":
+                return .uintProgression
+            case "ULongProgression":
+                return .ulongProgression
+            default:
+                return nil
+            }
+        }
+
+        guard sema.bindings.isRangeExpr(receiverExpr) else {
+            return nil
+        }
+        if sema.bindings.isFloatingPointRangeExpr(receiverExpr) {
+            return nil
+        }
+        if sema.bindings.isCharRangeExpr(receiverExpr) {
+            return .charRange
+        }
+        if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
+            return .ulongRange
+        }
+        if sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType {
+            return .uintRange
+        }
+        if nonNullReceiverType == sema.types.longType {
+            return .longRange
+        }
+        if nonNullReceiverType == sema.types.intType {
+            return .intRange
+        }
+        return nil
     }
 
     private func collectRangeSourceExtensionCandidates(
