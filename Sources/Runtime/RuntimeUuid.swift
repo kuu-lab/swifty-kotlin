@@ -101,6 +101,13 @@ private func runtimeCompareUuidLexically(_ lhs: RuntimeUuidBox, _ rhs: RuntimeUu
     return 0
 }
 
+@_cdecl("__kk_uuid_lexicalOrder")
+public func __kk_uuid_lexicalOrder() -> Int {
+    let raw = registerRuntimeObject(RuntimeUuidLexicalOrderComparatorBox())
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self))
+    return raw
+}
+
 /// Extract a RuntimeUuidBox from a raw receiver value.
 private func runtimeUuidBox(from rawValue: Int) -> RuntimeUuidBox? {
     if let legacyBox = resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self) {
@@ -208,6 +215,14 @@ public func __kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
     return runtimeUuidObjectRaw(
         mostSignificantBits: Int64(bitPattern: msb),
         leastSignificantBits: Int64(bitPattern: lsb)
+    )
+}
+
+@_cdecl("__kk_uuid_fromLongs")
+public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
+    return runtimeUuidObjectRaw(
+        mostSignificantBits: Int64(kk_unbox_long(msbRaw)),
+        leastSignificantBits: Int64(kk_unbox_long(lsbRaw))
     )
 }
 

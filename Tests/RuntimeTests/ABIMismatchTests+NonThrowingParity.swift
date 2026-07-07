@@ -1242,6 +1242,8 @@ extension ABIMismatchTests {
         "kk_ushort_to_short",
         "kk_ushort_to_uint",
         "kk_ushort_to_ulong",
+        "__kk_uuid_fromLongs",
+        "__kk_uuid_lexicalOrder",
         "__kk_uuid_nameUUIDFromBytes",
         "__kk_uuid_random",
         "kk_uuid_toKotlinUuid",

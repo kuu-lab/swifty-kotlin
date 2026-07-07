@@ -157,6 +157,8 @@ extension ABIMismatchTests {
 
     // MARK: UUID (kotlin.uuid)
     private static let uuidStubLinkNames: Set<String> = [
+        "__kk_uuid_fromLongs",
+        "__kk_uuid_lexicalOrder",
         "__kk_uuid_nameUUIDFromBytes",
         "__kk_uuid_random",
         "kk_byteArray_putUuid",

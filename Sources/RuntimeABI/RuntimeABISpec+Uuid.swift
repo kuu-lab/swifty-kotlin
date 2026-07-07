@@ -19,6 +19,23 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_uuid_lexicalOrder",
+            parameters: [],
+            returnType: .intptr,
+            section: "Uuid",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_uuid_fromLongs",
+            parameters: [
+                RuntimeABIParameter(name: "mostSignificantBits", type: .intptr),
+                RuntimeABIParameter(name: "leastSignificantBits", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_uuid_toKotlinUuid",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),

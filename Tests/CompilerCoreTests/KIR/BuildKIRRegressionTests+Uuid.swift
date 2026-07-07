@@ -47,11 +47,22 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            #expect(callees.contains("__kk_uuid_random"), "Uuid.random should call the downgraded entropy bridge")
-            #expect(
-                callees.contains("__kk_uuid_nameUUIDFromBytes"),
-                "Uuid.nameUUIDFromBytes should call the downgraded MD5 bridge"
-            )
+            for callee in [
+                "random",
+                "nameUUIDFromBytes",
+                "fromLongs",
+                "fromByteArray",
+                "toByteArray",
+            ] {
+                #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
+            }
+
+            #expect(callees.isDisjoint(with: [
+                "__kk_uuid_random",
+                "__kk_uuid_nameUUIDFromBytes",
+                "__kk_uuid_lexicalOrder",
+                "__kk_uuid_fromLongs",
+            ]))
 
             let removedRuntimeCallees: Set<String> = [
                 "kk_uuid_fromByteArray",
@@ -120,7 +131,13 @@ extension BuildKIRRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        for callee in ["__kk_uuid_random", "__kk_uuid_nameUUIDFromBytes", "kk_uuid_toKotlinUuid"] {
+        for callee in [
+            "__kk_uuid_random",
+            "__kk_uuid_nameUUIDFromBytes",
+            "__kk_uuid_lexicalOrder",
+            "__kk_uuid_fromLongs",
+            "kk_uuid_toKotlinUuid",
+        ] {
             #expect(
                 callees.contains(interner.intern(callee)),
                 "\(callee) should not receive an outThrown slot during ABI lowering"

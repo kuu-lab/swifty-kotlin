@@ -20,45 +20,47 @@ public class Uuid private constructor(
 
         public val NIL: Uuid = fromLongs(0L, 0L)
 
-        public val LEXICAL_ORDER: Comparator<Uuid> = object : Comparator<Uuid> {
-            public override fun compare(a: Uuid, b: Uuid): Int {
-                val msbCompare = compareUnsignedLongs(a.mostSignificantBits, b.mostSignificantBits)
-                if (msbCompare != 0) return msbCompare
-                return compareUnsignedLongs(a.leastSignificantBits, b.leastSignificantBits)
-            }
-        }
+        public val LEXICAL_ORDER: Comparator<Uuid> = __kk_uuid_lexicalOrder()
 
         public fun random(): Uuid = __kk_uuid_random()
 
-        public fun parse(uuidString: String): Uuid =
-            parseOrNull(uuidString) ?: throw IllegalArgumentException("Invalid UUID string: $uuidString")
+        public fun parse(uuidString: String): Uuid {
+            val parsed = parseOrNull(uuidString)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID string: $uuidString")
+            return parsed!!
+        }
 
         public fun parseOrNull(uuidString: String): Uuid? =
             parseStringOrNull(uuidString)
 
-        public fun parseHex(hexString: String): Uuid =
-            parseHexOrNull(hexString) ?: throw IllegalArgumentException("Invalid UUID hex string: $hexString")
+        public fun parseHex(hexString: String): Uuid {
+            val parsed = parseHexOrNull(hexString)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID hex string: $hexString")
+            return parsed!!
+        }
 
         public fun parseHexOrNull(hexString: String): Uuid? =
             parseHexBodyOrNull(hexString)
 
         public fun parseHexDash(hexDashString: String): Uuid {
             val hex = hexFromHexDashString(hexDashString)
-                ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
-            return parseHexBodyOrNull(hex)
-                ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            if (hex == null) throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            val parsed = parseHexBodyOrNull(hex!!)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            return parsed!!
         }
 
         public fun parseHexDashOrNull(hexDashString: String): Uuid? {
-            val hex = hexFromHexDashString(hexDashString) ?: return null
-            return parseHexBodyOrNull(hex)
+            val hex = hexFromHexDashString(hexDashString)
+            if (hex == null) return null
+            return parseHexBodyOrNull(hex!!)
         }
 
         public fun nameUUIDFromBytes(name: ByteArray): Uuid =
             __kk_uuid_nameUUIDFromBytes(name)
 
         public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
-            Uuid(mostSignificantBits, leastSignificantBits)
+            __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
 
         public fun fromByteArray(byteArray: ByteArray): Uuid {
             if (byteArray.size != SIZE_BYTES) {
@@ -80,8 +82,9 @@ public class Uuid private constructor(
 
         private fun parseStringOrNull(uuidString: String): Uuid? {
             if (uuidString.length == 36) {
-                val hex = hexFromHexDashString(uuidString) ?: return null
-                return parseHexBodyOrNull(hex)
+                val hex = hexFromHexDashString(uuidString)
+                if (hex == null) return null
+                return parseHexBodyOrNull(hex!!)
             }
             if (uuidString.length == 32) {
                 return parseHexBodyOrNull(uuidString)
@@ -95,12 +98,14 @@ public class Uuid private constructor(
             var lsb = 0L
             var i = 0
             while (i < 16) {
-                val digit = hexDigitOrNull(hex[i]) ?: return null
+                val digit = hexDigit(hex[i])
+                if (digit < 0) return null
                 msb = (msb shl 4) or digit.toLong()
                 i += 1
             }
             while (i < 32) {
-                val digit = hexDigitOrNull(hex[i]) ?: return null
+                val digit = hexDigit(hex[i])
+                if (digit < 0) return null
                 lsb = (lsb shl 4) or digit.toLong()
                 i += 1
             }
@@ -116,7 +121,7 @@ public class Uuid private constructor(
                 if (i == 8 || i == 13 || i == 18 || i == 23) {
                     if (ch != '-') return null
                 } else {
-                    if (hexDigitOrNull(ch) == null) return null
+                    if (hexDigit(ch) < 0) return null
                     sb.append(ch)
                 }
                 i += 1
@@ -124,31 +129,28 @@ public class Uuid private constructor(
             return sb.toString()
         }
 
-        private fun hexDigitOrNull(ch: Char): Int? =
-            ch.digitToIntOrNull(16)
-
-        private fun compareUnsignedLongs(a: Long, b: Long): Int {
-            if (a == b) return 0
-            val aNegative = a < 0L
-            val bNegative = b < 0L
-            if (aNegative != bNegative) {
-                return if (aNegative) 1 else -1
-            }
-            return if (a < b) -1 else 1
+        private fun hexDigit(ch: Char): Int {
+            if (ch >= '0' && ch <= '9') return ch.code - '0'.code
+            if (ch >= 'a' && ch <= 'f') return ch.code - 'a'.code + 10
+            if (ch >= 'A' && ch <= 'F') return ch.code - 'A'.code + 10
+            return -1
         }
+
     }
 
     public override fun toString(): String {
         val sb = StringBuilder()
-        appendHex(sb, mostSignificantBits ushr 32, 8)
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
+        appendHex(sb, msb ushr 32, 8)
         sb.append('-')
-        appendHex(sb, mostSignificantBits ushr 16, 4)
+        appendHex(sb, msb ushr 16, 4)
         sb.append('-')
-        appendHex(sb, mostSignificantBits, 4)
+        appendHex(sb, msb, 4)
         sb.append('-')
-        appendHex(sb, leastSignificantBits ushr 48, 4)
+        appendHex(sb, lsb ushr 48, 4)
         sb.append('-')
-        appendHex(sb, leastSignificantBits, 12)
+        appendHex(sb, lsb, 12)
         return sb.toString()
     }
 
@@ -163,14 +165,16 @@ public class Uuid private constructor(
         Pair(mostSignificantBits, leastSignificantBits)
 
     public fun toByteArray(): ByteArray {
-        val bytes = ByteArray(SIZE_BYTES)
+        val bytes = ByteArray(SIZE_BYTES) { 0 }
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
         var i = 0
         while (i < 8) {
-            bytes[i] = ((mostSignificantBits ushr (56 - i * 8)) and 0xffL).toInt()
+            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toInt()
             i += 1
         }
         while (i < 16) {
-            bytes[i] = ((leastSignificantBits ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
+            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
             i += 1
         }
         return bytes
@@ -202,3 +206,9 @@ private external fun __kk_uuid_random(): Uuid
 
 @KsSymbolName("__kk_uuid_nameUUIDFromBytes")
 private external fun __kk_uuid_nameUUIDFromBytes(name: ByteArray): Uuid
+
+@KsSymbolName("__kk_uuid_fromLongs")
+private external fun __kk_uuid_fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid
+
+@KsSymbolName("__kk_uuid_lexicalOrder")
+private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>

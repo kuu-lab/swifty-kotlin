@@ -105,6 +105,8 @@ struct UuidAPISurfaceInventoryTests {
         let bridges: [(path: [String], link: String)] = [
             (["kotlin", "uuid", "__kk_uuid_random"], "__kk_uuid_random"),
             (["kotlin", "uuid", "__kk_uuid_nameUUIDFromBytes"], "__kk_uuid_nameUUIDFromBytes"),
+            (["kotlin", "uuid", "__kk_uuid_lexicalOrder"], "__kk_uuid_lexicalOrder"),
+            (["kotlin", "uuid", "__kk_uuid_fromLongs"], "__kk_uuid_fromLongs"),
         ]
 
         for bridge in bridges {
