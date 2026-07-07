@@ -203,6 +203,8 @@ extension CodegenBackendIntegrationTests {
                 null
                 b
                 null
+                b
+                null
                 null
                 """
                 + "\n"

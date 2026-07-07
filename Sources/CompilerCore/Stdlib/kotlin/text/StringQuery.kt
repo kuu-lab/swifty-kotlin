@@ -4,109 +4,101 @@ package kotlin.text
 // String query helpers migrated from Swift runtime entry points.
 
 public fun String.first(): Char {
-    val chars = toCharArray()
-    if (chars.size == 0) {
+    if (length == 0) {
         throw NoSuchElementException("Char sequence is empty.")
     }
-    return chars[0]
+    return this[0]
 }
 
 public fun String.first(predicate: (Char) -> Boolean): Char {
-    val chars = toCharArray()
     var foundIndex = -1
     var i = 0
-    val sz = chars.size
+    val sz = length
     while (i < sz && foundIndex < 0) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             foundIndex = i
         }
         i += 1
     }
-    if (foundIndex >= 0) return chars[foundIndex]
+    if (foundIndex >= 0) return this[foundIndex]
     throw NoSuchElementException("Char sequence contains no character matching the predicate.")
 }
 
 public fun String.firstOrNull(): Char? {
-    val chars = toCharArray()
-    if (chars.size == 0) {
+    if (length == 0) {
         return null
     }
-    return chars[0]
+    return this[0]
 }
 
 public fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
-    val chars = toCharArray()
     var foundIndex = -1
     var i = 0
-    val sz = chars.size
+    val sz = length
     while (i < sz && foundIndex < 0) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             foundIndex = i
         }
         i += 1
     }
-    if (foundIndex >= 0) return chars[foundIndex]
+    if (foundIndex >= 0) return this[foundIndex]
     return null
 }
 
 public fun String.last(): Char {
-    val chars = toCharArray()
-    if (chars.size == 0) {
+    val sz = length
+    if (sz == 0) {
         throw NoSuchElementException("Char sequence is empty.")
     }
-    return chars[chars.size - 1]
+    return this[sz - 1]
 }
 
 public fun String.last(predicate: (Char) -> Boolean): Char {
-    val chars = toCharArray()
     var foundIndex = -1
-    var i = chars.size - 1
+    var i = length - 1
     while (i >= 0 && foundIndex < 0) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             foundIndex = i
         }
         i -= 1
     }
-    if (foundIndex >= 0) return chars[foundIndex]
+    if (foundIndex >= 0) return this[foundIndex]
     throw NoSuchElementException("Char sequence contains no character matching the predicate.")
 }
 
 public fun String.lastOrNull(): Char? {
-    val chars = toCharArray()
-    if (chars.size == 0) return null
-    return chars[chars.size - 1]
+    val sz = length
+    if (sz == 0) return null
+    return this[sz - 1]
 }
 
 public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
-    val chars = toCharArray()
     var foundIndex = -1
-    var i = chars.size - 1
+    var i = length - 1
     while (i >= 0 && foundIndex < 0) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             foundIndex = i
         }
         i -= 1
     }
-    if (foundIndex >= 0) return chars[foundIndex]
+    if (foundIndex >= 0) return this[foundIndex]
     return null
 }
 
 public fun String.single(): Char {
-    val chars = toCharArray()
-    val sz = chars.size
-    if (sz == 1) return chars[0]
+    val sz = length
+    if (sz == 1) return this[0]
     if (sz == 0) throw NoSuchElementException("Char sequence is empty.")
     throw IllegalArgumentException("Char sequence has more than one element.")
 }
 
 public fun String.single(predicate: (Char) -> Boolean): Char {
-    val chars = toCharArray()
     var matchIndex = -1
     var hasMultipleMatches = false
     var i = 0
-    val sz = chars.size
+    val sz = length
     while (i < sz) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             if (matchIndex >= 0) {
                 hasMultipleMatches = true
             } else {
@@ -118,24 +110,22 @@ public fun String.single(predicate: (Char) -> Boolean): Char {
     if (hasMultipleMatches) {
         throw IllegalArgumentException("Char sequence contains more than one matching element.")
     }
-    if (matchIndex >= 0) return chars[matchIndex]
+    if (matchIndex >= 0) return this[matchIndex]
     throw NoSuchElementException("Char sequence contains no character matching the predicate.")
 }
 
 public fun String.singleOrNull(): Char? {
-    val chars = toCharArray()
-    if (chars.size == 1) return chars[0]
+    if (length == 1) return this[0]
     return null
 }
 
 public fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
-    val chars = toCharArray()
     var matchIndex = -1
     var hasMultipleMatches = false
     var i = 0
-    val sz = chars.size
+    val sz = length
     while (i < sz) {
-        if (predicate(chars[i])) {
+        if (predicate(this[i])) {
             if (matchIndex >= 0) {
                 hasMultipleMatches = true
             } else {
@@ -144,12 +134,11 @@ public fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
         }
         i += 1
     }
-    if (!hasMultipleMatches && matchIndex >= 0) return chars[matchIndex]
+    if (!hasMultipleMatches && matchIndex >= 0) return this[matchIndex]
     return null
 }
 
 public fun String.getOrNull(index: Int): Char? {
-    val chars = toCharArray()
-    if (index < 0 || index >= chars.size) return null
-    return chars[index]
+    if (index < 0 || index >= length) return null
+    return this[index]
 }
