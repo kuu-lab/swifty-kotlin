@@ -66,11 +66,17 @@ struct StringSyntheticMemberLinkTests {
     @Test func testExistingStringStubsRetainCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        let expected: [String: String] = [
+        var expected: [String: String] = [
             "trim": "kk_string_trim_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
+            "hexToShort": "kk_string_hexToShort_flat",
+            "hexToUByte": "kk_string_hexToUByte_flat",
+            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
+            "hexToUInt": "kk_string_hexToUInt_flat",
+            "hexToULong": "kk_string_hexToULong_flat",
+            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
