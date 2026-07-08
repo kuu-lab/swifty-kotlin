@@ -541,8 +541,8 @@ private func runtimeStringHexToLong(
         formatRaw,
         outThrown,
         as: UInt64.self
-    ) else { return kk_box_long(0) }
-    return kk_box_long(Int(Int64(bitPattern: value)))
+    ) else { return kk_box_long_nonnull(0) }
+    return kk_box_long_nonnull(Int(Int64(bitPattern: value)))
 }
 
 // MARK: - String.hexToByteArray(format)

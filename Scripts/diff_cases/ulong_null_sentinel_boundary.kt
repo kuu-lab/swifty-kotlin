@@ -2,6 +2,7 @@ fun show(x: Any?) {
     println(x)
 }
 
+@OptIn(ExperimentalStdlibApi::class)
 fun main() {
     val big: ULong = 9223372036854775808uL
     val any: Any = big
@@ -26,4 +27,10 @@ fun main() {
 
     val presentL: Long? = Long.MIN_VALUE
     show(presentL)
+
+    val hexULong = "8000000000000000".hexToULong()
+    show(hexULong)
+
+    val hexLong = "8000000000000000".hexToLong()
+    show(hexLong)
 }
