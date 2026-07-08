@@ -146,25 +146,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_name",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-        RuntimeABIFunctionSpec(
-            name: "kk_file_nameWithoutExtension",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_file_path",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
@@ -1080,36 +1061,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_parent",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        // STDLIB-IO-PROP-002: File.extension property — returns the substring of
-        // the file name after the last `.`. Implemented in Runtime/RuntimeFileIO.swift
-        // as `kk_file_extension` and exposed via the synthetic File stubs.
-        RuntimeABIFunctionSpec(
-            name: "kk_file_extension",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_invariantSeparatorsPath",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_file_length",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
@@ -1156,79 +1107,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_file_canExecute",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        // STDLIB-IO-FN-036: File.resolveSibling
-        RuntimeABIFunctionSpec(
-            name: "kk_file_resolveSibling_file",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "relativeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_resolveSibling_string",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "relativeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_startsWith_file",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_startsWith_string",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        // STDLIB-IO-FN-038: File.toRelativeString(base: File): String
-        // Returns the relative path string from `base` to the receiver `File`.
-        // Throws `IllegalArgumentException` via `outThrown` when the two paths
-        // do not share the same root.
-        RuntimeABIFunctionSpec(
-            name: "kk_file_toRelativeString",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "baseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-PROP-004: File.isRooted extension property backing.
-        RuntimeABIFunctionSpec(
-            name: "kk_file_isRooted",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_normalize",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
             ],

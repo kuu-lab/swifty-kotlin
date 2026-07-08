@@ -81,8 +81,13 @@ struct StringLastIndexOfFunctionTests {
         for index in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr,
-                  ctx.interner.resolve(callee) == "lastIndexOf"
+                  case let .memberCall(_, callee, _, _, range) = expr,
+                  ctx.interner.resolve(callee) == "lastIndexOf",
+                  // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls the
+                  // 3-arg lastIndexOf(Char, Int, Boolean) overload internally;
+                  // exclude bundled-stdlib call sites so this only counts the
+                  // two user-source calls above.
+                  !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else { continue }
             callExprs.append(exprID)
         }

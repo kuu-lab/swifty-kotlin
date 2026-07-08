@@ -460,10 +460,13 @@
   - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
   - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
   - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
-- [ ] KSP-483: File のパス純ロジック層を Kotlin 化する
+- [x] KSP-483: File のパス純ロジック層を Kotlin 化する
   - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
-  - 削除 kk_*: `kk_file_name`, `kk_file_path`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
-  - 下敷き: 死蔵 `Stdlib/kotlin/io/FileIO.kt` → `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt` / diff: `file_props.kt`（既存）/ 手順: T
+  - 削除 kk_*: `kk_file_name`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
+  - `kk_file_path` は削除せず維持: `path` は `RuntimeFileBox` の内部状態への唯一のアクセス経路であり、`kotlin.io` パッケージの拡張プロパティとして宣言すると `kotlin.io.path`（Path 関連 API のサブパッケージ）と FQName が衝突し `KSWIFTK-SEMA-0001` になるため、`java.io.File` の直接合成メンバーのまま残した。他 12 関数は Kotlin ソース側でこの `path` から計算する
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt`（新規）/ diff: `file_props.kt`（既存、対象13関数のケースを追加）
+  - 付随修正: bundled stdlib 全体を無条件スキャンしていた既存テスト6件（`FileStartsWithFunctionTests` 等）が Files.kt 内の標準関数呼び出し（`String.startsWith`/`lastIndexOf`/`replace`/`addAll`/`last`/`joinToString`/if 式カウント）を誤検出していたため bundled 除外条件を追加、`FileNormalizeFunctionTests` の名前衝突を解消
+  - 副産物: `&&`/`||` が短絡評価されない既存の重大バグを発見（別タスクとして報告済み、Files.kt 側は非短絡評価前提の書き方で回避）
 - [ ] KSP-484: File I/O の syscall 層を `__kk_` 降格する
   - 対象（ブリッジ残留・改名のみ）: 構築 `kk_file_new(_parent_child)`, 読み書き `kk_file_readText/readBytes/readLines/writeText/appendText/writeBytes/appendBytes`, 存在判定 `kk_file_exists/isFile/isDirectory/canRead/canWrite/canExecute/length/lastModified`, FS 操作 `kk_file_delete/mkdirs/createNewFile/listFiles`, 走査 `kk_file_walk(TopDown/BottomUp)`, `kk_file_tree_walk_sortedBy`, ストリーム/リソース/temp 系（`rg -o '@_cdecl\("kk_(file|files|io|classloader|resource|input_stream|output_stream)[a-zA-Z_]*"\)' Sources/Runtime/RuntimeFileIO.swift` で全列挙）
   - 公開 API 層（`forEachLine`/`useLines`/`readLines` のイテレーション・例外規約・デフォルト引数分岐）は Kotlin 化し、ブロック単位 I/O のみブリッジに残す
