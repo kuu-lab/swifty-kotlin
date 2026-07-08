@@ -128,6 +128,8 @@ extension ABIMismatchTests {
         "kk_builder_list_addAll",
         "kk_builder_set_addAll",
         "kk_byteArray_asUByteArray",
+        "kk_byteArray_contentEquals",
+        "kk_byteArray_joinToString",
         "kk_byteArray_toCValues",
         "kk_cinterop_writeBits",
         "kk_callable_ref_arity",
