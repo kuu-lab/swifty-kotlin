@@ -142,10 +142,12 @@ public func __kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> In
     // ByteArray.size (kk_byteArray_size) reads a RuntimeArrayBox, not a
     // RuntimeListBox, so the result must be constructed as one to match the
     // kotlin.ByteArray return type registered in HeaderHelpers+SyntheticRandomStubs.swift.
-    let result = RuntimeArrayBox(length: max(0, size))
+    // Validate the receiver before allocating the requested array: an invalid
+    // SecureRandom must return an empty ByteArray, not a zero-filled result.
     guard let box = secureRandomBox(from: receiver), size > 0 else {
-        return registerRuntimeObject(result)
+        return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
+    let result = RuntimeArrayBox(length: size)
     var bytes: [Int] = []
     bytes.reserveCapacity(size)
     for _ in 0 ..< size {
