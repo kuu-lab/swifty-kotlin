@@ -426,14 +426,31 @@ extension ExprTypeChecker {
             ctx: ctx,
             requireUnitReturn: false
         ) {
-            return resolvedType
+            if resolvedType == sema.types.errorType || propSymbol?.flags.contains(.mutable) != true {
+                if propSymbol?.flags.contains(.mutable) != true, resolvedType != sema.types.errorType {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0014",
+                        "Val cannot be reassigned.",
+                        range: range
+                    )
+                }
+                return resolvedType == sema.types.errorType ? resolvedType : sema.types.errorType
+            }
+            sema.bindings.bindExprType(id, type: sema.types.unitType)
+            return sema.types.unitType
         }
 
         // Primitive/builtin fallback (Int/Char/String arithmetic via `kk_op_*` or
         // string concat at KIR-lowering time). Unlike a bare local, a property's
         // declared type doesn't get narrowed per-assignment, so there is nothing
-        // to propagate back into `locals` here — just bind Unit like plain
-        // member assignment (`.memberAssign`) does.
+        // to propagate back into `locals` here.
+        if propSymbol?.flags.contains(.mutable) != true {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0014",
+                "Val cannot be reassigned.",
+                range: range
+            )
+        }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
     }
