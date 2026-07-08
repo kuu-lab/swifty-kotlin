@@ -717,19 +717,22 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// True when `name` is one of the built-in types that live directly under
-    /// the `kotlin` package (Int, String, Any, ...), matching the primitive /
-    /// stringStruct / any / number / unit / nothing cases that
-    /// `receiverOwnerFQName(for:symbols:types:interner:)` resolves once a
-    /// `TypeID` is available. Keeping the two in sync is what makes the
-    /// `shouldSkipRegistration` key lookup find bundled source declarations.
+    /// True when `name` is one of the primitive types that live directly
+    /// under the `kotlin` package (Int, Long, Double, ...), matching the
+    /// `.primitive` case that `receiverOwnerFQName(for:symbols:types:interner:)`
+    /// resolves once a `TypeID` is available. Keeping the two in sync is what
+    /// makes the `shouldSkipRegistration` key lookup find bundled source
+    /// declarations.
+    ///
+    /// Deliberately narrower than `BuiltinTypeNames`: String/Any/Unit/Nothing
+    /// are NOT included here because `receiverOwnerFQName` only handles
+    /// `.classType` and `.primitive` type kinds, not `.stringStruct`, `.any`,
+    /// `.unit`, or `.nothing` — including them here without a matching case
+    /// there would make this function key bundled declarations under
+    /// `["kotlin", "String"]` etc. while the skip-guard check still falls
+    /// back to the declared (non-root) owner, so the two would never match.
     private static func isBuiltinRootTypeName(_ name: InternedString, builtinNames: BuiltinTypeNames) -> Bool {
         builtinNames.primitiveType(for: name) != nil
-            || name == builtinNames.string
-            || name == builtinNames.any
-            || name == builtinNames.number
-            || name == builtinNames.unit
-            || name == builtinNames.nothing
     }
 
     private static func collectTopLevelNominalNamesByPackage(
