@@ -10,7 +10,7 @@ final class RuntimePropertyBasedTests: XCTestCase {
     }
 
     private func seededSamples(seed: Int, count: Int) -> [Int] {
-        let random = kk_random_create_seeded(seed)
+        let random = __kk_random_create_seeded(seed)
         return (0..<count).map { _ in kk_random_nextLong(random) }
     }
 

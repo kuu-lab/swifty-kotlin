@@ -41,13 +41,13 @@ final class RuntimeStringRandomTests: XCTestCase {
 
     func testRandomWithSeededRandomIsReproducible() {
         let str = runtimeMakeStringRaw("xyz")
-        let seed = kk_random_create_seeded(42)
+        let seed = __kk_random_create_seeded(42)
 
         var thrown1 = 0
         let result1 = __kk_string_random_random(str, seed, &thrown1)
         XCTAssertEqual(thrown1, 0)
 
-        let seed2 = kk_random_create_seeded(42)
+        let seed2 = __kk_random_create_seeded(42)
         var thrown2 = 0
         let result2 = __kk_string_random_random(str, seed2, &thrown2)
         XCTAssertEqual(thrown2, 0)
@@ -58,7 +58,7 @@ final class RuntimeStringRandomTests: XCTestCase {
 
     func testRandomWithSeededRandomReturnsCharFromString() {
         let str = runtimeMakeStringRaw("hello")
-        let seed = kk_random_create_seeded(99)
+        let seed = __kk_random_create_seeded(99)
         for _ in 0..<10 {
             var thrown = 0
             let result = __kk_string_random_random(str, seed, &thrown)
@@ -71,7 +71,7 @@ final class RuntimeStringRandomTests: XCTestCase {
 
     func testRandomWithSeededRandomThrowsOnEmptyString() {
         let str = runtimeMakeStringRaw("")
-        let seed = kk_random_create_seeded(1)
+        let seed = __kk_random_create_seeded(1)
         var thrown = 0
         _ = __kk_string_random_random(str, seed, &thrown)
         XCTAssertNotEqual(thrown, 0, "random(Random) on empty string should throw")

@@ -5,7 +5,7 @@ final class RuntimeRandomTests: XCTestCase {
     // MARK: - Default
 
     func testRandomDefaultReturnsDefaultReceiver() {
-        XCTAssertEqual(kk_random_default(), 0)
+        XCTAssertEqual(__kk_random_default(), 0)
     }
 
     // MARK: - nextLong
@@ -67,7 +67,7 @@ final class RuntimeRandomTests: XCTestCase {
     // MARK: - range.random(random)
 
     func testRangeRandomReturnsValuesWithinRange() {
-        let random = kk_random_create_seeded(7)
+        let random = __kk_random_create_seeded(7)
         var thrown: Int = 0
 
         let intRange = kk_op_rangeTo(10, 20)
