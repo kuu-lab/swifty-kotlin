@@ -3879,8 +3879,10 @@ extension CallLowerer {
                         "kk_box_int"
                     case .primitive(.boolean, _):
                         "kk_box_bool"
-                    case .primitive(.long, _), .primitive(.ulong, _):
+                    case .primitive(.long, _):
                         "kk_box_long"
+                    case .primitive(.ulong, _):
+                        "kk_box_ulong"
                     case .primitive(.float, _):
                         "kk_box_float"
                     case .primitive(.double, _):
