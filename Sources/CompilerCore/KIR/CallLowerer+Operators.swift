@@ -302,20 +302,14 @@ extension CallLowerer {
             if rhsExprType == stringType || rhsExprType == nullableStringType {
                 effectiveRHS = rhsID
             } else {
-                let tag = anyFallbackTag(for: rhsExprType ?? sema.types.anyType, sema: sema)
-                let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
-                instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendTemporary(type: stringType
+                effectiveRHS = emitAnyToStringWithNullGuard(
+                    valueID: rhsID,
+                    valueType: rhsExprType ?? sema.types.anyType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [rhsID, tagExpr],
-                    result: converted,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                effectiveRHS = converted
             }
             // Similarly coerce LHS if it is not a String (e.g. Any + String).
             let lhsExprType = sema.bindings.exprTypes[lhs]
@@ -323,20 +317,14 @@ extension CallLowerer {
             if lhsExprType == stringType || lhsExprType == nullableStringType {
                 effectiveLHS = lhsID
             } else {
-                let tag = anyFallbackTag(for: lhsExprType ?? sema.types.anyType, sema: sema)
-                let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
-                instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendTemporary(type: stringType
+                effectiveLHS = emitAnyToStringWithNullGuard(
+                    valueID: lhsID,
+                    valueType: lhsExprType ?? sema.types.anyType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [lhsID, tagExpr],
-                    result: converted,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                effectiveLHS = converted
             }
             instructions.append(
                 .call(

@@ -71,6 +71,67 @@ extension CallLowerer {
         }
     }
 
+    /// Converts `valueID` (of static type `valueType`) to a `String` via
+    /// `kk_any_to_string`, using `anyFallbackTag`'s tag for `valueType` and
+    /// guarding against the null-sentinel collision for nullable
+    /// Float?/Double?/ULong? (tags 5/6/7): their null-sentinel bit pattern
+    /// (Int.min) coincides with a legitimate in-range value (-0.0, or a
+    /// ULong of exactly 2^63), and kk_any_to_string decodes those tags
+    /// *before* checking for the sentinel, so an actually-null value must be
+    /// intercepted here first or it renders as that in-range value instead of
+    /// "null". Every call site that stringifies an arbitrary Any-typed value
+    /// for concatenation/interpolation should route through this helper
+    /// rather than calling kk_any_to_string directly, so a future tag needing
+    /// the same guard only has to be added in one place.
+    func emitAnyToStringWithNullGuard(
+        valueID: KIRExprID,
+        valueType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let stringType = sema.types.stringType
+        let isNullable = sema.types.makeNonNullable(valueType) != valueType
+        let tag = anyFallbackTag(for: valueType, sema: sema)
+        let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
+        instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
+        let converted = arena.appendTemporary(type: stringType)
+        guard isNullable, tag == 5 || tag == 6 || tag == 7 else {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_any_to_string"),
+                arguments: [valueID, tagID],
+                result: converted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return converted
+        }
+        let nonNullLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let nullStr = interner.intern("null")
+        let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
+        instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
+        instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+        instructions.append(.copy(from: nullStrID, to: converted))
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(nonNullLabel))
+        let innerConverted = arena.appendTemporary(type: stringType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_any_to_string"),
+            arguments: [valueID, tagID],
+            result: innerConverted,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        instructions.append(.copy(from: innerConverted, to: converted))
+        instructions.append(.label(endLabel))
+        return converted
+    }
+
     func isCoroutineHandleReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,

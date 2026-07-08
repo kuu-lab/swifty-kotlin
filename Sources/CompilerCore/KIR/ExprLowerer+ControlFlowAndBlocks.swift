@@ -93,69 +93,18 @@ extension ExprLowerer {
                     )
                     let exprType = sema.bindings.exprTypes[exprID]
                     if let exprType, exprType != stringType {
-                        let nonNullType = sema.types.makeNonNullable(exprType)
-                        let isNullable = exprType != nonNullType
-                        let tag: Int64 = switch sema.types.kind(of: nonNullType) {
-                        case .primitive(.boolean, _):
-                            2
-                        case .stringStruct:
-                            3
-                        case .primitive(.char, _):
-                            4
-                        case .primitive(.float, _):
-                            5
-                        case .primitive(.double, _):
-                            6
-                        case .primitive(.ulong, _):
-                            // ULong spans the full 64 bits, so it needs the same
-                            // unsigned-aware tag/guard treatment as Float/Double below
-                            // (see anyFallbackTag for the full rationale).
-                            7
-                        default:
-                            1
-                        }
-                        let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
-                        instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
-                        let converted = arena.appendTemporary(type: stringType)
-                        // Nullable Float?/Double?/ULong? needs an explicit null guard before
-                        // kk_any_to_string: the null sentinel (Int.min) is identical to
-                        // the -0.0 bit pattern (Double) and to a ULong of exactly 2^63, so
-                        // kk_any_to_string with tag 5/6/7 would decode a null as -0.0 or a
-                        // large positive ULong instead of "null". Non-nullable Float/Double/
-                        // ULong bypass this guard because their raw bits go directly to
-                        // kk_any_to_string and the null-before-tag ordering would have
-                        // already returned "null" for legitimate -0.0/2^63 values.
-                        if isNullable, tag == 5 || tag == 6 || tag == 7 {
-                            let nonNullLabel = driver.ctx.makeLoopLabel()
-                            let endLabel = driver.ctx.makeLoopLabel()
-                            let nullStr = interner.intern("null")
-                            let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
-                            instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
-                            instructions.append(.jumpIfNotNull(value: lowered, target: nonNullLabel))
-                            instructions.append(.copy(from: nullStrID, to: converted))
-                            instructions.append(.jump(endLabel))
-                            instructions.append(.label(nonNullLabel))
-                            let innerConverted = arena.appendTemporary(type: stringType)
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern("kk_any_to_string"),
-                                arguments: [lowered, tagID],
-                                result: innerConverted,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                            instructions.append(.copy(from: innerConverted, to: converted))
-                            instructions.append(.label(endLabel))
-                        } else {
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern("kk_any_to_string"),
-                                arguments: [lowered, tagID],
-                                result: converted,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                        }
+                        // See CallLowerer.emitAnyToStringWithNullGuard for why nullable
+                        // Float?/Double?/ULong? need an explicit null guard before
+                        // kk_any_to_string (their null-sentinel bit pattern coincides
+                        // with a legitimate in-range value for those tags).
+                        let converted = driver.callLowerer.emitAnyToStringWithNullGuard(
+                            valueID: lowered,
+                            valueType: exprType,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
                         partIDs.append(converted)
                     } else {
                         partIDs.append(lowered)
@@ -1349,38 +1298,28 @@ extension ExprLowerer {
                 if rhsType == stringType || rhsType == nullableStringType {
                     effectiveRHS = rhs
                 } else {
-                    let tag = driver.callLowerer.anyFallbackTag(for: rhsType ?? sema.types.anyType, sema: sema)
-                    let tagExpr = arena.appendExpr(.intLiteral(tag), type: sema.types.intType)
-                    instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                    let converted = arena.appendTemporary(type: stringType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [rhs, tagExpr],
-                        result: converted,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    effectiveRHS = converted
+                    effectiveRHS = driver.callLowerer.emitAnyToStringWithNullGuard(
+                        valueID: rhs,
+                        valueType: rhsType ?? sema.types.anyType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                 }
 
                 let effectiveLHS: KIRExprID
                 if lhsType == stringType || lhsType == nullableStringType {
                     effectiveLHS = lhs
                 } else {
-                    let tag = driver.callLowerer.anyFallbackTag(for: lhsType, sema: sema)
-                    let tagExpr = arena.appendExpr(.intLiteral(tag), type: sema.types.intType)
-                    instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                    let converted = arena.appendTemporary(type: stringType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [lhs, tagExpr],
-                        result: converted,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    effectiveLHS = converted
+                    effectiveLHS = driver.callLowerer.emitAnyToStringWithNullGuard(
+                        valueID: lhs,
+                        valueType: lhsType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                 }
 
                 let resultID = arena.appendTemporary(type: stringType)
