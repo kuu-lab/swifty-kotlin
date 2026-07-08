@@ -582,14 +582,14 @@ public func kk_random_nextBytes_range(
         return arrayRaw
     }
     if let array = runtimeArrayBox(from: arrayRaw) {
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
             outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IllegalArgumentException: Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+                message: "IllegalArgumentException: Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
             )
             return arrayRaw
         }
         for index in fromIndex..<toIndex {
-            array.elements[index] = runtimeRandomByte(receiver: receiver)
+            array[index] = runtimeRandomByte(receiver: receiver)
         }
         return arrayRaw
     }

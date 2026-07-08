@@ -180,7 +180,7 @@ public func kk_throwable_getSuppressed(_ throwableRaw: Int) -> Int {
 
     let arrayBox = RuntimeArrayBox(length: throwable.suppressed.count)
     for (i, elem) in throwable.suppressed.enumerated() {
-        arrayBox.elements[i] = elem
+        arrayBox[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -1430,11 +1430,11 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw),
-          array.elements.indices.contains(index)
+          index >= 0, index < array.count
     else {
         runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_set")
@@ -1458,14 +1458,14 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs.elements[i * 2]
-        let value = pairs.elements[i * 2 + 1]
+        let marker = pairs[i * 2]
+        let value = pairs[i * 2 + 1]
         if marker == -1 {
             if let array = runtimeArrayBox(from: value) {
-                totalCount += array.elements.count
+                totalCount += array.count
             }
         } else {
             totalCount += 1
@@ -1475,17 +1475,17 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs.elements[i * 2]
-            let value = pairs.elements[i * 2 + 1]
+            let marker = pairs[i * 2]
+            let value = pairs[i * 2 + 1]
             if marker == -1 {
                 if let array = runtimeArrayBox(from: value) {
                     for elem in array.elements {
-                        box.elements[writeIndex] = elem
+                        box[writeIndex] = elem
                         writeIndex += 1
                     }
                 }
             } else {
-                box.elements[writeIndex] = value
+                box[writeIndex] = value
                 writeIndex += 1
             }
         }
