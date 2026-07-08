@@ -405,7 +405,7 @@ extension CallLowerer {
         {
             let (fnExpr, envExpr) = splitCallableLambdaArgument(
                 finalArguments[1],
-        sema: sema,
+                sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
@@ -427,7 +427,7 @@ extension CallLowerer {
         {
             let (selectorFnExpr, selectorEnvExpr) = splitCallableLambdaArgument(
                 finalArguments[2],
-        sema: sema,
+                sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
