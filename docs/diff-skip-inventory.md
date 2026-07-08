@@ -49,10 +49,11 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | serialization | `custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt` | `kotlinx-serialization` jar / plugin が無い | dependency injection だけで動く範囲と compiler plugin 必須範囲を分ける |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | `org.slf4j` jar / runtime-only logger が無い | `slf4j-api` + binding 注入で戻せる basic と runtime-only advanced を分ける |
 | compiler plugin API | `compiler_plugin_api.kt` | case 自体は self-contained に見えるが skip 理由が generic | `--force-run-skipped` で再判定し、reference 阻害が無ければ DEBT-DIFF-006 か通常 diff へ移す |
+| `kotlin.uuid` | `uuid_basic.kt` | skip 理由は「KSwiftK UUID APIs」としているが実体は標準 `kotlin.uuid.Uuid`（`@OptIn(ExperimentalUuidApi)` 必要）。`version()` / `variant()` / `nameUUIDFromBytes()` / `toLongs()`（Pair 返し）/ 非推奨化されていない `LEXICAL_ORDER` など、実 API との一致が未検証のメンバーを使用している | 実 API(kotlinc 同梱 `kotlin-stdlib-sources.jar` で照合)に合わせてテストを絞り込むか、`Stdlib/kotlin/uuid/Uuid.kt` 実装側を直すかを判断してから通常 diff へ戻す |
 
 `path_basic.kt`（`kotlin.io.path`）は 2026-07-09 に解除済み: `import kotlin.io.path.Path` は `Path()` ファクトリしか import せず、`createDirectories` / `exists` / `isDirectory` / `writeText` / `isRegularFile` / `name` / `readText` / `readLines` / `deleteIfExists` 等の拡張関数・拡張プロパティは `kotlin.io.path` の別トップレベル宣言のため unresolved reference になっていたのが真因（`resolve` / `root` / `nameCount` / `relativize` / `normalize` / `isAbsolute` / `startsWith` / `endsWith` / `getName` 等は `java.nio.file.Path` のネイティブメンバなので import 不要で解決していた）。`import kotlin.io.path.*` に変更し、`--force-run-skipped` で reference/candidate 一致を確認した上で通常 diff に戻した。
 
-注記: `uuid_basic.kt` は本表・上表いずれにも記載が無いまま `DEBT-DIFF-001` skip が付与されており、`path_basic.kt` 解除前の実ファイル数は本表のカウント（22）より1件多い23件だった。カウント欄はこの解除で23→22になり、結果的に旧来の表記と同じ値に戻っているが、`uuid_basic.kt` 分の未解決 skip は現在も残っている（別 issue として調査中）。
+注記: `uuid_basic.kt` は 2026-07-09 時点でこれまで本表・上表いずれにも記載が無いまま `DEBT-DIFF-001` skip が付与されていたことが判明したため、上表に追加した。`path_basic.kt` 解除前の実ファイル数は本表のカウント（22）より1件多い23件であり、カウント欄はこの解除で23→22になっている(旧来の表記と数値上一致するのは偶然)。`uuid_basic.kt` 自体の skip 解除は本件のスコープ外(別途調査中)。
 
 ## DEBT-DIFF-002: script-style cases
 
