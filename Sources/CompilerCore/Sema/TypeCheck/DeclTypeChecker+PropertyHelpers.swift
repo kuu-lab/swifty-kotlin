@@ -213,13 +213,13 @@ extension DeclTypeChecker {
         // getValue (and setValue for `var`) operators; a type lacking them is a compile
         // error, not a silent fallback to Any?. Skip the small set of stdlib delegate
         // factories (`lazy`, `Delegates.observable/vetoable/notNull`) whose dispatch KIR
-        // lowering still hardcodes structurally (StdlibDelegateLoweringPass /
-        // KIRLoweringDriver.detectDelegateKind) rather than resolving through the operator
-        // convention — that gap is tracked separately (KSP-491/492) and must stay silent
-        // until those factories are wired to real operator-based dispatch.
-        let isKnownStdlibDelegate = isKnownStdlibDelegateFactory(
-            delegateExpr, ast: ctx.ast, interner: interner
-        )
+        // lowering still hardcodes structurally (StdlibDelegateLoweringPass) rather than
+        // resolving through the operator convention — that gap is tracked separately
+        // (KSP-491/492) and must stay silent until those factories are wired to real
+        // operator-based dispatch.
+        let isKnownStdlibDelegate = StdlibDelegateKind.detect(
+            delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
+        ) != .custom
         if !getValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
@@ -240,47 +240,6 @@ extension DeclTypeChecker {
         }
 
         return result
-    }
-
-    /// Mirrors `KIRLoweringDriver.detectDelegateKind` + `detectDelegateKindFromCallExpr`
-    /// (`Sources/CompilerCore/KIR/KIRLoweringDriver+ModuleLowering+PostProcess.swift`) so
-    /// this diagnostic and KIR lowering agree on which delegate expressions are exempt
-    /// from the operator-function convention. The name set intentionally differs *per AST
-    /// node shape* there (a bare name only ever means the top-level `lazy` function; a
-    /// member call only ever means `Delegates.observable/vetoable/notNull`) — keep this
-    /// in sync if that logic changes, since a broader match here than in KIR lowering
-    /// would silently suppress a real diagnostic for a `.custom` delegate.
-    private func isKnownStdlibDelegateFactory(
-        _ delegateExpr: ExprID,
-        ast: ASTModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let expr = ast.arena.expr(delegateExpr) else { return false }
-        let lazyName = interner.intern("lazy")
-        let observableName = interner.intern("observable")
-        let vetoableName = interner.intern("vetoable")
-        let notNullName = interner.intern("notNull")
-        func isObservableFamily(_ name: InternedString) -> Bool {
-            name == observableName || name == vetoableName || name == notNullName
-        }
-        switch expr {
-        case let .nameRef(name, _):
-            return name == lazyName
-        case let .memberCall(_, name, _, _, _):
-            return isObservableFamily(name)
-        case let .call(callee, _, _, _):
-            guard let calleeExpr = ast.arena.expr(callee) else { return false }
-            switch calleeExpr {
-            case let .nameRef(name, _):
-                return isObservableFamily(name) || name == lazyName
-            case let .memberCall(_, name, _, _, _):
-                return isObservableFamily(name)
-            default:
-                return false
-            }
-        default:
-            return false
-        }
     }
 
     private func resolvedDelegateMemberSignature(
