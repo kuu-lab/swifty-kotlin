@@ -45,5 +45,37 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // DEBT-DIFF-006 regression: the for-loop variable used to stay a boxed
+    // Double pointer, so passing it to round()/roundToInt() reinterpreted the
+    // pointer bits instead of unboxing (see docs/diff-skip-inventory.md).
+    func testCodegenForLoopListDoubleUnboxedForMathCalls() throws {
+        let source = """
+        import kotlin.math.*
+
+        fun main() {
+            val values = listOf(3.2, 3.7, -2.3)
+            for (value in values) {
+                println(round(value))
+                println(value.roundToInt())
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopListDoubleUnboxedForMathCalls",
+            expected:
+                """
+                3.0
+                3
+                4.0
+                4
+                -2.0
+                -2
+                """
+                + "\n"
+        )
+    }
 }
 
