@@ -185,7 +185,7 @@ extension DataFlowSemaPhase {
         // by dedicated runtime entries.
         registerSyntheticStringExtensionFunction(
             named: "codePointCount",
-            externalLinkName: "kk_string_codePointCount",
+            externalLinkName: "__kk_string_codePointCount",
             receiverType: charSequenceType,
             parameters: [],
             returnType: intType,
@@ -196,7 +196,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "codePointCount",
-            externalLinkName: "kk_string_codePointCount_from",
+            externalLinkName: "__kk_string_codePointCount_from",
             receiverType: charSequenceType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -209,7 +209,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "codePointCount",
-            externalLinkName: "kk_string_codePointCount_range",
+            externalLinkName: "__kk_string_codePointCount_range",
             receiverType: charSequenceType,
             parameters: [
                 ("startIndex", intType, true, false),
@@ -328,7 +328,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "normalize",
-            externalLinkName: "kk_string_normalize_flat",
+            externalLinkName: "__kk_string_normalize_flat",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -341,7 +341,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNormalized",
-            externalLinkName: "kk_string_isNormalized_flat",
+            externalLinkName: "__kk_string_isNormalized_flat",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -1881,7 +1881,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "random",
-            externalLinkName: "kk_string_random",
+            externalLinkName: "__kk_string_random",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1900,7 +1900,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "random",
-            externalLinkName: "kk_string_random_random",
+            externalLinkName: "__kk_string_random_random",
             receiverType: stringType,
             parameters: [
                 ("random", randomType, false, false),

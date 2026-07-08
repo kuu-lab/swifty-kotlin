@@ -25,7 +25,7 @@ final class RuntimeStringNormalizationTests: XCTestCase {
             var outLength = 0
             var outByteCount = 0
             var outHash = 0
-            let resultData = kk_string_normalize_flat(
+            let resultData = __kk_string_normalize_flat(
                 data,
                 length,
                 byteCount,
@@ -41,29 +41,29 @@ final class RuntimeStringNormalizationTests: XCTestCase {
 
     func testNormalizeNFCComposesDecomposedAccent() {
         let decomposed = "e\u{0301}"
-        XCTAssertEqual(normalizedFlatValue(decomposed, form: kk_normalization_form_nfc()), "\u{00E9}")
+        XCTAssertEqual(normalizedFlatValue(decomposed, form: __kk_normalization_form_nfc()), "\u{00E9}")
     }
 
     func testNormalizeNFDDecomposesPrecomposedAccent() {
         let precomposed = "\u{00E9}"
-        XCTAssertEqual(normalizedFlatValue(precomposed, form: kk_normalization_form_nfd()), "e\u{0301}")
+        XCTAssertEqual(normalizedFlatValue(precomposed, form: __kk_normalization_form_nfd()), "e\u{0301}")
     }
 
     func testNormalizeNFKCRewritesCompatibilityGlyph() {
         let source = "\u{FB01}"
-        XCTAssertEqual(normalizedFlatValue(source, form: kk_normalization_form_nfkc()), "fi")
+        XCTAssertEqual(normalizedFlatValue(source, form: __kk_normalization_form_nfkc()), "fi")
     }
 
     func testFlatIsNormalizedDetectsCanonicalForm() {
         withFlatString("e\u{0301}") { data, length, byteCount, hash in
             XCTAssertEqual(
-                kk_string_isNormalized_flat(data, length, byteCount, hash, kk_normalization_form_nfc()),
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
                 0
             )
         }
         withFlatString("\u{00E9}") { data, length, byteCount, hash in
             XCTAssertEqual(
-                kk_string_isNormalized_flat(data, length, byteCount, hash, kk_normalization_form_nfc()),
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
                 1
             )
         }

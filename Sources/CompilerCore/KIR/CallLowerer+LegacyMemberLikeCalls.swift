@@ -107,14 +107,6 @@ extension CallLowerer {
             {
                 return true
             }
-            if resultRuntimeHOFMemberCalleeName(
-                memberName: interner.resolve(calleeName),
-                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) != nil {
-                return true
-            }
             return sema.symbols.symbol(chosenCallee)?.declSite == nil
         }()
         let normalizedArgIDs: [KIRExprID] = {
@@ -1243,6 +1235,22 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return result
+        }
+
+        if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            loweredReceiverID: loweredReceiverID,
+            loweredArgIDs: loweredArgIDs,
+            normalizedArgIDs: normalizedArgIDs,
+            result: result,
+            instructions: &instructions
+        ) {
+            return tableDrivenStringMember
         }
 
         // String stdlib: nullable-receiver 0-arg methods (NULL-002)

@@ -2,26 +2,15 @@
 // Runtime-backed entries below are generated from Sources/Runtime exported C symbols.
 
 public extension RuntimeABISpec {
+    private static let matchResultDestructuredComponentFunctions = numberedUnaryRuntimeABIFunctionSpecs(
+        prefix: "kk_match_result_destructured_component",
+        range: 1...9,
+        parameterName: "destructuredRaw",
+        section: "ABIParity"
+    )
+
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
         // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
-        abiParitySpec("kk_result_mapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMap", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_kclass_register_annotation", parameters: [
             p("p0", .intptr),
             p("p1", .intptr),
@@ -782,33 +771,9 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_match_result_destructured_match", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_component1", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component2", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component3", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component4", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component5", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component6", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component7", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component8", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
-        abiParitySpec("kk_match_result_destructured_component9", parameters: [
-            p("destructuredRaw", .intptr),
-        ]),
+    ]
+    + matchResultDestructuredComponentFunctions
+    + [
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
         abiParitySpec("kk_mem_scope_alloc", parameters: [
@@ -844,13 +809,13 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
-        abiParitySpec("kk_normalization_form_nfc",
+        abiParitySpec("__kk_normalization_form_nfc",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfd",
+        abiParitySpec("__kk_normalization_form_nfd",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkc",
+        abiParitySpec("__kk_normalization_form_nfkc",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkd",
+        abiParitySpec("__kk_normalization_form_nfkd",
             isThrowing: false),
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
@@ -966,14 +931,14 @@ public extension RuntimeABISpec {
             p("otherHash", .intptr),
             p("ignoreCaseRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_isNormalized_flat", parameters: [
+        abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),
             p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_normalize_flat", parameters: [
+        abiParitySpec("__kk_string_normalize_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),

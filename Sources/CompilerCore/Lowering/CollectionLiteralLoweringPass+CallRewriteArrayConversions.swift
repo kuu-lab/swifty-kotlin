@@ -1,5 +1,5 @@
 /// Array and list conversion call rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteArrayConversionCall(
         callee: InternedString,
         arguments: [KIRExprID],

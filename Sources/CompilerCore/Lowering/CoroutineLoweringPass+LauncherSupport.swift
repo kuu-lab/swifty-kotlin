@@ -61,6 +61,98 @@ extension CoroutineLoweringPass {
         return launcherThunkByOriginalSymbol
     }
 
+    func synthesizeSequenceBuilderReceiverThunks(
+        suspendFunctions: [KIRFunction],
+        nextSyntheticSymbol: inout Int32,
+        existingFunctionNames: inout Set<InternedString>,
+        using synthesis: LauncherThunkSynthesisContext
+    ) -> [SymbolID: LoweredSuspendFunction] {
+        var thunkByOriginalSymbol: [SymbolID: LoweredSuspendFunction] = [:]
+
+        for suspendFunction in suspendFunctions where suspendFunction.params.count == 1 {
+            guard let loweredTarget = synthesis.loweredBySymbol[suspendFunction.symbol] else {
+                continue
+            }
+            let rawThunkName = synthesis.interner.intern(
+                "kk_sequence_builder_thunk_" + synthesis.interner.resolve(suspendFunction.name)
+            )
+            let thunkName = uniqueFunctionName(
+                preferred: rawThunkName,
+                existingFunctionNames: &existingFunctionNames,
+                interner: synthesis.interner
+            )
+            let thunkSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let thunkContParamSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let contType = synthesis.continuationTypeByLoweredSymbol[loweredTarget.symbol]
+                ?? synthesis.anyType ?? suspendFunction.returnType
+            let thunkBody = buildSequenceBuilderReceiverThunkBody(
+                suspendFunction: suspendFunction,
+                loweredTarget: loweredTarget,
+                thunkContParamSymbol: thunkContParamSymbol,
+                module: synthesis.module,
+                intType: synthesis.intType,
+                contType: contType,
+                launcherArgGetCallee: synthesis.launcherArgGetCallee
+            )
+
+            let thunkFunction = KIRFunction(
+                symbol: thunkSymbol,
+                name: thunkName,
+                params: [KIRParameter(symbol: thunkContParamSymbol, type: contType)],
+                returnType: contType,
+                body: thunkBody,
+                isSuspend: false,
+                isInline: false
+            )
+            _ = synthesis.module.arena.appendDecl(.function(thunkFunction))
+            thunkByOriginalSymbol[suspendFunction.symbol] = (name: thunkName, symbol: thunkSymbol)
+        }
+
+        return thunkByOriginalSymbol
+    }
+
+    func buildSequenceBuilderReceiverThunkBody(
+        suspendFunction: KIRFunction,
+        loweredTarget: LoweredSuspendFunction,
+        thunkContParamSymbol: SymbolID,
+        module: KIRModule,
+        intType: TypeID?,
+        contType: TypeID,
+        launcherArgGetCallee: InternedString
+    ) -> [KIRInstruction] {
+        let contRef = module.arena.appendExpr(
+            .symbolRef(thunkContParamSymbol),
+            type: contType
+        )
+        let builderSlotExpr = module.arena.appendExpr(
+            .intLiteral(1),
+            type: intType
+        )
+        let builderResult = module.arena.appendTemporary(type: suspendFunction.params[0].type
+        )
+        let callResult = module.arena.appendTemporary(type: contType
+        )
+        return [
+            .call(
+                symbol: nil,
+                callee: launcherArgGetCallee,
+                arguments: [contRef, builderSlotExpr],
+                result: builderResult,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .call(
+                symbol: loweredTarget.symbol,
+                callee: loweredTarget.name,
+                arguments: [builderResult, contRef],
+                result: callResult,
+                canThrow: true,
+                thrownResult: nil
+            ),
+            .returnValue(callResult),
+        ]
+    }
+
     func buildLauncherThunkBody(
         suspendFunction: KIRFunction,
         loweredTarget: LoweredSuspendFunction,

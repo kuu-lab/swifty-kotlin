@@ -51,7 +51,7 @@ private func coro_intrinsics_throw_immediately(_ continuation: Int, _ outThrown:
 //   • runtimeAllocateCancellationException / kk_is_cancellation_exception
 //   • RuntimeCancellationBox class hierarchy (extends RuntimeThrowableBox)
 //   • Result.failure with CancellationException treated as cancellation (not failure)
-//   • kk_runCatching + cancellation-exception propagation through Result
+//   • runtimeResultRunCatching + cancellation-exception propagation through Result
 //   • kk_create_coroutine_unintercepted / kk_start_coroutine_unintercepted_or_return
 // CancellationException inherits IllegalStateException → RuntimeException in Kotlin.
 // RuntimeCancellationBox reports this chain via exceptionHierarchyFQNames so catch clauses
@@ -313,7 +313,7 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
 
     // MARK: - CancellationException is NOT a regular failure (Result semantics)
 
-    /// When a coroutine block throws a CancellationException through kk_runCatching,
+    /// When a coroutine block throws a CancellationException through runtimeResultRunCatching,
     /// the Result must be a failure AND kk_is_cancellation_exception on its stored
     /// exception must return 1 — distinguishing cancellation from error failure.
     func testRunCatchingWithCancellationExceptionProducesFailureResult() {
@@ -329,16 +329,16 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
         let fnPtr = unsafeBitCast(stub, to: Int.self)
 
         var outerThrown = 0
-        let resultRaw = kk_runCatching(fnPtr, cancellationExcRaw, &outerThrown)
-        XCTAssertEqual(outerThrown, 0, "kk_runCatching outer outThrown must remain 0")
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1,
+        let resultRaw = runtimeResultRunCatching(fnPtr, cancellationExcRaw, &outerThrown)
+        XCTAssertEqual(outerThrown, 0, "runtimeResultRunCatching outer outThrown must remain 0")
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1,
             "A block throwing CancellationException must produce Result.failure")
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 0,
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 0,
             "A block throwing CancellationException must NOT be Result.success")
 
         // Crucially: the failure's exception must be identified as CancellationException,
         // not just as a generic throwable.
-        let exceptionFromResult = kk_result_exceptionOrNull(resultRaw)
+        let exceptionFromResult = runtimeResultExceptionOrNull(resultRaw)
         XCTAssertEqual(kk_is_cancellation_exception(exceptionFromResult), 1,
             "Result.failure wrapping a CancellationException must be identified as CancellationException")
     }
@@ -353,10 +353,10 @@ final class RuntimeCoroutineIntrinsicsEdgeCaseTests: XCTestCase {
         let fnPtr = unsafeBitCast(stub, to: Int.self)
 
         var outerThrown = 0
-        let resultRaw = kk_runCatching(fnPtr, regularExc, &outerThrown)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1)
+        let resultRaw = runtimeResultRunCatching(fnPtr, regularExc, &outerThrown)
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
 
-        let exceptionFromResult = kk_result_exceptionOrNull(resultRaw)
+        let exceptionFromResult = runtimeResultExceptionOrNull(resultRaw)
         XCTAssertEqual(kk_is_cancellation_exception(exceptionFromResult), 0,
             "Result.failure wrapping a regular exception must NOT be identified as CancellationException")
     }

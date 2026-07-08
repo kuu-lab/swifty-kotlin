@@ -1,5 +1,5 @@
 /// Sequence pipeline rewrites such as asSequence, map/filter, zip, plus, and minus.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequencePipelineCall(
         symbol: SymbolID?,
         callee: InternedString,

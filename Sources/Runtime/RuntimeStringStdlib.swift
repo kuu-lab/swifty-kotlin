@@ -206,17 +206,17 @@ private enum NormalizationFormTag: Int {
     case nfkd = 3
 }
 
-@_cdecl("kk_normalization_form_nfc")
-public func kk_normalization_form_nfc() -> Int { NormalizationFormTag.nfc.rawValue }
+@_cdecl("__kk_normalization_form_nfc")
+public func __kk_normalization_form_nfc() -> Int { NormalizationFormTag.nfc.rawValue }
 
-@_cdecl("kk_normalization_form_nfd")
-public func kk_normalization_form_nfd() -> Int { NormalizationFormTag.nfd.rawValue }
+@_cdecl("__kk_normalization_form_nfd")
+public func __kk_normalization_form_nfd() -> Int { NormalizationFormTag.nfd.rawValue }
 
-@_cdecl("kk_normalization_form_nfkc")
-public func kk_normalization_form_nfkc() -> Int { NormalizationFormTag.nfkc.rawValue }
+@_cdecl("__kk_normalization_form_nfkc")
+public func __kk_normalization_form_nfkc() -> Int { NormalizationFormTag.nfkc.rawValue }
 
-@_cdecl("kk_normalization_form_nfkd")
-public func kk_normalization_form_nfkd() -> Int { NormalizationFormTag.nfkd.rawValue }
+@_cdecl("__kk_normalization_form_nfkd")
+public func __kk_normalization_form_nfkd() -> Int { NormalizationFormTag.nfkd.rawValue }
 
 private func runtimeNormalizedString(_ source: String, formTagRaw: Int) -> String {
     guard let form = NormalizationFormTag(rawValue: formTagRaw) else {
@@ -234,14 +234,14 @@ private func runtimeNormalizedString(_ source: String, formTagRaw: Int) -> Strin
     }
 }
 
-@_cdecl("kk_string_normalize")
-public func kk_string_normalize(_ strRaw: Int, _ formTagRaw: Int) -> Int {
+@_cdecl("__kk_string_normalize")
+public func __kk_string_normalize(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeNormalizedString(source, formTagRaw: formTagRaw))
 }
 
-@_cdecl("kk_string_normalize_flat")
-public func kk_string_normalize_flat(
+@_cdecl("__kk_string_normalize_flat")
+public func __kk_string_normalize_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -259,15 +259,15 @@ public func kk_string_normalize_flat(
     )
 }
 
-@_cdecl("kk_string_isNormalized")
-public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
+@_cdecl("__kk_string_isNormalized")
+public func __kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
-@_cdecl("kk_string_isNormalized_flat")
-public func kk_string_isNormalized_flat(
+@_cdecl("__kk_string_isNormalized_flat")
+public func __kk_string_isNormalized_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -532,14 +532,14 @@ private func runtimeStringCodePointCount(
 
 // MARK: - STDLIB-TEXT-FN-010: CharSequence.codePointCount
 
-@_cdecl("kk_string_codePointCount")
-public func kk_string_codePointCount(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_codePointCount")
+public func __kk_string_codePointCount(_ strRaw: Int) -> Int {
     let units = runtimeStringUTF16CodeUnits(strRaw)
     return runtimeStringCodePointCount(units: units, startIndex: 0, endIndex: units.count, outThrown: nil)
 }
 
-@_cdecl("kk_string_codePointCount_from")
-public func kk_string_codePointCount_from(
+@_cdecl("__kk_string_codePointCount_from")
+public func __kk_string_codePointCount_from(
     _ strRaw: Int,
     _ startIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -553,8 +553,8 @@ public func kk_string_codePointCount_from(
     )
 }
 
-@_cdecl("kk_string_codePointCount_range")
-public func kk_string_codePointCount_range(
+@_cdecl("__kk_string_codePointCount_range")
+public func __kk_string_codePointCount_range(
     _ strRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
