@@ -96,7 +96,12 @@ public func kk_unbox_bool(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_long")
 public func kk_box_long(_ value: Int) -> Int {
-    if value == runtimeNullSentinelInt { return value }
+    // No early-return for runtimeNullSentinelInt (Int64.min == Long.MIN_VALUE):
+    // that bit pattern is a legitimate Long value, not just the null sentinel,
+    // so short-circuiting here would box Long.MIN_VALUE as "null" (wrong value,
+    // wrong equality, wrong `is Long`). ABILoweringPass only selects this callee
+    // for non-null Long sources (see boxCalleeForPrimitive's requireNonNull:
+    // true), so a genuine null never reaches this function through that path.
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo for LongRange), pass it through without
     // double-boxing so that kk_println_any / runtimeElementToString can
@@ -143,7 +148,12 @@ public func kk_unbox_long(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_ulong")
 public func kk_box_ulong(_ value: Int) -> Int {
-    if value == runtimeNullSentinelInt { return value }
+    // No early-return for runtimeNullSentinelInt (Int64.min bit pattern ==
+    // ULong 2^63): unlike Int/Bool/Char, that bit pattern is an ordinary,
+    // common ULong value, not just the null sentinel — short-circuiting here
+    // would box ULong(2^63) as "null" (wrong value, wrong equality, wrong
+    // `is ULong`). See kk_box_long for the identical reasoning on the signed
+    // side (Long.MIN_VALUE).
     // If the value is already a registered runtime object, pass it through
     // without double-boxing (mirrors kk_box_long).
     if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
