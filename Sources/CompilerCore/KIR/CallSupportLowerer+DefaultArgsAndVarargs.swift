@@ -61,7 +61,8 @@ extension CallSupportLowerer {
         knownNames: KnownCompilerNames
     ) -> InternedString? {
         switch interner.resolve(callee) {
-        case "IntArray", "LongArray", "UIntArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray", "UShortArray":
+        case "IntArray", "LongArray", "UIntArray", "ULongArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray",
+             "ByteArray", "ShortArray", "UByteArray", "UShortArray":
             guard argumentCount == 1 else {
                 return nil
             }

@@ -146,7 +146,13 @@ extension DataFlowSemaPhase {
         )
 
         // byteArrayType is needed for the nextBytes stubs and SecureRandom below.
-        let byteArrayType = makeListIntType(
+        // Must be the real ByteArray class (not a List<Int> stand-in): nextBytes
+        // is also declared as `fun Random.nextBytes(array: ByteArray): ByteArray`
+        // in Stdlib/kotlin/random/Random.kt, and ByteArray's runtime
+        // representation (RuntimeArrayBox, see kk_array_new/kk_byteArray_size) is
+        // what callers actually construct via `ByteArray(size)`.
+        let byteArrayType = makePrimitiveArrayType(
+            named: "ByteArray",
             symbols: symbols,
             types: types,
             interner: interner
@@ -393,27 +399,6 @@ extension DataFlowSemaPhase {
         return types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Build a `List<Int>` type, which is the internal representation of ByteArray.
-    private func makeListIntType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(types.intType)],
             nullability: .nonNull
         )))
     }
