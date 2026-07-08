@@ -198,5 +198,21 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
-}
 
+    func testCodegenArrayForLoopIteratesAllElements() throws {
+        let source = """
+        fun main() {
+            for (b in "HI".encodeToByteArray()) println(b.toInt())
+            for (i in intArrayOf(10, 20, 30)) println(i)
+            for (s in arrayOf("a", "b", "c")) println(s)
+            for (c in charArrayOf('x', 'y', 'z')) println(c)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayForLoopIteration",
+            expected: "72\n73\n10\n20\n30\na\nb\nc\nx\ny\nz\n"
+        )
+    }
+}
