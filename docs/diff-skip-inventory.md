@@ -99,6 +99,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | `java.math.BigInteger` | `big_integer.kt` | Java interop surface gap | BigInteger を対象に残すなら Java interop task、対象外なら target-out backlog |
 | Sequence common API | `flatten_sequence_edge_cases.kt` | `Sequence.flatten` 実装 gap | `Stdlib/kotlin/sequences` / runtime sequence bridge の実装後に通常 diff へ |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
+| KSwiftK synthetic Random/SecureRandom surface | `random_nextfloat_ranged_synthetic.kt`, `secure_random.kt` | `Random.nextFloat(until/from,until)` と `SecureRandom.getInstance()` (無引数) は JVM kotlinc に無い surface（STDLIB-655 / STDLIB-RANDOM-101）。`ArrayName(size)` no-init-lambda コンストラクタの link bug 修正（PR #4621）前は candidate 側も別理由でコンパイル失敗しており、たまたま exit code が一致して見えていた | public surface として残す理由を再確認し、残すなら candidate-only test（Runtime unit test 等）へ移す |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
 | Property delegates | `property_delegate_edge_cases.kt` | `lazy`, `Delegates.observable/vetoable` gap | delegate lowering と stdlib delegate API のどちらが blocker か分離 |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |

@@ -1,3 +1,8 @@
+// SKIP-DIFF (DEBT-DIFF-005): SecureRandom.getInstance() with no arguments is a
+// KSwiftK synthetic convenience factory (STDLIB-RANDOM-101). Real
+// java.security.SecureRandom has no zero-arg getInstance() overload (it always
+// requires an algorithm name), so kotlinc fails to resolve `sr`/`sr2`/`sr3` here
+// and every subsequent member access cascades into "unresolved reference".
 import java.security.SecureRandom
 
 fun main() {
