@@ -23,6 +23,11 @@ func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
     return raw
 }
 
+@_cdecl("kk_indexed_value_new")
+public func kk_indexed_value_new(_ index: Int, _ value: Int) -> Int {
+    runtimeIndexedValueNew(index: index, value: value)
+}
+
 func handleCollectionLambdaThrow(_ thrown: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if let outThrown = outThrown {
         outThrown.pointee = thrown

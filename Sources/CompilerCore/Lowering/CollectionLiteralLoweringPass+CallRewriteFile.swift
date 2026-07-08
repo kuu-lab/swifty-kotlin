@@ -120,12 +120,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 kkCallee = lookup.kkFileIsFileName
             case lookup.isDirectoryName:
                 kkCallee = lookup.kkFileIsDirectoryName
-            case lookup.namePropertyName:
-                kkCallee = lookup.kkFileNameName
-            case lookup.nameWithoutExtensionName:
-                kkCallee = lookup.kkFileNameWithoutExtensionName
-            case lookup.pathPropertyName:
-                kkCallee = lookup.kkFilePathName
             case lookup.forEachLineName:
                 kkCallee = lookup.kkFileForEachLineName
             // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch
@@ -168,8 +162,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 kkCallee = lookup.kkFileAbsolutePathName
             case lookup.canonicalPathName:
                 kkCallee = lookup.kkFileCanonicalPathName
-            case lookup.parentName:
-                kkCallee = lookup.kkFileParentName
             case lookup.lengthName:
                 kkCallee = lookup.kkFileLengthName
             case lookup.lastModifiedName:

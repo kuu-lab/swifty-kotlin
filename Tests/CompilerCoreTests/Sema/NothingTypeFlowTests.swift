@@ -86,37 +86,33 @@ struct NothingTypeFlowTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // Bundled stdlib (padStart/padEnd) also contributes if-expressions
-            // typed as String. Filter to user-code if-expressions only by
-            // checking against intType (the LUB result for Nothing branches).
+            // Bundled stdlib contributes if/when/try expressions of its own
+            // (e.g. String.padStart/padEnd, Files.kt's fileNormalizePath),
+            // and that set grows over time. Filter to user-source expressions
+            // only so this test doesn't need updating every time bundled
+            // stdlib gains or loses a control-flow expression.
+            func isUserSource(_ range: SourceRange) -> Bool {
+                !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            }
             let allIfExprIDs = exprIDs(in: ast) { expr in
-                if case .ifExpr = expr { return true }
-                return false
+                guard case let .ifExpr(_, _, _, range) = expr else { return false }
+                return isUserSource(range)
             }
             let ifExprIDs = allIfExprIDs.filter {
                 sema.bindings.exprType(for: $0) == sema.types.intType
             }
             let whenExprIDs = exprIDs(in: ast) { expr in
-                if case .whenExpr = expr { return true }
-                return false
+                guard case let .whenExpr(_, _, _, range) = expr else { return false }
+                return isUserSource(range)
             }
             let tryExprIDs = exprIDs(in: ast) { expr in
-                if case .tryExpr = expr { return true }
-                return false
+                guard case let .tryExpr(_, _, _, range) = expr else { return false }
+                return isUserSource(range)
             }
 
-            // 2 user if-expressions (ifCase + tryCase), plus bundled stdlib if-expressions
-            // that also merge to Int -- including the step-sign branches in
-            // Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt's six count()
-            // implementations (MIGRATION-RANGE-002), plus the two Int-typed
-            // if-expressions in Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt's
-            // maxOf(Int, Int)/minOf(Int, Int) overloads (MIGRATION-COMP-002; the Long
-            // overloads' if-expressions are typed Long and excluded by the intType filter),
-            // plus one Int-typed if-expression in Sources/CompilerCore/Stdlib/kotlin/random/
-            // Random.kt's nextInt(from, until) (KSP-466) -- the power-of-two fast-path
-            // vs. rejection-sampling branch assigned to `rnd`. (nextLong(from, until)'s
-            // analogous branch is typed Long and excluded the same way as maxOf/minOf's.)
-            #expect(ifExprIDs.count == 22, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
+            // 2 user if-expressions (ifCase + tryCase), both merged to Int via
+            // Nothing-as-bottom LUB.
+            #expect(ifExprIDs.count == 2, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB")
             #expect(!whenExprIDs.isEmpty)
             #expect(!tryExprIDs.isEmpty)
 

@@ -614,6 +614,9 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0) {
+        return objectResult
+    }
     return 0
 }
 
@@ -637,7 +640,29 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)
     }
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1) {
+        return objectResult
+    }
     return 0
+}
+
+private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) -> Int? {
+    let iteratorInterfaceSlot = 0
+    let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
+    guard functionRaw != 0 else {
+        return nil
+    }
+
+    let method = unsafeBitCast(
+        functionRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = method(iterRaw, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
+    }
+    return result
 }
 
 // MARK: - IntRange properties (STDLIB-092)
