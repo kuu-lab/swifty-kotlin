@@ -308,7 +308,7 @@ struct PropertyDelegationEndToEndTests {
     @Test func testDelegatedPropertyCompilesWithoutErrors() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -326,8 +326,8 @@ struct PropertyDelegationEndToEndTests {
     @Test func testMutableDelegatedPropertyCompilesWithoutErrors() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
-            fun setValue(thisRef: Any?, property: Any?, value: Int) {}
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
         }
         class Foo {
             var x: Int by MyDelegate()
@@ -345,8 +345,8 @@ struct PropertyDelegationEndToEndTests {
     @Test func testDelegatedPropertyWithProvideDelegateCompilesWithoutErrors() throws {
         let source = """
         class MyDelegate {
-            fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -364,7 +364,7 @@ struct PropertyDelegationEndToEndTests {
     @Test func testTopLevelDelegatedPropertyCompilesWithoutErrors() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         val x: Int by MyDelegate()
         """

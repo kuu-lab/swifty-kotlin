@@ -38,7 +38,8 @@ extension DeclTypeChecker {
         property: PropertyDecl,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        diagnostics: DiagnosticEngine
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -189,11 +190,75 @@ extension DeclTypeChecker {
             }
         }
 
+        // Kotlin requires a delegate's (effective, post-provideDelegate) type to expose
+        // getValue (and setValue for `var`) operators; a type lacking them is a compile
+        // error, not a silent fallback to Any?. Skip the small set of stdlib delegate
+        // factories (`lazy`, `Delegates.observable/vetoable/notNull`) whose dispatch KIR
+        // lowering still hardcodes structurally (StdlibDelegateLoweringPass /
+        // KIRLoweringDriver.detectDelegateKind) rather than resolving through the operator
+        // convention — that gap is tracked separately (KSP-491/492) and must stay silent
+        // until those factories are wired to real operator-based dispatch.
+        let isKnownStdlibDelegate = isKnownStdlibDelegateFactory(
+            delegateExpr, ast: ctx.ast, interner: interner
+        )
+        if sema.symbols.delegateGetValueSymbol(for: symbol) == nil, !isKnownStdlibDelegate {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0103",
+                "Property delegate must have a 'getValue' operator function.",
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+            )
+        }
+        if property.isVar,
+           sema.symbols.delegateSetValueSymbol(for: symbol) == nil,
+           !isKnownStdlibDelegate
+        {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0104",
+                "Mutable property delegate must have a 'setValue' operator function.",
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+            )
+        }
+
         if result == nil {
             result = sema.types.nullableAnyType
         }
 
         return result
+    }
+
+    /// Mirrors `KIRLoweringDriver.detectDelegateKind`'s structural (name-based) recognition
+    /// of stdlib delegate factories, so this diagnostic and KIR lowering agree on which
+    /// delegate expressions are exempt from the operator-function convention.
+    private func isKnownStdlibDelegateFactory(
+        _ delegateExpr: ExprID,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let expr = ast.arena.expr(delegateExpr) else { return false }
+        let knownNames: Set<InternedString> = [
+            interner.intern("lazy"),
+            interner.intern("observable"),
+            interner.intern("vetoable"),
+            interner.intern("notNull"),
+        ]
+        switch expr {
+        case let .nameRef(name, _):
+            return knownNames.contains(name)
+        case let .memberCall(_, name, _, _, _):
+            return knownNames.contains(name)
+        case let .call(callee, _, _, _):
+            guard let calleeExpr = ast.arena.expr(callee) else { return false }
+            switch calleeExpr {
+            case let .nameRef(name, _):
+                return knownNames.contains(name)
+            case let .memberCall(_, name, _, _, _):
+                return knownNames.contains(name)
+            default:
+                return false
+            }
+        default:
+            return false
+        }
     }
 
     private func resolvedDelegateMemberSignature(
