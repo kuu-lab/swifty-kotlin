@@ -144,14 +144,29 @@ struct TypeCheckHelpers {
     /// UInt representing UIntRange (STDLIB-523), etc.).
     /// - Parameter isRangeExpr: true when the iterable expression is a range operator
     ///   (rangeTo, rangeUntil, downTo, step), allowing Int to be treated as iterable.
+    /// - Parameter isCharRangeExpr: true when the range expression's operands were Char
+    ///   (STDLIB-290). Char ranges share Int's runtime/static representation (see the
+    ///   `.rangeTo`/`.rangeUntil`/`.downTo` binary op inference), so this must be checked
+    ///   before the plain Int case below to avoid mistyping the loop variable as Int.
     func iterableElementType(
         for iterableType: TypeID,
         isRangeExpr: Bool,
+        isCharRangeExpr: Bool = false,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
+        // STDLIB-189: String is iterable over its Char elements. The runtime iterator
+        // dispatch is rewritten to kk_string_iterator_* by CollectionLiteralLoweringPass
+        // regardless of this static type, but the loop variable still needs the correct
+        // static Char type for member resolution and explicit typing to work.
+        if sema.types.makeNonNullable(iterableType) == sema.types.stringType {
+            return sema.types.charType
+        }
         // Range/progression types (Int/Long/UInt/ULong) are iterable over their element type,
         // but only when the expression is actually a range operator.
+        if isRangeExpr, isCharRangeExpr, iterableType == sema.types.intType {
+            return sema.types.charType
+        }
         if isRangeExpr, iterableType == sema.types.intType {
             return sema.types.intType
         }
