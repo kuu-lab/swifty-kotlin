@@ -317,6 +317,40 @@ public func kk_list_joinToString(
     }
 }
 
+@_cdecl("kk_list_joinToString_transform")
+public func kk_list_joinToString_transform(
+    _ listRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeListBox(from: listRaw)?.elements ?? []
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
+}
+
 @_cdecl("kk_iterable_joinTo")
 public func kk_iterable_joinTo(
     _ iterableRaw: Int,
@@ -355,6 +389,40 @@ public func kk_iterable_joinToString(
     return utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     }
+}
+
+@_cdecl("kk_iterable_joinToString_transform")
+public func kk_iterable_joinToString_transform(
+    _ iterableRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeIterableValues(from: iterableRaw)?.map(\.legacyRawValue) ?? []
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
 }
 
 // MARK: - List toMap (STDLIB-200)

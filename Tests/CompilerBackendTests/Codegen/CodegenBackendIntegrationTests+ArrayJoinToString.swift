@@ -48,5 +48,29 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "ArrayJoinToStringEmpty", expected: "\n<>\n")
     }
+
+    // Regression test: `Array.joinToString(separator) { transform }` used to silently drop
+    // the transform lambda (same root cause as the List/Iterable variant).
+    func testCodegenArrayJoinToStringWithTransformLambda() throws {
+        let source = """
+        fun main() {
+            val arr = arrayOf(1, 2, 3)
+            println(arr.joinToString(",") { (it * 10).toString() })
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringTransformSeparator", expected: "10,20,30\n")
+    }
+
+    func testCodegenArrayJoinToStringWithBareTransformLambda() throws {
+        let source = """
+        fun main() {
+            val arr = arrayOf(1, 2, 3)
+            println(arr.joinToString { (it * 10).toString() })
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringTransformBare", expected: "10, 20, 30\n")
+    }
 }
 

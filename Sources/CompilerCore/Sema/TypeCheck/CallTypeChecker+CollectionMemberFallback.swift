@@ -646,34 +646,48 @@ extension CallTypeChecker {
         } else {
             false
         }
+        func hasFunctionTypedLastParam(_ candidate: SymbolID) -> Bool {
+            guard let sig = sema.symbols.functionSignature(for: candidate),
+                  let lastParamType = sig.parameterTypes.last
+            else {
+                return false
+            }
+            switch sema.types.kind(of: sema.types.makeNonNullable(lastParamType)) {
+            case .functionType:
+                return true
+            default:
+                return false
+            }
+        }
         if lastArgIsFunctionLike,
            let lambdaMatch = allCandidates.first(where: { candidate in
                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-               guard sig.parameterTypes.count == argCount,
-                     let lastParamType = sig.parameterTypes.last
-               else {
-                   return false
-               }
-               switch sema.types.kind(of: sema.types.makeNonNullable(lastParamType)) {
-               case .functionType:
-                   return true
-               default:
-                   return false
-               }
+               guard sig.parameterTypes.count == argCount else { return false }
+               return hasFunctionTypedLastParam(candidate)
            }) {
             return lambdaMatch
         }
+        // When the call site has no trailing lambda, an overload whose last parameter
+        // is a function type (e.g. a `joinToString(..., transform)` HOF overload) can
+        // never be the intended target. Excluding those candidates here prevents the
+        // arity-only matching below from misrouting a plain call — e.g.
+        // `joinToString(prefix = "<", postfix = ">")` (2 args, no lambda) must resolve
+        // to the 3-param `(separator, prefix, postfix)` overload, not to a same-arity
+        // `(separator, transform)` HOF overload registered for a different call shape.
+        let arityCandidates = lastArgIsFunctionLike
+            ? allCandidates
+            : allCandidates.filter { !hasFunctionTypedLastParam($0) }
         // Prefer the overload whose parameter count matches the call-site
         // argument count so that e.g. windowed(3, 2, true) resolves to the
         // 3-param overload (kk_list_windowed_partial) instead of the 2-param
         // one (kk_list_windowed).
-        if let exactMatch = allCandidates.first(where: { candidate in
+        if let exactMatch = arityCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount
         }) {
             return exactMatch
         }
-        if let first = allCandidates.first {
+        if let first = arityCandidates.first {
             return first
         }
         queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
@@ -1047,7 +1061,7 @@ extension CallTypeChecker {
              interner.intern("requireNoNulls"):
             return argCount == 0
         case interner.intern("joinToString"):
-            return (0 ... 3).contains(argCount)
+            return (0 ... 4).contains(argCount)
         case interner.intern("shuffled"):
             return argCount == 0 || argCount == 1
         case interner.intern("filterNotNull"), interner.intern("unzip"), interner.intern("eachCount"):
@@ -2459,6 +2473,27 @@ extension CallTypeChecker {
                 }
                 let expectedType = sema.types.make(.functionType(FunctionType(
                     params: [listType],
+                    returnType: sema.types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                return (argumentIndex: argCount - 1, expectedType: expectedType)
+            }
+        }
+
+        // joinToString(separator?, prefix?, postfix?, transform): transform receives the
+        // element and returns a CharSequence (modeled loosely as Any, like chunked/windowed
+        // above); it is always the trailing argument when the call site supplies one.
+        if memberName == interner.intern("joinToString"), (1...4).contains(argCount) {
+            let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
+                                                 let lastExprNode = ctx.ast.arena.expr(lastExpr) {
+                lastExprNode.isLambdaOrCallableRef
+            } else {
+                false
+            }
+            if lastArgIsFunctionLike {
+                let expectedType = sema.types.make(.functionType(FunctionType(
+                    params: [receiverElementType],
                     returnType: sema.types.anyType,
                     isSuspend: false,
                     nullability: .nonNull

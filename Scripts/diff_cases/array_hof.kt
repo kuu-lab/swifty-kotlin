@@ -51,4 +51,9 @@ fun main() {
     println(empty.reduceOrNull { acc, value -> acc + value })
     println(empty.firstOrNull())
     println(empty.lastOrNull())
+
+    // joinToString + transform
+    println(arr.joinToString { (it * 10).toString() })
+    println(arr.joinToString(",") { (it * 10).toString() })
+    println(arr.joinToString(",", "[", "]") { (it * 10).toString() })
 }

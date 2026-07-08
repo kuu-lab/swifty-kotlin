@@ -131,16 +131,69 @@ extension CallLowerer {
             }
         }
 
-        // Sequence joinToString (STDLIB-275): 0-3 args, non-HOF, non-throwing
-        if args.count <= 3, interner.resolve(calleeName) == "joinToString" {
+        // Sequence joinToString (STDLIB-275): 0-3 args, non-HOF, non-throwing;
+        // 1-4 args when the trailing argument is a transform lambda
+        // (KSP-joinToString-transform). This path is also reached by Array (and other
+        // non-concrete-collection) receivers whose `joinToString` call never resolves to
+        // a real symbol — see the `isCollectionExpr` disjunct below — so fixing it here
+        // fixes the transform-dropping bug for those receivers too, not just Sequence.
+        if args.count <= 4, interner.resolve(calleeName) == "joinToString" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
+                let lastArgIsLambda: Bool = if let lastArgExpr = args.last?.expr,
+                                                let lastArgNode = ast.arena.expr(lastArgExpr) {
+                    lastArgNode.isLambdaOrCallableRef
+                } else {
+                    false
+                }
                 let stringType = sema.types.stringType
                 let paramNames = ["separator", "prefix", "postfix"]
                 let defaults = [", ", "", ""]
+                if lastArgIsLambda {
+                    // Build a 3-element array mapping each leading parameter to its lowered
+                    // arg or a default; the trailing lambda is handled separately below.
+                    var resolved: [KIRExprID?] = [nil, nil, nil]
+                    for (argIdx, arg) in args.enumerated() where argIdx < args.count - 1 {
+                        if let label = arg.label,
+                           let paramIdx = paramNames.firstIndex(of: interner.resolve(label))
+                        {
+                            resolved[paramIdx] = loweredArgIDs[argIdx]
+                        } else if let slot = resolved.firstIndex(where: { $0 == nil }) {
+                            resolved[slot] = loweredArgIDs[argIdx]
+                        }
+                    }
+                    var joinArgs: [KIRExprID] = []
+                    for paramIndex in 0 ..< 3 {
+                        if let existing = resolved[paramIndex] {
+                            joinArgs.append(existing)
+                        } else {
+                            let interned = interner.intern(defaults[paramIndex])
+                            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
+                            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+                            joinArgs.append(exprID)
+                        }
+                    }
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        loweredArgIDs[args.count - 1],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_sequence_joinToString_transform"),
+                        arguments: [loweredReceiverID] + joinArgs + [fnPtrExpr, envPtrExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                guard args.count <= 3 else { return nil }
                 // Build a 3-element array mapping each parameter to its lowered arg or a default
                 var resolved: [KIRExprID?] = [nil, nil, nil]
                 for (argIdx, arg) in args.enumerated() {

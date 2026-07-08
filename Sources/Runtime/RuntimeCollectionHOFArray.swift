@@ -337,3 +337,37 @@ public func kk_array_joinToString(
         kk_string_from_utf8(buf.baseAddress!, Int32(utf8.count))
     }
 }
+
+@_cdecl("kk_array_joinToString_transform")
+public func kk_array_joinToString_transform(
+    _ arrayRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeArrayBox(from: arrayRaw)?.elements ?? []
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
+}
