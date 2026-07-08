@@ -3104,6 +3104,16 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_format_locale",
+            parameters: [
+                RuntimeABIParameter(name: "localeRaw", type: .intptr),
+                RuntimeABIParameter(name: "formatRaw", type: .intptr),
+                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_codePointCount",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
