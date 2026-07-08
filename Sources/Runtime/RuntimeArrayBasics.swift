@@ -403,12 +403,19 @@ public func kk_intArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// LongArray.toList(): List<Long>
+///
+/// Boxes elements eagerly for the same reason as kk_uLongArray_toList below:
+/// a raw Long word equal to Long.MIN_VALUE is bit-identical to
+/// runtimeNullSentinelInt, so generic Any-dispatch (toString/equals/`is`)
+/// would otherwise misreport it as null. kk_box_long_nonnull is safe because
+/// LongArray elements are never null.
 @_cdecl("kk_longArray_toList")
 public func kk_longArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_longArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_long_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// ByteArray.toList(): List<Byte>
