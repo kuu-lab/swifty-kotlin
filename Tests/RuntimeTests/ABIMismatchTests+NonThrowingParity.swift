@@ -24,6 +24,7 @@ extension ABIMismatchTests {
         "kk_any_member_hashCode",
         "kk_any_member_to_string",
         "kk_any_to_string",
+        "kk_any_to_string_nullable",
         "kk_array_asSequence",
         "kk_array_copyOf",
         "kk_array_copyOf_newSize",
