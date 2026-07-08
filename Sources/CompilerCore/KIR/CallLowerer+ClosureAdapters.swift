@@ -136,10 +136,11 @@ extension CallLowerer {
         } else {
             finalArgs.append(lambdaID)
         }
-        finalArgs.append(makeClosureRawArgument(
+        finalArgs.append(makeClosureRawOrBoxedArgument(
             callableInfo: resolvedCallableInfo,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         ))
         return finalArgs
@@ -317,10 +318,11 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let closureRaw = makeClosureRawArgument(
+        let closureRaw = makeClosureRawOrBoxedArgument(
             callableInfo: selector.callableInfo,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         )
         let closureIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2 + 1)), type: sema.types.intType)
@@ -704,10 +706,11 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArgs.append(selector.loweredArgID)
-            finalArgs.append(makeClosureRawArgument(
+            finalArgs.append(makeClosureRawOrBoxedArgument(
                 callableInfo: selector.callableInfo,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             ))
             return finalArgs
@@ -732,10 +735,11 @@ extension CallLowerer {
                     instructions: &instructions
                 )
                 finalArgs.append(selector.loweredArgID)
-                finalArgs.append(makeClosureRawArgument(
+                finalArgs.append(makeClosureRawOrBoxedArgument(
                     callableInfo: selector.callableInfo,
                     sema: sema,
                     arena: arena,
+                    interner: interner,
                     instructions: &instructions
                 ))
             }
