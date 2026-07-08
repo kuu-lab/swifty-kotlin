@@ -172,29 +172,20 @@ extension ABIMismatchTests {
     ]
 
     // MARK: Duration (kotlin.time)
+    // KSP-471: from_*/inWhole*/toComponents_*/toIsoString entries removed —
+    // those externalLinkNames are no longer referenced by any Sema stub
+    // (construction now goes through toDuration_*, and inWhole*/toIsoString/
+    // toComponents are Kotlin source in Stdlib/kotlin/time/Duration.kt).
     private static let durationStubLinkNames: Set<String> = [
         "kk_duration_div_duration",
-        "kk_duration_from_days_double",
-        "kk_duration_from_hours_double",
-        "kk_duration_from_microseconds_double",
-        "kk_duration_from_milliseconds_double",
-        "kk_duration_from_minutes_double",
-        "kk_duration_from_nanoseconds_double",
-        "kk_duration_from_seconds_double",
-        "kk_duration_inWholeDays",
         "kk_duration_infinite",
         "kk_duration_parse",
         "kk_duration_parseIsoString",
         "kk_duration_parseIsoStringOrNull",
         "kk_duration_parseOrNull",
-        "kk_duration_toComponents_days",
-        "kk_duration_toComponents_hours",
-        "kk_duration_toComponents_minutes",
-        "kk_duration_toComponents_seconds",
         "kk_duration_toDuration_double",
         "kk_duration_toDuration_int",
         "kk_duration_toDuration_long",
-        "kk_duration_toIsoString",
         "kk_duration_zero",
     ]
 

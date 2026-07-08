@@ -584,7 +584,8 @@ public final class SymbolTable {
                 // extension properties sharing a short name may coexist as
                 // separate symbols. A non-extension property at the same FQ
                 // name is still a genuine clash: it has no receiver to
-                // disambiguate by.
+                // disambiguate by. Mirrors the diagnostic-level check in
+                // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
                         || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
