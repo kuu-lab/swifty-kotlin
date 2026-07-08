@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-08
+最終更新: 2026-07-09
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -50,6 +50,8 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | serialization | `custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt` | `kotlinx-serialization` jar / plugin が無い | dependency injection だけで動く範囲と compiler plugin 必須範囲を分ける |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | `org.slf4j` jar / runtime-only logger が無い | `slf4j-api` + binding 注入で戻せる basic と runtime-only advanced を分ける |
 | compiler plugin API | `compiler_plugin_api.kt` | case 自体は self-contained に見えるが skip 理由が generic | `--force-run-skipped` で再判定し、reference 阻害が無ければ DEBT-DIFF-006 か通常 diff へ移す |
+
+`uuid_basic.kt`(旧 SKIP-DIFF 理由: 「uses KSwiftK UUID APIs that are not available in the kotlinc JVM reference」)は棚卸し対象外のまま残っていたが、`--force-run-skipped` で実測した結果 reference (kotlinc 2.4.0) 側のみが `version()`/`variant()`/`toLongs()`/`mostSignificantBits`/`leastSignificantBits`/`LEXICAL_ORDER`/`nameUUIDFromBytes()` で unresolved reference・internal アクセス・deprecation error になり、candidate (kswiftc) はそのまま通ってしまうことを確認した。`kotlin-stdlib-sources.jar`(kotlinc 2.4.0 同梱)と照合すると、これらは `java.util.UUID` の命名(`version`/`variant`/`nameUUIDFromBytes`)と混同したと見られる非標準メンバーで、実 `kotlin.uuid.Uuid` には存在しない。同じ問題は2026-04-07にも一度 `88ff2ee1b8`(`add-skip-diff-native-annotations` ブランチ、未マージ)で個別に修正されていたが、その後 KSP-476 でテストが拡張された際に非標準メンバーが再混入していた。今回はテスト側からこれら非標準メンバーの呼び出しと、実 API では `@DeprecatedSinceKotlin(errorSince = "2.4")` で hard error になる `LEXICAL_ORDER` の呼び出しを削除し、`fromLongs` を既知の定数値で検証する形に置き換えて、実 kotlinc 2.4.0 / kswiftc 双方で出力が完全一致することを確認した上で SKIP-DIFF を撤廃し通常 diff に戻した。`Stdlib/kotlin/uuid/Uuid.kt` 側の `version()`/`variant()`/`nameUUIDFromBytes()`/`toLongs()`/`LEXICAL_ORDER` 実装自体は今回変更していない(削除するか candidate-only 扱いにするかは別途要検討)。
 
 ## DEBT-DIFF-002: script-style cases
 
