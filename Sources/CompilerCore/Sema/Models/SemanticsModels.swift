@@ -1065,6 +1065,13 @@ public final class BindingTable {
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
+    /// Maps a secondary constructor's own symbol to the constructor symbol chosen
+    /// by overload resolution for its `this(...)` / `super(...)` delegation call.
+    /// `ConstructorDelegationCall` has no `ExprID` of its own, so this is keyed by
+    /// the enclosing constructor's `SymbolID` instead. KIR lowering must consult
+    /// this rather than re-deriving the target via FQ-name lookup, which cannot
+    /// distinguish sibling overloads or exclude the constructor being lowered.
+    public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
@@ -1151,6 +1158,10 @@ public final class BindingTable {
 
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
         callableTargets[expr] = target
+    }
+
+    public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
+        constructorDelegationTargets[ctorSymbol] = target
     }
 
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
@@ -1339,6 +1350,10 @@ public final class BindingTable {
 
     public func callableTarget(for expr: ExprID) -> CallableTarget? {
         callableTargets[expr]
+    }
+
+    public func constructorDelegationTarget(for ctorSymbol: SymbolID) -> SymbolID? {
+        constructorDelegationTargets[ctorSymbol]
     }
 
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {
