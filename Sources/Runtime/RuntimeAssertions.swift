@@ -184,6 +184,25 @@ final class RuntimeArithmeticExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeNegativeArraySizeExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.NegativeArraySizeException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.NegativeArraySizeException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        "NegativeArraySizeException: \(message)"
+    }
+}
+
 // MARK: - Typed Allocators
 
 /// Allocates an `AssertionError` with the given message.
@@ -270,6 +289,17 @@ func runtimeAllocateArithmeticException(message: String) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// Allocates a `NegativeArraySizeException` with the given message (the negative
+/// size rendered as a string, matching JVM Kotlin's `NegativeArraySizeException` behaviour).
+func runtimeAllocateNegativeArraySizeException(message: String) -> Int {
+    let throwable = RuntimeNegativeArraySizeExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 private func runtimeExceptionMessage(from raw: Int, defaultMessage: String) -> String {
     if raw == 0 || raw == runtimeNullSentinelInt {
         return defaultMessage
@@ -341,6 +371,18 @@ public func kk_array_index_out_of_bounds_exception_new() -> Int {
 @_cdecl("kk_array_index_out_of_bounds_exception_new_message")
 public func kk_array_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
+    )
+}
+
+@_cdecl("kk_negative_array_size_exception_new")
+public func kk_negative_array_size_exception_new() -> Int {
+    runtimeAllocateNegativeArraySizeException(message: "")
+}
+
+@_cdecl("kk_negative_array_size_exception_new_message")
+public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateNegativeArraySizeException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "")
     )
 }
