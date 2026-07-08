@@ -1474,13 +1474,13 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
         outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
         return 0
     }
-    guard array.elements.indices.contains(index) else {
+    guard index >= 0 && index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+            message: "Array index \(index) out of bounds for length \(array.count)."
         )
         return 0
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_get_inbounds")
@@ -1500,13 +1500,13 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
         outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
         return 0
     }
-    guard array.elements.indices.contains(index) else {
+    guard index >= 0 && index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+            message: "Array index \(index) out of bounds for length \(array.count)."
         )
         return 0
     }
-    array.elements[index] = value
+    array[index] = value
     return value
 }
 
