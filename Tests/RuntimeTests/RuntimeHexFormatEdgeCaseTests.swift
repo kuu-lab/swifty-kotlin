@@ -436,12 +436,12 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         var thrown = 0
         let max = hexToULong("ffffffffffffffff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_unbox_long(max), -1)
+        XCTAssertEqual(kk_unbox_ulong(max), -1)
 
         thrown = 0
         let zero = hexToULong("0000000000000000", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_unbox_long(zero), 0)
+        XCTAssertEqual(kk_unbox_ulong(zero), 0)
 
         thrown = 0
         _ = hexToULong("10000000000000000", fmt, &thrown)
@@ -493,7 +493,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         }
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_unbox_long(kk_string_hexToULong_flat(data, length, byteCount, hash, fmt, &thrown)), -1)
+            XCTAssertEqual(kk_unbox_ulong(kk_string_hexToULong_flat(data, length, byteCount, hash, fmt, &thrown)), -1)
             XCTAssertEqual(thrown, 0)
 
             thrown = 0
