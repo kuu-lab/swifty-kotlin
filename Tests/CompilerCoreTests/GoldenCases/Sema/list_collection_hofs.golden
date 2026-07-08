@@ -7,6 +7,7 @@ symbol fq=__local_5.grouped kind=local vis=private flags=_ type=kotlin.collectio
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.text.first kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Char
 symbol fq=transform kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=transform.$0.values kind=valueParameter vis=private flags=_
 file f0 package=_
@@ -36,7 +37,7 @@ expr e@4:17#1 memberCall recv=e@4:17 callee=associate args=[_:e@4:34] type=kotli
 expr e@4:5 localDecl assoc mutable=0 type=_ init=e@4:17#1 type=Unit ref=__local_2.assoc
 expr e@5:17 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@5:38 name(it) type=String ref=s-4
-expr e@5:38#1 memberCall recv=e@5:38 callee=first args=[] type=Char call=kotlin.text.first#0
+expr e@5:38#1 memberCall recv=e@5:38 callee=first args=[] type=Char call=kotlin.text.first
 expr e@5:36 lambda params=[] body=e@5:38#1 label=associateBy type=(String) -> Any
 expr e@5:17#1 memberCall recv=e@5:17 callee=associateBy args=[_:e@5:36] type=kotlin.collections.Map<Char, String>
 expr e@5:5 localDecl byKey mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_3.byKey
