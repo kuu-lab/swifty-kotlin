@@ -7,12 +7,10 @@ private struct DelegateRuntimeNames {
     let lazyGetValue: InternedString
     let observableGetValue: InternedString
     let vetoableGetValue: InternedString
-    let customGetValue: InternedString
     let notNullGetValue: InternedString
     let observableSetValue: InternedString
     let vetoableSetValue: InternedString
     let notNullSetValue: InternedString
-    let customSetValue: InternedString
 
     init(interner: StringInterner) {
         getValueName = interner.intern("getValue")
@@ -20,12 +18,10 @@ private struct DelegateRuntimeNames {
         lazyGetValue = interner.intern("kk_lazy_get_value")
         observableGetValue = interner.intern("kk_observable_get_value")
         vetoableGetValue = interner.intern("kk_vetoable_get_value")
-        customGetValue = interner.intern("kk_custom_delegate_get_value")
         notNullGetValue = interner.intern("kk_notNull_get_value")
         observableSetValue = interner.intern("kk_observable_set_value")
         vetoableSetValue = interner.intern("kk_vetoable_set_value")
         notNullSetValue = interner.intern("kk_notNull_set_value")
-        customSetValue = interner.intern("kk_custom_delegate_set_value")
     }
 }
 
@@ -194,10 +190,8 @@ extension KIRLoweringDriver {
                         result: callResult ?? arena.appendTemporary(type: sema.types.anyType),
                         storageSym: storageSymbol,
                         propSym: propertySymbol,
-                        originalArguments: arguments,
                         kindMap: kindMap,
                         names: names,
-                        interner: interner,
                         arena: arena,
                         sema: sema,
                         body: &result
@@ -207,11 +201,8 @@ extension KIRLoweringDriver {
                     emitSetValue(
                         fromExpr: valueExpr,
                         storageSym: storageSymbol,
-                        propSym: propertySymbol,
-                        originalArguments: arguments,
                         kind: kindMap[propertySymbol],
                         names: names,
-                        interner: interner,
                         arena: arena,
                         sema: sema,
                         body: &result
@@ -238,9 +229,7 @@ extension KIRLoweringDriver {
                 }
                 emitGetValue(
                     result: res, storageSym: storageSym, propSym: sym,
-                    originalArguments: [],
                     kindMap: kindMap, names: names,
-                    interner: interner,
                     arena: arena, sema: sema, body: &result
                 )
                 continue
@@ -274,9 +263,7 @@ extension KIRLoweringDriver {
                 } else {
                     emitGetValue(
                         result: res, storageSym: storageSym, propSym: sym,
-                        originalArguments: [],
                         kindMap: kindMap, names: names,
-                        interner: interner,
                         arena: arena, sema: sema, body: &result
                     )
                 }
@@ -305,9 +292,9 @@ extension KIRLoweringDriver {
                     continue
                 }
                 emitSetValue(
-                    fromExpr: fromExpr, storageSym: storageSym, propSym: propSym, originalArguments: [],
+                    fromExpr: fromExpr, storageSym: storageSym,
                     kind: kindMap[propSym],
-                    names: names, interner: interner, arena: arena, sema: sema, body: &result
+                    names: names, arena: arena, sema: sema, body: &result
                 )
                 continue
             }
@@ -319,9 +306,7 @@ extension KIRLoweringDriver {
 
     private func emitGetValue(
         result: KIRExprID, storageSym: SymbolID, propSym: SymbolID,
-        originalArguments: [KIRExprID],
         kindMap: [SymbolID: StdlibDelegateKind], names: DelegateRuntimeNames,
-        interner: StringInterner,
         arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
     ) {
         let handle = arena.appendTemporary(type: sema.types.anyType
@@ -332,33 +317,25 @@ extension KIRLoweringDriver {
         case .observable: names.observableGetValue
         case .vetoable: names.vetoableGetValue
         case .notNull: names.notNullGetValue
-        case .custom, nil: names.customGetValue
-        }
-        let arguments: [KIRExprID] = if kindMap[propSym] == .custom || kindMap[propSym] == nil {
-            customDelegateGetterArguments(
-                handle: handle,
-                propSym: propSym,
-                originalArguments: originalArguments,
-                arena: arena,
-                sema: sema,
-                interner: interner,
-                body: &body
+        case .custom:
+            preconditionFailure(
+                "'.custom' delegate property access must be redirected to the property's " +
+                    "own accessor symbol by rewriteDelegateAccesses before reaching emitGetValue"
             )
-        } else {
-            [handle]
+        case nil:
+            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitGetValue")
         }
         body.append(.call(
             symbol: nil,
             callee: name,
-            arguments: arguments,
+            arguments: [handle],
             result: result, canThrow: false, thrownResult: nil
         ))
     }
 
     private func emitSetValue(
-        fromExpr: KIRExprID, storageSym: SymbolID, propSym: SymbolID, originalArguments: [KIRExprID], kind: StdlibDelegateKind?,
+        fromExpr: KIRExprID, storageSym: SymbolID, kind: StdlibDelegateKind?,
         names: DelegateRuntimeNames,
-        interner: StringInterner,
         arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
     ) {
         let handle = arena.appendTemporary(type: sema.types.anyType
@@ -368,111 +345,23 @@ extension KIRLoweringDriver {
         case .observable: names.observableSetValue
         case .vetoable: names.vetoableSetValue
         case .notNull: names.notNullSetValue
-        case .custom, nil: names.customSetValue
         case .lazy: preconditionFailure("lazy delegate setValue is not supported")
+        case .custom:
+            preconditionFailure(
+                "'.custom' delegate property access must be redirected to the property's " +
+                    "own accessor symbol by rewriteDelegateAccesses before reaching emitSetValue"
+            )
+        case nil:
+            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitSetValue")
         }
         let setResult = arena.appendTemporary(type: sema.types.anyType
         )
-        let arguments: [KIRExprID] = if kind == .custom || kind == nil {
-            customDelegateSetterArguments(
-                handle: handle,
-                propSym: propSym,
-                originalArguments: originalArguments,
-                valueExpr: fromExpr,
-                arena: arena,
-                sema: sema,
-                interner: interner,
-                body: &body
-            )
-        } else {
-            [handle, fromExpr]
-        }
         body.append(.call(
             symbol: nil,
             callee: name,
-            arguments: arguments,
+            arguments: [handle, fromExpr],
             result: setResult, canThrow: false, thrownResult: nil
         ))
-    }
-
-    private func customDelegateGetterArguments(
-        handle: KIRExprID,
-        propSym: SymbolID,
-        originalArguments: [KIRExprID],
-        arena: KIRArena,
-        sema: SemaModule,
-        interner: StringInterner,
-        body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        if originalArguments.count >= 2 {
-            return [handle, originalArguments[0], originalArguments[1]]
-        }
-        let thisRef = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-        body.append(.constValue(result: thisRef, value: .null))
-        let propertyStub = buildKPropertyStub(
-            propSym: propSym,
-            arena: arena,
-            sema: sema,
-            interner: interner,
-            body: &body
-        )
-        return [handle, thisRef, propertyStub]
-    }
-
-    private func customDelegateSetterArguments(
-        handle: KIRExprID,
-        propSym: SymbolID,
-        originalArguments: [KIRExprID],
-        valueExpr: KIRExprID,
-        arena: KIRArena,
-        sema: SemaModule,
-        interner: StringInterner,
-        body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        if originalArguments.count >= 3 {
-            return [handle, originalArguments[0], originalArguments[1], originalArguments[2]]
-        }
-        return customDelegateGetterArguments(
-            handle: handle,
-            propSym: propSym,
-            originalArguments: originalArguments,
-            arena: arena,
-            sema: sema,
-            interner: interner,
-            body: &body
-        ) + [valueExpr]
-    }
-
-    private func buildKPropertyStub(
-        propSym: SymbolID,
-        arena: KIRArena,
-        sema: SemaModule,
-        interner: StringInterner,
-        body: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        let propertyName = sema.symbols.symbol(propSym)?.name ?? interner.intern("")
-        let propertyNameExpr = arena.appendExpr(
-            .stringLiteral(propertyName),
-            type: sema.types.stringType
-        )
-        body.append(.constValue(result: propertyNameExpr, value: .stringLiteral(propertyName)))
-        let propertyType = sema.symbols.propertyType(for: propSym) ?? sema.types.anyType
-        let typeName = interner.intern(sema.types.renderType(propertyType))
-        let typeExpr = arena.appendExpr(
-            .stringLiteral(typeName),
-            type: sema.types.stringType
-        )
-        body.append(.constValue(result: typeExpr, value: .stringLiteral(typeName)))
-        let stubExpr = arena.appendTemporary(type: sema.types.anyType)
-        body.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_kproperty_stub_create"),
-            arguments: [propertyNameExpr, typeExpr],
-            result: stubExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return stubExpr
     }
 }
 
