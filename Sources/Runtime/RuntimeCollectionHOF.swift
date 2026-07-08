@@ -2100,12 +2100,12 @@ public func kk_list_minOfOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 public func kk_list_shuffled_random(_ listRaw: Int, _ randomRaw: Int) -> Int {
     guard let listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var elements = listBox.elements
-    // Fisher-Yates shuffle delegating to kk_random_nextInt_until.
-    // NOTE: kk_random_nextInt_until currently ignores the Random instance
-    // and uses Swift's SystemRandomNumberGenerator, so seeded Random
-    // instances (e.g. Random(42)) do NOT yet produce deterministic results.
-    // The randomRaw parameter is threaded through so that adding seeded
-    // RNG support requires changes only in RuntimeRandom.swift.
+    // Fisher-Yates shuffle delegating to runtimeRandomNextIntBelow, which
+    // (KSP-466) currently ignores the Random instance and uses Swift's
+    // SystemRandomNumberGenerator, so seeded Random instances (e.g.
+    // Random(42)) do NOT yet produce deterministic results here. The
+    // randomRaw parameter is threaded through so that adding seeded RNG
+    // support requires changes only in RuntimeRandom.swift.
     guard elements.count > 1 else {
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
