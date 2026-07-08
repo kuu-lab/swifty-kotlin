@@ -10,7 +10,7 @@ struct BoxingCalleeTableTests {
         (.ubyte, "kk_box_int", "kk_unbox_int"),
         (.ushort, "kk_box_int", "kk_unbox_int"),
         (.long, "kk_box_long", "kk_unbox_long"),
-        (.ulong, "kk_box_long", "kk_unbox_long"),
+        (.ulong, "kk_box_ulong", "kk_unbox_ulong"),
         (.boolean, "kk_box_bool", "kk_unbox_bool"),
         (.float, "kk_box_float", "kk_unbox_float"),
         (.double, "kk_box_double", "kk_unbox_double"),
