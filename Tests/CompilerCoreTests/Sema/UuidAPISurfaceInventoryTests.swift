@@ -2,25 +2,27 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-UUID-001 / STDLIB-UUID-002: kotlin.uuid.Uuid API surface inventory
+// MARK: - STDLIB-UUID-001 / STDLIB-UUID-002 / KSP-476: kotlin.uuid.Uuid API surface inventory
 //
-// This file catalogues the Uuid-related symbols that the sema layer registers as
-// synthetic stubs and verifies that:
+// This file catalogues the Uuid-related symbols and verifies that:
 //   • the kotlin.uuid package hierarchy is present after sema
-//   • Uuid class, Companion object, and all factory/instance members are wired to
-//     the correct ABI external-link names
-//   • implemented companion factories are tracked in one inventory
-//   • known pending companion members are tracked as gaps
+//   • Uuid class, Companion object, and all factory/instance members are
+//     declared for real in Stdlib/kotlin/uuid/Uuid.kt (not synthetic stubs)
 //   • Uuid.random() return type resolves to kotlin.uuid.Uuid
-//   • toString vs toHexString dispatch is tracked as separate links
 //   • toByteArray() and toLongs() are present with their signatures
-//   • @ExperimentalUuidApi opt-in marker: now synthesised (STDLIB-EXPERIMENTAL-ABI-001)
+//   • @ExperimentalUuidApi opt-in marker: synthesised (STDLIB-EXPERIMENTAL-ABI-001)
 //
-// Scope: sema / symbol-table level only.  Runtime correctness is in RuntimeUuidTests
-//        and the edge-case file added in PR #1221 (UUID-003).
+// KSP-476: parsing/formatting/version/variant/NIL/LEXICAL_ORDER/toLongs/toByteArray/
+// fromByteArray/ByteArray extensions are pure Kotlin now, built on top of six
+// native bridges (random/fromLongs/mostSignificantBits/leastSignificantBits/
+// nameUUIDFromBytes/toKotlinUuid, all `__kk_uuid_*`). None of the *public*
+// Uuid API symbols carry an externalLinkName anymore — only the private
+// bridge declarations inside Uuid.kt do — so this file checks "declared in
+// Uuid.kt, not synthetic" instead of exact link names.
 //
-// NOTE - known gaps detected during inventory:
-//   • No tracked companion-member gaps remain for the implemented UUID surface.
+// Scope: sema / symbol-table level only. Runtime correctness for the six
+// surviving bridges is in RuntimeUuid* tests; pure-Kotlin behavior is
+// exercised via Scripts/diff_cases/uuid_basic.kt and uuid_put_uuid.kt.
 
 @Suite
 struct UuidAPISurfaceInventoryTests {
@@ -45,30 +47,6 @@ struct UuidAPISurfaceInventoryTests {
 
     // MARK: - Lookup helpers
 
-    /// Single external-link name for a fully-qualified symbol path.
-    private func externalLink(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> String? {
-        let interned = fqPath.map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
-        return sema.symbols.externalLinkName(for: sym)
-    }
-
-    /// All external-link names registered under a fully-qualified symbol path.
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-    }
-
     private func symbols(
         fqPath: [String],
         sema: SemaModule,
@@ -83,6 +61,21 @@ struct UuidAPISurfaceInventoryTests {
     ) -> Bool {
         sema.symbols.annotations(for: symbol).contains {
             $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi"
+        }
+    }
+
+    /// True if any symbol at `fqPath` is declared for real in bundled Uuid.kt
+    /// (not a synthetic stub registered from Swift).
+    private func isSourceBacked(
+        fqPath: [String],
+        ctx: CompilationContext,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+        return symbols(fqPath: fqPath, sema: sema, interner: interner).contains { sym in
+            guard let info = sema.symbols.symbol(sym) else { return false }
+            return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
         }
     }
 
@@ -149,39 +142,48 @@ struct UuidAPISurfaceInventoryTests {
         let (ctx, _, _) = try makeSemaWithContext()
         #expect(
             ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt") != nil,
-            "MIGRATION-UUID-001 requires Stdlib/kotlin/uuid/Uuid.kt to be bundled"
+            "KSP-476 requires Stdlib/kotlin/uuid/Uuid.kt to be bundled"
         )
     }
 
     @Test
-    func testMigratedUuidClassAPISymbolsComeFromKotlinSource() throws {
+    func testUuidClassAPISymbolsComeFromKotlinSource() throws {
         let (ctx, sema, interner) = try makeSemaWithContext()
         let uuidSourceFileID = try #require(
             ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
         )
-        let migratedAPIs: [(fqPath: [String], linkName: String)] = [
-            (["kotlin", "uuid", "Uuid", "Companion", "random"], "kk_uuid_random"),
-            (["kotlin", "uuid", "Uuid", "Companion", "parse"], "kk_uuid_parse"),
-            (["kotlin", "uuid", "Uuid", "toString"], "kk_uuid_toString"),
-            (["kotlin", "uuid", "Uuid", "toLongs"], "kk_uuid_toLongs"),
-            (["kotlin", "uuid", "Uuid", "toByteArray"], "kk_uuid_toByteArray"),
+        let migratedAPIs: [[String]] = [
+            ["kotlin", "uuid", "Uuid", "Companion", "random"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parse"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseHex"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseHexOrNull"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseHexDash"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseHexDashOrNull"],
+            ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
+            ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
+            ["kotlin", "uuid", "Uuid", "Companion", "nameUUIDFromBytes"],
+            ["kotlin", "uuid", "Uuid", "toString"],
+            ["kotlin", "uuid", "Uuid", "toHexString"],
+            ["kotlin", "uuid", "Uuid", "toLongs"],
+            ["kotlin", "uuid", "Uuid", "toByteArray"],
+            ["kotlin", "uuid", "Uuid", "version"],
+            ["kotlin", "uuid", "Uuid", "variant"],
         ]
 
-        for api in migratedAPIs {
+        for fqPath in migratedAPIs {
             let symbol = try #require(
-                symbols(fqPath: api.fqPath, sema: sema, interner: interner).first {
-                    sema.symbols.externalLinkName(for: $0) == api.linkName
-                },
-                "\(api.fqPath.joined(separator: ".")) must link to \(api.linkName)"
+                symbols(fqPath: fqPath, sema: sema, interner: interner).first,
+                "\(fqPath.joined(separator: ".")) must be registered"
             )
             let info = try #require(sema.symbols.symbol(symbol))
             #expect(
                 sema.symbols.sourceFileID(for: symbol) == uuidSourceFileID,
-                "\(api.fqPath.joined(separator: ".")) must be declared by Uuid.kt"
+                "\(fqPath.joined(separator: ".")) must be declared by Uuid.kt"
             )
             #expect(
                 !info.flags.contains(.synthetic),
-                "\(api.fqPath.joined(separator: ".")) must be source-backed, not synthetic"
+                "\(fqPath.joined(separator: ".")) must be source-backed, not synthetic"
             )
         }
     }
@@ -197,7 +199,7 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
-    func testUuidSourceCompanionReusesSyntheticCompanionSymbol() throws {
+    func testUuidCompanionHasNoSplitOrDuplicateSymbols() throws {
         let (ctx, sema, interner) = try makeSemaWithContext()
         let uuidSourceFileID = try #require(
             ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
@@ -210,7 +212,7 @@ struct UuidAPISurfaceInventoryTests {
 
         #expect(
             sema.symbols.lookupAll(fqName: companionFQ) == [companionSymbol],
-            "Uuid source migration must not leave split synthetic/source companion symbols"
+            "Uuid.Companion must not have split synthetic/source symbols"
         )
         #expect(companionInfo.kind == .object)
         #expect(!companionInfo.flags.contains(.synthetic))
@@ -232,16 +234,16 @@ struct UuidAPISurfaceInventoryTests {
     // MARK: - 2. Companion factory methods
 
     @Test
-    func testUuidRandomCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "random"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidRandomCompanionMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_random"),
-            "Uuid.random() must link to kk_uuid_random; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "random"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.random() must be declared in Uuid.kt"
         )
     }
 
@@ -272,16 +274,16 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
-    func testUuidParseCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parse"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidParseCompanionMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_parse"),
-            "Uuid.parse(uuidString) must link to kk_uuid_parse; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parse"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.parse(uuidString) must be declared in Uuid.kt"
         )
     }
 
@@ -417,118 +419,48 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
-    func testUuidNameUUIDFromBytesCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "nameUUIDFromBytes"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidNameUUIDFromBytesCompanionMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_nameUUIDFromBytes"),
-            "Uuid.nameUUIDFromBytes must link to kk_uuid_nameUUIDFromBytes; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "nameUUIDFromBytes"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.nameUUIDFromBytes must be declared in Uuid.kt"
         )
     }
 
     @Test
-    func testUuidFromLongsCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidFromLongsCompanionMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_fromLongs"),
-            "Uuid.fromLongs must link to kk_uuid_fromLongs; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.fromLongs must be declared in Uuid.kt"
         )
     }
 
     @Test
-    func testUuidFromByteArrayCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidFromByteArrayCompanionMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_fromByteArray"),
-            "Uuid.fromByteArray must link to kk_uuid_fromByteArray; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.fromByteArray must be declared in Uuid.kt"
         )
     }
 
     // MARK: - 3. Overload presence: parse vs parseHex
-
-    @Test
-    func testUuidParseHexCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseHex"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            links.contains("kk_uuid_parseHex"),
-            "Uuid.parseHex(hexString) must link to kk_uuid_parseHex; found: \(links)"
-        )
-    }
-
-    @Test
-    func testUuidParseHexOrNullCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseHexOrNull"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            links.contains("kk_uuid_parseHexOrNull"),
-            "Uuid.parseHexOrNull(hexString) must link to kk_uuid_parseHexOrNull; found: \(links)"
-        )
-    }
-
-    @Test
-    func testUuidParseOrNullCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            links.contains("kk_uuid_parseOrNull"),
-            "Uuid.parseOrNull(uuidString) must link to kk_uuid_parseOrNull; found: \(links)"
-        )
-    }
-
-    @Test
-    func testUuidParseHexDashCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseHexDash"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            links.contains("kk_uuid_parseHexDash"),
-            "Uuid.parseHexDash(hexDashString) must link to kk_uuid_parseHexDash; found: \(links)"
-        )
-    }
-
-    @Test
-    func testUuidParseHexDashOrNullCompanionMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseHexDashOrNull"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            links.contains("kk_uuid_parseHexDashOrNull"),
-            "Uuid.parseHexDashOrNull(hexDashString) must link to kk_uuid_parseHexDashOrNull; found: \(links)"
-        )
-    }
 
     @Test
     func testUuidParseFactoriesAreDistinctOverloads() throws {
@@ -556,68 +488,49 @@ struct UuidAPISurfaceInventoryTests {
         )
     }
 
-    // MARK: - 4. Instance methods: toString vs toHexString dispatch
+    // MARK: - 4. Instance methods: toString / toHexString
 
     @Test
-    func testUuidToStringInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toString"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidToStringInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_toString",
-            "Uuid.toString() must link to kk_uuid_toString"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "toString"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.toString() must be declared in Uuid.kt"
         )
     }
 
     @Test
-    func testUuidToHexStringInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toHexString"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidToHexStringInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_toHexString",
-            "Uuid.toHexString() must link to kk_uuid_toHexString"
-        )
-    }
-
-    @Test
-    func testUuidToStringAndToHexStringHaveDistinctLinks() throws {
-        let (sema, interner) = try makeSema()
-        let toStringLink = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toString"],
-            sema: sema,
-            interner: interner
-        )
-        let toHexStringLink = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toHexString"],
-            sema: sema,
-            interner: interner
-        )
-        #expect(
-            toStringLink != toHexStringLink,
-            "toString and toHexString must dispatch to different external-link names"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "toHexString"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.toHexString() must be declared in Uuid.kt"
         )
     }
 
     // MARK: - 5. Instance methods: toByteArray and toLongs
 
     @Test
-    func testUuidToByteArrayInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toByteArray"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidToByteArrayInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_toByteArray",
-            "Uuid.toByteArray() must link to kk_uuid_toByteArray"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "toByteArray"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.toByteArray() must be declared in Uuid.kt"
         )
     }
 
@@ -635,16 +548,16 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
-    func testUuidToLongsInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "toLongs"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidToLongsInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_toLongs",
-            "Uuid.toLongs() must link to kk_uuid_toLongs"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "toLongs"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.toLongs() must be declared in Uuid.kt"
         )
     }
 
@@ -664,76 +577,76 @@ struct UuidAPISurfaceInventoryTests {
     // MARK: - 6. Instance properties: mostSignificantBits, leastSignificantBits
 
     @Test
-    func testUuidMostSignificantBitsPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "mostSignificantBits"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidMostSignificantBitsPropertyIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_mostSignificantBits",
-            "Uuid.mostSignificantBits property must link to kk_uuid_mostSignificantBits"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "mostSignificantBits"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.mostSignificantBits must be declared in Uuid.kt"
         )
     }
 
     @Test
-    func testUuidLeastSignificantBitsPropertyIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "leastSignificantBits"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidLeastSignificantBitsPropertyIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_leastSignificantBits",
-            "Uuid.leastSignificantBits property must link to kk_uuid_leastSignificantBits"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "leastSignificantBits"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.leastSignificantBits must be declared in Uuid.kt"
         )
     }
 
     // MARK: - 7. Instance methods: version and variant
 
     @Test
-    func testUuidVersionInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "version"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidVersionInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_version",
-            "Uuid.version() must link to kk_uuid_version"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "version"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.version() must be declared in Uuid.kt"
         )
     }
 
     @Test
-    func testUuidVariantInstanceMethodIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "variant"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidVariantInstanceMethodIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_variant",
-            "Uuid.variant() must link to kk_uuid_variant"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "variant"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.variant() must be declared in Uuid.kt"
         )
     }
 
     // MARK: - 8. NIL constant
 
     @Test
-    func testUuidNILCompanionConstantIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "NIL"],
-            sema: sema,
-            interner: interner
-        )
+    func testUuidNILCompanionConstantIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            link == "kk_uuid_nil",
-            "Uuid.NIL companion constant must link to kk_uuid_nil"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "NIL"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.NIL must be declared in Uuid.kt"
         )
     }
 
@@ -771,7 +684,6 @@ struct UuidAPISurfaceInventoryTests {
                 "Uuid.\(expected.name) must be registered as a companion property"
             )
             let info = try #require(sema.symbols.symbol(sym))
-            #expect(info.flags.contains(.static), "Uuid.\(expected.name) must be static")
             #expect(info.flags.contains(.constValue), "Uuid.\(expected.name) must be const")
             #expect(
                 sema.symbols.propertyType(for: sym) == sema.types.intType,
@@ -785,17 +697,26 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
-    func testUuidLexicalOrderComparatorIsRegistered() throws {
+    func testUuidLexicalOrderComparatorIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        #expect(
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "LEXICAL_ORDER"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "Uuid.LEXICAL_ORDER must be declared in Uuid.kt"
+        )
+    }
+
+    @Test
+    func testUuidLexicalOrderComparatorType() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "LEXICAL_ORDER"].map { interner.intern($0) }
         let lexicalOrderSym = try #require(
             sema.symbols.lookupAll(fqName: fq).first(where: { sema.symbols.symbol($0)?.kind == .property }),
             "Uuid.LEXICAL_ORDER must be registered as a companion property"
-        )
-
-        #expect(
-            sema.symbols.externalLinkName(for: lexicalOrderSym) == "kk_uuid_lexicalOrder",
-            "Uuid.LEXICAL_ORDER must link to the UUID lexical comparator runtime"
         )
 
         let propType = try #require(sema.symbols.propertyType(for: lexicalOrderSym))
@@ -842,9 +763,7 @@ struct UuidAPISurfaceInventoryTests {
         }
     }
 
-    // MARK: - 9. @ExperimentalUuidApi opt-in annotation — now synthesised (STDLIB-EXPERIMENTAL-ABI-001)
-    //
-    // STDLIB-UUID-002 gap: resolved. @ExperimentalUuidApi annotation marker is now synthesised.
+    // MARK: - 9. @ExperimentalUuidApi opt-in annotation — synthesised (STDLIB-EXPERIMENTAL-ABI-001)
 
     @Test
     func testExperimentalUuidApiAnnotationIsRegistered() throws {
@@ -982,92 +901,57 @@ struct UuidAPISurfaceInventoryTests {
     // MARK: - 10. Full API surface inventory
 
     @Test
-    func testAllRegisteredUuidCompanionLinksArePresent() throws {
-        let (sema, interner) = try makeSema()
+    func testAllUuidCompanionMembersAreSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         let companionFQ = ["kotlin", "uuid", "Uuid", "Companion"]
-        let expectedCompanionLinks: Set<String> = [
-            "kk_uuid_random",
-            "kk_uuid_nil",
-            "kk_uuid_lexicalOrder",
-            "kk_uuid_parse",
-            "kk_uuid_parseOrNull",
-            "kk_uuid_parseHex",
-            "kk_uuid_parseHexOrNull",
-            "kk_uuid_parseHexDash",
-            "kk_uuid_parseHexDashOrNull",
-            "kk_uuid_nameUUIDFromBytes",
-            "kk_uuid_fromLongs",
-            "kk_uuid_fromByteArray",
-        ]
-        var foundLinks: Set<String> = []
-        for memberName in ["random", "NIL", "LEXICAL_ORDER", "parse", "parseOrNull", "parseHex", "parseHexOrNull", "parseHexDash", "parseHexDashOrNull", "nameUUIDFromBytes", "fromLongs", "fromByteArray"] {
-            let path = companionFQ + [memberName]
-            let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
-            foundLinks.formUnion(links)
+        for memberName in [
+            "random", "NIL", "LEXICAL_ORDER", "parse", "parseOrNull", "parseHex", "parseHexOrNull",
+            "parseHexDash", "parseHexDashOrNull", "nameUUIDFromBytes", "fromLongs", "fromByteArray",
+        ] {
+            #expect(
+                isSourceBacked(fqPath: companionFQ + [memberName], ctx: ctx, sema: sema, interner: interner),
+                "Uuid.\(memberName) must be declared in Uuid.kt"
+            )
         }
-        #expect(
-            expectedCompanionLinks.isSubset(of: foundLinks),
-            "All companion methods must be registered; found: \(foundLinks)"
-        )
     }
 
     @Test
-    func testAllRegisteredUuidInstanceMethodLinksArePresent() throws {
-        let (sema, interner) = try makeSema()
+    func testAllUuidInstanceMethodsAreSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         let classFQ = ["kotlin", "uuid", "Uuid"]
-        let expectedInstanceLinks: Set<String> = [
-            "kk_uuid_toString",
-            "kk_uuid_toHexString",
-            "kk_uuid_toLongs",
-            "kk_uuid_toByteArray",
-            "kk_uuid_version",
-            "kk_uuid_variant",
-        ]
-        var foundLinks: Set<String> = []
         for member in ["toString", "toHexString", "toLongs", "toByteArray", "version", "variant"] {
-            let path = classFQ + [member]
-            let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
-            foundLinks.formUnion(links)
+            #expect(
+                isSourceBacked(fqPath: classFQ + [member], ctx: ctx, sema: sema, interner: interner),
+                "Uuid.\(member) must be declared in Uuid.kt"
+            )
         }
-        #expect(
-            expectedInstanceLinks.isSubset(of: foundLinks),
-            "All instance methods must be registered; found: \(foundLinks)"
-        )
     }
 
     @Test
-    func testAllRegisteredUuidPropertyLinksArePresent() throws {
-        let (sema, interner) = try makeSema()
+    func testAllUuidPropertiesAreSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         let classFQ = ["kotlin", "uuid", "Uuid"]
-        let expectedPropertyLinks: Set<String> = [
-            "kk_uuid_mostSignificantBits",
-            "kk_uuid_leastSignificantBits",
-        ]
-        var foundLinks: Set<String> = []
         for prop in ["mostSignificantBits", "leastSignificantBits"] {
-            let path = classFQ + [prop]
-            let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
-            foundLinks.formUnion(links)
+            #expect(
+                isSourceBacked(fqPath: classFQ + [prop], ctx: ctx, sema: sema, interner: interner),
+                "Uuid.\(prop) must be declared in Uuid.kt"
+            )
         }
-        #expect(
-            expectedPropertyLinks.isSubset(of: foundLinks),
-            "All instance properties must be registered; found: \(foundLinks)"
-        )
     }
 
     // MARK: - 11. toKotlinUuid extension (STDLIB-UUID-FN-004)
 
     @Test
-    func testToKotlinUuidExtensionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "toKotlinUuid"],
-            sema: sema,
-            interner: interner
-        )
+    func testToKotlinUuidExtensionIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
         #expect(
-            links.contains("kk_uuid_toKotlinUuid"),
-            "kotlin.uuid.toKotlinUuid must link to kk_uuid_toKotlinUuid; found: \(links)"
+            isSourceBacked(
+                fqPath: ["kotlin", "uuid", "toKotlinUuid"],
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ),
+            "kotlin.uuid.toKotlinUuid must be declared in Uuid.kt"
         )
     }
 

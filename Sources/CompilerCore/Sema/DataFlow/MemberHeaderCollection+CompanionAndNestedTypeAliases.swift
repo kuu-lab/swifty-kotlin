@@ -32,27 +32,14 @@ extension DataFlowSemaPhase {
         }
 
         let companionFQName = ownerFQName + [companionName]
-        let companionSymbol: SymbolID
-        if let reusableSymbol = reusableSyntheticUuidSourceCompanionSymbol(
+        let companionSymbol: SymbolID = symbols.define(
+            kind: .object,
+            name: companionName,
             fqName: companionFQName,
-            sourceFileID: sourceFileID,
-            ownerSymbol: ownerSymbol,
-            ctx: ctx,
-            symbols: symbols,
-            interner: interner
-        ) {
-            companionSymbol = reusableSymbol
-            symbols.removeFlags(.synthetic, for: companionSymbol)
-        } else {
-            companionSymbol = symbols.define(
-                kind: .object,
-                name: companionName,
-                fqName: companionFQName,
-                declSite: companionObject.range,
-                visibility: visibility(from: companionObject.modifiers),
-                flags: flags(from: companionObject.modifiers)
-            )
-        }
+            declSite: companionObject.range,
+            visibility: visibility(from: companionObject.modifiers),
+            flags: flags(from: companionObject.modifiers)
+        )
         symbols.setSourceFileID(sourceFileID, for: companionSymbol)
         registerAnnotations(
             for: decl,

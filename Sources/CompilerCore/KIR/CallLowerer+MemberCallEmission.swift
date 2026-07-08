@@ -85,29 +85,6 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosenCallee),
            signature.receiverType != nil
         {
-            // Uuid.random()/Uuid.parse(String) are declared as ordinary
-            // companion-object member functions in the Kotlin-source
-            // migration bridge (Stdlib/kotlin/uuid/Uuid.kt +
-            // HeaderHelpers+UuidSourceMigration.swift), so Sema gives them a
-            // normal receiverType (the companion instance) and this path
-            // would otherwise prepend it as the call's first argument. But
-            // their runtime bridges (kk_uuid_random, kk_uuid_parse) are
-            // genuinely receiver-less C functions — unlike most other
-            // externally-linked companion factories (e.g.
-            // kk_int_progression_fromClosedRange), which keep an (unused)
-            // receiver parameter purely for ABI-shape consistency. Passing
-            // the companion receiver as an extra leading argument to these
-            // two specific runtime entry points shifts every real argument
-            // by one register/slot, silently corrupting the call — so they
-            // are special-cased by external link name rather than by a
-            // general "is this a companion object" rule, which would
-            // incorrectly strip the (expected, if unused) receiver argument
-            // from other companion-bridged runtime calls.
-            let receiverlessCompanionBridgeLinkNames: Set<String> = ["kk_uuid_random", "kk_uuid_parse"]
-            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
-            if let externalLinkName, receiverlessCompanionBridgeLinkNames.contains(externalLinkName) {
-                return
-            }
             arguments.insert(loweredReceiverID, at: 0)
             return
         }

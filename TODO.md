@@ -296,7 +296,7 @@
   - 対象: `compareBy`×2, `compareByDescending`×2, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`
   - 削除: `RuntimeComparator.swift` の対応 `kk_comparator_*`（trampoline 含む）/ `HeaderHelpers+SyntheticComparatorStubs.swift` の同登録 / `CallLowerer+StdlibComparisons.swift` の同 case
   - 注意: Comparator SAM ディスパッチ対応が前提（未対応ならブロッカーとして報告）/ diff: `comparisons_edge_cases.kt`（既存）
-- [ ] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）
+- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）— KSP-476 で完遂
   - ブリッジ残留: `kk_uuid_random`（エントロピー）と `kk_uuid_nameUUIDFromBytes`（MD5）は `__kk_` 降格。パース/整形/ビット抽出は Kotlin 化
   - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存）
   - 手順: T
@@ -444,8 +444,11 @@
 
 #### kotlin.uuid [M12 実行体]
 
-- [ ] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
+- [x] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
+  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。
+    残存ブリッジは `random`/`fromLongs`/`mostSignificantBits`/`leastSignificantBits`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の7個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
+    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。
 
 #### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
 

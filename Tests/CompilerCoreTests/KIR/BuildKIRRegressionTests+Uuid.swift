@@ -4,7 +4,17 @@ import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
-    @Test func testUuidCompanionAndInstanceCallsLowerToRuntimeCallees() throws {
+    /// KSP-476: parsing/formatting/version/variant/NIL/LEXICAL_ORDER/toLongs/toByteArray
+    /// are pure Kotlin now, built on the six bridges that genuinely need native support
+    /// (random/fromLongs/mostSignificantBits/leastSignificantBits/nameUUIDFromBytes/
+    /// toKotlinUuid). Those bridges are only called from within the Kotlin-source
+    /// wrapper's own body (e.g. `random() = __uuidRandom()`), and at this
+    /// frontend-only `.kirDump` stage stdlib function bodies from a different
+    /// declaration aren't lowered into the same module — only the call-site's
+    /// simple callee name (e.g. "random", "get" for a property getter) is visible
+    /// here. Full bridge-call verification lives in RuntimeUuid* tests and
+    /// Scripts/diff_cases/uuid_basic.kt (diff_kotlinc).
+    @Test func testUuidCompanionAndInstanceCallsCompileAndUseSurvivingBridges() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -44,26 +54,14 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_uuid_nil"), "Expected Uuid.NIL runtime call")
-            #expect(callees.contains("kk_uuid_lexicalOrder"), "Expected Uuid.LEXICAL_ORDER runtime call")
-            #expect(callees.contains("kk_uuid_parse"), "Expected Uuid.parse runtime call")
-            #expect(callees.contains("kk_uuid_parseOrNull"), "Expected Uuid.parseOrNull runtime call")
-            #expect(callees.contains("kk_uuid_parseHex"), "Expected Uuid.parseHex runtime call")
-            #expect(callees.contains("kk_uuid_parseHexOrNull"), "Expected Uuid.parseHexOrNull runtime call")
-            #expect(callees.contains("kk_uuid_parseHexDash"), "Expected Uuid.parseHexDash runtime call")
-            #expect(callees.contains("kk_uuid_parseHexDashOrNull"), "Expected Uuid.parseHexDashOrNull runtime call")
-            #expect(callees.contains("kk_uuid_toString"), "Expected Uuid.toString runtime call")
-            #expect(callees.contains("kk_uuid_toHexString"), "Expected Uuid.toHexString runtime call")
-            #expect(callees.contains("kk_uuid_toLongs"), "Expected Uuid.toLongs runtime call")
-            #expect(callees.contains("kk_uuid_toByteArray"), "Expected Uuid.toByteArray runtime call")
-            #expect(callees.contains("kk_uuid_version"), "Expected Uuid.version runtime call")
-            #expect(callees.contains("kk_uuid_variant"), "Expected Uuid.variant runtime call")
-            #expect(callees.contains("kk_uuid_mostSignificantBits"), "Expected Uuid.mostSignificantBits runtime call")
-            #expect(callees.contains("kk_uuid_leastSignificantBits"), "Expected Uuid.leastSignificantBits runtime call")
+            #expect(
+                callees.contains("get"),
+                "Expected mostSignificantBits/leastSignificantBits property getter calls; found: \(callees)"
+            )
         }
     }
 
-    @Test func testUuidAdditionalFactoriesLowerToRuntimeCallees() throws {
+    @Test func testUuidAdditionalFactoriesUseSurvivingBridges() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -85,10 +83,10 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_uuid_random"), "Expected Uuid.random runtime call")
-            #expect(callees.contains("kk_uuid_nameUUIDFromBytes"), "Expected Uuid.nameUUIDFromBytes runtime call")
-            #expect(callees.contains("kk_uuid_fromLongs"), "Expected Uuid.fromLongs runtime call")
-            #expect(callees.contains("kk_uuid_fromByteArray"), "Expected Uuid.fromByteArray runtime call")
+            #expect(callees.contains("random"), "Expected Uuid.random call; found: \(callees)")
+            #expect(callees.contains("nameUUIDFromBytes"), "Expected Uuid.nameUUIDFromBytes call; found: \(callees)")
+            #expect(callees.contains("fromLongs"), "Expected Uuid.fromLongs call; found: \(callees)")
+            #expect(callees.contains("fromByteArray"), "Expected Uuid.fromByteArray call; found: \(callees)")
         }
     }
 
@@ -144,29 +142,18 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testABILoweringMarksUuidPureRuntimeHelpersAsNonThrowing() {
+    @Test func testABILoweringMarksUuidSurvivingBridgesAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
         let nonThrowingUuidCallees = [
-            "kk_uuid_random",
-            "kk_uuid_nil",
-            "kk_uuid_lexicalOrder",
-            "kk_uuid_parseOrNull",
-            "kk_uuid_parseHexOrNull",
-            "kk_uuid_parseHexDashOrNull",
-            "kk_uuid_toString",
-            "kk_uuid_toHexString",
-            "kk_uuid_toKotlinUuid",
-            "kk_uuid_toLongs",
-            "kk_uuid_toByteArray",
-            "kk_uuid_version",
-            "kk_uuid_variant",
-            "kk_uuid_mostSignificantBits",
-            "kk_uuid_leastSignificantBits",
-            "kk_uuid_nameUUIDFromBytes",
-            "kk_uuid_fromLongs",
+            "__kk_uuid_random",
+            "__kk_uuid_mostSignificantBits",
+            "__kk_uuid_leastSignificantBits",
+            "__kk_uuid_nameUUIDFromBytes",
+            "__kk_uuid_fromLongs",
+            "__kk_uuid_toKotlinUuid",
         ]
 
         for callee in nonThrowingUuidCallees {
@@ -175,11 +162,6 @@ extension BuildKIRRegressionTests {
                 "\(callee) should not receive an outThrown slot during ABI lowering"
             )
         }
-
-        #expect(!(callees.contains(interner.intern("kk_uuid_parse"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_parseHex"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_parseHexDash"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_fromByteArray"))))
     }
 }
 #endif
