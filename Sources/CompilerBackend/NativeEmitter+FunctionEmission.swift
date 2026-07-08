@@ -1961,6 +1961,11 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_hexToInt_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_hexToInt_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toByteArray_flat",
                     stringArgumentCount: 1,
