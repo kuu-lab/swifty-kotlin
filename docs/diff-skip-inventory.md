@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-08
+最終更新: 2026-07-09
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -22,7 +22,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-001 | 21 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 8 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
@@ -46,10 +46,13 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | --- | --- | --- | --- |
 | JVM assert mode | `assertions.kt` | KSwiftK は assert 有効、JVM は既定で無効 | `JAVA_FLAGS: -ea` 相当の directive を追加して通常 diff へ戻す |
 | KMP expect/actual | `kmp_common.kt` | kotlinc に multiplatform flags を渡していない | case-specific `KOTLINC_FLAGS` で再現できるか検証し、不可なら KMP runner へ分離 |
-| `kotlin.io.path` | `path_basic.kt` | JVM-specific path API / import surface の扱いが曖昧 | JVM interop 対象として維持するなら reference classpath/import を修正、target 外なら別 backlog へ移す |
 | serialization | `custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt` | `kotlinx-serialization` jar / plugin が無い | dependency injection だけで動く範囲と compiler plugin 必須範囲を分ける |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | `org.slf4j` jar / runtime-only logger が無い | `slf4j-api` + binding 注入で戻せる basic と runtime-only advanced を分ける |
 | compiler plugin API | `compiler_plugin_api.kt` | case 自体は self-contained に見えるが skip 理由が generic | `--force-run-skipped` で再判定し、reference 阻害が無ければ DEBT-DIFF-006 か通常 diff へ移す |
+
+`path_basic.kt`（`kotlin.io.path`）は 2026-07-09 に解除済み: `import kotlin.io.path.Path` が `Path()` ファクトリしか import しておらず、`createDirectories` / `exists` / `writeText` 等の拡張関数が JVM 側で unresolved になっていたのが真因（`resolve` / `relativize` / `normalize` 等は `java.nio.file.Path` のネイティブメンバなので import 不要で解決していた）。`import kotlin.io.path.*` に変更して通常 diff に戻した。
+
+`uuid_basic.kt` は本表に未記載だが `DEBT-DIFF-001` skip 済みで、"keep skip" 表にも含まれていない。skip 理由コメントは「KSwiftK UUID APIs」としているが、実体は `kotlin.uuid.Uuid`（`@OptIn(ExperimentalUuidApi)` 付き）という標準 stdlib API であり、`path_basic.kt` と同様に reference 側の import/opt-in 不足が真因の可能性がある。要再判定（別 backlog 化）。
 
 ## DEBT-DIFF-002: script-style cases
 
