@@ -72,13 +72,27 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "bump", in: module, interner: ctx.interner)
-        let setCallArgumentCounts = body.compactMap { instruction -> Int? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_set"
-            else { return nil }
-            return arguments.count
+
+        // Resolve each `kk_array_set` call's offset argument (arguments[1]) back to
+        // the Int64 literal bound to it by a preceding `.constValue` instruction, so
+        // we can assert the two stores actually target distinct field offsets rather
+        // than just counting how many stores were emitted.
+        var intLiteralByResult: [KIRExprID: Int64] = [:]
+        for instruction in body {
+            if case let .constValue(result, .intLiteral(value)) = instruction {
+                intLiteralByResult[result] = value
+            }
         }
-        #expect(setCallArgumentCounts.count == 2, "Expected two field stores (one per field), got \(setCallArgumentCounts.count)")
+        let storeOffsets = body.compactMap { instruction -> Int64? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_array_set",
+                  arguments.count == 3
+            else { return nil }
+            return intLiteralByResult[arguments[1]]
+        }
+
+        #expect(storeOffsets.count == 2, "Expected two field stores (one per field), got \(storeOffsets.count)")
+        #expect(Set(storeOffsets).count == 2, "Expected the two field stores to target distinct offsets, got \(storeOffsets)")
     }
 }
 #endif
