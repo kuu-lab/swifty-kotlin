@@ -15,25 +15,9 @@ fun main() {
     }
     println("nextFloat in range: $okFloat")
 
-    // STDLIB-655: nextFloat(until)
-    var okFloatUntil = true
-    repeat(100) {
-        val f = Random.nextFloat(5.0f)
-        if (f < 0.0f || f >= 5.0f) {
-            okFloatUntil = false
-        }
-    }
-    println("nextFloat(5.0f) in range: $okFloatUntil")
-
-    // STDLIB-655: nextFloat(from, until)
-    var okFloatRange = true
-    repeat(100) {
-        val f = Random.nextFloat(1.0f, 10.0f)
-        if (f < 1.0f || f >= 10.0f) {
-            okFloatRange = false
-        }
-    }
-    println("nextFloat(1.0f, 10.0f) in range: $okFloatRange")
+    // STDLIB-655's nextFloat(until) / nextFloat(from, until) cases were moved to
+    // random_nextfloat_ranged_synthetic.kt (SKIP-DIFF): kotlin.random.Random only
+    // exposes a zero-arg nextFloat() on the JVM, so kotlinc rejects ranged overloads.
 
     // STDLIB-654: nextDouble(until)
     var okDoubleUntil = true
