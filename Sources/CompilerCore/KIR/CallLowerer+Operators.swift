@@ -470,6 +470,36 @@ extension CallLowerer {
         default:
             break
         }
+        // KSP-466 / PEC-NUM-0002: Unsigned-aware path for UInt/ULong/UByte/UShort
+        // division and remainder. The kk_op_div/kk_op_mod path below (reached via
+        // the .divide/.modulo cases further down) performs plain signed Int64
+        // division, which is wrong for ULong once the value's high bit is set
+        // (any ULong >= 2^63) — e.g. 17663719463477156090uL / 2uL would divide the
+        // negative signed reinterpretation instead of the actual unsigned value.
+        // UInt/UByte/UShort are always zero-extended into the shared 64-bit
+        // container, so signed and unsigned division already agree for them, but
+        // routing them through kk_op_udiv/kk_op_urem too is harmless and keeps this
+        // check a single isUnsigned test. kk_op_udiv/kk_op_urem reinterpret both
+        // operands via UInt(bitPattern:) and still throw ArithmeticException on
+        // zero divisor via outThrown, matching kk_op_div/kk_op_mod.
+        switch op {
+        case .divide, .modulo:
+            let unsignedTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                              ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(op == .divide ? "kk_op_udiv" : "kk_op_urem"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(
@@ -494,6 +524,7 @@ extension CallLowerer {
         case .divide:
             // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
             // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
+            // Unsigned operands (UInt/ULong/UByte/UShort) already returned via kk_op_udiv above.
             if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
                prim == .float || prim == .double {
                 kirOp = .divide

@@ -350,6 +350,30 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Bitwise"
         ),
+        // UInt/ULong/UByte/UShort division and remainder — throwing (PEC-NUM-0002 / KSP-466).
+        // Reinterprets both operands as unsigned (UInt(bitPattern:)) instead of the
+        // plain signed division kk_op_div/kk_op_mod use, which misreads ULong values
+        // with the high bit set (>= 2^63) as negative.
+        RuntimeABIFunctionSpec(
+            name: "kk_op_udiv",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_op_urem",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
     ]
 
     /// Boolean logical operators
