@@ -33,7 +33,7 @@ final class RuntimeRangeRandomTests: XCTestCase {
     }
 
     func testRandomNextIntRangeObjectReturnsValueInsideBounds() {
-        let random = kk_random_create_seeded(42)
+        let random = __kk_random_create_seeded(42)
         let range = kk_op_rangeTo(10, 15)
         var thrown = 0
         let value = kk_random_nextInt_rangeObject(random, range, &thrown)
@@ -43,7 +43,7 @@ final class RuntimeRangeRandomTests: XCTestCase {
     }
 
     func testRandomNextIntRangeObjectThrowsForEmptyRange() {
-        let random = kk_random_create_seeded(42)
+        let random = __kk_random_create_seeded(42)
         let range = kk_op_rangeTo(15, 10)
         var thrown = 0
         let value = kk_random_nextInt_rangeObject(random, range, &thrown)
@@ -93,7 +93,7 @@ final class RuntimeRangeRandomTests: XCTestCase {
     }
 
     func testRangeRandomWithRandomOverloadsReturnValuesInsideBounds() {
-        let random = kk_random_create_seeded(123)
+        let random = __kk_random_create_seeded(123)
         var thrown = 0
 
         let intValue = kk_range_random_random(kk_op_rangeTo(1, 5), random, &thrown)
