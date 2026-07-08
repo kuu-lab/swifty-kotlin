@@ -13,7 +13,16 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let operatorNames = operatorFunctionNames(for: op, interner: interner)
+        // Kotlin resolves `a += b` in two phases: first the dedicated in-place
+        // operator (e.g. `plusAssign`, which must return Unit), then the
+        // corresponding binary operator (e.g. `plus`) rebinding as `a = a.plus(b)`.
+        // Each phase must search its own operator name — otherwise a type that
+        // defines only `plus` (no `plusAssign`) is never found here, and the
+        // caller silently falls back to the builtin numeric/string compound-assign
+        // path even though the receiver isn't numeric/string.
+        let operatorNames = requireUnitReturn
+            ? operatorFunctionNames(for: op, interner: interner)
+            : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
         let operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
