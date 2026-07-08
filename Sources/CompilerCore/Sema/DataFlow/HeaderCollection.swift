@@ -207,7 +207,8 @@ extension DataFlowSemaPhase {
                 fqName: fqName,
                 declSite: declaration.range,
                 visibility: declaration.visibility,
-                flags: declaration.flags
+                flags: declaration.flags,
+                isExtensionProperty: newIsExtensionProperty
             )
         }
         symbols.setSourceFileID(file.fileID, for: symbol)

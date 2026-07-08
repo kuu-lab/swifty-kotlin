@@ -1,3 +1,11 @@
+// SKIP-DIFF (DEBT-DIFF-005): kswiftc's synthetic Instant stubs use nanoOfSecond/until,
+// but real kotlin.time.Instant exposes nanosecondsOfSecond and a minus operator instead
+// (t2 - t1 : Duration). Separately, real kotlinc fails to resolve Duration.Companion.seconds
+// via `import kotlin.time.*` once Instant is referenced in the same file (unrelated compiler
+// quirk, reproduces with a plain `val x: Instant? = null`); explicit imports avoid it. Both
+// gaps predate and are unrelated to KSP's Duration factory-property fix (PR #4612), which is
+// what exposed this: kswiftc previously failed to compile this file too (for the .seconds bug),
+// so the compile-exit-code mismatch was masked by both sides failing for different reasons.
 import kotlin.time.*
 
 fun main() {

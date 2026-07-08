@@ -1115,8 +1115,12 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "last"
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                guard ctx.interner.resolve(callee) == "last" else { return false }
+                // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                // List<String>.last() internally; exclude bundled call sites
+                // so this finds the user's Collection<Int>.last() call.
+                return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let type = try #require(sema.bindings.exprType(for: callExpr))
             #expect(sema.types.kind(of: type) == .primitive(.int, .nonNull))

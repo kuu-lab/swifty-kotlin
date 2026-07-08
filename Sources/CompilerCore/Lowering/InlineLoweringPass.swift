@@ -483,7 +483,9 @@ final class InlineLoweringPass: LoweringPass {
             case .returnUnit:
                 hasNormalReturn = true
                 if needsInlineMergeLabel {
-                    returnedExpr = nil
+                    if inlineMergeResult == nil {
+                        returnedExpr = nil
+                    }
                     lowered.append(.jump(inlineExitLabel))
                 } else {
                     returnedExpr = nil
@@ -943,7 +945,9 @@ final class InlineLoweringPass: LoweringPass {
 
             case .returnUnit:
                 if needsMergeLabel {
-                    returnedExpr = nil
+                    if mergeResult == nil {
+                        returnedExpr = nil
+                    }
                     lowered.append(.jump(exitLabel))
                 } else {
                     returnedExpr = nil

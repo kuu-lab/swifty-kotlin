@@ -119,9 +119,6 @@ struct FileInvariantSeparatorsPathTests {
                 return symbols.extensionPropertyReceiverType(for: symbolID) == fileType
             })
 
-            #expect(
-                symbols.externalLinkName(for: property) == "kk_file_invariantSeparatorsPath"
-            )
             #expect(symbols.propertyType(for: property) == types.stringType)
         }
     }

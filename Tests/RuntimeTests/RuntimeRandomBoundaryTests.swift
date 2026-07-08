@@ -8,7 +8,7 @@ final class RuntimeRandomBoundaryTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeSeeded(_ seed: Int) -> Int {
-        kk_random_create_seeded(seed)
+        __kk_random_create_seeded(seed)
     }
 
     private func bitsToDouble(_ bits: Int) -> Double {

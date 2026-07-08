@@ -203,6 +203,26 @@ final class RuntimeNegativeArraySizeExceptionBox: RuntimeThrowableBox {
     }
 }
 
+// Existing call sites already bake the "ClassCastException: ..." prefix into
+// `message` (see kk_op_cast / kk_kclass_cast), so unlike its siblings above this
+// box does not override `renderedMessage` — the inherited default (`message`
+// verbatim) keeps `.message` / stack-trace text byte-for-byte unchanged from
+// before this type existed.
+final class RuntimeClassCastExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.ClassCastException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.ClassCastException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+}
+
 // MARK: - Typed Allocators
 
 /// Allocates an `AssertionError` with the given message.
@@ -293,6 +313,16 @@ func runtimeAllocateArithmeticException(message: String) -> Int {
 /// size rendered as a string, matching JVM Kotlin's `NegativeArraySizeException` behaviour).
 func runtimeAllocateNegativeArraySizeException(message: String) -> Int {
     let throwable = RuntimeNegativeArraySizeExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates a `ClassCastException` with the given (already-rendered) message.
+func runtimeAllocateClassCastException(message: String) -> Int {
+    let throwable = RuntimeClassCastExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))

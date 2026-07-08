@@ -6,7 +6,7 @@ final class RandomImplementationTests: XCTestCase {
     // MARK: - Helpers
 
     private func createSeededRandom(seed: Int) -> Int {
-        kk_random_create_seeded(seed)
+        __kk_random_create_seeded(seed)
     }
 
     private func bitsToFloat(_ bits: Int) -> Float {

@@ -164,6 +164,10 @@ struct CaptureAnalyzer {
                 }
                 visit(value)
 
+            case let .memberCompoundAssign(_, receiver, _, value, _):
+                visit(receiver)
+                visit(value)
+
             case let .throwExpr(value, _):
                 visit(value)
 

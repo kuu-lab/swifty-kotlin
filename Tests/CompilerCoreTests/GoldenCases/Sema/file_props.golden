@@ -5,7 +5,6 @@ symbol fq=java.io.File.<init>.path kind=valueParameter vis=private flags=synthet
 symbol fq=java.io.File.exists kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=Boolean
 symbol fq=java.io.File.isDirectory kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=Boolean
 symbol fq=java.io.File.isFile kind=function vis=public flags=synthetic sig=recv=java.io.File params=[] ret=Boolean
-symbol fq=java.io.File.name kind=property vis=public flags=synthetic type=String
 symbol fq=java.io.File.path kind=property vis=public flags=synthetic type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
@@ -16,7 +15,7 @@ expr e@4:18 string(/tmp/golden_test.txt) type=String
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0
 expr e@4:5 localDecl f mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.f
 expr e@5:13 name(f) type=java.io.File ref=__local_0.f
-expr e@5:13#1 memberCall recv=e@5:13 callee=name args=[] type=String ref=java.io.File.name
+expr e@5:13#1 memberCall recv=e@5:13 callee=name args=[] type=String call=kotlin.io.name.$get
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1
 expr e@6:13 name(f) type=java.io.File ref=__local_0.f
 expr e@6:13#1 memberCall recv=e@6:13 callee=path args=[] type=String ref=java.io.File.path

@@ -1575,6 +1575,21 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
+        case let .memberCompoundAssign(op, receiverExpr, calleeName, valueExpr, _):
+            return driver.callLowerer.lowerMemberCompoundAssignExpr(
+                exprID,
+                op: op,
+                receiverExpr: receiverExpr,
+                calleeName: calleeName,
+                valueExpr: valueExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+
         case let .throwExpr(valueExpr, _):
             let thrownValue = lowerExpr(
                 valueExpr,
