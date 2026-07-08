@@ -9,7 +9,7 @@ extension DelegateStorageSymbolTableTests {
     @Test func testConstructorInitializesDelegateStorage() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -42,7 +42,7 @@ extension DelegateStorageSymbolTableTests {
     @Test func testConstructorDoesNotCallProvideDelegateWhenNotDefined() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -75,8 +75,8 @@ extension DelegateStorageSymbolTableTests {
         // the constructor falls back to storing the delegate directly.
         let source = """
         class MyDelegate {
-            fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -133,8 +133,8 @@ extension DelegateStorageSymbolTableTests {
         // output; this unit test validates the KIR instruction shape.
         let source = """
         class MyDelegate {
-            fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -178,7 +178,7 @@ struct PropertyLoweringDelegateTests {
     @Test func testPropertyLoweringPreservesGetValueInsideAccessorToAvoidRecursion() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -220,8 +220,8 @@ struct PropertyLoweringDelegateTests {
     @Test func testPropertyLoweringDoesNotRewriteProvideDelegateToKKPropertyAccess() throws {
         let source = """
         class MyDelegate {
-            fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate = this
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -263,8 +263,8 @@ struct PropertyLoweringDelegateTests {
     @Test func testPropertyLoweringPreservesSetValueInsideAccessorToAvoidRecursion() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
-            fun setValue(thisRef: Any?, property: Any?, value: Int) {}
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
         }
         class Foo {
             var x: Int by MyDelegate()
