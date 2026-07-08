@@ -37,7 +37,6 @@ extension ABIMismatchTests {
         "kk_sequence_generate",
         "kk_sequence_of",
         "kk_string_chunked_sequence_transform_flat",
-        "kk_string_hexToUInt_flat",
         "kk_test_assertEquals",
         "kk_test_assertEquals_message",
         "kk_test_assertNull",
@@ -121,12 +120,6 @@ extension ABIMismatchTests {
     // MARK: String radix conversion
     private static let stringRadixStubLinkNames: Set<String> = [
         "kk_string_case_insensitive_order",
-        "kk_string_hexToShort_flat",
-        "kk_string_hexToUByte_flat",
-        "kk_string_hexToUByteArray_flat",
-        "kk_string_hexToUInt_flat",
-        "kk_string_hexToULong_flat",
-        "kk_string_hexToUShort_flat",
         "kk_string_toIntOrNull_radix_flat",
         "kk_string_toUByteOrNull_radix_flat",
         "kk_string_toUIntOrNull_radix_flat",

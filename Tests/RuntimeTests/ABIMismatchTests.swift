@@ -253,7 +253,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.sequenceFunctions,
             RuntimeABISpec.regexFunctions,
             RuntimeABISpec.base64Functions,
-            RuntimeABISpec.hexFormatFunctions,
             RuntimeABISpec.comparatorFunctions,
             RuntimeABISpec.resultFunctions,
             RuntimeABISpec.kotlinVersionFunctions,
