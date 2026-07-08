@@ -4,6 +4,37 @@ struct MemberCallReceiver {
     let loweredID: KIRExprID
 }
 
+/// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`
+/// call site (Any-fallback member calls, string concatenation/interpolation,
+/// data class `toString()` synthesis, `println(dataClass)` rewriting, ...):
+/// 1=default (Int/Long/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
+/// 6=Double, 7=ULong. ULong spans the full 64 bits, so kk_any_to_string must
+/// reinterpret it as unsigned (tag 1 would print the signed reinterpretation,
+/// or even "null" for values whose bit pattern equals Int.min). UInt/UByte/
+/// UShort stay on the default tag: they are always zero-extended into this
+/// container, so tag 1's signed decimal rendering already matches their
+/// unsigned value. This is a free function (not a `CallLowerer` method) so
+/// every lowering pass that stringifies an arbitrary Any-typed value can
+/// share the exact same tag computation instead of drifting out of sync.
+func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
+    switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+    case .primitive(.boolean, _):
+        2
+    case .stringStruct:
+        3
+    case .primitive(.char, _):
+        4
+    case .primitive(.float, _):
+        5
+    case .primitive(.double, _):
+        6
+    case .primitive(.ulong, _):
+        7
+    default:
+        1
+    }
+}
+
 extension CallLowerer {
     static let unresolvedCoroutineHandleMemberNames: Set<String> = [
         "await", "join", "awaitCompletion",
@@ -47,28 +78,7 @@ extension CallLowerer {
     }
 
     func anyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
-        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-        case .primitive(.boolean, _):
-            2
-        case .stringStruct:
-            3
-        case .primitive(.char, _):
-            4
-        case .primitive(.float, _):
-            5
-        case .primitive(.double, _):
-            6
-        case .primitive(.ulong, _):
-            // ULong spans the full 64 bits, so kk_any_to_string must reinterpret
-            // it as unsigned (tag 1 would print the signed reinterpretation, or
-            // even "null" for values whose bit pattern equals Int.min). UInt/
-            // UByte/UShort stay on the default tag: they are always
-            // zero-extended into this container, so tag 1's signed decimal
-            // rendering already matches their unsigned value.
-            7
-        default:
-            1
-        }
+        computeAnyFallbackTag(for: type, sema: sema)
     }
 
     /// Converts `valueID` (of static type `valueType`) to a `String` via

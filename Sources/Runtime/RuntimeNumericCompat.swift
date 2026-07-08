@@ -20,7 +20,7 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
         return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedDoubleValue(value)))
     }
     if tag == 7 {
-        return runtimeMakeStringPointer(String(UInt(bitPattern: value)))
+        return runtimeMakeStringPointer(String(runtimeTaggedULongValue(value)))
     }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
@@ -39,6 +39,48 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
         return pointer
     }
     return runtimeMakeStringPointer(runtimeElementToString(value))
+}
+
+/// Nullable-aware variant of `kk_any_to_string`, for call sites that know
+/// their *static* type is nullable but cannot safely add KIR-level branching
+/// to guard tags 5/6/7 (Float?/Double?/ULong?) the way
+/// `CallLowerer.emitAnyToStringWithNullGuard` does (e.g.
+/// `OperatorLoweringPass.appendStringConversion`, which rewrites
+/// already-lowered function bodies where introducing fresh label numbers
+/// risks colliding with labels assigned during the earlier lowering phase).
+///
+/// For tags 5/6/7, a genuinely-null value is always represented as the raw
+/// sentinel (never boxed), while a real non-null value of these tags is
+/// *always* boxed (RuntimeFloatBox/RuntimeDoubleBox/RuntimeLongBox) — the
+/// field/slot needs a representation for "null" distinct from every in-range
+/// value, including ones that share the sentinel's bit pattern (-0.0, or a
+/// ULong of exactly 2^63), so the ABI boxes any such value. That makes
+/// "is this boxed" a safe, purely-runtime way to disambiguate a real value
+/// from null — no compile-time knowledge of the specific value is needed,
+/// only that the *type* is nullable, which the caller already guarantees by
+/// choosing to call this entry point instead of `kk_any_to_string`. (For a
+/// *non-nullable* tag-5/6/7 value this distinction would be unsafe — such a
+/// value is never boxed even when in range, so callers must only use this
+/// for genuinely nullable-typed values.) Other tags have no such ambiguity,
+/// so this just forwards to `kk_any_to_string`.
+@_cdecl("kk_any_to_string_nullable")
+public func kk_any_to_string_nullable(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
+    let tag32 = Int32(truncatingIfNeeded: tag)
+    guard tag32 == 5 || tag32 == 6 || tag32 == 7 else {
+        return kk_any_to_string(value, tag)
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer {
+            return kk_any_to_string(value, tag)
+        }
+    }
+    if value == runtimeNullSentinelInt {
+        return runtimeMakeStringPointer("null")
+    }
+    return kk_any_to_string(value, tag)
 }
 
 private func runtimeRenderTaggedChar(_ value: Int) -> String {
@@ -75,6 +117,25 @@ private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
         }
     }
     return kk_bits_to_double(value)
+}
+
+/// ULong reuses Long's boxing (BoxingCalleeTable maps both `.long` and
+/// `.ulong` to kk_box_long/RuntimeLongBox, since there is no dedicated
+/// RuntimeULongBox), so a boxed ULong is a RuntimeLongBox holding the same
+/// bit pattern. This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue:
+/// unbox first when the raw value is a GC-tracked object pointer (e.g. a
+/// nullable ULong? data class property, which the ABI always boxes so its
+/// field slot can also represent null), otherwise reinterpret the raw bits.
+private func runtimeTaggedULongValue(_ value: Int) -> UInt {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
+            return UInt(bitPattern: longBox.value)
+        }
+    }
+    return UInt(bitPattern: value)
 }
 
 private func runtimeStringHashCode(_ value: String) -> Int {
