@@ -579,6 +579,76 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(stringFromHandle(result), "-123ns")
     }
 
+    // MARK: - toString multi-component formatting (JVM kotlin-stdlib parity)
+    // Expected values were captured by compiling and running the equivalent
+    // Kotlin snippets against JVM kotlinc 2.4.0 (kotlin-stdlib Duration.toString()).
+
+    func testToStringCombinesMinutesAndSeconds() {
+        // 90 seconds -> "1m 30s"
+        let handle = kk_duration_from_seconds(90)
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1m 30s")
+    }
+
+    func testToStringCombinesHoursAndMinutes() {
+        let handle = kk_duration_plus(kk_duration_from_hours(2), kk_duration_from_minutes(5))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "2h 5m")
+    }
+
+    func testToStringSecondsComponentCarriesSubsecondFraction() {
+        // 1h + 30m + 340ms -> seconds component is 0 but nanoseconds carry the fraction: "1h 30m 0.34s"
+        let handle = kk_duration_plus(
+            kk_duration_plus(kk_duration_from_hours(1), kk_duration_from_minutes(30)),
+            kk_duration_from_milliseconds(340)
+        )
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1h 30m 0.34s")
+    }
+
+    func testToStringRollsUpDaysPastTwentyFourHours() {
+        // 25 hours -> "1d 1h"
+        let handle = kk_duration_from_hours(25)
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 1h")
+    }
+
+    func testToStringKeepsIntermediateZeroComponent() {
+        // 1 day + 5 minutes -> hours stays visible between nonzero days and minutes: "1d 0h 5m"
+        let handle = kk_duration_plus(kk_duration_from_days(1), kk_duration_from_minutes(5))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 0h 5m")
+    }
+
+    func testToStringNegativeMultiComponentIsParenthesized() {
+        let handle = kk_duration_unary_minus(
+            kk_duration_plus(kk_duration_from_hours(1), kk_duration_from_minutes(30))
+        )
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "-(1h 30m)")
+    }
+
+    func testToStringInfiniteDuration() {
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(kk_duration_infinite())), "Infinity")
+    }
+
+    func testToStringNegativeInfiniteDuration() {
+        let negInfinite = kk_duration_unary_minus(kk_duration_infinite())
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(negInfinite)), "-Infinity")
+    }
+
+    func testToStringFractionalSecondsPadsToNineDigits() {
+        // 1s + 4500ns -> 7 significant fractional digits round up to 9: "1.000004500s"
+        let handle = kk_duration_plus(kk_duration_from_seconds(1), kk_duration_from_nanoseconds(4_500))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000004500s")
+    }
+
+    func testToStringFractionalSecondsPadsToSixDigits() {
+        // 1s + 500_000ns -> 4 significant fractional digits round up to 6: "1.000500s"
+        let handle = kk_duration_plus(kk_duration_from_seconds(1), kk_duration_from_nanoseconds(500_000))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000500s")
+    }
+
+    func testToStringFractionalSecondsKeepsTwoDigitsAsIs() {
+        // 30s + 340ms -> 2 significant fractional digits stay untrimmed: "30.34s"
+        let handle = kk_duration_plus(kk_duration_from_seconds(30), kk_duration_from_milliseconds(340))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "30.34s")
+    }
+
     // MARK: - kk_measureTime: basic timing
 
     func testMeasureTimeReturnsNonZeroDuration() {
