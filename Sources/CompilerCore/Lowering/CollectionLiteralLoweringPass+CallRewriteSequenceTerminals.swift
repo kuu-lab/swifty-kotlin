@@ -1,5 +1,5 @@
 /// Sequence terminal conversions plus list/range transform rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceTerminalCall(
         callee: InternedString,
         arguments: [KIRExprID],

@@ -274,7 +274,7 @@ KIRModule (lowered)
 2.  NormalizeBlocksPass          -- ブロック正規化
 3.  OperatorLoweringPass         -- 演算子展開
 4.  ForLoweringPass              -- for ループ脱糖 (iterator パターン)
-5.  CollectionLiteralLoweringPass -- コレクションリテラル展開
+5.  CollectionLiteralLoweringPass -- registry 経由のコレクションリテラル構築 + virtual call rewrite
 6.  FlowLoweringPass             -- Kotlin Flow 構築・変換
 7.  ValueClassUnboxingPass       -- value class のアンボクシング (PropertyLowering 前に実行)
 8.  PropertyLoweringPass         -- get/set アクセサ展開

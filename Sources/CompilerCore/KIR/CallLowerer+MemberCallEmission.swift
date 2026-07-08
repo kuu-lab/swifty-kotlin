@@ -340,50 +340,6 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        let resultSingleLambdaRuntimeCallees: Set<InternedString> = [
-            interner.intern("kk_result_getOrElse"),
-            interner.intern("kk_result_map"),
-            interner.intern("kk_result_onSuccess"),
-            interner.intern("kk_result_onFailure"),
-            interner.intern("kk_result_recover"),
-            interner.intern("kk_result_recoverCatching"),
-        ]
-        if resultSingleLambdaRuntimeCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           sourceArgExprs.count == 1
-        {
-            let lambdaArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[1],
-                argExprID: sourceArgExprs[0],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + lambdaArgs
-        }
-        if loweredCallee == interner.intern("kk_result_fold"),
-           finalArguments.count == 3,
-           sourceArgExprs.count == 2
-        {
-            let successArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[1],
-                argExprID: sourceArgExprs[0],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let failureArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[2],
-                argExprID: sourceArgExprs[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + successArgs + failureArgs
-        }
         // thenBy/thenByDescending/thenDescending/thenComparator (1-arg variants):
         // receiver comparator + lambda/comparison → (c1Fn, c1Closure, fn, closure)
         let thenByOneArgCallees: Set<InternedString> = [
@@ -831,6 +787,50 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
+        let resultFunction1Callees: Set<InternedString> = [
+            interner.intern("kk_runtime_result_get_or_else"),
+            interner.intern("kk_runtime_result_map"),
+            interner.intern("kk_runtime_result_on_success"),
+            interner.intern("kk_runtime_result_on_failure"),
+            interner.intern("kk_runtime_result_recover"),
+            interner.intern("kk_runtime_result_recover_catching"),
+        ]
+        if resultFunction1Callees.contains(loweredCallee),
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1
+        {
+            let callbackArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + callbackArgs
+        }
+        if loweredCallee == interner.intern("kk_runtime_result_fold"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let successArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let failureArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + successArgs + failureArgs
+        }
         if let primitiveKind = collectionElementPrimitiveCompareKind(
             of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema
@@ -1066,31 +1066,11 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_clock_system_now") {
             callArguments = []
         }
-        let resultHOFCallees = resultSingleLambdaRuntimeCallees.union([
-            interner.intern("kk_result_fold"),
-        ])
-        let resultRethrowingHOFCallees: Set<InternedString> = [
-            interner.intern("kk_result_getOrElse"),
-            interner.intern("kk_result_map"),
-            interner.intern("kk_result_fold"),
-            interner.intern("kk_result_onSuccess"),
-            interner.intern("kk_result_onFailure"),
-            interner.intern("kk_result_recover"),
-        ]
-        var thrownResult: KIRExprID?
-        if resultHOFCallees.contains(loweredCallee) {
-            if resultRethrowingHOFCallees.contains(loweredCallee) {
-                thrownResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
-                )
-            } else {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArguments.append(zeroExpr)
-            }
-        }
         let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
+        let needsOutThrown = needsThrownChannel(calleeName: loweredCallee, interner: interner)
+        let thrownResult: KIRExprID? = needsOutThrown
+            ? arena.appendTemporary(type: sema.types.nullableAnyType)
+            : nil
         let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
         instructions.append(.call(
             symbol: chosenCallee,
@@ -1102,7 +1082,9 @@ extension CallLowerer {
             isSuperCall: isSuperCall,
             qualifiedSuperType: qualifiedSuperType
         ))
-        if let thrownResult {
+        if let thrownResult,
+           shouldRethrowThrownChannelResult(calleeName: loweredCallee, interner: interner)
+        {
             let continueLabel = driver.ctx.makeLoopLabel()
             let rethrowLabel = driver.ctx.makeLoopLabel()
             instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
@@ -1174,8 +1156,8 @@ extension CallLowerer {
             interner.intern("kk_iterable_any"),
             interner.intern("kk_iterable_all"),
             interner.intern("kk_iterable_requireNoNulls"),
-            interner.intern("kk_string_codePointCount_from"),
-            interner.intern("kk_string_codePointCount_range"),
+            interner.intern("__kk_string_codePointCount_from"),
+            interner.intern("__kk_string_codePointCount_range"),
             interner.intern("kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
@@ -1294,7 +1276,6 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy"),
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
-            interner.intern("kk_result_getOrThrow"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
     }

@@ -14,28 +14,17 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_uuid_mostSignificantBits",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_leastSignificantBits",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_uuid_nameUUIDFromBytes",
             parameters: [
                 RuntimeABIParameter(name: "nameArray", type: .intptr),
             ],
+            returnType: .intptr,
+            section: "Uuid",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_uuid_lexicalOrder",
+            parameters: [],
             returnType: .intptr,
             section: "Uuid",
             isThrowing: false
@@ -55,13 +44,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_uuid_lexicalOrder",
-            parameters: [],
             returnType: .intptr,
             section: "Uuid",
             isThrowing: false

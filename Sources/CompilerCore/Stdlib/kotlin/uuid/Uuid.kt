@@ -1,284 +1,224 @@
 package kotlin.uuid
 
+@file:OptIn(ExperimentalUuidApi::class)
+
 import kotlin.internal.KsSymbolName
 
-// KSP-476: Uuid class + kotlin.uuid package fully migrated to Kotlin source.
-// Only entropy (random), MD5 (nameUUIDFromBytes), opaque-box construction/
-// reads (fromLongs / mostSignificantBits / leastSignificantBits),
-// LEXICAL_ORDER (Comparator itable registration), and the java.util.UUID
-// interop conversion (toKotlinUuid) remain native bridges. Parsing,
-// formatting, bit extraction, and ByteArray packing are pure Kotlin built on
-// top of those bridges.
-//
-// NOTE: the class declaration must come before any top-level declaration
-// that references `Uuid` in its signature (return/parameter type) — forward
-// references to a same-file class type from an earlier top-level signature
-// don't resolve in this compiler yet, even though forward-referencing a
-// function (calling something declared later) works fine.
+private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
 /**
  * Represents a Universally Unique Identifier (UUID) as defined by RFC 9562.
  */
-@kotlin.uuid.ExperimentalUuidApi
-public class Uuid {
-
+@ExperimentalUuidApi
+public class Uuid private constructor(
+    public val mostSignificantBits: Long,
+    public val leastSignificantBits: Long,
+) {
     public companion object {
-
-        @kotlin.uuid.ExperimentalUuidApi
         public const val SIZE_BITS: Int = 128
-
-        @kotlin.uuid.ExperimentalUuidApi
         public const val SIZE_BYTES: Int = 16
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public val NIL: Uuid
-            get() = __uuidFromLongs(0L, 0L)
+        public val NIL: Uuid = fromLongs(0L, 0L)
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public val LEXICAL_ORDER: Comparator<Uuid>
-            get() = __uuidLexicalOrder()
+        public val LEXICAL_ORDER: Comparator<Uuid> = __kk_uuid_lexicalOrder()
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public fun random(): Uuid = __uuidRandom()
+        public fun random(): Uuid = __kk_uuid_random()
 
-        @kotlin.uuid.ExperimentalUuidApi
         public fun parse(uuidString: String): Uuid {
-            val bits = parseUuidBitsOrNull(uuidString)
-                ?: throw IllegalArgumentException("Invalid UUID string: $uuidString")
-            return __uuidFromLongs(bits.first, bits.second)
+            val parsed = parseOrNull(uuidString)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID string: $uuidString")
+            return parsed!!
         }
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public fun parseOrNull(uuidString: String): Uuid? {
-            val bits = parseUuidBitsOrNull(uuidString) ?: return null
-            return __uuidFromLongs(bits.first, bits.second)
-        }
+        public fun parseOrNull(uuidString: String): Uuid? =
+            parseStringOrNull(uuidString)
 
-        @kotlin.uuid.ExperimentalUuidApi
         public fun parseHex(hexString: String): Uuid {
-            val bits = parseHexBitsOrNull(hexString)
-                ?: throw IllegalArgumentException("Invalid UUID hex string: $hexString")
-            return __uuidFromLongs(bits.first, bits.second)
+            val parsed = parseHexOrNull(hexString)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID hex string: $hexString")
+            return parsed!!
         }
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public fun parseHexOrNull(hexString: String): Uuid? {
-            val bits = parseHexBitsOrNull(hexString) ?: return null
-            return __uuidFromLongs(bits.first, bits.second)
-        }
+        public fun parseHexOrNull(hexString: String): Uuid? =
+            parseHexBodyOrNull(hexString)
 
-        @kotlin.uuid.ExperimentalUuidApi
         public fun parseHexDash(hexDashString: String): Uuid {
-            val hex = hexFromHexDashStringOrNull(hexDashString)
-                ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
-            val bits = parseHexBitsOrNull(hex)
-                ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
-            return __uuidFromLongs(bits.first, bits.second)
+            val hex = hexFromHexDashString(hexDashString)
+            if (hex == null) throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            val parsed = parseHexBodyOrNull(hex!!)
+            if (parsed == null) throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            return parsed!!
         }
 
-        @kotlin.uuid.ExperimentalUuidApi
         public fun parseHexDashOrNull(hexDashString: String): Uuid? {
-            val hex = hexFromHexDashStringOrNull(hexDashString) ?: return null
-            val bits = parseHexBitsOrNull(hex) ?: return null
-            return __uuidFromLongs(bits.first, bits.second)
+            val hex = hexFromHexDashString(hexDashString)
+            if (hex == null) return null
+            return parseHexBodyOrNull(hex!!)
         }
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
-            __uuidFromLongs(mostSignificantBits, leastSignificantBits)
+        public fun nameUUIDFromBytes(name: ByteArray): Uuid =
+            __kk_uuid_nameUUIDFromBytes(name)
 
-        @kotlin.uuid.ExperimentalUuidApi
+        public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
+            __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
+
         public fun fromByteArray(byteArray: ByteArray): Uuid {
-            if (byteArray.size != 16) {
+            if (byteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("byteArray.size must be 16, was ${byteArray.size}")
             }
             var msb = 0L
+            var lsb = 0L
             var i = 0
             while (i < 8) {
-                msb = (msb shl 8) or (byteArray[i].toLong() and 0xFFL)
+                msb = (msb shl 8) or (byteArray[i].toLong() and 0xffL)
                 i += 1
             }
-            var lsb = 0L
-            i = 8
             while (i < 16) {
-                lsb = (lsb shl 8) or (byteArray[i].toLong() and 0xFFL)
+                lsb = (lsb shl 8) or (byteArray[i].toLong() and 0xffL)
                 i += 1
             }
-            return __uuidFromLongs(msb, lsb)
+            return Uuid(msb, lsb)
         }
 
-        @kotlin.uuid.ExperimentalUuidApi
-        public fun nameUUIDFromBytes(name: ByteArray): Uuid = __uuidNameUUIDFromBytes(name)
+        private fun parseStringOrNull(uuidString: String): Uuid? {
+            if (uuidString.length == 36) {
+                val hex = hexFromHexDashString(uuidString)
+                if (hex == null) return null
+                return parseHexBodyOrNull(hex!!)
+            }
+            if (uuidString.length == 32) {
+                return parseHexBodyOrNull(uuidString)
+            }
+            return null
+        }
+
+        private fun parseHexBodyOrNull(hex: String): Uuid? {
+            if (hex.length != 32) return null
+            var msb = 0L
+            var lsb = 0L
+            var i = 0
+            while (i < 16) {
+                val digit = hexDigit(hex[i])
+                if (digit < 0) return null
+                msb = (msb shl 4) or digit.toLong()
+                i += 1
+            }
+            while (i < 32) {
+                val digit = hexDigit(hex[i])
+                if (digit < 0) return null
+                lsb = (lsb shl 4) or digit.toLong()
+                i += 1
+            }
+            return Uuid(msb, lsb)
+        }
+
+        private fun hexFromHexDashString(hexDashString: String): String? {
+            if (hexDashString.length != 36) return null
+            val sb = StringBuilder()
+            var i = 0
+            while (i < 36) {
+                val ch = hexDashString[i]
+                if (i == 8 || i == 13 || i == 18 || i == 23) {
+                    if (ch != '-') return null
+                } else {
+                    if (hexDigit(ch) < 0) return null
+                    sb.append(ch)
+                }
+                i += 1
+            }
+            return sb.toString()
+        }
+
+        private fun hexDigit(ch: Char): Int {
+            if (ch >= '0' && ch <= '9') return ch.code - '0'.code
+            if (ch >= 'a' && ch <= 'f') return ch.code - 'a'.code + 10
+            if (ch >= 'A' && ch <= 'F') return ch.code - 'A'.code + 10
+            return -1
+        }
+
     }
 
-    @kotlin.uuid.ExperimentalUuidApi
-    public val mostSignificantBits: Long
-        get() = __uuidMostSignificantBits(this)
-
-    @kotlin.uuid.ExperimentalUuidApi
-    public val leastSignificantBits: Long
-        get() = __uuidLeastSignificantBits(this)
-
-    @kotlin.uuid.ExperimentalUuidApi
     public override fun toString(): String {
-        val hex = mostSignificantBits.toHex16() + leastSignificantBits.toHex16()
-        return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
-            hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" + hex.substring(20, 32)
+        val sb = StringBuilder()
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
+        appendHex(sb, msb ushr 32, 8)
+        sb.append('-')
+        appendHex(sb, msb ushr 16, 4)
+        sb.append('-')
+        appendHex(sb, msb, 4)
+        sb.append('-')
+        appendHex(sb, lsb ushr 48, 4)
+        sb.append('-')
+        appendHex(sb, lsb, 12)
+        return sb.toString()
     }
 
-    @kotlin.uuid.ExperimentalUuidApi
-    public fun toHexString(): String = mostSignificantBits.toHex16() + leastSignificantBits.toHex16()
+    public fun toHexString(): String {
+        val sb = StringBuilder()
+        appendHex(sb, mostSignificantBits, 16)
+        appendHex(sb, leastSignificantBits, 16)
+        return sb.toString()
+    }
 
-    @kotlin.uuid.ExperimentalUuidApi
-    public fun toLongs(): Pair<Long, Long> = Pair(mostSignificantBits, leastSignificantBits)
+    public fun toLongs(): Pair<Long, Long> =
+        Pair(mostSignificantBits, leastSignificantBits)
 
-    @kotlin.uuid.ExperimentalUuidApi
     public fun toByteArray(): ByteArray {
-        val result = ByteArray(16)
+        val bytes = ByteArray(SIZE_BYTES) { 0 }
         val msb = mostSignificantBits
         val lsb = leastSignificantBits
         var i = 0
         while (i < 8) {
-            result[i] = ((msb ushr (56 - i * 8)) and 0xFFL).toByte()
+            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toInt()
             i += 1
         }
-        i = 0
-        while (i < 8) {
-            result[8 + i] = ((lsb ushr (56 - i * 8)) and 0xFFL).toByte()
+        while (i < 16) {
+            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
             i += 1
         }
-        return result
+        return bytes
     }
 
-    @kotlin.uuid.ExperimentalUuidApi
-    public fun version(): Int = ((mostSignificantBits ushr 12) and 0xFL).toInt()
+    public fun version(): Int =
+        ((mostSignificantBits ushr 12) and 0x0fL).toInt()
 
-    @kotlin.uuid.ExperimentalUuidApi
     public fun variant(): Int {
-        val top3 = (leastSignificantBits ushr 61) and 0x7L
-        return when (top3) {
-            0L, 1L, 2L, 3L -> 0
-            4L, 5L -> 2
-            6L -> 6
-            else -> 7
+        val topThreeBits = ((leastSignificantBits ushr 61) and 0x07L).toInt()
+        if (topThreeBits < 4) return 0
+        if (topThreeBits < 6) return 2
+        if (topThreeBits == 6) return 6
+        return 7
+    }
+
+    private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {
+        var shift = (digits - 1) * 4
+        while (shift >= 0) {
+            val digit = ((value ushr shift) and 0x0fL).toInt()
+            sb.append(UUID_HEX_DIGITS[digit])
+            shift -= 4
         }
     }
 }
 
-// MARK: - Native bridges (irreducible: entropy / MD5 / opaque-box construction
-// and reads / Comparator itable registration / java.util.UUID interop).
-
-@kotlin.uuid.ExperimentalUuidApi
 @KsSymbolName("__kk_uuid_random")
-private external fun __uuidRandom(): Uuid
+private external fun __kk_uuid_random(): Uuid
 
-@kotlin.uuid.ExperimentalUuidApi
-@KsSymbolName("__kk_uuid_fromLongs")
-private external fun __uuidFromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid
-
-@kotlin.uuid.ExperimentalUuidApi
-@KsSymbolName("__kk_uuid_mostSignificantBits")
-private external fun __uuidMostSignificantBits(receiver: Uuid): Long
-
-@kotlin.uuid.ExperimentalUuidApi
-@KsSymbolName("__kk_uuid_leastSignificantBits")
-private external fun __uuidLeastSignificantBits(receiver: Uuid): Long
-
-@kotlin.uuid.ExperimentalUuidApi
 @KsSymbolName("__kk_uuid_nameUUIDFromBytes")
-private external fun __uuidNameUUIDFromBytes(name: ByteArray): Uuid
+private external fun __kk_uuid_nameUUIDFromBytes(name: ByteArray): Uuid
 
-@kotlin.uuid.ExperimentalUuidApi
-@KsSymbolName("__kk_uuid_toKotlinUuid")
-private external fun __uuidToKotlinUuid(receiver: java.util.UUID): Uuid
+@KsSymbolName("__kk_uuid_fromLongs")
+private external fun __kk_uuid_fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid
 
-// LEXICAL_ORDER needs a Comparator<Uuid> instance. Multi-parameter SAM-conversion
-// lambdas (`Comparator { a, b -> ... }`) do not resolve their lambda parameters
-// correctly in this compiler yet, so the comparator itself stays a native bridge
-// (itable-registered in Swift) rather than pure Kotlin.
-@kotlin.uuid.ExperimentalUuidApi
 @KsSymbolName("__kk_uuid_lexicalOrder")
-private external fun __uuidLexicalOrder(): Comparator<Uuid>
+private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
 
-// MARK: - Pure-Kotlin hex formatting / parsing / ByteArray packing helpers.
+// java.util.UUID interop needs a native bridge to read a foreign UUID
+// representation; every other kotlin.uuid extension below is pure Kotlin
+// built on top of Uuid's own mostSignificantBits/leastSignificantBits/fromLongs.
+@KsSymbolName("__kk_uuid_toKotlinUuid")
+private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
 
-private val HEX_DIGITS: String = "0123456789abcdef"
-
-private fun Long.toHex16(): String {
-    val sb = StringBuilder(16)
-    var i = 0
-    while (i < 16) {
-        val shift = (15 - i) * 4
-        val nibble = ((this ushr shift) and 0xFL).toInt()
-        sb.append(HEX_DIGITS[nibble])
-        i += 1
-    }
-    return sb.toString()
-}
-
-private fun hexCharValue(c: Char): Int {
-    if (c >= '0' && c <= '9') return c - '0'
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10
-    return -1
-}
-
-private fun isHexDigit(c: Char): Boolean = hexCharValue(c) >= 0
-
-private fun parseHex16(hex: String): Long {
-    var value = 0L
-    var i = 0
-    while (i < 16) {
-        value = (value shl 4) or hexCharValue(hex[i]).toLong()
-        i += 1
-    }
-    return value
-}
-
-private fun parseHexBitsOrNull(hex: String): Pair<Long, Long>? {
-    if (hex.length != 32) return null
-    var i = 0
-    while (i < 32) {
-        if (!isHexDigit(hex[i])) return null
-        i += 1
-    }
-    val msb = parseHex16(hex.substring(0, 16))
-    val lsb = parseHex16(hex.substring(16, 32))
-    return Pair(msb, lsb)
-}
-
-private fun isHexDashSeparatorOffset(offset: Int): Boolean =
-    offset == 8 || offset == 13 || offset == 18 || offset == 23
-
-private fun hexFromHexDashStringOrNull(s: String): String? {
-    if (s.length != 36) return null
-    val sb = StringBuilder(32)
-    var i = 0
-    while (i < 36) {
-        val c = s[i]
-        if (isHexDashSeparatorOffset(i)) {
-            if (c != '-') return null
-        } else {
-            if (!isHexDigit(c)) return null
-            sb.append(c)
-        }
-        i += 1
-    }
-    return sb.toString()
-}
-
-private fun parseUuidBitsOrNull(s: String): Pair<Long, Long>? {
-    if (s.length == 36) {
-        val hex = hexFromHexDashStringOrNull(s) ?: return null
-        return parseHexBitsOrNull(hex)
-    }
-    if (s.length == 32) {
-        return parseHexBitsOrNull(s)
-    }
-    return null
-}
-
-@kotlin.uuid.ExperimentalUuidApi
 private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
     if (offset < 0 || offset + 16 > array.size) {
         throw IndexOutOfBoundsException(
@@ -297,13 +237,11 @@ private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
         lsb = (lsb shl 8) or (array[offset + i].toLong() and 0xFFL)
         i += 1
     }
-    return __uuidFromLongs(msb, lsb)
+    return Uuid.fromLongs(msb, lsb)
 }
 
-// MARK: - Extension functions (kotlin.uuid package).
-
 @kotlin.uuid.ExperimentalUuidApi
-public fun java.util.UUID.toKotlinUuid(): Uuid = __uuidToKotlinUuid(this)
+public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
 
 @kotlin.uuid.ExperimentalUuidApi
 public fun ByteArray.getUuid(offset: Int): Uuid = readUuidFromBytes(this, offset)

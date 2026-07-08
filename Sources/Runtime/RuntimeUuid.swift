@@ -1,12 +1,6 @@
 import Foundation
 
 // MARK: - Uuid Runtime Support (kotlin.uuid.Uuid)
-//
-// KSP-476: only the operations that genuinely require native support remain
-// here (entropy, MD5, and the opaque-box allocate/read primitives). Parsing,
-// formatting, bit extraction, comparison, and ByteArray packing are pure
-// Kotlin (Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt), built on top of
-// these bridges.
 
 /// Internal box holding a UUID value as two 64-bit integers (most significant, least significant).
 final class RuntimeUuidBox {
@@ -18,122 +12,6 @@ final class RuntimeUuidBox {
         self.leastSignificantBits = leastSignificantBits
     }
 }
-
-/// Extract a RuntimeUuidBox from a raw receiver value.
-private func runtimeUuidBox(from rawValue: Int) -> RuntimeUuidBox? {
-    resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self)
-}
-
-// MARK: - Uuid.random()
-
-@_cdecl("__kk_uuid_random")
-func __kk_uuid_random() -> Int {
-    // Generate a version-4 (random) UUID
-    var rng = SystemRandomNumberGenerator()
-    var msb = Int64(bitPattern: rng.next() as UInt64)
-    var lsb = Int64(bitPattern: rng.next() as UInt64)
-
-    // Set version to 4 (bits 12-15 of time_hi_and_version)
-    msb = msb & ~(0xF << 12) | (4 << 12)
-    // Set variant to IETF (bits 62-63 of clock_seq)
-    lsb = lsb & ~(0x3 << 62) | (Int64(2) << 62)
-
-    let box = RuntimeUuidBox(mostSignificantBits: msb, leastSignificantBits: lsb)
-    return registerRuntimeObject(box)
-}
-
-// MARK: - Uuid.fromLongs(mostSignificantBits, leastSignificantBits)
-
-/// Create a Uuid from two Long values (MSB and LSB).
-/// Maps directly to kotlin.uuid.Uuid.fromLongs().
-@_cdecl("__kk_uuid_fromLongs")
-func __kk_uuid_fromLongs(_ msb: Int, _ lsb: Int) -> Int {
-    let box = RuntimeUuidBox(
-        mostSignificantBits: Int64(bitPattern: UInt64(bitPattern: Int64(msb))),
-        leastSignificantBits: Int64(bitPattern: UInt64(bitPattern: Int64(lsb)))
-    )
-    return registerRuntimeObject(box)
-}
-
-// MARK: - Uuid.mostSignificantBits / leastSignificantBits
-
-@_cdecl("__kk_uuid_mostSignificantBits")
-func __kk_uuid_mostSignificantBits(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return Int(box.mostSignificantBits)
-}
-
-@_cdecl("__kk_uuid_leastSignificantBits")
-func __kk_uuid_leastSignificantBits(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return Int(box.leastSignificantBits)
-}
-
-// MARK: - Uuid.nameUUIDFromBytes(name: ByteArray)
-
-/// Generate a version-3 (MD5-based) UUID from a name byte array.
-/// Follows RFC 4122 name-based UUID generation.
-@_cdecl("__kk_uuid_nameUUIDFromBytes")
-func __kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
-    var inputBytes: [UInt8]
-    if let ptr = UnsafeMutableRawPointer(bitPattern: nameArrayRaw),
-       let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
-    {
-        inputBytes = arrayBox.elements.map { UInt8($0 & 0xFF) }
-    } else {
-        inputBytes = []
-    }
-
-    let digest = kk_uuid_md5Digest(inputBytes)
-
-    var msb: UInt64 = 0
-    var lsb: UInt64 = 0
-    for i in 0..<8 {
-        msb = (msb << 8) | UInt64(digest[i])
-    }
-    for i in 8..<16 {
-        lsb = (lsb << 8) | UInt64(digest[i])
-    }
-
-    // Set version to 3 (name-based MD5)
-    msb = (msb & 0xFFFF_FFFF_FFFF_0FFF) | 0x0000_0000_0000_3000
-    // Set variant to IETF RFC 4122
-    lsb = (lsb & 0x3FFF_FFFF_FFFF_FFFF) | 0x8000_0000_0000_0000
-
-    let box = RuntimeUuidBox(
-        mostSignificantBits: Int64(bitPattern: msb),
-        leastSignificantBits: Int64(bitPattern: lsb)
-    )
-    return registerRuntimeObject(box)
-}
-
-// MARK: - java.util.UUID.toKotlinUuid()
-
-// java.util.UUID and kotlin.uuid.Uuid share the same native runtime representation
-// (RuntimeUuidBox with mostSignificantBits / leastSignificantBits), so this is an
-// identity-style conversion: copy the bits into a fresh Uuid box.
-@_cdecl("__kk_uuid_toKotlinUuid")
-func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return registerRuntimeObject(RuntimeUuidBox(mostSignificantBits: 0, leastSignificantBits: 0))
-    }
-    let newBox = RuntimeUuidBox(
-        mostSignificantBits: box.mostSignificantBits,
-        leastSignificantBits: box.leastSignificantBits
-    )
-    return registerRuntimeObject(newBox)
-}
-
-// MARK: - Uuid.LEXICAL_ORDER
-//
-// Multi-parameter SAM-conversion lambdas (`Comparator { a, b -> ... }`) don't
-// resolve their lambda parameters correctly in Sema yet (KSP-476 finding), so
-// LEXICAL_ORDER stays a native bridge that itable-registers a Comparator.compare
-// implementation directly, same as the original KSP-310 approach.
 
 private final class RuntimeUuidLexicalOrderComparatorBox {}
 
@@ -169,15 +47,137 @@ private func runtimeCompareUuidLexically(_ lhs: RuntimeUuidBox, _ rhs: RuntimeUu
 }
 
 @_cdecl("__kk_uuid_lexicalOrder")
-func __kk_uuid_lexicalOrder() -> Int {
+public func __kk_uuid_lexicalOrder() -> Int {
     let raw = registerRuntimeObject(RuntimeUuidLexicalOrderComparatorBox())
-    _ = kk_object_register_itable_method(
-        raw,
-        0,
-        0,
-        unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self)
-    )
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self))
     return raw
+}
+
+/// Extract a RuntimeUuidBox from a raw receiver value.
+private func runtimeUuidBox(from rawValue: Int) -> RuntimeUuidBox? {
+    if let legacyBox = resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self) {
+        return legacyBox
+    }
+    guard let arrayBox = runtimeArrayBox(from: rawValue) else {
+        return nil
+    }
+    let elements = arrayBox.elements
+    if elements.count >= 4 {
+        return RuntimeUuidBox(
+            mostSignificantBits: Int64(elements[2]),
+            leastSignificantBits: Int64(elements[3])
+        )
+    }
+    if elements.count >= 2 {
+        return RuntimeUuidBox(
+            mostSignificantBits: Int64(elements[0]),
+            leastSignificantBits: Int64(elements[1])
+        )
+    }
+    return nil
+}
+
+private let runtimeUuidClassID: Int64 = runtimeStableNominalTypeID("kotlin.uuid.Uuid")
+
+private func runtimeStableNominalTypeID(_ fqName: String) -> Int64 {
+    let payloadMask: Int64 = (1 << 55) - 1
+    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+    for byte in fqName.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 0x100_0000_01B3
+    }
+    let payload = Int64(bitPattern: hash) & payloadMask
+    return payload == 0 ? 1 : payload
+}
+
+private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBits: Int64) -> Int {
+    let raw = kk_object_new(4, Int(runtimeUuidClassID))
+    guard let box = runtimeArrayBox(from: raw), box.elements.count >= 4 else {
+        return raw
+    }
+    box.elements[2] = Int(mostSignificantBits)
+    box.elements[3] = Int(leastSignificantBits)
+    return raw
+}
+
+// MARK: - Uuid.random()
+
+@_cdecl("__kk_uuid_random")
+public func __kk_uuid_random() -> Int {
+    // Generate a version-4 (random) UUID
+    var rng = SystemRandomNumberGenerator()
+    var msb = Int64(bitPattern: rng.next() as UInt64)
+    var lsb = Int64(bitPattern: rng.next() as UInt64)
+
+    // Set version to 4 (bits 12-15 of time_hi_and_version)
+    msb = msb & ~(0xF << 12) | (4 << 12)
+    // Set variant to IETF (bits 62-63 of clock_seq)
+    lsb = lsb & ~(0x3 << 62) | (Int64(2) << 62)
+
+    return runtimeUuidObjectRaw(mostSignificantBits: msb, leastSignificantBits: lsb)
+}
+
+// MARK: - Uuid.nameUUIDFromBytes(name: ByteArray)
+
+/// Generate a version-3 (MD5-based) UUID from a name byte array.
+/// Follows RFC 4122 name-based UUID generation.
+@_cdecl("__kk_uuid_nameUUIDFromBytes")
+public func __kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
+    var inputBytes: [UInt8]
+    if let ptr = UnsafeMutableRawPointer(bitPattern: nameArrayRaw),
+       let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
+    {
+        inputBytes = arrayBox.elements.map { UInt8($0 & 0xFF) }
+    } else {
+        inputBytes = []
+    }
+
+    let digest = kk_uuid_md5Digest(inputBytes)
+
+    var msb: UInt64 = 0
+    var lsb: UInt64 = 0
+    for i in 0..<8 {
+        msb = (msb << 8) | UInt64(digest[i])
+    }
+    for i in 8..<16 {
+        lsb = (lsb << 8) | UInt64(digest[i])
+    }
+
+    // Set version to 3 (name-based MD5)
+    msb = (msb & 0xFFFF_FFFF_FFFF_0FFF) | 0x0000_0000_0000_3000
+    // Set variant to IETF RFC 4122
+    lsb = (lsb & 0x3FFF_FFFF_FFFF_FFFF) | 0x8000_0000_0000_0000
+
+    return runtimeUuidObjectRaw(
+        mostSignificantBits: Int64(bitPattern: msb),
+        leastSignificantBits: Int64(bitPattern: lsb)
+    )
+}
+
+@_cdecl("__kk_uuid_fromLongs")
+public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
+    return runtimeUuidObjectRaw(
+        mostSignificantBits: Int64(kk_unbox_long(msbRaw)),
+        leastSignificantBits: Int64(kk_unbox_long(lsbRaw))
+    )
+}
+
+// MARK: - java.util.UUID.toKotlinUuid()
+
+// Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
+// object shape (object header slots plus most/least significant bits).
+// ByteArray.getUuid/uuid/putUuid no longer need native bridges: they're pure
+// Kotlin now, built on top of Uuid.fromLongs and the real
+// mostSignificantBits/leastSignificantBits stored properties.
+@_cdecl("__kk_uuid_toKotlinUuid")
+func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+    guard let box = runtimeUuidBox(from: receiver) else {
+        return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
+    }
+    return runtimeUuidObjectRaw(
+        mostSignificantBits: box.mostSignificantBits,
+        leastSignificantBits: box.leastSignificantBits
+    )
 }
 
 /// Compute MD5 digest of input bytes, returning 16 bytes.

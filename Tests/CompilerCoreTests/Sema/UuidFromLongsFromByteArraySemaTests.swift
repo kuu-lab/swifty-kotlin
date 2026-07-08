@@ -2,62 +2,54 @@
 import Foundation
 import Testing
 
-// MARK: - KSP-476: Uuid.fromLongs and Uuid.fromByteArray sema wiring
+// MARK: - STDLIB-UUID-ABI-001/002: Uuid.fromLongs and Uuid.fromByteArray source declarations
 //
-// fromLongs delegates to a private native bridge (__kk_uuid_fromLongs);
-// fromByteArray is now pure Kotlin built on top of fromLongs. Both are
-// declared for real in Stdlib/kotlin/uuid/Uuid.kt, so neither carries an
-// externalLinkName of its own anymore — verify they are source-backed
-// (not synthetic) with the expected signature instead.
+// Verifies that fromLongs(msb, lsb) and fromByteArray(byteArray) companion factory
+// methods are sourced from Stdlib/kotlin/uuid/Uuid.kt without pure runtime links.
 
 @Suite
 struct UuidFromLongsFromByteArraySemaTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
-        var result: (CompilationContext, SemaModule, StringInterner)?
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
-            result = (ctx, sema, ctx.interner)
+            result = (sema, ctx.interner)
         }
         return try #require(result)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        let (_, sema, interner) = try makeSemaWithContext()
-        return (sema, interner)
-    }
+    // MARK: - Lookup helpers
 
-    private func isSourceBacked(
+    private func allExternalLinks(
         fqPath: [String],
-        ctx: CompilationContext,
         sema: SemaModule,
         interner: StringInterner
-    ) -> Bool {
-        let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+    ) -> Set<String> {
         let interned = fqPath.map { interner.intern($0) }
-        return sema.symbols.lookupAll(fqName: interned).contains { sym in
-            guard let info = sema.symbols.symbol(sym) else { return false }
-            return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
-        }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
     }
 
     // MARK: - fromLongs
 
     @Test
-    func testUuidFromLongsCompanionMethodIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+    func testUuidFromLongsCompanionMethodIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
+            sema: sema,
+            interner: interner
+        )
         #expect(
-            isSourceBacked(
-                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
-                ctx: ctx,
-                sema: sema,
-                interner: interner
-            ),
-            "Uuid.fromLongs() must be declared in Uuid.kt, not registered as a synthetic stub"
+            links.isEmpty,
+            "Uuid.fromLongs() must be Kotlin source-backed, not linked to kk_uuid_fromLongs; found: \(links)"
         )
     }
 
@@ -101,16 +93,16 @@ struct UuidFromLongsFromByteArraySemaTests {
     // MARK: - fromByteArray
 
     @Test
-    func testUuidFromByteArrayCompanionMethodIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+    func testUuidFromByteArrayCompanionMethodIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
+            sema: sema,
+            interner: interner
+        )
         #expect(
-            isSourceBacked(
-                fqPath: ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
-                ctx: ctx,
-                sema: sema,
-                interner: interner
-            ),
-            "Uuid.fromByteArray() must be declared in Uuid.kt, not registered as a synthetic stub"
+            links.isEmpty,
+            "Uuid.fromByteArray() must be Kotlin source-backed, not linked to kk_uuid_fromByteArray; found: \(links)"
         )
     }
 
@@ -147,5 +139,27 @@ struct UuidFromLongsFromByteArraySemaTests {
         } else {
             Issue.record("Uuid.fromByteArray return type is not a class type; got \(returnTypeKind)")
         }
+    }
+
+    // MARK: - Full companion source surface
+
+    @Test
+    func testMigratedCompanionFactoriesHaveNoPureRuntimeLinks() throws {
+        let (sema, interner) = try makeSema()
+        let companionFQ = ["kotlin", "uuid", "Uuid", "Companion"]
+        var foundLinks: Set<String> = []
+        for memberName in ["fromLongs", "fromByteArray"] {
+            let path = companionFQ + [memberName]
+            let interned = path.map { interner.intern($0) }
+            let links = Set(
+                sema.symbols.lookupAll(fqName: interned)
+                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            foundLinks.formUnion(links)
+        }
+        #expect(
+            foundLinks.isEmpty,
+            "fromLongs and fromByteArray must not register pure runtime links; found: \(foundLinks)"
+        )
     }
 }

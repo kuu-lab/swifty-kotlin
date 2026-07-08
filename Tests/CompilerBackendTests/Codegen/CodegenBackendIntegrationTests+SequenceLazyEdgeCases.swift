@@ -122,6 +122,30 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testSequenceBuilderRangeLoopYieldUsesCPSProducer() throws {
+        let source = """
+        fun main() {
+            val seq = sequence {
+                for (i in 1..5) {
+                    yield(i * i)
+                }
+            }
+            println(seq.toList())
+            println(seq.take(3).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceBuilderRangeLoopYieldCPS",
+            expected:
+                """
+                [1, 4, 9, 16, 25]
+                [1, 4, 9]
+                """ + "\n"
+        )
+    }
+
     func testSequenceFlatMapIsLazy() throws {
         let source = """
         var counter = 0
@@ -625,4 +649,3 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceFilterNotToRuntime", expected: "[99, 1, 3, 5]\n[99, 1, 3, 5]\n")
     }
 }
-

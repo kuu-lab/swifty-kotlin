@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralLoweringSupport {
     func collectBuilderLambdaKinds(
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,

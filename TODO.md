@@ -34,7 +34,7 @@
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
 - [x] RF-STUB-001: 全スタブファイルを「(a) JS/Wasm/JVM 系 → CLEANUP-STUB-001〜084 で削除」「(b) M1–M17 でソース移行」「(c) 真のコンパイラ組込（Any・プリミティブ等）として残留」に 3 分類した棚卸し表を `docs/stdlib-pipeline.md` に追加する
 - [x] RF-STUB-002: (a) 群削除のリファレンス PR を 1 件実施する（CLEANUP-STUB-033/034 の登録呼び出し削除を起点に、スタブ → runtime 実装 → テスト → golden の削除手順を確立し、残りの CLEANUP-STUB を量産可能にする）
-- [ ] RF-STUB-003: (c) 残留スタブ向けの宣言的登録 API を導入する（RuntimeABI の `StdlibSurfaceSpec` パターンを Sema 登録へ拡張し、~340 個の `registerXxxMember` 手書き関数をデータテーブル化）
+- [~] RF-STUB-003: (c) 残留スタブ向けの宣言的登録 API を導入する（RuntimeABI の `StdlibSurfaceSpec` パターンを Sema 登録へ拡張し、~340 個の `registerXxxMember` 手書き関数をデータテーブル化）。2026-07-07: `SyntheticConstructorStubSpec` と fallback 型参照を追加し、`SyntheticStubSurfaceSpec+NativeRefRuntime.swift` へ `WeakReference` / `GC` / `GCInfo` / `Debugging` surface を移行。
 - [x] RF-STUB-004: `SyntheticNativeConcurrent*` 16 ファイル（1–2 シンボル/ファイル）を宣言テーブル 1–2 ファイルへ統合する
 - [x] RF-STUB-005: 紛らわしい残留群を統合する（`SyntheticCoroutineStubs` vs `SyntheticCoroutinesStubs` vs `SyntheticCoroutineHelpers`、`SyntheticIterableStubs` vs `SyntheticIterableMembers`。※(a) 削除予定群はリネーム・統合の対象外）
 - [x] RF-STUB-006: `registerSyntheticDelegateStubs`（85+ 逐次呼び出し）と `+SyntheticPhase_ExtendedStdlib` / `+SyntheticPhase_PlatformAndJS` の分割アーティファクトを (a)(b)(c) 分類に沿ったレジストリ構造へ再編する
@@ -45,10 +45,10 @@
 - [x] RF-SEMA-001: TypeCheck の名前比較特例 104 箇所の台帳を作る（機能・対応スタブ・スタブ/ソース移行後に削除可能か、の 3 列）。台帳: [`docs/rf4-name-special-case-inventory.md`](docs/rf4-name-special-case-inventory.md)。2026-07-06 現在の直接比較は 102 行（元メモの 104 はブランチ差分で変動）
 - [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
-- [ ] RF-SEMA-004: `+CollectionMemberFallback` / `+MemberCallInferenceCollectionFlow`（計 ~5.5k 行）に散在するレシーバ判定述語（isArrayReceiver / isIterableReceiver / isMapReceiver 等）を単一の ReceiverClassifier へ抽出する
+- [x] RF-SEMA-004: `+CollectionMemberFallback` / `+MemberCallInferenceCollectionFlow`（計 ~5.5k 行）に散在するレシーバ判定述語（isArrayReceiver / isIterableReceiver / isMapReceiver 等）を単一の ReceiverClassifier へ抽出する
 - [ ] RF-SEMA-005: `CallTypeChecker.swift`（3,896 行）の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）
 - [x] RF-KIR-001: `CallLowerer+LegacyMemberLikeCalls.swift` の dispatch を `externalLinkName` / `MemberDispatchKey` ベースの表駆動へ移行する設計 + 第1弾（数値系）
-- [ ] RF-KIR-002: 同 第2弾（String 系）を表駆動へ移行する
+- [x] RF-KIR-002: 同 第2弾（String 系）を表駆動へ移行する
 - [ ] RF-KIR-003: 同 第3弾（Collection 系）を移行し、ファイルを解体して "Legacy" の名称を消滅させる
 - [x] RF-KIR-004: `kk_int` / `kk_long` / `kk_double` プレフィックス判定の重複ヘルパー（`CallLowerer.swift` と `+Operators.swift` 等で反復）を 1 箇所へ統合する
 - [x] RF-KIR-005: runtime ABI external-link gap 検証を enforcing に昇格する（`RuntimeABISpec` 未宣言の `kk_*` 名 emit を CI fail にする）
@@ -56,7 +56,7 @@
 ### Phase RF5: Lowering パス再編（RF3/RF4 の削減確定後、残存コードのみ）
 - [x] RF-LOWER-001: KIR + Lowering の TODO/FIXME 約 620 件を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）
   - RF3/RF4 後の実測は 4 件。`PreScan` の stdlib 誤分類 TODO は即修正済み、残り 3 件は RF-LOWER-003 / DEBT-KIR-001 にタスク化し `kir_lowering_todo_fixme_count` で追跡。
-- [ ] RF-LOWER-002: `CollectionLiteralLoweringPass`（31 ファイル・~12k 行）を責務分割する（リテラル構築 / VirtualCallRewrite / LookupTables を独立パス・レジストリへ。`+PreScan.swift:671` の単純名マッチによる stdlib 誤分類は解消済み）
+- [x] RF-LOWER-002: `CollectionLiteralLoweringPass`（31 ファイル・~12k 行）を責務分割する（リテラル構築 / VirtualCallRewrite / LookupTables を独立パス・レジストリへ。`+PreScan.swift:671` の単純名マッチによる stdlib 誤分類は解消済み）
 - [ ] RF-LOWER-003: `CallLowerer+Operators` / `CallRewrite` / `VirtualCallRewrite` に跨る sequence plus/minus 重複ロジックを共通ヘルパーへ抽出する（`+Operators.swift:211` の既知 TODO）
 - [ ] RF-LOWER-004: `InlineLoweringPass`（1,280 行）と `LambdaClosureConversionPass` の共有ヘルパーを抽出する（`InlineLoweringPass.swift:428` の既知 TODO）
 - [x] RF-LOWER-005: `ABILoweringPass+NonThrowingCallees`（1,298 行）と boxing rules の責務境界を整理する
@@ -64,7 +64,7 @@
 
 ### Phase RF6: Runtime 縮小・ABI 整合（M タスク進行と連動）
 - [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する
-- [ ] RF-RT-002: `kk_list_component1..5` 等の薄ラッパ族を統合・生成化する
+- [x] RF-RT-002: `kk_list_component1..5` 等の薄ラッパ族を統合・生成化する（2026-07-07: ABI spec / Sema 登録を range 生成へ寄せ、runtime export は共通 component helper へ集約）
 - [x] RF-RT-003: `RuntimeStringStdlib.swift`（4,542 行・211 @_cdecl）を M1 の進行に合わせ「migrated 関数の削除 or `__` ブリッジ降格」で縮小する
 - [ ] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する
 - [x] RF-RT-005: Runtime の全 `@_cdecl` が `RuntimeABISpec` に宣言されていることの CI 検証を網羅化する（`validate_runtime_abi_links.sh` 拡張、compiler emit 側の enforcing check と対）
@@ -96,7 +96,7 @@
 - [x] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
-- [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` は producer を専用 `Thread` へ逃がし、consumer 側 continuation API（`nextElementAsync` / `probeHasNextAsync`）まで実装済み。残りは `yield()` 自体を suspend point として CPS lowering へ接続し、専用 producer thread を撤去する
+- [x] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` の compiler-generated plain `yield()` producer（range-loop 内 `yield` を含む）は CPS lowering の suspend point として扱い、`kk_*_builder_build_coro` 経由で専用 producer thread を使わない経路へ移行済み。`yieldAll` と legacy direct ABI callback 用の `Thread` fallback は互換経路として維持する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
 
 ### KIR / Lowering
@@ -446,9 +446,10 @@
 
 - [x] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
-  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。
-    残存ブリッジは `random`/`fromLongs`/`mostSignificantBits`/`leastSignificantBits`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の7個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
-    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。
+  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
+    残存ブリッジは `random`/`fromLongs`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の5個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
+    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop）も同様にブリッジ維持（renamed）。
+    本タスクはコアクラス部分（KSP-310 相当）を並行実装した #4575 とのマージで完遂 — 実コンストラクタ設計は #4575 を採用し、`ByteArray` 拡張3関数 + `toKotlinUuid` 改名を本 PR の差分として上乗せした。
 
 #### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
 

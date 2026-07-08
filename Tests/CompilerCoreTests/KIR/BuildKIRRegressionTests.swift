@@ -104,6 +104,36 @@ struct BuildKIRRegressionTests {
         }
     }
 
+    @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeCalls() throws {
+        let source = """
+        fun parse(value: String): Int = value.toInt()
+        fun trimValue(value: String): String = value.trim()
+        fun takeTwo(value: String): String = value.take(2)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let parseCallees = Set(extractCallees(
+                from: try findKIRFunctionBody(named: "parse", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            ))
+            let trimCallees = Set(extractCallees(
+                from: try findKIRFunctionBody(named: "trimValue", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            ))
+            let takeCallees = Set(extractCallees(
+                from: try findKIRFunctionBody(named: "takeTwo", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            ))
+
+            #expect(parseCallees.contains("kk_string_toInt_flat"))
+            #expect(trimCallees.contains("kk_string_trim_flat"))
+            #expect(takeCallees.contains("kk_string_take_flat"))
+        }
+    }
+
     @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
         let source = """
         fun main(): Int {
