@@ -4,8 +4,8 @@
     {
       "file": "delegate_missing_operators.kt",
       "range": {
-        "start": { "line": 18, "character": 28 },
-        "end": { "line": 18, "character": 41 }
+        "start": { "line": 35, "character": 28 },
+        "end": { "line": 35, "character": 41 }
       },
       "severity": 1,
       "severityLabel": "error",
@@ -17,8 +17,8 @@
     {
       "file": "delegate_missing_operators.kt",
       "range": {
-        "start": { "line": 21, "character": 28 },
-        "end": { "line": 21, "character": 42 }
+        "start": { "line": 38, "character": 28 },
+        "end": { "line": 38, "character": 42 }
       },
       "severity": 1,
       "severityLabel": "error",
@@ -30,8 +30,8 @@
     {
       "file": "delegate_missing_operators.kt",
       "range": {
-        "start": { "line": 24, "character": 24 },
-        "end": { "line": 24, "character": 37 }
+        "start": { "line": 41, "character": 24 },
+        "end": { "line": 41, "character": 37 }
       },
       "severity": 1,
       "severityLabel": "error",
@@ -43,8 +43,8 @@
     {
       "file": "delegate_missing_operators.kt",
       "range": {
-        "start": { "line": 24, "character": 24 },
-        "end": { "line": 24, "character": 37 }
+        "start": { "line": 41, "character": 24 },
+        "end": { "line": 41, "character": 37 }
       },
       "severity": 1,
       "severityLabel": "error",
@@ -56,8 +56,34 @@
     {
       "file": "delegate_missing_operators.kt",
       "range": {
-        "start": { "line": 27, "character": 46 },
-        "end": { "line": 27, "character": 71 }
+        "start": { "line": 44, "character": 46 },
+        "end": { "line": 44, "character": 71 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0103",
+      "source": "kswiftk",
+      "message": "Property delegate must have a 'getValue' operator function.",
+      "codeActions": []
+    },
+    {
+      "file": "delegate_missing_operators.kt",
+      "range": {
+        "start": { "line": 48, "character": 54 },
+        "end": { "line": 48, "character": 89 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0103",
+      "source": "kswiftk",
+      "message": "Property delegate must have a 'getValue' operator function.",
+      "codeActions": []
+    },
+    {
+      "file": "delegate_missing_operators.kt",
+      "range": {
+        "start": { "line": 51, "character": 37 },
+        "end": { "line": 51, "character": 60 }
       },
       "severity": 1,
       "severityLabel": "error",

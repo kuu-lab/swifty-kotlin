@@ -69,6 +69,16 @@ extension DeclTypeChecker {
                 else { return false }
                 return sym.flags.contains(.operatorFunction)
             }
+        // Tracks whether getValue/setValue were actually resolved for the *effective*
+        // delegate type (see below: provideDelegate, when present, fully supersedes
+        // this direct check). Deliberately not read back from
+        // sema.symbols.delegateGetValueSymbol(for:) for the diagnostic below — that
+        // symbol table entry is only ever set on success and never cleared, so if a
+        // provideDelegate re-resolution later fails, a stale symbol from this direct
+        // check would otherwise mask the failure.
+        var getValueResolved = false
+        var setValueResolved = false
+
         if let getValueSymbol = getValueCandidates.first,
            let getValueSig = resolvedDelegateMemberSignature(
                for: getValueSymbol,
@@ -79,8 +89,10 @@ extension DeclTypeChecker {
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
             result = getValueSig.returnType
+            getValueResolved = true
         } else if let getValueSymbol = getValueCandidates.first {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
+            getValueResolved = true
         }
 
         // Check setValue for var properties.
@@ -99,6 +111,7 @@ extension DeclTypeChecker {
                 }
             if let setValueSymbol = setValueCandidates.first {
                 sema.symbols.setDelegateSetValueSymbol(setValueSymbol, for: symbol)
+                setValueResolved = true
             }
         }
 
@@ -148,6 +161,9 @@ extension DeclTypeChecker {
                             else { return false }
                             return !sym.flags.contains(.synthetic)
                         }
+                    // provideDelegate's return type is the effective delegate, so its
+                    // resolution (success or failure) fully supersedes the direct check above.
+                    getValueResolved = actualGetValueSymbol != nil
                     if let actualGetValueSymbol {
                         sema.symbols.setDelegateGetValueSymbol(actualGetValueSymbol, for: symbol)
                         // When provideDelegate is present, the property type must be inferred from
@@ -182,6 +198,9 @@ extension DeclTypeChecker {
                                 else { return false }
                                 return !sym.flags.contains(.synthetic)
                             }
+                        // Same rationale as getValueResolved above: provideDelegate's
+                        // return type supersedes the direct check.
+                        setValueResolved = actualSetValueSymbol != nil
                         if let actualSetValueSymbol {
                             sema.symbols.setDelegateSetValueSymbol(actualSetValueSymbol, for: symbol)
                         }
@@ -201,17 +220,14 @@ extension DeclTypeChecker {
         let isKnownStdlibDelegate = isKnownStdlibDelegateFactory(
             delegateExpr, ast: ctx.ast, interner: interner
         )
-        if sema.symbols.delegateGetValueSymbol(for: symbol) == nil, !isKnownStdlibDelegate {
+        if !getValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
                 "Property delegate must have a 'getValue' operator function.",
                 range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
             )
         }
-        if property.isVar,
-           sema.symbols.delegateSetValueSymbol(for: symbol) == nil,
-           !isKnownStdlibDelegate
-        {
+        if property.isVar, !setValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0104",
                 "Mutable property delegate must have a 'setValue' operator function.",
@@ -226,33 +242,39 @@ extension DeclTypeChecker {
         return result
     }
 
-    /// Mirrors `KIRLoweringDriver.detectDelegateKind`'s structural (name-based) recognition
-    /// of stdlib delegate factories, so this diagnostic and KIR lowering agree on which
-    /// delegate expressions are exempt from the operator-function convention.
+    /// Mirrors `KIRLoweringDriver.detectDelegateKind` + `detectDelegateKindFromCallExpr`
+    /// (`Sources/CompilerCore/KIR/KIRLoweringDriver+ModuleLowering+PostProcess.swift`) so
+    /// this diagnostic and KIR lowering agree on which delegate expressions are exempt
+    /// from the operator-function convention. The name set intentionally differs *per AST
+    /// node shape* there (a bare name only ever means the top-level `lazy` function; a
+    /// member call only ever means `Delegates.observable/vetoable/notNull`) — keep this
+    /// in sync if that logic changes, since a broader match here than in KIR lowering
+    /// would silently suppress a real diagnostic for a `.custom` delegate.
     private func isKnownStdlibDelegateFactory(
         _ delegateExpr: ExprID,
         ast: ASTModule,
         interner: StringInterner
     ) -> Bool {
         guard let expr = ast.arena.expr(delegateExpr) else { return false }
-        let knownNames: Set<InternedString> = [
-            interner.intern("lazy"),
-            interner.intern("observable"),
-            interner.intern("vetoable"),
-            interner.intern("notNull"),
-        ]
+        let lazyName = interner.intern("lazy")
+        let observableName = interner.intern("observable")
+        let vetoableName = interner.intern("vetoable")
+        let notNullName = interner.intern("notNull")
+        func isObservableFamily(_ name: InternedString) -> Bool {
+            name == observableName || name == vetoableName || name == notNullName
+        }
         switch expr {
         case let .nameRef(name, _):
-            return knownNames.contains(name)
+            return name == lazyName
         case let .memberCall(_, name, _, _, _):
-            return knownNames.contains(name)
+            return isObservableFamily(name)
         case let .call(callee, _, _, _):
             guard let calleeExpr = ast.arena.expr(callee) else { return false }
             switch calleeExpr {
             case let .nameRef(name, _):
-                return knownNames.contains(name)
+                return isObservableFamily(name) || name == lazyName
             case let .memberCall(_, name, _, _, _):
-                return knownNames.contains(name)
+                return isObservableFamily(name)
             default:
                 return false
             }
