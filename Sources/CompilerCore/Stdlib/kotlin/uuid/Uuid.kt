@@ -170,11 +170,11 @@ public class Uuid private constructor(
         val lsb = leastSignificantBits
         var i = 0
         while (i < 8) {
-            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toInt()
+            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toByte()
             i += 1
         }
         while (i < 16) {
-            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
+            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toByte()
             i += 1
         }
         return bytes
