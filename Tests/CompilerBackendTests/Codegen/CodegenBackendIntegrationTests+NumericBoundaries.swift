@@ -185,6 +185,40 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testNumericBoundarySignedUnsignedReinterpretation() throws {
+        // Regression for kk_int_to_uint / kk_long_to_uint / kk_uint_to_int /
+        // kk_ulong_to_int: these used to be identity functions, so a negative
+        // signed source (or an unsigned source >= 2^31) kept its original
+        // Int64 payload instead of reinterpreting bits for the target type.
+        let source = """
+        fun main() {
+            val n: Long = -1L
+            println(n.toUInt())
+            println(n.toUInt() == 4294967295u)
+            println((-1).toUInt())
+            println((-1).toLong().toUInt())
+            println((n and 0xffffffffL).toInt().toUInt())
+            println(4294967295u.toInt())
+            println(2147483648u.toInt())
+            println(4294967296uL.toInt())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundarySignedUnsignedReinterpretation",
+            expected: """
+            4294967295
+            true
+            4294967295
+            4294967295
+            4294967295
+            -1
+            -2147483648
+            0
+            """ + "\n"
+        )
+    }
+
     func testNumericBoundaryIntToCharTruncates() throws {
         let source = """
         fun main() {
