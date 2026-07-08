@@ -350,23 +350,38 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let timedValueType = types.make(.classType(ClassType(
+            classSymbol: timedValueSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
-        // TimedValue.value property (returns Any? — generic T erased to Any?)
-        registerDurationMemberProperty(
-            named: "value",
+        // TimedValue.value / TimedValue.duration are implemented in Kotlin
+        // source (Stdlib/kotlin/time/TimedValue.kt) as extension properties
+        // delegating to these __kk_timedvalue_* bridges (KSP-472).
+
+        // __kk_timedvalue_value(): Any? — generic T erased to Any?
+        registerDurationMemberMethod(
+            named: "__kk_timedvalue_value",
             externalLinkName: "kk_timedvalue_value",
             ownerSymbol: timedValueSymbol,
+            ownerType: timedValueType,
+            parameterTypes: [],
             returnType: types.makeNullable(types.anyType),
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )
 
-        // TimedValue.duration property (returns Duration)
-        registerDurationMemberProperty(
-            named: "duration",
+        // __kk_timedvalue_duration(): Duration
+        registerDurationMemberMethod(
+            named: "__kk_timedvalue_duration",
             externalLinkName: "kk_timedvalue_duration",
             ownerSymbol: timedValueSymbol,
+            ownerType: timedValueType,
+            parameterTypes: [],
             returnType: durationType,
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )

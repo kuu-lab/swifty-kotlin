@@ -17,6 +17,8 @@ enum MemberDispatchReceiverKind: String, Equatable, Hashable {
     case collection
     case map
     case sequence
+    case string
+    case charSequence
 
     var isCharRangeLike: Bool {
         self == .charRange || self == .charProgression
@@ -38,6 +40,35 @@ enum MemberDispatchReceiverKind: String, Equatable, Hashable {
 enum MemberDispatchLambdaShape: String, Equatable, Hashable {
     case none
     case hofLambda
+}
+
+enum MemberRuntimeArgumentMode: String, Equatable, Hashable {
+    case lowered
+    case normalized
+}
+
+enum MemberRuntimeThrownResultMode: String, Equatable, Hashable {
+    case none
+    case nullableAny
+}
+
+struct MemberRuntimeCallSpec: Equatable, Hashable {
+    let runtimeLinkName: String
+    let canThrow: Bool
+    let argumentMode: MemberRuntimeArgumentMode
+    let thrownResultMode: MemberRuntimeThrownResultMode
+
+    init(
+        runtimeLinkName: String,
+        canThrow: Bool = false,
+        argumentMode: MemberRuntimeArgumentMode = .lowered,
+        thrownResultMode: MemberRuntimeThrownResultMode = .none
+    ) {
+        self.runtimeLinkName = runtimeLinkName
+        self.canThrow = canThrow
+        self.argumentMode = argumentMode
+        self.thrownResultMode = thrownResultMode
+    }
 }
 
 struct MemberDispatchKey: Equatable, Hashable, CustomStringConvertible {
@@ -155,6 +186,24 @@ enum MemberRuntimeDispatch {
             ]
         {
             return .iterable
+        }
+        return nil
+    }
+
+    static func stringReceiverKind(
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> MemberDispatchReceiverKind? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
+            return .string
+        }
+        if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+           case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+           classType.classSymbol == charSequenceSymbol
+        {
+            return .charSequence
         }
         return nil
     }
@@ -313,6 +362,225 @@ enum MemberRuntimeDispatch {
             memberName: key.memberName,
             arity: key.arity
         )?.runtimeLinkName
+    }
+
+    static func stringRuntimeCall(for key: MemberDispatchKey) -> MemberRuntimeCallSpec? {
+        guard key.receiverKind == .string else {
+            return nil
+        }
+
+        switch (key.memberName, key.arity) {
+        case ("lowercase", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lowercase_flat")
+        case ("uppercase", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_uppercase_flat")
+        case ("toInt", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_flat", canThrow: true)
+        case ("toIntOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toIntOrNull_flat")
+        case ("toDouble", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toDouble_flat", canThrow: true)
+        case ("toDoubleOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toDoubleOrNull_flat")
+        case ("toFloatOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toFloatOrNull_flat")
+        case ("toList", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toList_flat")
+        case ("toMutableList", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toMutableList")
+        case ("toSortedSet", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toSortedSet_flat")
+        case ("asIterable", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asIterable_flat")
+        case ("toCharArray", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCharArray_flat")
+        case ("toRegex", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
+        case ("lines", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lines_flat")
+        case ("lineSequence", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lineSequence_flat")
+        case ("firstOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
+        case ("lastOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
+        case ("singleOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_singleOrNull_flat")
+        case ("zipWithNext", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_zipWithNext_flat")
+        case ("asSequence", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
+        case ("withIndex", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
+        case ("trimIndent", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimIndent_flat")
+        case ("trimMargin", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimMargin_default_flat")
+        case ("prependIndent", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_default_flat")
+        case ("replaceIndent", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_default_flat")
+        case ("trim", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trim_flat")
+        case ("trimStart", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimStart_flat")
+        case ("trimEnd", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimEnd_flat")
+
+        case ("toInt", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
+        case ("windowed", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
+        case ("startsWith", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_startsWith_flat")
+        case ("endsWith", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_endsWith_flat")
+        case ("lastIndexOf", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastIndexOf_flat")
+        case ("get", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
+        case ("compareTo", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
+        case ("matches", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_matches_regex_flat")
+        case ("mapIndexed", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapIndexed_flat", argumentMode: .normalized)
+        case ("mapNotNull", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapNotNull_flat", argumentMode: .normalized)
+        case ("filterIndexed", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_filterIndexed_flat", argumentMode: .normalized)
+        case ("filterNot", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_filterNot_flat", argumentMode: .normalized)
+        case ("count", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_count_flat", argumentMode: .normalized)
+        case ("any", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_any_flat", argumentMode: .normalized)
+        case ("all", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_all_flat", argumentMode: .normalized)
+        case ("none", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_none_flat", argumentMode: .normalized)
+        case ("indexOfFirst", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_indexOfFirst_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("indexOfLast", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_indexOfLast_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("takeWhile", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeWhile_flat", argumentMode: .normalized)
+        case ("takeLastWhile", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeLastWhile_flat", argumentMode: .normalized)
+        case ("dropWhile", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_dropWhile_flat", argumentMode: .normalized)
+        case ("find", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_find_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("findLast", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_findLast_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("partition", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_partition_flat",
+                canThrow: true,
+                argumentMode: .normalized,
+                thrownResultMode: .nullableAny
+            )
+        case ("ifBlank", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_ifBlank_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("ifEmpty", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_ifEmpty_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("chunked", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
+        case ("chunkedSequence", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_sequence_flat")
+        case ("encodeToByteArray", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_encodeToByteArray_charset_flat")
+        case ("toByteArray", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toByteArray_charset_flat")
+        case ("removePrefix", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removePrefix_flat")
+        case ("removeSuffix", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSuffix_flat")
+        case ("removeSurrounding", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_flat")
+        case ("trimMargin", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimMargin_flat")
+        case ("prependIndent", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_flat")
+        case ("replaceIndent", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_flat")
+        case ("trim", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_trim_predicate_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("trimStart", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_trimStart_predicate_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("trimEnd", 1):
+            return MemberRuntimeCallSpec(
+                runtimeLinkName: "kk_string_trimEnd_predicate_flat",
+                canThrow: true,
+                argumentMode: .normalized
+            )
+        case ("take", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_take_flat", canThrow: true)
+        case ("drop", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_drop_flat", canThrow: true)
+        case ("takeLast", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeLast_flat", canThrow: true)
+        case ("dropLast", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_dropLast_flat", canThrow: true)
+        case ("removeRange", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_range_flat", canThrow: true)
+        case ("toCollection", 1):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCollection_flat")
+
+        case ("subSequence", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_subSequence_flat", canThrow: true)
+        case ("windowed", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
+        case ("compareTo", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareToIgnoreCase_flat")
+        case ("replaceIndentByMargin", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndentByMargin_flat")
+        case ("removeSurrounding", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_pair_flat")
+        case ("removeRange", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_flat", canThrow: true)
+        case ("replaceRange", 2):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceRange_flat", canThrow: true)
+
+        case ("windowed", 3):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_partial_flat")
+        case ("windowedSequence", 3):
+            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowedSequence_partial_flat")
+        default:
+            return nil
+        }
     }
 
     private static func rangeRuntimeName(

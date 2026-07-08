@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
 
     /// Rewrites array factory calls and bridges range-style iterator intrinsics to runtime iterators.
     func rewriteArrayAndIteratorBridgeCall(

@@ -3,8 +3,6 @@ symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synt
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.take kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
-symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.collections.List<out Nothing>
-symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -19,7 +17,7 @@ expr e@2:34 call callee=e@2:34#1 args=[_:e@2:41,_:e@2:44] type=kotlin.collection
 expr e@2:13 call callee=e@2:13#1 args=[_:e@2:20,_:e@2:34] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
 expr e@2:13#2 memberCall recv=e@2:13 callee=flatten args=[] type=kotlin.collections.List<Int>
 expr e@2:5 call callee=e@2:5#1 args=[_:e@2:13#2] type=Unit call=kotlin.io.println#1
-expr e@4:13 call callee=e@4:13#1 args=[] type=kotlin.collections.List<out kotlin.collections.List<Int>> call=kotlin.collections.emptyList targs=[kotlin.collections.List<Int>]
+expr e@4:13 call callee=e@4:13#1 args=[] type=kotlin.collections.List<out kotlin.collections.List<Int>>
 expr e@4:13#2 memberCall recv=e@4:13 callee=flatten args=[] type=kotlin.collections.List<Int>
 expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#2] type=Unit call=kotlin.io.println#1
 expr e@5:20 call callee=e@5:20#1 args=[] type=kotlin.collections.List<out Int>

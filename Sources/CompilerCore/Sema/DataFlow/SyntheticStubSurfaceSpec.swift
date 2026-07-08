@@ -7,6 +7,7 @@ indirect enum SyntheticStubTypeRef: Hashable, Sendable {
     case nullable(SyntheticStubTypeRef)
     case classType(fqName: [String], args: [SyntheticStubTypeArg], nullability: Nullability)
     case typeParameter(name: String, nullability: Nullability)
+    case fallback(primary: SyntheticStubTypeRef, fallback: SyntheticStubTypeRef)
 
     static let unit: SyntheticStubTypeRef = .builtin(.unit)
     static let any: SyntheticStubTypeRef = .builtin(.any)
@@ -28,6 +29,13 @@ indirect enum SyntheticStubTypeRef: Hashable, Sendable {
         nullability: Nullability = .nonNull
     ) -> SyntheticStubTypeRef {
         .classType(fqName: fqName, args: args, nullability: nullability)
+    }
+
+    static func typeParameter(
+        _ name: String,
+        nullability: Nullability = .nonNull
+    ) -> SyntheticStubTypeRef {
+        .typeParameter(name: name, nullability: nullability)
     }
 }
 
@@ -115,6 +123,34 @@ struct SyntheticFunctionStubSpec: Sendable {
     }
 }
 
+struct SyntheticConstructorStubSpec: Sendable {
+    let externalLinkName: String?
+    let parameters: [SyntheticStubParameterSpec]
+    let visibility: Visibility
+    let flags: SymbolFlags
+    let typeParameterNames: [String]
+    let typeParameterUpperBounds: [[SyntheticStubTypeRef]]
+    let classTypeParameterCount: Int
+
+    init(
+        externalLinkName: String? = nil,
+        parameters: [SyntheticStubParameterSpec] = [],
+        visibility: Visibility = .public,
+        flags: SymbolFlags = [.synthetic],
+        typeParameterNames: [String] = [],
+        typeParameterUpperBounds: [[SyntheticStubTypeRef]] = [],
+        classTypeParameterCount: Int = 0
+    ) {
+        self.externalLinkName = externalLinkName
+        self.parameters = parameters
+        self.visibility = visibility
+        self.flags = flags
+        self.typeParameterNames = typeParameterNames
+        self.typeParameterUpperBounds = typeParameterUpperBounds
+        self.classTypeParameterCount = classTypeParameterCount
+    }
+}
+
 struct SyntheticPropertyStubSpec: Sendable {
     let name: String
     let propertyType: SyntheticStubTypeRef
@@ -177,6 +213,27 @@ extension DataFlowSemaPhase {
     }
 
     @discardableResult
+    func registerSyntheticConstructorStubs(
+        _ specs: [SyntheticConstructorStubSpec],
+        ownerType: SyntheticStubTypeRef,
+        context: SyntheticStubRegistrationContext,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        specs.compactMap { spec in
+            registerSyntheticConstructorStub(
+                spec,
+                ownerType: ownerType,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+    }
+
+    @discardableResult
     func registerSyntheticPropertyStubs(
         _ specs: [SyntheticPropertyStubSpec],
         context: SyntheticStubRegistrationContext,
@@ -193,6 +250,127 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+    }
+
+    @discardableResult
+    private func registerSyntheticConstructorStub(
+        _ spec: SyntheticConstructorStubSpec,
+        ownerType ownerTypeRef: SyntheticStubTypeRef,
+        context: SyntheticStubRegistrationContext,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let ownerType = resolveSyntheticStubType(
+            ownerTypeRef,
+            context: context,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) else {
+            return nil
+        }
+
+        var parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] = []
+        parameters.reserveCapacity(spec.parameters.count)
+        for parameter in spec.parameters {
+            guard let parameterType = resolveSyntheticStubType(
+                parameter.type,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) else {
+                return nil
+            }
+            parameters.append((
+                name: parameter.name,
+                type: parameterType,
+                hasDefault: parameter.hasDefault,
+                isVararg: parameter.isVararg
+            ))
+        }
+
+        let typeParameterSymbols = spec.typeParameterNames.compactMap {
+            context.typeParameterSymbolsByName[$0]
+        }
+        guard typeParameterSymbols.count == spec.typeParameterNames.count else {
+            return nil
+        }
+        let upperBounds = resolveSyntheticStubTypeParameterUpperBounds(
+            spec.typeParameterUpperBounds,
+            context: context,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        guard upperBounds != nil || spec.typeParameterUpperBounds.isEmpty else {
+            return nil
+        }
+
+        let constructorName = interner.intern("<init>")
+        let constructorFQName = context.ownerFQName + [constructorName]
+        let parameterTypes = parameters.map(\.type)
+        if let existing = symbols.lookupAll(fqName: constructorFQName).first(where: { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+                && signature.returnType == ownerType
+        }) {
+            if let externalLinkName = spec.externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
+            return existing
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: constructorName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: spec.visibility,
+            flags: spec.flags
+        )
+        if let parentSymbol = context.parentSymbol, parentSymbol != .invalid {
+            symbols.setParentSymbol(parentSymbol, for: constructorSymbol)
+        }
+        if let externalLinkName = spec.externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
+        }
+
+        var valueParameterSymbols: [SymbolID] = []
+        valueParameterSymbols.reserveCapacity(parameters.count)
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: constructorFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
+            valueParameterSymbols.append(parameterSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: parameters.map(\.hasDefault),
+                valueParameterIsVararg: parameters.map(\.isVararg),
+                typeParameterSymbols: typeParameterSymbols,
+                typeParameterUpperBoundsList: upperBounds ?? [],
+                classTypeParameterCount: spec.classTypeParameterCount
+            ),
+            for: constructorSymbol
+        )
+        return constructorSymbol
     }
 
     @discardableResult
@@ -492,6 +670,20 @@ extension DataFlowSemaPhase {
                 symbol: symbol,
                 nullability: nullability
             )))
+        case let .fallback(primary, fallback):
+            return resolveSyntheticStubType(
+                primary,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) ?? resolveSyntheticStubType(
+                fallback,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
         }
     }
 

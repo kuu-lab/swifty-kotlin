@@ -266,12 +266,22 @@ final class CoroutineLoweringPass: LoweringPass {
             existingFunctionNames: &existingFunctionNames,
             using: launcherThunkContext
         )
+        let sequenceBuilderThunkByOriginalSymbol = synthesizeSequenceBuilderReceiverThunks(
+            suspendFunctions: suspendFunctions,
+            nextSyntheticSymbol: &nextSyntheticSymbol,
+            existingFunctionNames: &existingFunctionNames,
+            using: launcherThunkContext
+        )
 
         let loweredByUniqueName = loweredByNameBuckets.reduce(into: [InternedString: (name: InternedString, symbol: SymbolID)]()) { partial, entry in
             guard entry.value.count == 1, let value = entry.value.first else {
                 return
             }
             partial[entry.key] = value
+        }
+        var originalByLoweredName: [InternedString: (original: SymbolID, lowered: LoweredSuspendFunction)] = [:]
+        for (original, lowered) in loweredBySymbol {
+            originalByLoweredName[lowered.name] = (original: original, lowered: lowered)
         }
         let loweredByUniqueNameArity = loweredByNameArityBuckets.reduce(into: [SuspendCallLookupKey: (name: InternedString, symbol: SymbolID)]()) { partial, entry in
             guard entry.value.count == 1, let value = entry.value.first else {
@@ -327,7 +337,9 @@ final class CoroutineLoweringPass: LoweringPass {
             sequenceBuilderYieldAllCallee: ctx.interner.intern("kk_sequence_builder_yieldAll"),
             iteratorBuilderBuildCallee: ctx.interner.intern("kk_iterator_builder_build"),
             iteratorBuilderBuildCoroCallee: ctx.interner.intern("kk_iterator_builder_build_coro"),
+            sequenceBuilderThunkByOriginalSymbol: sequenceBuilderThunkByOriginalSymbol,
             loweredBySymbol: loweredBySymbol,
+            originalByLoweredName: originalByLoweredName,
             continuationTypeByLoweredSymbol: continuationTypeByLoweredSymbol,
             suspendFunctionArityBySymbol: suspendFunctionArityBySymbol,
             loweredByUniqueNameArity: loweredByUniqueNameArity,

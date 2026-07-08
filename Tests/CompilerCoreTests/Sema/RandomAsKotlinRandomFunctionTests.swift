@@ -4,7 +4,7 @@
 /// The function is registered as a synthetic top-level extension in the
 /// `kotlin.random` package with `java.util.Random` as its receiver and
 /// `kotlin.random.Random` as its return type. It is linked to the runtime
-/// entry `kk_random_asKotlinRandom`.
+/// entry `__kk_random_asKotlinRandom`.
 
 #if canImport(Testing)
 @testable import CompilerCore
@@ -36,7 +36,7 @@ struct RandomAsKotlinRandomFunctionTests {
     }
 
     /// The registered overload accepts no value parameters and links to
-    /// `kk_random_asKotlinRandom`.
+    /// `__kk_random_asKotlinRandom`.
     @Test func testAsKotlinRandomLinksToRuntimeStub() throws {
         let (sema, interner) = try makeSema()
 
@@ -48,8 +48,8 @@ struct RandomAsKotlinRandomFunctionTests {
         }
         let candidateSym = try #require(arity0,
                                         "asKotlinRandom must expose an arity-0 (value parameters) overload")
-        #expect(sema.symbols.externalLinkName(for: candidateSym) == "kk_random_asKotlinRandom",
-                "asKotlinRandom must link to kk_random_asKotlinRandom")
+        #expect(sema.symbols.externalLinkName(for: candidateSym) == "__kk_random_asKotlinRandom",
+                "asKotlinRandom must link to __kk_random_asKotlinRandom")
     }
 
     /// The receiver type must be `java.util.Random` so that

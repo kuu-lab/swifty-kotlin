@@ -1,5 +1,5 @@
 /// Sequence and iterator builder call rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceBuilderCall(
         symbol: SymbolID?,
         callee: InternedString,

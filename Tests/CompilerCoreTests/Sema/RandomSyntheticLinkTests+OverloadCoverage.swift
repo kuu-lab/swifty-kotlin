@@ -32,7 +32,7 @@ extension RandomSyntheticLinkTests {
 
         if let ctor = intSeedCtor {
             let link = sema.symbols.externalLinkName(for: ctor)
-            #expect(link == "kk_random_create_seeded", "Random(seed: Int) must link to kk_random_create_seeded")
+            #expect(link == "__kk_random_create_seeded", "Random(seed: Int) must link to __kk_random_create_seeded")
         }
     }
 
@@ -53,7 +53,7 @@ extension RandomSyntheticLinkTests {
 
         if let ctor = longSeedCtor {
             let link = sema.symbols.externalLinkName(for: ctor)
-            #expect(link == "kk_random_create_seeded", "Random(seed: Long) must link to kk_random_create_seeded")
+            #expect(link == "__kk_random_create_seeded", "Random(seed: Long) must link to __kk_random_create_seeded")
         }
     }
 
@@ -80,7 +80,7 @@ extension RandomSyntheticLinkTests {
                 )))
                 #expect(sema.symbols.propertyType(for: defaultSym) == expectedType)
             }
-            #expect(sema.symbols.externalLinkName(for: defaultSym) == "kk_random_default")
+            #expect(sema.symbols.externalLinkName(for: defaultSym) == "__kk_random_default")
         }
     }
 
