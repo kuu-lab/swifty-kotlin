@@ -231,16 +231,16 @@ struct StringSyntheticMemberLinkTests {
 
         let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount"),
-            "CharSequence.codePointCount() should link to kk_string_codePointCount"
+            codePointCountLinks.contains("__kk_string_codePointCount"),
+            "CharSequence.codePointCount() should link to __kk_string_codePointCount"
         )
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount_from"),
-            "CharSequence.codePointCount(startIndex) should link to kk_string_codePointCount_from"
+            codePointCountLinks.contains("__kk_string_codePointCount_from"),
+            "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
         )
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount_range"),
-            "CharSequence.codePointCount(startIndex, endIndex) should link to kk_string_codePointCount_range"
+            codePointCountLinks.contains("__kk_string_codePointCount_range"),
+            "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
         )
     }
 
@@ -248,12 +248,12 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "normalize", sema: sema, interner: interner) == "kk_string_normalize_flat",
-            "String.normalize should link to kk_string_normalize_flat"
+            externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
+            "String.normalize should link to __kk_string_normalize_flat"
         )
         #expect(
-            externalLink(for: "isNormalized", sema: sema, interner: interner) == "kk_string_isNormalized_flat",
-            "String.isNormalized should link to kk_string_isNormalized_flat"
+            externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
+            "String.isNormalized should link to __kk_string_isNormalized_flat"
         )
     }
 
@@ -694,8 +694,8 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "normalize": "kk_string_normalize_flat",
-                "isNormalized": "kk_string_isNormalized_flat",
+                "normalize": "__kk_string_normalize_flat",
+                "isNormalized": "__kk_string_isNormalized_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {

@@ -3,154 +3,14 @@
 public extension RuntimeABISpec {
     static let uuidFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_uuid_random",
+            name: "__kk_uuid_random",
             parameters: [],
             returnType: .intptr,
             section: "Uuid",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uuid_nil",
-            parameters: [],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_lexicalOrder",
-            parameters: [],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parse",
-            parameters: [
-                RuntimeABIParameter(name: "uuidString", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Uuid"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "uuidString", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseHex",
-            parameters: [
-                RuntimeABIParameter(name: "hexString", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Uuid"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseHexOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "hexString", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseHexDash",
-            parameters: [
-                RuntimeABIParameter(name: "hexDashString", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Uuid"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseHexDashOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "hexDashString", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_toString",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_toHexString",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_toLongs",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_toByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_version",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_variant",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_mostSignificantBits",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_leastSignificantBits",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Uuid",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_nameUUIDFromBytes",
+            name: "__kk_uuid_nameUUIDFromBytes",
             parameters: [
                 RuntimeABIParameter(name: "nameArray", type: .intptr),
             ],
@@ -159,7 +19,14 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uuid_fromLongs",
+            name: "__kk_uuid_lexicalOrder",
+            parameters: [],
+            returnType: .intptr,
+            section: "Uuid",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_uuid_fromLongs",
             parameters: [
                 RuntimeABIParameter(name: "mostSignificantBits", type: .intptr),
                 RuntimeABIParameter(name: "leastSignificantBits", type: .intptr),
@@ -167,15 +34,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Uuid",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uuid_fromByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "byteArray", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uuid_toKotlinUuid",

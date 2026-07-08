@@ -28,7 +28,7 @@ struct ResultSourceMigrationTests {
             let runCatchingSymbol = try #require(sema.symbols.lookupAll(fqName: runCatchingFQName).first { symbolID in
                 sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == 1
             })
-            #expect(sema.symbols.externalLinkName(for: runCatchingSymbol) == nil)
+            #expect(sema.symbols.externalLinkName(for: runCatchingSymbol) == "kk_runtime_result_run_catching")
             #expect(sourcePath(for: runCatchingSymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
 
             for propertyName in ["isSuccess", "isFailure"] {
@@ -43,16 +43,20 @@ struct ResultSourceMigrationTests {
                 #expect(sema.symbols.propertyType(for: propertySymbol) != nil)
             }
 
-            for functionName in [
-                "getOrNull",
-                "getOrDefault",
-                "getOrElse",
-                "getOrThrow",
-                "map",
-                "fold",
-                "onSuccess",
-                "onFailure",
-            ] {
+            let expectedFunctionLinks: [String: String?] = [
+                "getOrNull": nil,
+                "getOrDefault": nil,
+                "getOrElse": "kk_runtime_result_get_or_else",
+                "getOrThrow": nil,
+                "exceptionOrNull": nil,
+                "map": "kk_runtime_result_map",
+                "fold": "kk_runtime_result_fold",
+                "onSuccess": "kk_runtime_result_on_success",
+                "onFailure": "kk_runtime_result_on_failure",
+                "recover": "kk_runtime_result_recover",
+                "recoverCatching": "kk_runtime_result_recover_catching",
+            ]
+            for (functionName, expectedLink) in expectedFunctionLinks {
                 let functionSymbol = try #require(symbol(
                     named: functionName,
                     under: resultFQName,
@@ -60,7 +64,7 @@ struct ResultSourceMigrationTests {
                     sema: sema,
                     ctx: ctx
                 ))
-                #expect(sema.symbols.externalLinkName(for: functionSymbol) == nil)
+                #expect(sema.symbols.externalLinkName(for: functionSymbol) == expectedLink)
                 #expect(sema.symbols.functionSignature(for: functionSymbol) != nil)
             }
         }
@@ -68,11 +72,18 @@ struct ResultSourceMigrationTests {
 
     @Test func testResultCallsResolveToBundledKotlinSourceSymbols() throws {
         let source = """
+        fun failInt(): Int {
+            throw RuntimeException("boom")
+        }
+
         fun useResult(): Int {
             val success: Result<Int> = runCatching { 41 }
-            val mapped: Result<Int> = success.map { value -> value }
+            val mapped: Result<Any?> = success.map { value -> value }
             val tapped = mapped.onSuccess { value -> println(value) }
-            return tapped.getOrDefault(0)
+            val failure: Result<Int> = runCatching { failInt() }
+            val recovered: Result<Any?> = failure.recover { 7 }
+            val recoveredCatching: Result<Any?> = failure.recoverCatching { 8 }
+            return tapped.getOrDefault(0) + recovered.getOrDefault(0) + recoveredCatching.getOrDefault(0)
         }
         """
 
@@ -96,14 +107,31 @@ struct ResultSourceMigrationTests {
                 else { return false }
                 return ctx.interner.resolve(name) == "runCatching"
             })
-            try expectCallUsesBundledResultSource(runCatchingCall, sema: sema, ctx: ctx)
+            try expectCallUsesBundledResultSource(
+                runCatchingCall,
+                expectedExternalLink: "kk_runtime_result_run_catching",
+                sema: sema,
+                ctx: ctx
+            )
 
-            for memberName in ["map", "onSuccess", "getOrDefault"] {
+            let expectedMemberLinks: [String: String?] = [
+                "map": "kk_runtime_result_map",
+                "onSuccess": "kk_runtime_result_on_success",
+                "recover": "kk_runtime_result_recover",
+                "recoverCatching": "kk_runtime_result_recover_catching",
+                "getOrDefault": nil,
+            ]
+            for (memberName, expectedLink) in expectedMemberLinks {
                 let memberCall = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
-                try expectCallUsesBundledResultSource(memberCall, sema: sema, ctx: ctx)
+                try expectCallUsesBundledResultSource(
+                    memberCall,
+                    expectedExternalLink: expectedLink,
+                    sema: sema,
+                    ctx: ctx
+                )
             }
         }
     }
@@ -166,11 +194,12 @@ struct ResultSourceMigrationTests {
 
     private func expectCallUsesBundledResultSource(
         _ exprID: ExprID,
+        expectedExternalLink: String?,
         sema: SemaModule,
         ctx: CompilationContext
     ) throws {
         let chosenCallee = try #require(sema.bindings.callBinding(for: exprID)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink)
         #expect(sourcePath(for: chosenCallee, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
     }
 }

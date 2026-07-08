@@ -56,12 +56,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
                 continue
             }
-            if !specs.contains(where: { declaration.runtimeArityCandidates.contains($0.parameters.count) }) {
+            let expectedArities = runtimeABIArityCandidates(for: declaration, specs: specs)
+            if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
-                let expected = declaration.runtimeArityCandidates.sorted().map(String.init).joined(separator: ", ")
+                let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
                 failures.append(
-                    "\(declaration.linkName) in \(declaration.relativePath) has Kotlin arity \(declaration.arity)"
-                        + " (accepted runtime arities [\(expected)]), RuntimeABI arities [\(arities)]"
+                    "\(declaration.linkName) in \(declaration.relativePath) has Kotlin arity candidates [\(expected)], RuntimeABI arities [\(arities)]"
                 )
             }
         }
@@ -152,7 +152,11 @@ struct RuntimeABIExternalLinkValidationTests {
     private struct BundledKsSymbolNameDeclaration {
         let linkName: String
         let arity: Int
-        let runtimeArityCandidates: Set<Int>
+        let functionTypedParameterCount: Int
+        let hasReceiver: Bool
+        let receiverType: String?
+        let valueParameterTypes: [String]
+        let returnType: String?
         let relativePath: String
     }
 
@@ -184,30 +188,44 @@ struct RuntimeABIExternalLinkValidationTests {
     ) -> [BundledKsSymbolNameDeclaration] {
         var declarations: [BundledKsSymbolNameDeclaration] = []
         var pendingLinkNames: [String] = []
+        var pendingDepth: Int?
+        var braceDepth = 0
         let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
         for (index, line) in lines.enumerated() {
             if let linkName = ksSymbolNameArgument(in: line) {
+                if pendingLinkNames.isEmpty {
+                    pendingDepth = braceDepth
+                }
                 pendingLinkNames.append(linkName)
+                braceDepth += braceDelta(in: line)
                 continue
             }
             guard !pendingLinkNames.isEmpty,
                   let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
+                braceDepth += braceDelta(in: line)
                 continue
             }
+            let hasReceiver = (pendingDepth ?? 0) > 0 || functionHeaderHasExtensionReceiver(functionHeader)
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
                         linkName: linkName,
                         arity: signature.valueParameterTypes.count,
-                        runtimeArityCandidates: runtimeArityCandidates(for: signature, linkName: linkName),
+                        functionTypedParameterCount: signature.functionTypedParameterCount,
+                        hasReceiver: hasReceiver,
+                        receiverType: signature.receiverType,
+                        valueParameterTypes: signature.valueParameterTypes,
+                        returnType: signature.returnType,
                         relativePath: relativePath
                     )
                 )
             }
             pendingLinkNames.removeAll()
+            pendingDepth = nil
+            braceDepth += braceDelta(in: line)
         }
 
         return declarations
@@ -243,6 +261,10 @@ struct RuntimeABIExternalLinkValidationTests {
         let receiverType: String?
         let valueParameterTypes: [String]
         let returnType: String?
+
+        var functionTypedParameterCount: Int {
+            valueParameterTypes.filter { $0.contains("->") }.count
+        }
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
@@ -303,18 +325,64 @@ struct RuntimeABIExternalLinkValidationTests {
         )
     }
 
-    private func runtimeArityCandidates(for signature: FunctionSignatureInfo, linkName: String) -> Set<Int> {
-        let sourceValueParameterCount = signature.valueParameterTypes.count
-        var candidates: Set<Int> = [sourceValueParameterCount]
-        if signature.receiverType != nil {
-            candidates.insert(sourceValueParameterCount + 1)
+    private func splitTopLevelCommaSeparated(_ text: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        var nestedParens = 0
+        var nestedAngles = 0
+        for character in text {
+            switch character {
+            case "(":
+                nestedParens += 1
+            case ")":
+                nestedParens -= 1
+            case "<":
+                nestedAngles += 1
+            case ">" where nestedAngles > 0:
+                nestedAngles -= 1
+            case "," where nestedParens == 0 && nestedAngles == 0:
+                parts.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current.removeAll()
+                continue
+            default:
+                break
+            }
+            current.append(character)
         }
-        if linkName.hasSuffix("_flat") {
-            var flatCount = flatABIParameterCount(for: signature.receiverType)
-            flatCount += signature.valueParameterTypes.reduce(0) { partialResult, type in
+        parts.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return parts.filter { !$0.isEmpty }
+    }
+
+    private func functionHeaderHasExtensionReceiver(_ header: String) -> Bool {
+        guard let funRange = header.range(of: "fun "),
+              let openParen = header[funRange.upperBound...].firstIndex(of: "(")
+        else {
+            return false
+        }
+        let declarator = header[funRange.upperBound..<openParen]
+        return declarator.contains(".")
+    }
+
+    private func runtimeABIArityCandidates(
+        for declaration: BundledKsSymbolNameDeclaration,
+        specs: [RuntimeABIFunctionSpec]
+    ) -> Set<Int> {
+        var candidates = Set([declaration.arity])
+        var loweredArity = declaration.arity
+        if declaration.hasReceiver {
+            loweredArity += 1
+        }
+        loweredArity += declaration.functionTypedParameterCount
+        if specs.contains(where: \.isThrowing) {
+            loweredArity += 1
+        }
+        candidates.insert(loweredArity)
+        if declaration.linkName.hasSuffix("_flat") {
+            var flatCount = flatABIParameterCount(for: declaration.receiverType)
+            flatCount += declaration.valueParameterTypes.reduce(0) { partialResult, type in
                 partialResult + flatABIParameterCount(for: type)
             }
-            if normalizedKotlinType(signature.returnType) == "String" {
+            if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
             candidates.insert(flatCount)
@@ -333,36 +401,16 @@ struct RuntimeABIExternalLinkValidationTests {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func splitTopLevelCommaSeparated(_ parameters: String) -> [String] {
-        guard !parameters.isEmpty else {
-            return []
-        }
-
-        var result: [String] = []
-        var current = ""
-        var nestedParens = 0
-        var nestedAngles = 0
-        for character in parameters {
-            switch character {
-            case "(":
-                nestedParens += 1
-            case ")":
-                nestedParens -= 1
-            case "<":
-                nestedAngles += 1
-            case ">" where nestedAngles > 0:
-                nestedAngles -= 1
-            case "," where nestedParens == 0 && nestedAngles == 0:
-                result.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
-                current = ""
-                continue
-            default:
-                break
+    private func braceDelta(in line: String) -> Int {
+        var delta = 0
+        for character in line {
+            if character == "{" {
+                delta += 1
+            } else if character == "}" {
+                delta -= 1
             }
-            current.append(character)
         }
-        result.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
-        return result
+        return delta
     }
 
     private func runtimeLinkNameLiterals(in source: String) -> Set<String> {

@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
 
     /// Rewrites java.io.File constructors and File member runtime calls.
     func rewriteFileCall(

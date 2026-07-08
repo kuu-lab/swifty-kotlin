@@ -1470,7 +1470,7 @@ extension CodegenBackendIntegrationTests {
 
         appendPredicateCall("kk_string_isNotEmpty_flat")
         appendPredicateCall("kk_string_isNotBlank_flat")
-        appendPredicateCall("kk_string_isNormalized_flat", arguments: [textExpr, formTagExpr])
+        appendPredicateCall("__kk_string_isNormalized_flat", arguments: [textExpr, formTagExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1503,7 +1503,7 @@ extension CodegenBackendIntegrationTests {
         let flatNames = [
             "kk_string_isNotEmpty_flat",
             "kk_string_isNotBlank_flat",
-            "kk_string_isNormalized_flat",
+            "__kk_string_isNormalized_flat",
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))
