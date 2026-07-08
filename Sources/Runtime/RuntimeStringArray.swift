@@ -481,6 +481,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
          RuntimeTypeTokenEncoding.ulongBase,
          RuntimeTypeTokenEncoding.ubyteBase,
          RuntimeTypeTokenEncoding.ushortBase:
+        // NOTE: an unboxed (non-object-pointer) value here is treated as a
+        // match. That's unsound in general — Int/UInt/ULong/UByte/UShort share
+        // no value-range heuristic that distinguishes them from Long/Double/
+        // Float/Char once unboxed (all reinterpret the same 64-bit word) — but
+        // some existing callers (e.g. Sequence element storage) still hand
+        // kk_op_is genuinely unboxed primitives, so tightening this to a
+        // mismatch regresses them. The `is`/`as`/`as?` call sites themselves
+        // are fixed to always box their operand before reaching here (see
+        // ABILoweringPass's typeCheckValueCallees); see also the follow-up
+        // tracking sequenceOf's missing element boxing.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
