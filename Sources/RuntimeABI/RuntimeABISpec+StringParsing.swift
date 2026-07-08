@@ -2,7 +2,7 @@
 ///
 /// `kk_string_toInt`/`toInt_radix`/`toIntOrNull`/`toIntOrNull_radix`/`toUByteOrNull`/
 /// `toUShortOrNull`/`toUIntOrNull`/`toULongOrNull` (and their `_radix` variants)/`toDouble`/
-/// `toDoubleOrNull`/`toLong`/`toLongOrNull`/`toFloat`/`toFloatOrNull`/`kk_bignum_toString`
+/// `toDoubleOrNull`/`toLong`/`toLongOrNull`/`toFloat`/`toFloatOrNull`/`__kk_bignum_toString`
 /// are already registered in `RuntimeABISpec+String.swift` (`stringFunctions`); they are
 /// intentionally omitted here to avoid duplicate `allFunctions` entries.
 public extension RuntimeABISpec {

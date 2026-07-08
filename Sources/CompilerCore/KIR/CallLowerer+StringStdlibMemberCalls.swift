@@ -373,7 +373,7 @@ extension CallLowerer {
                 if calleeStr == "toDouble" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDouble"),
+                        callee: interner.intern("__kk_string_toDouble"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -384,7 +384,7 @@ extension CallLowerer {
                 if calleeStr == "toDoubleOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDoubleOrNull"),
+                        callee: interner.intern("__kk_string_toDoubleOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -395,7 +395,7 @@ extension CallLowerer {
                 if calleeStr == "toFloatOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toFloatOrNull"),
+                        callee: interner.intern("__kk_string_toFloatOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -406,7 +406,7 @@ extension CallLowerer {
                 if calleeStr == "toBigInteger" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigInteger"),
+                        callee: interner.intern("__kk_string_toBigInteger"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -417,7 +417,7 @@ extension CallLowerer {
                 if calleeStr == "toBigIntegerOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigIntegerOrNull"),
+                        callee: interner.intern("__kk_string_toBigIntegerOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -428,7 +428,7 @@ extension CallLowerer {
                 if calleeStr == "toBigDecimal" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimal"),
+                        callee: interner.intern("__kk_string_toBigDecimal"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -439,7 +439,7 @@ extension CallLowerer {
                 if calleeStr == "toBigDecimalOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimalOrNull"),
+                        callee: interner.intern("__kk_string_toBigDecimalOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
