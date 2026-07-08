@@ -72,5 +72,6 @@ Cases:
 - `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
 - `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
+- `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 
 The set intentionally includes both successful programs and compile-error cases.
