@@ -14,6 +14,25 @@ runs:
       uses: SwiftyLab/setup-swift@v1
       with:
         swift-version: ${{ inputs.swift-version }}
+    - name: Disable unrelated flaky apt sources
+      shell: bash
+      run: |
+        # GitHub-hosted Ubuntu images include Microsoft apt sources that are not
+        # needed for this project. If those external repos return invalid
+        # InRelease payloads, apt-get update fails before Ubuntu's llvm-dev can
+        # be installed.
+        for source in \
+          /etc/apt/sources.list.d/azure-cli.list \
+          /etc/apt/sources.list.d/azure-cli.sources \
+          /etc/apt/sources.list.d/microsoft-prod.list \
+          /etc/apt/sources.list.d/microsoft-prod.sources \
+          /etc/apt/sources.list.d/packages-microsoft-com-prod.list \
+          /etc/apt/sources.list.d/packages-microsoft-com-prod.sources
+        do
+          if [ -f "$source" ]; then
+            sudo mv "$source" "${source}.disabled"
+          fi
+        done
     - name: Install LLVM
       shell: bash
       run: sudo apt-get update && sudo apt-get install -y llvm-dev
