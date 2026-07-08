@@ -111,8 +111,12 @@ struct NothingTypeFlowTests {
             // implementations (MIGRATION-RANGE-002), plus the two Int-typed
             // if-expressions in Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt's
             // maxOf(Int, Int)/minOf(Int, Int) overloads (MIGRATION-COMP-002; the Long
-            // overloads' if-expressions are typed Long and excluded by the intType filter).
-            #expect(ifExprIDs.count == 21, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
+            // overloads' if-expressions are typed Long and excluded by the intType filter),
+            // plus one Int-typed if-expression in Sources/CompilerCore/Stdlib/kotlin/random/
+            // Random.kt's nextInt(from, until) (KSP-466) -- the power-of-two fast-path
+            // vs. rejection-sampling branch assigned to `rnd`. (nextLong(from, until)'s
+            // analogous branch is typed Long and excluded the same way as maxOf/minOf's.)
+            #expect(ifExprIDs.count == 22, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
             #expect(!whenExprIDs.isEmpty)
             #expect(!tryExprIDs.isEmpty)
 
