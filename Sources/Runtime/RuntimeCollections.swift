@@ -213,6 +213,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         list.elements
     } else if let set = runtimeSetBox(from: listRaw) {
         set.elements
+    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        array.elements
     } else {
         []
     }

@@ -170,5 +170,55 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
+
+    // Regression test: `for (x in array)` used to compile but never execute the
+    // loop body. The for-loop lowers to the generic kk_range_iterator/hasNext/next
+    // runtime protocol (arrays get no compile-time-specific rewrite, unlike
+    // List/Set/Map/String), and that runtime fallback didn't recognize
+    // RuntimeArrayBox, so kk_range_hasNext always reported false.
+    func testCodegenArrayForLoopIteratesAllElements() throws {
+        let source = """
+        fun main() {
+            val bytes = "HI".encodeToByteArray()
+            for (b in bytes) {
+                println(b.toInt())
+            }
+
+            val ints = intArrayOf(10, 20, 30)
+            for (i in ints) {
+                println(i)
+            }
+
+            val strings = arrayOf("a", "b", "c")
+            for (s in strings) {
+                println(s)
+            }
+
+            val chars = charArrayOf('x', 'y', 'z')
+            for (c in chars) {
+                println(c)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayForLoopIteration",
+            expected:
+                """
+                72
+                73
+                10
+                20
+                30
+                a
+                b
+                c
+                x
+                y
+                z
+                """ + "\n"
+        )
+    }
 }
 
