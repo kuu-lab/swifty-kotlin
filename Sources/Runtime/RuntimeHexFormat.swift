@@ -459,8 +459,8 @@ private func runtimeStringHexToULong(
         formatRaw,
         outThrown,
         as: UInt64.self
-    ) else { return kk_box_long(0) }
-    return kk_box_long(Int(bitPattern: UInt(truncatingIfNeeded: value)))
+    ) else { return kk_box_ulong_nonnull(0) }
+    return kk_box_ulong_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value)))
 }
 
 // MARK: - String.hexToShort(format)

@@ -77,6 +77,24 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_box_long_nonnull",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_box_ulong_nonnull",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_box_float",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

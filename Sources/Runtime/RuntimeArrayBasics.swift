@@ -386,7 +386,7 @@ public func kk_list_toULongArray(_ listRaw: Int) -> Int {
     }
     let box = RuntimeArrayBox(length: list.elements.count)
     for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_long(elem)
+        box.elements[i] = kk_unbox_ulong(elem)
     }
     return registerRuntimeObject(box)
 }
@@ -439,12 +439,20 @@ public func kk_uIntArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// ULongArray.toList(): List<ULong>
+///
+/// Unlike the other `*Array.toList()` conversions above, elements must be
+/// boxed eagerly here rather than copied raw: a raw ULong word with the high
+/// bit set is bit-identical to a negative Long, and generic Any-dispatch
+/// (toString/equals/`is`) has no per-element static type to disambiguate it
+/// with, unlike a direct typed `list[i]` access. kk_box_ulong_nonnull is safe
+/// because ULongArray elements are never null.
 @_cdecl("kk_uLongArray_toList")
 public func kk_uLongArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uLongArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_ulong_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// DoubleArray.toList(): List<Double>
