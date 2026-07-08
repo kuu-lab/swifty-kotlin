@@ -9,6 +9,7 @@ extension ABIMismatchTests {
     /// the cross-section export/spec parity checks here.
     private func isFlatOnlyExcludedABIName(_ name: String) -> Bool {
         name.hasPrefix("kk_string_")
+            || name.hasPrefix("__kk_string_")
             || name.hasPrefix("__string_")
             || name.hasPrefix("kk_regex_")
             || name.hasPrefix("kk_locale_")
@@ -115,8 +116,6 @@ extension ABIMismatchTests {
             "kk_flow_on_error_return",
             "kk_flow_retry",
             "kk_flow_retry_when",
-            "kk_hexformat_prefix",
-            "kk_hexformat_suffix",
             "kk_math_e",
             "kk_math_pi",
             "kk_mem_scope_alloc",
@@ -180,9 +179,6 @@ extension ABIMismatchTests {
             "kk_path_reader_default",
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
-            "kk_result_flatMap",
-            "kk_result_flatMapCatching",
-            "kk_result_mapCatching",
             "kk_uri_toPath",
         ]
     }
