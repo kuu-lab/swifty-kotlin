@@ -138,4 +138,62 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
+
+    // The ULong tag fix above was implemented by consolidating a duplicated
+    // tag-computation switch (computeAnyFallbackTag) that data class
+    // toString() synthesis and println(dataClass) rewriting each had their
+    // own incomplete copy of — the old copies only mapped Boolean/String and
+    // fell back to the raw-integer tag for everything else, so Float/Double
+    // properties printed their bit pattern and Char properties printed their
+    // codepoint instead of the character. Consolidating onto one function
+    // fixes those too; lock in that non-null case here.
+    func testDataClassToStringFloatDoubleCharProperties() throws {
+        let source = """
+        data class Point(val x: Float, val y: Double, val label: Char)
+        fun main() {
+            val p = Point(1.5f, 2.75, 'A')
+            println(p.toString())
+            println(p)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "DataClassToStringFloatDoubleCharProperties",
+            expected: """
+            Point(x=1.5, y=2.75, label=A)
+            Point(x=1.5, y=2.75, label=A)
+            """ + "\n"
+        )
+    }
+
+    // Nullable Float?/Double?/Char? properties: a real value renders correctly
+    // (not the boxed pointer or raw bit pattern) and a genuinely null value
+    // renders as "null" (not a garbage value), through both the toString()
+    // synthesis path (which added a KIR-level null guard) and the
+    // println(dataClass) path (which uses kk_any_to_string_nullable instead,
+    // since that pass cannot safely add new KIR labels).
+    func testDataClassToStringNullableFloatDoubleCharProperties() throws {
+        let source = """
+        data class NullablePoint(val x: Float?, val y: Double?, val label: Char?)
+        fun main() {
+            val real = NullablePoint(1.5f, 2.75, 'A')
+            println(real.toString())
+            println(real)
+
+            val allNull = NullablePoint(null, null, null)
+            println(allNull.toString())
+            println(allNull)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "DataClassToStringNullableFloatDoubleCharProperties",
+            expected: """
+            NullablePoint(x=1.5, y=2.75, label=A)
+            NullablePoint(x=1.5, y=2.75, label=A)
+            NullablePoint(x=null, y=null, label=null)
+            NullablePoint(x=null, y=null, label=null)
+            """ + "\n"
+        )
+    }
 }
