@@ -308,12 +308,6 @@ extension CollectionLiteralLoweringPass {
             kkCallee = lookup.kkFileIsFileName
         case lookup.isDirectoryName:
             kkCallee = lookup.kkFileIsDirectoryName
-        case lookup.namePropertyName:
-            kkCallee = lookup.kkFileNameName
-        case lookup.nameWithoutExtensionName:
-            kkCallee = lookup.kkFileNameWithoutExtensionName
-        case lookup.pathPropertyName:
-            kkCallee = lookup.kkFilePathName
         case lookup.forEachLineName:
             kkCallee = lookup.kkFileForEachLineName
         // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch (virtual call path, args excludes receiver)

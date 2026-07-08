@@ -96,13 +96,21 @@ struct NothingTypeFlowTests {
             let ifExprIDs = allIfExprIDs.filter {
                 sema.bindings.exprType(for: $0) == sema.types.intType
             }
+            // KSP-483: bundled Stdlib/kotlin/io/Files.kt's `fileNormalizePath`
+            // also contains a `when` expression (used as a Unit-typed
+            // statement, not merged via Nothing-as-bottom LUB), so filter to
+            // intType here too, matching the ifExprIDs filter above.
             let whenExprIDs = exprIDs(in: ast) { expr in
                 if case .whenExpr = expr { return true }
                 return false
+            }.filter {
+                sema.bindings.exprType(for: $0) == sema.types.intType
             }
             let tryExprIDs = exprIDs(in: ast) { expr in
                 if case .tryExpr = expr { return true }
                 return false
+            }.filter {
+                sema.bindings.exprType(for: $0) == sema.types.intType
             }
 
             // 2 user if-expressions (ifCase + tryCase), plus bundled stdlib if-expressions
@@ -111,8 +119,10 @@ struct NothingTypeFlowTests {
             // implementations (MIGRATION-RANGE-002), plus the two Int-typed
             // if-expressions in Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt's
             // maxOf(Int, Int)/minOf(Int, Int) overloads (MIGRATION-COMP-002; the Long
-            // overloads' if-expressions are typed Long and excluded by the intType filter).
-            #expect(ifExprIDs.count == 21, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
+            // overloads' if-expressions are typed Long and excluded by the intType filter),
+            // plus one more from Sources/CompilerCore/Stdlib/kotlin/io/Files.kt's
+            // `stringLastIndexOfChar` helper (KSP-483).
+            #expect(ifExprIDs.count == 22, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
             #expect(!whenExprIDs.isEmpty)
             #expect(!tryExprIDs.isEmpty)
 

@@ -16,15 +16,18 @@ struct FileNormalizeFunctionTests {
     // MARK: - Basic resolution
 
     @Test func testFileNormalizeResolves() throws {
+        // KSP-483: the top-level helper must not be named `normalize` — that
+        // now collides with the Kotlin-source `File.normalize()` extension
+        // function bundled from Stdlib/kotlin/io/Files.kt.
         let source = """
         import java.io.File
 
-        fun normalize(file: File): File {
+        fun normalizedFile(file: File): File {
             return file.normalize()
         }
 
         fun main() {
-            println(normalize(File("/tmp/./sub/../file.txt")).path)
+            println(normalizedFile(File("/tmp/./sub/../file.txt")).path)
         }
         """
 
@@ -89,41 +92,5 @@ struct FileNormalizeFunctionTests {
         }
     }
 
-    // MARK: - Symbol registration and runtime link name
-
-    @Test func testFileNormalizeSignatureAndRuntimeLinkName() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
-
-            let fileSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
-
-            let candidates = symbols.lookupAll(
-                fqName: ["java", "io", "File", "normalize"].map(interner.intern)
-            )
-
-            let normalizeOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes.isEmpty
-                    && signature.returnType == fileType
-            }, "Expected a normalize overload with () -> File signature")
-
-            #expect(
-                symbols.externalLinkName(for: normalizeOverload) == "kk_file_normalize",
-                "File.normalize() should bind to runtime helper kk_file_normalize"
-            )
-        }
-    }
 }
 #endif
