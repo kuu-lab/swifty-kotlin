@@ -143,6 +143,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let negativeArraySizeSymbol = ensureClassSymbol(
+            named: "NegativeArraySizeException",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let unsupportedOperationSymbol = ensureClassSymbol(
             named: "UnsupportedOperationException",
             in: kotlinPkg,
@@ -206,6 +212,7 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: illegalStateSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: indexOutOfBoundsSymbol)
         symbols.setDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexOutOfBoundsSymbol)
+        symbols.setDirectSupertypes([runtimeExceptionSymbol], for: negativeArraySizeSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: unsupportedOperationSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: noSuchElementSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: arithmeticSymbol)
@@ -226,6 +233,7 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: illegalStateSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: indexOutOfBoundsSymbol)
         types.setNominalDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexOutOfBoundsSymbol)
+        types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: negativeArraySizeSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: unsupportedOperationSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: noSuchElementSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: arithmeticSymbol)
@@ -249,6 +257,7 @@ extension DataFlowSemaPhase {
             illegalStateSymbol,
             indexOutOfBoundsSymbol,
             arrayIndexOutOfBoundsSymbol,
+            negativeArraySizeSymbol,
             unsupportedOperationSymbol,
             noSuchElementSymbol,
             arithmeticSymbol,
@@ -414,6 +423,13 @@ extension DataFlowSemaPhase {
         registerSyntheticArrayIndexOutOfBoundsExceptionConstructors(
             ownerSymbol: arrayIndexOutOfBoundsSymbol,
             ownerType: types.make(.classType(ClassType(classSymbol: arrayIndexOutOfBoundsSymbol, args: [], nullability: .nonNull))),
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNegativeArraySizeExceptionConstructors(
+            ownerSymbol: negativeArraySizeSymbol,
+            ownerType: types.make(.classType(ClassType(classSymbol: negativeArraySizeSymbol, args: [], nullability: .nonNull))),
             symbols: symbols,
             types: types,
             interner: interner
@@ -772,6 +788,30 @@ extension DataFlowSemaPhase {
         let overloads: [(parameters: [(name: String, type: TypeID)], link: String)] = [
             ([], "kk_array_index_out_of_bounds_exception_new"),
             ([("message", nullableStringType)], "kk_array_index_out_of_bounds_exception_new_message"),
+        ]
+        for overload in overloads {
+            registerSyntheticExceptionConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: overload.parameters,
+                externalLinkName: overload.link,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    private func registerSyntheticNegativeArraySizeExceptionConstructors(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nullableStringType = types.makeNullable(types.stringType)
+        let overloads: [(parameters: [(name: String, type: TypeID)], link: String)] = [
+            ([], "kk_negative_array_size_exception_new"),
+            ([("message", nullableStringType)], "kk_negative_array_size_exception_new_message"),
         ]
         for overload in overloads {
             registerSyntheticExceptionConstructor(
