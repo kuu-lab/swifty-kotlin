@@ -1,5 +1,7 @@
 extension TypeSystem {
     public func isSubtype(_ subtype: TypeID, _ supertype: TypeID) -> Bool {
+        let subtype = normalizeBuiltinDisguisedClassType(subtype)
+        let supertype = normalizeBuiltinDisguisedClassType(supertype)
         if subtype == supertype {
             return true
         }
@@ -402,6 +404,35 @@ extension TypeSystem {
         default:
             return false
         }
+    }
+
+    /// Normalizes a `.classType` wrapping one of the synthetic `kotlin.<Name>`
+    /// disguise symbols (`stringClassSymbol`/`charClassSymbol`/`anyClassSymbol`
+    /// — see their doc comments on `TypeSystem`) back to the canonical builtin
+    /// `TypeID`, preserving nullability. A no-op for every other type.
+    ///
+    /// Without this, `String::class`'s `classRefTargetType` (which resolves to
+    /// the disguised nominal form via scope lookup — see `inferClassRefExpr`)
+    /// compares as unrelated to the canonical `stringType` that an ordinary
+    /// `is String` check uses, so e.g. inferring `KClass<T>.cast(): T` with a
+    /// `String::class` receiver against an explicit `String`-typed call site
+    /// reports "Conflicting bounds for type variable" even though both bounds
+    /// mean the same type.
+    private func normalizeBuiltinDisguisedClassType(_ type: TypeID) -> TypeID {
+        guard case let .classType(classType) = kind(of: type) else {
+            return type
+        }
+        let canonical: TypeID
+        if let stringClassSymbol, classType.classSymbol == stringClassSymbol {
+            canonical = stringType
+        } else if let charClassSymbol, classType.classSymbol == charClassSymbol {
+            canonical = charType
+        } else if let anyClassSymbol, classType.classSymbol == anyClassSymbol {
+            canonical = anyType
+        } else {
+            return type
+        }
+        return classType.nullability == .nullable ? makeNullable(canonical) : canonical
     }
 
     public func lub(_ types: [TypeID]) -> TypeID {

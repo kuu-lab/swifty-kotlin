@@ -1809,7 +1809,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(boolType, for: propSym)
-                symbols.setExternalLinkName("kk_ktype_isMarkedNullable", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_isMarkedNullable", for: propSym)
             }
 
             let classifierName = interner.intern("classifier")
@@ -1821,7 +1821,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(types.makeNullable(anyType), for: propSym)
-                symbols.setExternalLinkName("kk_ktype_classifier", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_classifier", for: propSym)
             }
 
             let argumentsName = interner.intern("arguments")
@@ -1833,7 +1833,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(anyType, for: propSym)
-                symbols.setExternalLinkName("kk_ktype_arguments", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_arguments", for: propSym)
             }
         }
 
@@ -2048,11 +2048,11 @@ extension DataFlowSemaPhase {
         )))
 
         let propertySpecs: [(name: String, type: TypeID, externalLinkName: String)] = [
-            ("index", types.intType, "kk_kparameter_get_index"),
-            ("name", types.makeNullable(types.stringType), "kk_kparameter_get_name"),
-            ("type", kTypeType, "kk_kparameter_get_type"),
-            ("isOptional", types.booleanType, "kk_kparameter_is_optional"),
-            ("kind", types.intType, "kk_kparameter_get_kind"),
+            ("index", types.intType, "__kk_kparameter_get_index"),
+            ("name", types.makeNullable(types.stringType), "__kk_kparameter_get_name"),
+            ("type", kTypeType, "__kk_kparameter_get_type"),
+            ("isOptional", types.booleanType, "__kk_kparameter_is_optional"),
+            ("kind", types.intType, "__kk_kparameter_get_kind"),
         ]
         for spec in propertySpecs {
             registerSyntheticKParameterProperty(
@@ -2309,7 +2309,7 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkg, for: functionSymbol)
         }
         symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setExternalLinkName("kk_kclass_find_associated_object", for: functionSymbol)
+        symbols.setExternalLinkName("__kk_kclass_find_associated_object", for: functionSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: types.makeKClassType(argument: types.anyType),

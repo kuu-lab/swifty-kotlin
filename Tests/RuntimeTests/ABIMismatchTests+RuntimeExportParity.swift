@@ -72,7 +72,7 @@ extension ABIMismatchTests {
 
     private var allowedRuntimeExportOnlyABINames: Set<String> {
         [
-            "kk_kclass_nested_classes",
+            "__kk_kclass_nested_classes",
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
             "kk_string_chunked_sequence",

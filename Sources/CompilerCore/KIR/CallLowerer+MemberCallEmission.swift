@@ -1169,7 +1169,7 @@ extension CallLowerer {
             interner.intern("kk_iterable_requireNoNulls"),
             interner.intern("__kk_string_codePointCount_from"),
             interner.intern("__kk_string_codePointCount_range"),
-            interner.intern("kk_kclass_cast"),
+            interner.intern("__kk_kclass_cast"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
             interner.intern("kk_range_random"),

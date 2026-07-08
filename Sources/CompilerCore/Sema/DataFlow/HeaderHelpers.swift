@@ -1253,6 +1253,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        types.anyClassSymbol = anySymbol
 
         let annotationSymbol = ensureInterfaceSymbol(
             named: "Annotation",

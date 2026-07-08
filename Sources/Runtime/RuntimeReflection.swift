@@ -54,7 +54,7 @@ private extension RuntimeKClassBox {
         if let metadata {
             return metadata.qualifiedName
         }
-        let raw = kk_type_token_qualified_name(typeToken, nameHint)
+        let raw = __kk_type_token_qualified_name(typeToken, nameHint)
         let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
         if let qualifiedName, qualifiedName.contains(".") {
             return qualifiedName
@@ -85,8 +85,8 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
 
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
-@_cdecl("kk_kclass_get_arity")
-public func kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_get_arity")
+public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
         return 0
     }
@@ -99,8 +99,8 @@ public func kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
 /// Each element is a RuntimeAnnotationBox raw handle.
 /// - Parameter kclassRaw: Opaque pointer to a RuntimeKClassBox.
 /// - Returns: Opaque pointer to a RuntimeListBox of annotation handles.
-@_cdecl("kk_kclass_get_annotations")
-public func kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_get_annotations")
+public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
           let metadata = kclass.metadata
     else {
@@ -126,8 +126,8 @@ public func kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
 ///   - kclassRaw: Opaque pointer to a RuntimeKClassBox.
 ///   - nameRaw: Opaque pointer to the annotation class name string to search for.
 /// - Returns: Opaque pointer to a RuntimeAnnotationBox, or null sentinel if not found.
-@_cdecl("kk_kclass_find_annotation")
-public func kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
+@_cdecl("__kk_kclass_find_annotation")
+public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let searchName = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
@@ -153,8 +153,8 @@ public func kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
 /// Looks up the associated object bound by an annotation key on a KClass.
 /// The current metadata pipeline records annotation arguments as strings, so
 /// this returns null unless a future emitter stores a runtime object handle.
-@_cdecl("kk_kclass_find_associated_object")
-public func kk_kclass_find_associated_object(_ kclassRaw: Int, _ keyNameRaw: Int) -> Int {
+@_cdecl("__kk_kclass_find_associated_object")
+public func __kk_kclass_find_associated_object(_ kclassRaw: Int, _ keyNameRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let keyName = extractString(from: UnsafeMutableRawPointer(bitPattern: keyNameRaw))
@@ -191,8 +191,8 @@ private func runtimeAssociatedObjectHandle(from arguments: [String]) -> Int {
 ///   - fqNameRaw: Runtime string pointer for the annotation FQ name.
 ///   - argsEncodedRaw: Runtime string pointer for pipe-delimited argument values (empty string if none).
 ///   - argCount: Number of arguments encoded in the argsEncoded string.
-@_cdecl("kk_kclass_register_single_annotation")
-public func kk_kclass_register_single_annotation(
+@_cdecl("__kk_kclass_register_single_annotation")
+public func __kk_kclass_register_single_annotation(
     _ typeToken: Int,
     _ fqNameRaw: Int,
     _ argsEncodedRaw: Int,
@@ -240,8 +240,8 @@ private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
 ///   - typeRaw: KKString for the parameter type name.
 ///   - isOptional: 1 if the parameter has a default value.
 ///   - kind: 0 = INSTANCE, 1 = EXTENSION_RECEIVER, 2 = VALUE.
-@_cdecl("kk_kparameter_create")
-public func kk_kparameter_create(
+@_cdecl("__kk_kparameter_create")
+public func __kk_kparameter_create(
     _ index: Int,
     _ nameRaw: Int,
     _ typeRaw: Int,
@@ -271,40 +271,40 @@ private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
     return tryCast(ptr, to: RuntimeKParameterBox.self)
 }
 
-@_cdecl("kk_kparameter_get_index")
-public func kk_kparameter_get_index(_ raw: Int) -> Int {
+@_cdecl("__kk_kparameter_get_index")
+public func __kk_kparameter_get_index(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return runtimeNullSentinelInt
     }
     return box.index
 }
 
-@_cdecl("kk_kparameter_get_name")
-public func kk_kparameter_get_name(_ raw: Int) -> Int {
+@_cdecl("__kk_kparameter_get_name")
+public func __kk_kparameter_get_name(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return runtimeNullSentinelInt
     }
     return box.nameRaw
 }
 
-@_cdecl("kk_kparameter_get_type")
-public func kk_kparameter_get_type(_ raw: Int) -> Int {
+@_cdecl("__kk_kparameter_get_type")
+public func __kk_kparameter_get_type(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return runtimeNullSentinelInt
     }
     return box.typeRaw
 }
 
-@_cdecl("kk_kparameter_is_optional")
-public func kk_kparameter_is_optional(_ raw: Int) -> Int {
+@_cdecl("__kk_kparameter_is_optional")
+public func __kk_kparameter_is_optional(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return 0
     }
     return box.isOptional ? 1 : 0
 }
 
-@_cdecl("kk_kparameter_get_kind")
-public func kk_kparameter_get_kind(_ raw: Int) -> Int {
+@_cdecl("__kk_kparameter_get_kind")
+public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return 2 // VALUE by default
     }
@@ -321,8 +321,8 @@ public func kk_kparameter_get_kind(_ raw: Int) -> Int {
 ///   - isSuspend: 1 if the function is a suspend function, 0 otherwise.
 ///   - fnPtr: C function pointer integer for direct dispatch (0 if unavailable).
 ///   - closureRaw: Closure environment pointer (0 for top-level functions).
-@_cdecl("kk_kfunction_create")
-public func kk_kfunction_create(
+@_cdecl("__kk_kfunction_create")
+public func __kk_kfunction_create(
     _ nameRaw: Int,
     _ arity: Int,
     _ returnTypeRaw: Int,
@@ -351,8 +351,8 @@ public func kk_kfunction_create(
 ///   - closureRaw: Closure environment pointer.
 ///   - paramListRaw: Runtime list of KParameter handles (0 for empty).
 ///   - typeStringRaw: KKString for the function type signature (0 if unknown).
-@_cdecl("kk_kfunction_create_full")
-public func kk_kfunction_create_full(
+@_cdecl("__kk_kfunction_create_full")
+public func __kk_kfunction_create_full(
     _ nameRaw: Int,
     _ arity: Int,
     _ returnTypeRaw: Int,
@@ -387,32 +387,32 @@ public func kk_kfunction_create_full(
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_kfunction_get_name")
-public func kk_kfunction_get_name(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_name")
+public func __kk_kfunction_get_name(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
     return box.nameRaw
 }
 
-@_cdecl("kk_kfunction_get_arity")
-public func kk_kfunction_get_arity(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_arity")
+public func __kk_kfunction_get_arity(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
     return box.arity
 }
 
-@_cdecl("kk_kfunction_get_return_type")
-public func kk_kfunction_get_return_type(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_return_type")
+public func __kk_kfunction_get_return_type(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
     return box.returnTypeRaw
 }
 
-@_cdecl("kk_kfunction_is_suspend")
-public func kk_kfunction_is_suspend(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_is_suspend")
+public func __kk_kfunction_is_suspend(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return 0
     }
@@ -420,8 +420,8 @@ public func kk_kfunction_is_suspend(_ kfunctionRaw: Int) -> Int {
 }
 
 /// Returns the list of all KParameter handles for this function.
-@_cdecl("kk_kfunction_get_parameters")
-public func kk_kfunction_get_parameters(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_parameters")
+public func __kk_kfunction_get_parameters(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
@@ -429,8 +429,8 @@ public func kk_kfunction_get_parameters(_ kfunctionRaw: Int) -> Int {
 }
 
 /// Returns only the VALUE parameters (kind == 2), excluding INSTANCE and EXTENSION_RECEIVER.
-@_cdecl("kk_kfunction_get_value_parameters")
-public func kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_value_parameters")
+public func __kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
@@ -442,8 +442,8 @@ public func kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
 }
 
 /// Returns a human-readable function type string, e.g. "(Int, Int) -> Int".
-@_cdecl("kk_kfunction_get_type")
-public func kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
+@_cdecl("__kk_kfunction_get_type")
+public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
         return runtimeNullSentinelInt
     }
@@ -459,8 +459,8 @@ public func kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
 
 // MARK: KFunction.call() — arity 0
 
-@_cdecl("kk_kfunction_call_0")
-public func kk_kfunction_call_0(
+@_cdecl("__kk_kfunction_call_0")
+public func __kk_kfunction_call_0(
     _ kfunctionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
@@ -490,8 +490,8 @@ public func kk_kfunction_call_0(
 
 // MARK: KFunction.call() — arity 1
 
-@_cdecl("kk_kfunction_call_1")
-public func kk_kfunction_call_1(
+@_cdecl("__kk_kfunction_call_1")
+public func __kk_kfunction_call_1(
     _ kfunctionRaw: Int,
     _ arg: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -522,8 +522,8 @@ public func kk_kfunction_call_1(
 
 // MARK: KFunction.call() — arity 2
 
-@_cdecl("kk_kfunction_call_2")
-public func kk_kfunction_call_2(
+@_cdecl("__kk_kfunction_call_2")
+public func __kk_kfunction_call_2(
     _ kfunctionRaw: Int,
     _ arg1: Int,
     _ arg2: Int,
@@ -555,8 +555,8 @@ public func kk_kfunction_call_2(
 
 // MARK: KFunction.call() — arity 3
 
-@_cdecl("kk_kfunction_call_3")
-public func kk_kfunction_call_3(
+@_cdecl("__kk_kfunction_call_3")
+public func __kk_kfunction_call_3(
     _ kfunctionRaw: Int,
     _ arg1: Int,
     _ arg2: Int,
@@ -590,8 +590,8 @@ public func kk_kfunction_call_3(
 // MARK: KFunction.call() — vararg (list-based)
 
 /// Dispatches to the appropriate arity overload by unpacking a runtime List.
-@_cdecl("kk_kfunction_call_vararg")
-public func kk_kfunction_call_vararg(
+@_cdecl("__kk_kfunction_call_vararg")
+public func __kk_kfunction_call_vararg(
     _ kfunctionRaw: Int,
     _ argsListRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -624,13 +624,13 @@ public func kk_kfunction_call_vararg(
     }
     switch args.count {
     case 0:
-        return kk_kfunction_call_0(kfunctionRaw, outThrown)
+        return __kk_kfunction_call_0(kfunctionRaw, outThrown)
     case 1:
-        return kk_kfunction_call_1(kfunctionRaw, args[0], outThrown)
+        return __kk_kfunction_call_1(kfunctionRaw, args[0], outThrown)
     case 2:
-        return kk_kfunction_call_2(kfunctionRaw, args[0], args[1], outThrown)
+        return __kk_kfunction_call_2(kfunctionRaw, args[0], args[1], outThrown)
     case 3:
-        return kk_kfunction_call_3(kfunctionRaw, args[0], args[1], args[2], outThrown)
+        return __kk_kfunction_call_3(kfunctionRaw, args[0], args[1], args[2], outThrown)
     default:
         outThrown?.pointee = runtimeAllocateThrowable(
             message: "UnsupportedOperationException: KFunction.call() supports at most 3 arguments via vararg dispatch; got \(args.count).")
@@ -723,8 +723,8 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
 ///   - isPrimary: 1 if this is the primary constructor, 0 otherwise.
 ///   - visibilityRaw: Opaque pointer to the KKString for visibility (0 for default/PUBLIC).
 ///   - declaringClassRaw: Opaque pointer to the declaring KClass box (0 if unknown).
-@_cdecl("kk_kconstructor_create")
-public func kk_kconstructor_create(
+@_cdecl("__kk_kconstructor_create")
+public func __kk_kconstructor_create(
     _ nameRaw: Int,
     _ arity: Int,
     _ returnTypeRaw: Int,

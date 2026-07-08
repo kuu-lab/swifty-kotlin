@@ -2747,6 +2747,7 @@ extension DataFlowSemaPhase {
         if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
             symbols.setParentSymbol(kotlinPkgSymbol, for: stringClassSymbol)
         }
+        types.stringClassSymbol = stringClassSymbol
         symbols.setDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         types.setNominalDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         for bytesType in [listIntType, byteArrayType] {

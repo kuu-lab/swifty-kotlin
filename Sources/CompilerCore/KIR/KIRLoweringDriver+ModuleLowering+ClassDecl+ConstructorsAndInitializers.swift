@@ -653,7 +653,7 @@ extension KIRLoweringDriver {
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_create"),
+            callee: interner.intern("__kk_kclass_create"),
             arguments: [typeTokenExpr, simpleNameExpr],
             result: kclassExpr,
             canThrow: false,
@@ -687,7 +687,7 @@ extension KIRLoweringDriver {
             let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_kconstructor_create"),
+                callee: interner.intern("__kk_kconstructor_create"),
                 arguments: [ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr, visibilityExpr, kclassExpr],
                 result: registrationResult,
                 canThrow: false,
@@ -770,7 +770,7 @@ extension KIRLoweringDriver {
                 let kfunctionResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kfunction_create"),
+                    callee: interner.intern("__kk_kfunction_create"),
                     arguments: [fnNameExpr, arityExpr, retTypeExpr, isSuspendExpr, fnPtrExpr, zeroExpr],
                     result: kfunctionResult,
                     canThrow: false,
@@ -779,7 +779,7 @@ extension KIRLoweringDriver {
                 let fnRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kclass_register_member"),
+                    callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kfunctionResult],
                     result: fnRegisterResult,
                     canThrow: false,
@@ -811,7 +811,7 @@ extension KIRLoweringDriver {
                 let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kclass_register_member"),
+                    callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kpropResult],
                     result: propRegisterResult,
                     canThrow: false,

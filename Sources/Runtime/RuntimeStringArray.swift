@@ -716,8 +716,8 @@ public func kk_object_type_id(_ objectRaw: Int) -> Int {
 /// token base; for nominal types the compiler supplies a `nameHint` string
 /// pointer that is returned directly (the hint carries the simple name that
 /// was known at compile-time after inline expansion).
-@_cdecl("kk_type_token_simple_name")
-public func kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_type_token_simple_name")
+public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     // If a compiler-provided name hint is available, use it directly.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
         return nameHint
@@ -768,8 +768,8 @@ public func kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int 
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
 /// For nominal (user-defined) types the compiler-supplied name hint already
 /// carries the fully-qualified name, so it is returned unchanged.
-@_cdecl("kk_type_token_qualified_name")
-public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_type_token_qualified_name")
+public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // Built-in stdlib types always live in the `kotlin` package.
@@ -797,7 +797,7 @@ public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> I
         }
     }
     // For nominal types the nameHint carries the fully-qualified name.
-    return kk_type_token_simple_name(typeToken, nameHint)
+    return __kk_type_token_simple_name(typeToken, nameHint)
 }
 
 func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
@@ -822,8 +822,8 @@ func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
 /// unbounded memory growth when `T::class` is evaluated in a loop. The boxes
 /// are tracked in `runtimeStorage.kClassBoxCache` and are cleared on
 /// `resetRuntimeLocked` (e.g. between test runs).
-@_cdecl("kk_kclass_create")
-public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
+@_cdecl("__kk_kclass_create")
+public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     let cacheKey = KClassCacheKey(typeToken: typeToken)
     if let cached = runtimeStorage.withMetadataLock({ state in state.kClassBoxCache[cacheKey] }) {
         return cached
@@ -850,6 +850,31 @@ public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     return winner
 }
 
+// MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
+//
+// Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
+// a bare type token + name hint known at the `T::class` call site), these take
+// the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
+// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt) can
+// be ordinary extension properties dispatched on `this`, without requiring
+// reified static type information at the call site.
+
+@_cdecl("__kk_kclass_simple_name")
+public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_type_token_simple_name(box.typeToken, box.nameHint)
+}
+
+@_cdecl("__kk_kclass_qualified_name")
+public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
+}
+
 // MARK: - REFL-004: KClass Binary Metadata Accessors
 
 /// Registers runtime reflection metadata for a type identified by `typeToken`.
@@ -866,8 +891,8 @@ public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 ///          bit 7=abstract).
 /// - fieldCount: Number of declared fields (-1 if unknown).
 /// - memberCount: Number of declared members (-1 if unknown).
-@_cdecl("kk_kclass_register_metadata")
-public func kk_kclass_register_metadata(
+@_cdecl("__kk_kclass_register_metadata")
+public func __kk_kclass_register_metadata(
     _ typeToken: Int,
     _ qualifiedNameRaw: Int,
     _ simpleNameRaw: Int,
@@ -877,7 +902,7 @@ public func kk_kclass_register_metadata(
     _ memberCount: Int,
     _ constructorCount: Int
 ) -> Int {
-    return kk_kclass_register_metadata_v2(
+    return __kk_kclass_register_metadata_v2(
         typeToken, qualifiedNameRaw, simpleNameRaw, supertypeNameRaw,
         flags, fieldCount, memberCount, constructorCount, 0, 0
     )
@@ -890,8 +915,8 @@ public func kk_kclass_register_metadata(
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///   bit 7=abstract, bit 8=final, bit 9=open,
 ///   bit 10=inner, bit 11=companion, bit 12=funInterface. (STDLIB-REFLECT-067)
-@_cdecl("kk_kclass_register_metadata_v2")
-public func kk_kclass_register_metadata_v2(
+@_cdecl("__kk_kclass_register_metadata_v2")
+public func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
     _ qualifiedNameRaw: Int,
     _ simpleNameRaw: Int,
@@ -949,8 +974,8 @@ public func kk_kclass_register_metadata_v2(
 }
 
 /// Returns 1 if the KClass represents a data class, 0 otherwise.
-@_cdecl("kk_kclass_is_data")
-public func kk_kclass_is_data(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_data")
+public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -959,8 +984,8 @@ public func kk_kclass_is_data(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a sealed class, 0 otherwise.
-@_cdecl("kk_kclass_is_sealed")
-public func kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_sealed")
+public func __kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -969,8 +994,8 @@ public func kk_kclass_is_sealed(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a value (inline) class, 0 otherwise.
-@_cdecl("kk_kclass_is_value")
-public func kk_kclass_is_value(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_value")
+public func __kk_kclass_is_value(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -979,8 +1004,8 @@ public func kk_kclass_is_value(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an interface, 0 otherwise.
-@_cdecl("kk_kclass_is_interface")
-public func kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_interface")
+public func __kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -989,8 +1014,8 @@ public func kk_kclass_is_interface(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an object declaration, 0 otherwise.
-@_cdecl("kk_kclass_is_object")
-public func kk_kclass_is_object(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_object")
+public func __kk_kclass_is_object(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -999,8 +1024,8 @@ public func kk_kclass_is_object(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an enum class, 0 otherwise.
-@_cdecl("kk_kclass_is_enum")
-public func kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_enum")
+public func __kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1011,8 +1036,8 @@ public func kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
 // MARK: - STDLIB-REFLECT-067: KClass type-kind introspection
 
 /// Returns 1 if the KClass represents an inner class, 0 otherwise.
-@_cdecl("kk_kclass_is_inner")
-public func kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_inner")
+public func __kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1021,8 +1046,8 @@ public func kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a companion object, 0 otherwise.
-@_cdecl("kk_kclass_is_companion")
-public func kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_companion")
+public func __kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1031,8 +1056,8 @@ public func kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents a functional interface (fun interface), 0 otherwise.
-@_cdecl("kk_kclass_is_fun")
-public func kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_fun")
+public func __kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1041,8 +1066,8 @@ public func kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an abstract class, 0 otherwise.
-@_cdecl("kk_kclass_is_abstract")
-public func kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_abstract")
+public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1054,8 +1079,8 @@ public func kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
 
 /// Returns 1 if the KClass represents a final class, 0 otherwise.
 /// A class is final if it is not abstract, not open, and not an interface.
-@_cdecl("kk_kclass_is_final")
-public func kk_kclass_is_final(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_final")
+public func __kk_kclass_is_final(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1064,8 +1089,8 @@ public func kk_kclass_is_final(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KClass represents an open class, 0 otherwise.
-@_cdecl("kk_kclass_is_open")
-public func kk_kclass_is_open(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_is_open")
+public func __kk_kclass_is_open(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return 0
@@ -1075,8 +1100,8 @@ public func kk_kclass_is_open(_ kclassRaw: Int) -> Int {
 
 /// Returns the visibility of this KClass as a runtime string ("PUBLIC", "INTERNAL", "PRIVATE", "PROTECTED").
 /// Returns null sentinel if unknown.
-@_cdecl("kk_kclass_visibility")
-public func kk_kclass_visibility(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_visibility")
+public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return runtimeNullSentinelInt
@@ -1090,8 +1115,8 @@ public func kk_kclass_visibility(_ kclassRaw: Int) -> Int {
 /// Returns the type parameters of this KClass as a runtime list.
 /// Each element is an integer representing the type parameter index.
 /// Returns an empty list if no type parameters.
-@_cdecl("kk_kclass_type_parameters")
-public func kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_type_parameters")
+public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
@@ -1103,8 +1128,8 @@ public func kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
 
 /// Returns the supertypes of this KClass as a runtime list of strings.
 /// Currently returns a list with the single supertype name if present.
-@_cdecl("kk_kclass_supertypes")
-public func kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_supertypes")
+public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
           let metadata = box.metadata,
           let superName = metadata.supertypeName else {
@@ -1123,8 +1148,8 @@ public func kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
 /// Delegates to the existing `kk_op_is` runtime type check using the KClass
 /// box's type token.
 /// Returns 1 (true) if the value is an instance, 0 (false) otherwise.
-@_cdecl("kk_kclass_isInstance")
-public func kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
+@_cdecl("__kk_kclass_isInstance")
+public func __kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return 0
     }
@@ -1135,20 +1160,20 @@ public func kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
 /// Called during module initialization to attach compile-time member data.
 ///
 /// - Parameters:
-///   - kclassRaw: Opaque handle to the KClass returned by `kk_kclass_create`.
+///   - kclassRaw: Opaque handle to the KClass returned by `__kk_kclass_create`.
 ///   - memberRaw: Opaque handle to the member callable (KFunction or KPropertyStub).
 /// - Returns: 0 on success.
-@_cdecl("kk_kclass_register_member")
-public func kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
+@_cdecl("__kk_kclass_register_member")
+public func __kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
     runtimeKMemberRegistry.register(classRaw: kclassRaw, memberRaw: memberRaw)
     return 0
 }
 
 /// Returns the members of this KClass as a runtime list of KCallable handles.
-/// When members have been registered via `kk_kclass_register_member`, the list
+/// When members have been registered via `__kk_kclass_register_member`, the list
 /// contains the actual KFunction / KPropertyStub handles (STDLIB-REFLECT-ABI-002).
-@_cdecl("kk_kclass_members")
-public func kk_kclass_members(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_members")
+public func __kk_kclass_members(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1156,9 +1181,9 @@ public func kk_kclass_members(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns the constructors of this KClass as a runtime list of KFunction boxes.
-/// Only constructors registered through `kk_kconstructor_create` are returned.
-@_cdecl("kk_kclass_constructors")
-public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
+/// Only constructors registered through `__kk_kconstructor_create` are returned.
+@_cdecl("__kk_kclass_constructors")
+public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1168,15 +1193,15 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
 /// Returns the nested classes of this KClass as a runtime list of KClass handles.
 /// Currently returns an empty list; nested class metadata registration is not yet
 /// emitted by the compiler (MIGRATION-REFLECT-002).
-@_cdecl("kk_kclass_nested_classes")
-public func kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_nested_classes")
+public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.
 /// STDLIB-REFLECT-064
-@_cdecl("kk_kclass_primary_constructor")
-public func kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_primary_constructor")
+public func __kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return runtimeNullSentinelInt
     }
@@ -1187,8 +1212,8 @@ public func kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
 
 /// Returns all properties (including inherited) of this KClass as a runtime list.
 /// Returns registered `RuntimeKPropertyStub` handles only.
-@_cdecl("kk_kclass_properties")
-public func kk_kclass_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_properties")
+public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1198,8 +1223,8 @@ public func kk_kclass_properties(_ kclassRaw: Int) -> Int {
 /// Returns the non-extension member properties of this KClass as a runtime list.
 /// These are the properties declared directly in the class or its superclasses,
 /// excluding extension properties.
-@_cdecl("kk_kclass_member_properties")
-public func kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_member_properties")
+public func __kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1208,8 +1233,8 @@ public func kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
 
 /// Returns the declared member properties of this KClass (own class only, not inherited).
 /// These are properties explicitly declared in this class, excluding superclass properties.
-@_cdecl("kk_kclass_declared_member_properties")
-public func kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_declared_member_properties")
+public func __kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1218,8 +1243,8 @@ public func kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
 
 /// Returns all functions (including inherited) of this KClass as a runtime list.
 /// Returns registered `RuntimeKFunctionBox` handles only.
-@_cdecl("kk_kclass_functions")
-public func kk_kclass_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_functions")
+public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1228,8 +1253,8 @@ public func kk_kclass_functions(_ kclassRaw: Int) -> Int {
 
 /// Returns the non-extension member functions of this KClass as a runtime list.
 /// These are functions declared in the class or its superclasses, excluding extensions.
-@_cdecl("kk_kclass_member_functions")
-public func kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_member_functions")
+public func __kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1238,8 +1263,8 @@ public func kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
 
 /// Returns the declared member functions of this KClass (own class only, not inherited).
 /// These are functions explicitly declared in this class, excluding superclass functions.
-@_cdecl("kk_kclass_declared_member_functions")
-public func kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
+@_cdecl("__kk_kclass_declared_member_functions")
+public func __kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1257,8 +1282,8 @@ public func kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
 ///   - valueRaw: The value to cast.
 ///   - outThrown: Out-pointer for the thrown exception (nullable).
 /// - Returns: `valueRaw` on success, or `runtimeNullSentinelInt` on failure.
-@_cdecl("kk_kclass_cast")
-public func kk_kclass_cast(
+@_cdecl("__kk_kclass_cast")
+public func __kk_kclass_cast(
     _ kclassRaw: Int,
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -1293,8 +1318,8 @@ public func kk_kclass_cast(
 ///   - kclassRaw: Opaque handle to the KClass.
 ///   - valueRaw: The value to cast.
 /// - Returns: `valueRaw` on success, or `runtimeNullSentinelInt` if not an instance.
-@_cdecl("kk_kclass_safeCast")
-public func kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
+@_cdecl("__kk_kclass_safeCast")
+public func __kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
@@ -1324,8 +1349,8 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
 }
 
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
-@_cdecl("kk_ktype_classifier")
-public func kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_classifier")
+public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return runtimeNullSentinelInt
     }
@@ -1333,8 +1358,8 @@ public func kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
 }
 
 /// Returns the list of type arguments (KTypeProjection handles) from a KType.
-@_cdecl("kk_ktype_arguments")
-public func kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_arguments")
+public func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -1342,8 +1367,8 @@ public func kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
 }
 
 /// Returns 1 if the KType is marked nullable, 0 otherwise.
-@_cdecl("kk_ktype_isMarkedNullable")
-public func kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
+@_cdecl("__kk_ktype_isMarkedNullable")
+public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return 0
     }
@@ -1352,8 +1377,8 @@ public func kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
 
 /// Creates a KTypeProjection from a KType raw handle and variance ordinal.
 /// variance: 0=IN, 1=OUT, 2=INVARIANT, -1=STAR (type is ignored for STAR)
-@_cdecl("kk_ktypeprojection_create")
-public func kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
+@_cdecl("__kk_ktypeprojection_create")
+public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
     let variance: RuntimeKVariance?
     if varianceOrdinal == -1 {
         variance = nil // STAR projection
@@ -1369,7 +1394,7 @@ public func kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) ->
 /// type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
-    let classifierRaw = kk_kclass_create(typeToken, nameHint)
+    let classifierRaw = __kk_kclass_create(typeToken, nameHint)
     return runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
 
