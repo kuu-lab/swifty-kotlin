@@ -255,38 +255,48 @@ extension DeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
 
-        for declID in memberFunctions {
-            guard let decl = ast.arena.decl(declID),
-                  case let .funDecl(function) = decl,
-                  let symbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
-            }
-            typeCheckFunctionDecl(
-                function,
-                symbol: symbol,
-                ctx: ctx.with(currentDeclSymbol: symbol),
-                solver: solver,
-                diagnostics: diagnostics
-            )
+        // Functions and properties are type-checked together, in source
+        // declaration order, rather than as two separate function-then-property
+        // batches. A property without an explicit type annotation only gets its
+        // real inferred type once its own PropertyDecl is checked; before that,
+        // the header pass has it pinned to a placeholder `Any?`. Batching all
+        // functions first meant any function referencing such a property — even
+        // one declared textually above it — would see the placeholder and fail
+        // with a spurious KSWIFTK-TYPE-0001.
+        let orderedMembers = (memberFunctions + memberProperties).sorted {
+            (memberDeclStartOffset($0, ast: ast) ?? 0) < (memberDeclStartOffset($1, ast: ast) ?? 0)
         }
 
-        for declID in memberProperties {
+        for declID in orderedMembers {
             guard let decl = ast.arena.decl(declID),
-                  case let .propertyDecl(property) = decl,
                   let symbol = sema.bindings.declSymbols[declID]
             else {
                 continue
             }
-            typeCheckBoundPropertyDecl(
-                property,
-                declID: declID,
-                symbol: symbol,
-                ctx: ctx.with(currentDeclSymbol: symbol),
-                initialLocals: propertyInitializerLocals,
-                solver: solver,
-                diagnostics: diagnostics
-            )
+            switch decl {
+            case let .funDecl(function):
+                typeCheckFunctionDecl(
+                    function,
+                    symbol: symbol,
+                    ctx: ctx.with(currentDeclSymbol: symbol),
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
+
+            case let .propertyDecl(property):
+                typeCheckBoundPropertyDecl(
+                    property,
+                    declID: declID,
+                    symbol: symbol,
+                    ctx: ctx.with(currentDeclSymbol: symbol),
+                    initialLocals: propertyInitializerLocals,
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
+
+            default:
+                continue
+            }
         }
 
         for declID in nestedClasses {
@@ -307,6 +317,15 @@ extension DeclTypeChecker {
                 solver: solver,
                 diagnostics: diagnostics
             )
+        }
+    }
+
+    private func memberDeclStartOffset(_ declID: DeclID, ast: ASTModule) -> Int? {
+        guard let decl = ast.arena.decl(declID) else { return nil }
+        switch decl {
+        case let .funDecl(function): return function.range.start.offset
+        case let .propertyDecl(property): return property.range.start.offset
+        default: return nil
         }
     }
 
