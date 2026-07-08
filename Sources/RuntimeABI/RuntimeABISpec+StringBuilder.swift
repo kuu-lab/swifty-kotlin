@@ -9,6 +9,15 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_builder_new_with_capacity",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_builder_new_from_string_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),

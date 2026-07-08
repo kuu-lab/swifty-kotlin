@@ -45,6 +45,13 @@ public func kk_string_builder_new() -> Int {
     registerRuntimeObject(RuntimeStringBuilderBox())
 }
 
+@_cdecl("kk_string_builder_new_with_capacity")
+public func kk_string_builder_new_with_capacity(_ capacity: Int) -> Int {
+    // capacity is an allocation hint only (mirrors kk_string_builder_ensureCapacity);
+    // Swift String manages its own storage, so there is no separate capacity to apply.
+    registerRuntimeObject(RuntimeStringBuilderBox())
+}
+
 @_cdecl("kk_string_builder_new_from_string")
 public func kk_string_builder_new_from_string(_ strRaw: Int) -> Int {
     runtimeStringBuilderNew(initial: runtimeStringFromRawOrPanic(strRaw, caller: #function))

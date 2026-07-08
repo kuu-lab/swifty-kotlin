@@ -494,7 +494,11 @@ public final class SymbolTable {
         if let existing = byFQName[fqName], !existing.isEmpty {
             let existingSymbols = existing.compactMap { symbol($0) }
 
-            let shouldCoexist = canCoexistAsOverload(kind: kind, existingSymbols: existingSymbols, isExtensionProperty: isExtensionProperty)
+            let shouldCoexist = canCoexistAsOverload(
+                kind: kind,
+                existingSymbols: existingSymbols,
+                isExtensionProperty: isExtensionProperty
+            )
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
             if shouldCoexist {
@@ -571,23 +575,25 @@ public final class SymbolTable {
         if existingNonPackage.isEmpty {
             return true
         }
+        let existingNonPackageKinds = existingNonPackage.map(\.kind)
         if kind == .property {
-            // Extension properties are distinguished by receiver type (e.g.
-            // `val Int.seconds` vs `val Long.seconds`), which isn't part of the
-            // FQ name, so allow a new extension property to coexist with
-            // existing extension properties of the same name. Mirrors the
-            // diagnostic-level check in HeaderHelpers.hasDeclarationConflict.
             if isExtensionProperty {
+                // Extension properties are disambiguated by receiver type at
+                // call sites, the same way overloaded extension functions
+                // are (e.g. `val Int.seconds` and `val Long.seconds`), so two
+                // extension properties sharing a short name may coexist as
+                // separate symbols. A non-extension property at the same FQ
+                // name is still a genuine clash: it has no receiver to
+                // disambiguate by. Mirrors the diagnostic-level check in
+                // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && extensionPropertyReceiverTypes[existing.id] != nil)
+                        || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
                 }
             }
-            let existingNonPackageKinds = existingNonPackage.map(\.kind)
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
                 && !existingNonPackageKinds.contains(.property)
         }
-        let existingNonPackageKinds = existingNonPackage.map(\.kind)
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
             // type aliases; Kotlin supports factory functions with the same

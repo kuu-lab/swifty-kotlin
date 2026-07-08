@@ -162,7 +162,7 @@ struct BuildKIRRegressionTests {
         }
     }
 
-    @Test func testBuildKIRLowersComparisonAndLogicalOperatorsToRuntimeCalls() throws {
+    @Test func testBuildKIRLowersComparisonOperatorsToRuntimeCalls() throws {
         let source = """
         fun main(): Int {
             val x = 3
@@ -171,9 +171,7 @@ struct BuildKIRRegressionTests {
             val c = x <= 3
             val d = x > 1
             val e = x >= 3
-            val f = true && false
-            val g = false || true
-            if (a && b && c && d && e && !f && g) return 1
+            if (a && b && c && d && e) return 1
             return 0
         }
         """
@@ -190,8 +188,36 @@ struct BuildKIRRegressionTests {
             #expect(callees.contains("kk_op_le"))
             #expect(callees.contains("kk_op_gt"))
             #expect(callees.contains("kk_op_ge"))
-            #expect(callees.contains("kk_op_and"))
-            #expect(callees.contains("kk_op_or"))
+        }
+    }
+
+    // `&&`/`||` must short-circuit, so they lower to conditional branches
+    // (jumpIfEqual/label) rather than a runtime call that would evaluate both
+    // operands unconditionally.
+    @Test func testBuildKIRLowersLogicalOperatorsToShortCircuitBranches() throws {
+        let source = """
+        fun main() {
+            val f = true && false
+            val g = false || true
+            println(f)
+            println(g)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+            #expect(!callees.contains("kk_op_and"))
+            #expect(!callees.contains("kk_op_or"))
+            let jumpIfEqualCount = body.count { instruction in
+                if case .jumpIfEqual = instruction { return true }
+                return false
+            }
+            #expect(jumpIfEqualCount >= 2)
         }
     }
 

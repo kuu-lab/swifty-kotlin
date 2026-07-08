@@ -111,7 +111,7 @@ final class MemberLowerer {
             // synthesise getter (and setter for var) that call getValue/setValue
             // on the delegate instance.
             if propertyDecl.delegateExpression != nil {
-                let delegateKind = driver.detectDelegateKind(
+                let delegateKind = StdlibDelegateKind.detect(
                     delegateExpr: propertyDecl.delegateExpression,
                     ast: ast,
                     interner: interner

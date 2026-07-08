@@ -431,27 +431,11 @@ public func kk_string_replaceBeforeLast_char(
 
 // MARK: - STDLIB-188: replaceFirst / replaceRange
 
-@_cdecl("kk_string_replaceFirst")
-public func kk_string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
     guard let range = source.range(of: oldValue) else {
-        return runtimeMakeStringRaw(source)
-    }
-    var result = source
-    result.replaceSubrange(range, with: newValue)
-    return runtimeMakeStringRaw(result)
-}
-
-// STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase)
-@_cdecl("kk_string_replaceFirst_ignoreCase")
-public func kk_string_replaceFirst_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
-    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    guard let range = source.range(of: oldValue, options: options) else {
         return runtimeMakeStringRaw(source)
     }
     var result = source
@@ -838,7 +822,7 @@ public func kk_string_replaceFirst_flat(
     _ newData: UnsafePointer<UInt8>?, _ newLength: Int, _ newByteCount: Int, _ newHash: Int,
     _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_replaceFirst(
+    let raw = runtimeStringReplaceFirst(
         kk_string_from_flat(data, length, byteCount, hash),
         kk_string_from_flat(oldData, oldLength, oldByteCount, oldHash),
         kk_string_from_flat(newData, newLength, newByteCount, newHash)
@@ -888,4 +872,3 @@ public func kk_string_replaceRange_flat(
     guard let string = runtimeStringFromRaw(raw) else { return nil }
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
-

@@ -270,9 +270,10 @@
 - [ ] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
   - 注意: **同一 PR で** `BundledKotlinStdlib.kotlinTextSource` 内の同名 5 関数を削除（二重定義になるため）。runtime `__string_trimIndent` 系 / `kk_string_trimIndent` 系（`RuntimeStringFormat.swift`）は Kotlin 版が完全なら削除、不足なら `__kk_` 降格
   - 手順: T / diff: `string_indent.kt`（既存）
-- [ ] KSP-303: StringSearchReplace を配線する（`replace`×3, `replaceFirst`×3, split(regex) 等）
+- [x] KSP-303: StringSearchReplace を配線する（`replace`×3, `replaceFirst`×3, split(regex) 等）
   - 削除: `kk_string_replace`, `kk_string_replace_char`, `kk_string_replace_ignoreCase`, `kk_string_replace_char_ignoreCase`, `kk_string_replaceFirst`, `kk_string_replaceFirst_ignoreCase`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）+ `HeaderHelpers+SyntheticStringStubs.swift` / `CallLowerer+StringStdlibMemberCalls.swift` の該当 case
   - 手順: T
+  - 完了(2026-07-07): `StringSearchReplace.kt` を除外解除し、`replace`/`replaceFirst`/`split(regex)` を source-backed 化。削除対象 raw export / synthetic public link / KIR direct case は 0 件。`StringSyntheticMemberLinkTests`、`RegexAPISurfaceInventoryTests`、`StringSplitFunctionTests`、`RegexSemaLoweringTests.testStringSplitWithRegexUsesSourceBackedWrapper`、関連 codegen/ABI tests、`GoldenSemaGoldenTests.matchesGolden` 通過。
 - [ ] KSP-304: Result を配線する（クラス本体 + `runCatching` ほか全 16 API）
   - 注意: スタブがヘッダ収集前に Result クラスを登録して二重定義になる既知問題 → KSP-002 の優先規則がクラス宣言にも効くことを先に確認
   - 削除: `HeaderHelpers+SyntheticResultStubs.swift` 全体 / `RuntimeResult.swift` の `kk_result_*` 15 関数 + `kk_runCatching` / `CallLowerer+MemberCalls.swift` の Result 特例
@@ -315,8 +316,8 @@
 - [ ] KSP-401: empty/blank/lines 系を Kotlin 化（`isEmpty`, `isNotEmpty`, `isBlank`, `isNotBlank`, `isNullOrEmpty`, `isNullOrBlank`, `ifEmpty`, `ifBlank`, `orEmpty`, `lines`, `lineSequence`）
   - 削除 kk_*: `kk_string_isEmpty`, `kk_string_isNotEmpty`, `kk_string_isBlank`, `kk_string_isNotBlank`, `kk_string_ifBlank`, `kk_string_ifEmpty`, `kk_string_orEmpty`, `kk_string_isNullOrEmpty`, `kk_string_isNullOrBlank`, `kk_string_lines`, `kk_string_lineSequence`（`RuntimeStringQuery.swift`）
   - 完了: `rg '"kk_string_is|"kk_string_if|"kk_string_orEmpty|"kk_string_lines' Sources/CompilerCore` 0 件 + G
-- [ ] KSP-402: first/last/single 系を Kotlin 化（`first`, `last`, `single`, `firstOrNull`, `lastOrNull`, `singleOrNull`, `getOrNull` + predicate 版）
-  - 削除 kk_*: `kk_string_first`, `kk_string_last`, `kk_string_single`, `kk_string_firstOrNull`, `kk_string_lastOrNull`, `kk_string_singleOrNull`, `kk_string_getOrNull`, `kk_string_singleOrNull_predicate`（`RuntimeStringQuery.swift`）
+- [x] KSP-402: first/last/single 系を Kotlin 化（`first`, `last`, `single`, `firstOrNull`, `lastOrNull`, `singleOrNull`, `getOrNull` + predicate 版）
+  - 削除 kk_*: `kk_string_first`, `kk_string_last`, `kk_string_single`, `kk_string_firstOrNull`, `kk_string_lastOrNull`, `kk_string_singleOrNull`, `kk_string_getOrNull`, `kk_string_singleOrNull_predicate`（`RuntimeStringQuery.swift` / `RuntimeStringHOF.swift`）
 - [ ] KSP-403: trim 系を Kotlin 化（`trim`, `trimStart`, `trimEnd` + predicate 版）
   - 削除 kk_*: `kk_string_trim`, `kk_string_trim_predicate`, `kk_string_trimStart`, `kk_string_trimStart_predicate`, `kk_string_trimEnd`, `kk_string_trimEnd_predicate` / diff: `string_trimstart_trimend.kt`（既存）+ predicate 版追加
 - [ ] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`）
@@ -462,10 +463,13 @@
   - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
   - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
   - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
-- [ ] KSP-483: File のパス純ロジック層を Kotlin 化する
+- [x] KSP-483: File のパス純ロジック層を Kotlin 化する
   - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
-  - 削除 kk_*: `kk_file_name`, `kk_file_path`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
-  - 下敷き: 死蔵 `Stdlib/kotlin/io/FileIO.kt` → `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt` / diff: `file_props.kt`（既存）/ 手順: T
+  - 削除 kk_*: `kk_file_name`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
+  - `kk_file_path` は削除せず維持: `path` は `RuntimeFileBox` の内部状態への唯一のアクセス経路であり、`kotlin.io` パッケージの拡張プロパティとして宣言すると `kotlin.io.path`（Path 関連 API のサブパッケージ）と FQName が衝突し `KSWIFTK-SEMA-0001` になるため、`java.io.File` の直接合成メンバーのまま残した。他 12 関数は Kotlin ソース側でこの `path` から計算する
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt`（新規）/ diff: `file_props.kt`（既存、対象13関数のケースを追加）
+  - 付随修正: bundled stdlib 全体を無条件スキャンしていた既存テスト6件（`FileStartsWithFunctionTests` 等）が Files.kt 内の標準関数呼び出し（`String.startsWith`/`lastIndexOf`/`replace`/`addAll`/`last`/`joinToString`/if 式カウント）を誤検出していたため bundled 除外条件を追加、`FileNormalizeFunctionTests` の名前衝突を解消
+  - 副産物: `&&`/`||` が短絡評価されない既存の重大バグを発見（別タスクとして報告済み、Files.kt 側は非短絡評価前提の書き方で回避）
 - [ ] KSP-484: File I/O の syscall 層を `__kk_` 降格する
   - 対象（ブリッジ残留・改名のみ）: 構築 `kk_file_new(_parent_child)`, 読み書き `kk_file_readText/readBytes/readLines/writeText/appendText/writeBytes/appendBytes`, 存在判定 `kk_file_exists/isFile/isDirectory/canRead/canWrite/canExecute/length/lastModified`, FS 操作 `kk_file_delete/mkdirs/createNewFile/listFiles`, 走査 `kk_file_walk(TopDown/BottomUp)`, `kk_file_tree_walk_sortedBy`, ストリーム/リソース/temp 系（`rg -o '@_cdecl\("kk_(file|files|io|classloader|resource|input_stream|output_stream)[a-zA-Z_]*"\)' Sources/Runtime/RuntimeFileIO.swift` で全列挙）
   - 公開 API 層（`forEachLine`/`useLines`/`readLines` のイテレーション・例外規約・デフォルト引数分岐）は Kotlin 化し、ブロック単位 I/O のみブリッジに残す
@@ -490,9 +494,10 @@
   - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
   - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
   - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
-- [ ] KSP-492: custom delegate / KProperty メタデータ経路を整理する
+- [x] KSP-492: custom delegate / KProperty メタデータ経路を整理する
   - 前提: KSP-491。対象: `kk_custom_delegate_create/get_value/set_value`, `kk_delegate_get_value/set_value`, `kk_kproperty_stub_*` 系
   - custom delegate（ユーザー定義 getValue/setValue）が operator 規約の通常解決で動くなら特例削除、`KProperty` メタデータ生成は `__kk_` 降格 / diff: `delegate_custom_basic.kt`, `delegate_provide.kt`, `property_delegate_edge_cases.kt`（既存）
+  - 2026-07-08 完了: KSP-491（未着手）とは独立に完了。`StdlibDelegateLoweringPass.swift` の `.custom` ケースは lazy/observable/vetoable/notNull 特例と別ブロックのため依存なし。実測（`--emit llvm` で生成コード確認）で custom delegate の getValue/setValue は既に Sema 解決済みシンボルへの直接呼び出しで動作しており `kk_custom_delegate_create/get_value/set_value` と `kk_delegate_get_value/set_value` はデッドコードと判明したため削除。`kk_kproperty_stub_*` は生きたブリッジのため `__kk_kproperty_stub_*` へ改名
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 

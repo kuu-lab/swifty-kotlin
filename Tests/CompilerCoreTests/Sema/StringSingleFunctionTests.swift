@@ -1,10 +1,8 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-066: Validates that `CharSequence.single()` resolves through
-/// Sema for String receivers across multiple call sites and links to the
-/// runtime helper `kk_string_single_flat` (see
-/// `Sources/Runtime/RuntimeStringStdlib.swift`).
+/// STDLIB-TEXT-FN-066 / KSP-402: validates that String.single() resolves
+/// through bundled Kotlin source across multiple call sites.
 @Suite
 struct StringSingleFunctionTests {
     @Test func testStringSingleResolvesInSource() throws {
@@ -35,9 +33,10 @@ struct StringSingleFunctionTests {
         )
     }
 
-    @Test func testSingleNoArgOverloadResolvesToRuntimeLink() throws {
+    @Test func testSingleNoArgOverloadResolvesToBundledSource() throws {
         var resolvedLink: String?
         var resolvedReturnType: TypeID?
+        var isSynthetic = false
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -51,16 +50,19 @@ struct StringSingleFunctionTests {
                     && signature.parameterTypes.isEmpty
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
+            isSynthetic = sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true
             resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
         }
-        #expect(resolvedLink == "kk_string_single_flat")
+        #expect(resolvedLink == nil)
+        #expect(!isSynthetic)
         #expect(resolvedReturnType != nil, "single() should expose a return type")
     }
 
-    @Test func testSingleOrNullCompanionResolvesToRuntimeLink() throws {
+    @Test func testSingleOrNullCompanionResolvesToBundledSource() throws {
         // Sanity check that singleOrNull stays wired alongside single, since
-        // they share the same kotlin.text registration block.
+        // they share the same kotlin.text source file.
         var resolvedLink: String?
+        var isSynthetic = false
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -70,11 +72,13 @@ struct StringSingleFunctionTests {
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
-                return signature.receiverType == sema.types.stringType
+                    return signature.receiverType == sema.types.stringType
                     && signature.parameterTypes.isEmpty
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
+            isSynthetic = sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true
         }
-        #expect(resolvedLink == "kk_string_singleOrNull_flat")
+        #expect(resolvedLink == nil)
+        #expect(!isSynthetic)
     }
 }

@@ -229,5 +229,133 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // KSP-481: `for (ch in someString)` used to leave the loop variable typed as
+    // Any instead of Char, so member calls on it (and explicit `Char` typing)
+    // failed to resolve even though runtime iteration was already correct.
+    func testCodegenForLoopStringIterationMemberCall() throws {
+        let source = """
+        fun main() {
+            for (ch in "abc") {
+                println(ch.digitToIntOrNull(16))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopStringIterationMemberCall",
+            expected:
+                """
+                10
+                11
+                12
+                """
+                + "\n"
+        )
+    }
+
+    func testCodegenForLoopStringIterationExplicitCharType() throws {
+        let source = """
+        fun main() {
+            for (ch in "abc") {
+                val x: Char = ch
+                println(x.digitToIntOrNull(16))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopStringIterationExplicitCharType",
+            expected:
+                """
+                10
+                11
+                12
+                """
+                + "\n"
+        )
+    }
+
+    // KSP-481: `for (i in 0 until n)` desugars `until` as an infix memberCall
+    // rather than a `.binary` range op, so the for-loop's AST-shape range check
+    // missed it and the loop variable fell back to Any -- breaking any strict
+    // use of it, including as a String/Array index.
+    func testCodegenForLoopUntilRangeIndexedStringCharMemberCall() throws {
+        let source = """
+        fun main() {
+            val hex = "abc"
+            for (i in 0 until hex.length) {
+                val ch = hex[i]
+                println(ch.digitToIntOrNull(16))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopUntilRangeIndexedStringCharMemberCall",
+            expected:
+                """
+                10
+                11
+                12
+                """
+                + "\n"
+        )
+    }
+
+    func testCodegenForLoopUntilRangeExplicitIntType() throws {
+        let source = """
+        fun main() {
+            for (i in 0 until 3) {
+                val x: Int = i
+                println(x)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopUntilRangeExplicitIntType",
+            expected:
+                """
+                0
+                1
+                2
+                """
+                + "\n"
+        )
+    }
+
+    // Pre-existing bug (STDLIB-290 follow-up): `for (c in 'a'..'e')` mistyped the
+    // loop variable as Int instead of Char. `.forEach { c -> }` already covered
+    // CharRange execution (see testCodegenCharRangeForEachAscending above) via a
+    // different lambda-typed code path, which is why it didn't catch this.
+    func testCodegenForLoopCharRangeExplicitCharType() throws {
+        let source = """
+        fun main() {
+            for (c in 'a'..'e') {
+                val x: Char = c
+                println(x.code)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForLoopCharRangeExplicitCharType",
+            expected:
+                """
+                97
+                98
+                99
+                100
+                101
+                """
+                + "\n"
+        )
+    }
 }
 

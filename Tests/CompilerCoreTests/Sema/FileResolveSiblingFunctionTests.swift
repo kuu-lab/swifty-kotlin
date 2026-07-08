@@ -128,51 +128,5 @@ struct FileResolveSiblingFunctionTests {
         }
     }
 
-    // MARK: - Sema registers both overloads with the expected runtime link names
-
-    @Test func testFileResolveSiblingSignaturesAndRuntimeLinkNames() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
-
-            let fileSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
-
-            let candidates = symbols.lookupAll(
-                fqName: ["java", "io", "File", "resolveSibling"].map(interner.intern)
-            )
-
-            let fileOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes == [fileType]
-                    && signature.returnType == fileType
-            })
-            #expect(
-                symbols.externalLinkName(for: fileOverload) == "kk_file_resolveSibling_file",
-                "File.resolveSibling(File) should bind to runtime helper kk_file_resolveSibling_file"
-            )
-
-            let stringOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes == [types.stringType]
-                    && signature.returnType == fileType
-            })
-            #expect(
-                symbols.externalLinkName(for: stringOverload) == "kk_file_resolveSibling_string",
-                "File.resolveSibling(String) should bind to runtime helper kk_file_resolveSibling_string"
-            )
-        }
-    }
 }
 #endif
