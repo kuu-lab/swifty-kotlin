@@ -9,9 +9,17 @@ final class RuntimePropertyBasedTests: XCTestCase {
         let minimizedCounterexample: Int?
     }
 
+    // KSP-466: this helper only needs *some* deterministic-per-seed integer
+    // sequence to drive this file's own property-based test infrastructure —
+    // it has nothing to do with testing kotlin.random.Random itself (which is
+    // now real Kotlin source, not backed by SeededRandomBox). Using
+    // SeededRandomBox directly (still `@testable`-visible; it survives as
+    // SecureRandom's internal PRNG) instead of the deleted
+    // kk_random_create_seeded/kk_random_nextLong bridge keeps the exact same
+    // sequence this file always generated.
     private func seededSamples(seed: Int, count: Int) -> [Int] {
-        let random = __kk_random_create_seeded(seed)
-        return (0..<count).map { _ in kk_random_nextLong(random) }
+        let random = SeededRandomBox(seed: seed)
+        return (0..<count).map { _ in random.nextFullInt() }
     }
 
     private func shrinkTowardZero(_ value: Int) -> Int? {

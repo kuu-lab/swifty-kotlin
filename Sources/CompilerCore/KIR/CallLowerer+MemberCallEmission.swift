@@ -234,15 +234,33 @@ extension CallLowerer {
             sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema, interner: interner
         )
-        if (loweredCallee == interner.intern("kk_random_nextLong_until")
-            || (receiverIsRandom && loweredCallee == interner.intern("nextLong"))),
+        // KSP-466: nextInt(until: Int)/nextLong(until: Long) are now real Kotlin
+        // members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), so Sema
+        // resolves `r.nextInt(someIntRange)` to that (wrong) overload's real,
+        // internally-compiled symbol with loweredCallee == "nextInt"/"nextLong"
+        // (never the old synthetic-stub names "kk_random_nextInt_until"/
+        // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
+        // registration since Random stopped being a synthetic object). loweredCallee
+        // gets corrected to the range-object bridge name below, but
+        // emitCallInstruction (NativeEmitter+CallEmission.swift) prefers calling
+        // `symbol`'s own internal compiled body over `callee`'s name whenever
+        // `symbol` resolves to a known internal function — so without also
+        // clearing the symbol here, the corrected callee *name* is silently
+        // ignored and the wrong (real Int-arity) overload's compiled body still
+        // runs with the range handle reinterpreted as an Int. Confirmed via a
+        // hung/garbage-value repro before this fix (Random(7).nextInt(10..15)
+        // returned an out-of-range value). Resetting callSymbol to nil restores
+        // the originally-intended "chosenCallee == nil" fallback path so codegen
+        // resolves purely by the (corrected) external ABI name.
+        var callSymbol = chosenCallee
+        if receiverIsRandom, loweredCallee == interner.intern("nextLong"),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
         {
             loweredCallee = interner.intern("kk_random_nextLong_rangeObject")
+            callSymbol = nil
         }
-        if (loweredCallee == interner.intern("kk_random_nextInt_until")
-            || (receiverIsRandom && loweredCallee == interner.intern("nextInt"))),
+        if receiverIsRandom, loweredCallee == interner.intern("nextInt"),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
             || nominalRangeElementType(
@@ -252,6 +270,7 @@ extension CallLowerer {
             ) == sema.types.intType
         {
             loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
+            callSymbol = nil
         }
         // When Sema failed to resolve nextLong/nextInt on Random (chosenCallee == nil),
         // appendReceiverToMemberArguments skips the receiver. Insert it now so the
@@ -1072,7 +1091,7 @@ extension CallLowerer {
             : nil
         let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
         instructions.append(.call(
-            symbol: chosenCallee,
+            symbol: callSymbol,
             callee: loweredCallee,
             arguments: callArguments,
             result: result,

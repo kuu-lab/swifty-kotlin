@@ -575,22 +575,6 @@ extension CallTypeChecker {
                     return comparatorMatch
                 }
             }
-            if memberName == interner.intern("nextInt"),
-               argCount == 1,
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_until" }),
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_rangeObject" }),
-               let firstArgExpr = argExprs.first
-            {
-                let firstArgType = sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType
-                let isIntRangeArg = sema.bindings.isRangeExpr(firstArgExpr)
-                    || nominalRangeElementType(for: firstArgType, sema: sema, interner: interner) == sema.types.intType
-                let targetLinkName = isIntRangeArg ? "kk_random_nextInt_rangeObject" : "kk_random_nextInt_until"
-                if let match = allCandidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == targetLinkName
-                }) {
-                    return match
-                }
-            }
             if memberName == interner.intern("addAll"),
                argCount == 1,
                let firstArgExpr = argExprs.first,
