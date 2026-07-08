@@ -56,6 +56,16 @@ final class RuntimePrintlnTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(output, "A")
     }
 
+    func testPrintlnCharSurrogatePrintsQuestionMark() {
+        let output = capturePrintln { kk_println_char(0xDF1F) }
+        XCTAssertEqual(output, "?")
+    }
+
+    func testPrintlnBoxedCharSurrogatePrintsQuestionMark() {
+        let output = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: kk_box_char(0xDF1F))) }
+        XCTAssertEqual(output, "?")
+    }
+
     func testTodoNoArgUsesDefaultMessage() {
         var thrown = 0
         _ = kk_todo_noarg(&thrown)

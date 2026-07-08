@@ -547,36 +547,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
-                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
-                        : calleeStr == "last" ? "kk_string_last_flat"
-                        : "kk_string_single_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID, thrownExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
-                        : "kk_string_singleOrNull_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeName == interner.intern("zipWithNext") {
                     // String.zipWithNext overload dispatch: no-arg → kk_string_zipWithNext,
                     // transform → kk_string_zipWithNextTransform.
@@ -891,8 +861,6 @@ extension CallLowerer {
                     ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
                 case "reduce":
                     ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
-                case "singleOrNull":
-                    ("kk_string_singleOrNull_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":

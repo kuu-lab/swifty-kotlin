@@ -591,10 +591,9 @@ extension CallLowerer {
              "kk_string_dropWhile",
              "kk_string_onEach",
              "kk_string_onEachIndexed",
-             "kk_string_find",
-             "kk_string_findLast",
-             "kk_string_singleOrNull_predicate",
-             "kk_string_partition":
+            "kk_string_find",
+            "kk_string_findLast",
+            "kk_string_partition":
             true
         default:
             false
