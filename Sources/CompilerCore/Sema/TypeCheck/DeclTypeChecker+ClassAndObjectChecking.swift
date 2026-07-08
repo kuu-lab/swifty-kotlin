@@ -5,6 +5,7 @@ extension DeclTypeChecker {
         declID _: DeclID,
         symbol: SymbolID,
         ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -17,6 +18,7 @@ extension DeclTypeChecker {
             property,
             symbol: symbol,
             ctx: propertyCtx,
+            initialLocals: initialLocals,
             solver: solver,
             diagnostics: diagnostics
         )
@@ -60,7 +62,13 @@ extension DeclTypeChecker {
             range: classDecl.range
         )
 
-        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx)
+        // Primary constructor parameters without `val`/`var` are only in scope
+        // for property initializers and `init {}` blocks, not for member
+        // functions — so they're threaded through as `locals` rather than
+        // inserted into `classScope`.
+        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
+
+        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
@@ -77,6 +85,7 @@ extension DeclTypeChecker {
             nestedClasses: classDecl.nestedClasses,
             nestedObjects: allNestedObjects,
             ctx: classCtx,
+            propertyInitializerLocals: primaryCtorLocals,
             solver: solver,
             diagnostics: diagnostics
         )
@@ -239,6 +248,7 @@ extension DeclTypeChecker {
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         ctx: TypeInferenceContext,
+        propertyInitializerLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -273,6 +283,7 @@ extension DeclTypeChecker {
                 declID: declID,
                 symbol: symbol,
                 ctx: ctx.with(currentDeclSymbol: symbol),
+                initialLocals: propertyInitializerLocals,
                 solver: solver,
                 diagnostics: diagnostics
             )
