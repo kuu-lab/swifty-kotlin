@@ -139,29 +139,35 @@ public func __kk_secure_random_set_seed(_ receiver: Int, _ seed: Int) -> Int {
 
 @_cdecl("__kk_secure_random_generate_seed")
 public func __kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> Int {
+    // ByteArray.size (kk_byteArray_size) reads a RuntimeArrayBox, not a
+    // RuntimeListBox, so the result must be constructed as one to match the
+    // kotlin.ByteArray return type registered in HeaderHelpers+SyntheticRandomStubs.swift.
+    let result = RuntimeArrayBox(length: max(0, size))
     guard let box = secureRandomBox(from: receiver), size > 0 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return registerRuntimeObject(result)
     }
     var bytes: [Int] = []
     bytes.reserveCapacity(size)
     for _ in 0 ..< size {
         bytes.append(box.nextByte())
     }
-    return registerRuntimeObject(RuntimeListBox(elements: bytes))
+    result.elements = bytes
+    return registerRuntimeObject(result)
 }
 
 @_cdecl("__kk_secure_random_next_bytes")
 public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
+    // Fills the caller's ByteArray (a RuntimeArrayBox, see kk_secure_random_generate_seed)
+    // in place and returns the same reference, matching java.security.SecureRandom's
+    // nextBytes(bytes: ByteArray): ByteArray contract.
     guard let box = secureRandomBox(from: receiver),
-          let list = runtimeListBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+          let array = runtimeArrayBox(from: arrayRaw) else {
+        return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    var filled: [Int] = []
-    filled.reserveCapacity(list.elements.count)
-    for _ in list.elements {
-        filled.append(box.nextByte())
+    for index in array.elements.indices {
+        array.elements[index] = box.nextByte()
     }
-    return registerRuntimeObject(RuntimeListBox(elements: filled))
+    return arrayRaw
 }
 
 // MARK: - nextUInt(range: UIntRange) / nextULong(range: ULongRange) — KSP-457 scope

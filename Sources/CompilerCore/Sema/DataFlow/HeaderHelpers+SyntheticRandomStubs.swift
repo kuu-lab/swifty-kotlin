@@ -146,7 +146,14 @@ extension DataFlowSemaPhase {
         )
 
         // byteArrayType is needed for the nextBytes stubs and SecureRandom below.
-        let byteArrayType = makeListIntType(
+        // Must be the real kotlin.ByteArray class (matching the ByteArray(n) /
+        // byteArrayOf(...) construction sites and mirroring uByteArrayType just
+        // below), not a List<Int> stand-in: List<Int> is a different nominal type,
+        // and looking it up by fqName also silently fell back to Any whenever this
+        // ran (as it does, being in the "Random" stub bucket) before the
+        // "Collections" bucket registers kotlin.collections.List.
+        let byteArrayType = makePrimitiveArrayType(
+            named: "ByteArray",
             symbols: symbols,
             types: types,
             interner: interner
@@ -393,27 +400,6 @@ extension DataFlowSemaPhase {
         return types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Build a `List<Int>` type, which is the internal representation of ByteArray.
-    private func makeListIntType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(types.intType)],
             nullability: .nonNull
         )))
     }

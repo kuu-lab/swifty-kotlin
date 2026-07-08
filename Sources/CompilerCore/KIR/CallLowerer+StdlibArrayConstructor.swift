@@ -11,7 +11,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor,
-              args.count == 2
+              args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -39,6 +39,8 @@ extension CallLowerer {
         // 2. Create the array: kk_array_new_checked(size) — throws
         // NegativeArraySizeException for negative sizes instead of silently
         // clamping to an empty array.
+        // kk_array_new zero-fills every slot, which is exactly ArrayName(size)'s
+        // contract (no init lambda), so the 1-arg form is done here.
         let arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
@@ -48,6 +50,10 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
+
+        guard args.count == 2 else {
+            return arrayExpr
+        }
 
         // 3. Loop setup: index = 0
         let indexExpr = arena.appendTemporary(type: intType)
