@@ -435,9 +435,11 @@
 
 #### kotlin.time [M8 実行体]
 
-- [ ] KSP-471: Duration を Kotlin 化する（構築 21+、`inWhole*` 7、述語 4、算術 6、`compareTo`、`absoluteValue`、`toString`/`toIsoString`/`parse*` 6、`toComponents` 4）
-  - 注意: 死蔵 `Stdlib/kotlin/time/Duration.kt` を下敷きに `Sources/CompilerCore/Stdlib/kotlin/time/Duration.kt` として移設。インライン `kotlinTimeSource`（数値拡張プロパティ 21 個含む）を**同一 PR で**削除（KSP-503 と統合可）
-  - 削除 kk_*: `RuntimeDuration.swift` の該当関数（rg で列挙、`kk_measureTime*`/`kk_timedvalue_*` を除く）/ diff: `duration_*.kt` 5 ケース（既存）
+- [x] KSP-471: Duration を Kotlin 化する（構築 21+、`inWhole*` 7、述語 4、算術 6、`compareTo`、`absoluteValue`、`toString`/`toIsoString`/`parse*` 6、`toComponents` 4）
+  - 完了: `Sources/CompilerCore/Stdlib/kotlin/time/Duration.kt` に統合済み。インライン `kotlinTimeSource` は削除済み（`BundledKotlinStdlib.swift`/`FrontendPhases.swift` 両方から除去。`kotlinSequencesSource` は KSP-503 の残タスクとして継続）
+  - コンパイラ本体に2件のコア機能バグを発見・修正（Duration 化の前提として必須だった）: (1) `Box.Companion` のようなネスト型参照が同一パッケージ内で解決できなかった（`resolveNominalCandidates` in `BodyAnalysis.swift`）→ 既存 golden `companion_object_private_access` の `<error>` 型が正しい型に修正される副作用あり (2) 拡張プロパティのオーバーロード（`Int.seconds`/`Long.seconds`/`Double.seconds` 等レシーバ型違い）が `SymbolTable.define`/`canCoexistAsOverload` で後勝ち上書きされ実質2つ消えていた → `isExtensionProperty` 引数を追加して修正 (3) `Duration.ZERO` 等 Companion 省略形の呼び出しに Companion 拡張プロパティ/関数へのフォールバックが無かった → `CallTypeChecker+MemberCallInferenceRegularResolution.swift` に追加
+  - 削除 kk_*: `RuntimeDuration.swift` から 32 関数削除（`kk_duration_from_*` 20個・`inWhole{Milliseconds,Seconds,Minutes,Microseconds,Hours,Days}` 6個・`toIsoString`・`toComponents_*` 4個・`isFinite`）。`kk_duration_from_nanoseconds` のみ残置（`CallLowerer+StdlibLoops.swift` の measureTime エピローグが直接呼ぶため削除不可と判明）。`RuntimeABISpec+Duration.swift`/`RuntimeABISpec+BridgeCoverage.swift`/`ABIMismatchTests+SyntheticStubParity.swift` も追随
+  - 検証: RuntimeDurationTests 93件・ABIMismatchTests 144件・DurationSyntheticStubTests 6件（要更新）・CodegenBackendIntegrationTests の `testDurationStable*` 25件、全て green。golden 差分は意図した変更のみ（Companion 直結→Kotlin source 経由）。diff: `duration_*.kt` 4/4 PASS + `duration_operations.kt` 1 SKIP（既存 SKIP-DIFF）
 - [ ] KSP-472: Instant/Clock/measureTime のブリッジを確定する
   - ブリッジ残留（`__kk_` 降格）: `kk_instant_now`, `kk_clock_system_now`, `kk_clock_now`, `kk_measureTime`, `kk_measureTimedValue`（時刻源）
   - Kotlin 化: `kk_instant_epoch_seconds`, `kk_instant_nano_of_second`, `kk_instant_is_distant_past/future`, `kk_instant_plus/minus_duration`, `kk_instant_compare`, `kk_instant_until`, `kk_instant_elapsed`（now ブリッジ経由）, `kk_instant_from_epoch_millis`, `kk_timedvalue_*` 3 関数

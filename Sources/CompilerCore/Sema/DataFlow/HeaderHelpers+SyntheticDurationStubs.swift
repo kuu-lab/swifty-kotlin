@@ -45,12 +45,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let durationCompanionFQName = ensureDurationCompanionSymbol(
+        _ = ensureDurationCompanionSymbol(
             ownerSymbol: durationSymbol,
             symbols: symbols,
             interner: interner
         )
-        guard let durationCompanionSymbol = symbols.companionObjectSymbol(for: durationSymbol) else {
+        guard symbols.companionObjectSymbol(for: durationSymbol) != nil else {
             return
         }
         let durationType = types.make(.classType(ClassType(
@@ -100,108 +100,80 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-TIME-STABLE-001: Duration companion constants ---
-        registerDurationMemberProperty(
-            named: "ZERO",
+        // KSP-471: ZERO/INFINITE/parse* are Kotlin source Companion extension
+        // properties/functions in Stdlib/kotlin/time/Duration.kt, delegating to
+        // the __kk_duration_* bridges registered below. These are receiver-less
+        // package-scope functions (registerDurationTopLevelBridgeFunction, not
+        // registerDurationMemberMethod): the native kk_duration_zero()-style
+        // factories take no argument, so a receiver-typed bridge would wrongly
+        // pass the Companion's internal handle as the native call's first arg.
+        // Kotlin source calls them without a `this.` prefix.
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_zero",
             externalLinkName: "kk_duration_zero",
-            ownerSymbol: durationCompanionSymbol,
+            parameterTypes: [],
             returnType: durationType,
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationMemberProperty(
-            named: "INFINITE",
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_infinite",
             externalLinkName: "kk_duration_infinite",
-            ownerSymbol: durationCompanionSymbol,
+            parameterTypes: [],
             returnType: durationType,
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationCompanionMethod(
-            named: "parse",
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_parse",
             externalLinkName: "kk_duration_parse",
-            ownerSymbol: durationCompanionSymbol,
             parameterTypes: [stringType],
             returnType: durationType,
             canThrow: true,
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationCompanionMethod(
-            named: "parseOrNull",
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_parseOrNull",
             externalLinkName: "kk_duration_parseOrNull",
-            ownerSymbol: durationCompanionSymbol,
             parameterTypes: [stringType],
             returnType: types.makeNullable(durationType),
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationCompanionMethod(
-            named: "parseIsoString",
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_parseIsoString",
             externalLinkName: "kk_duration_parseIsoString",
-            ownerSymbol: durationCompanionSymbol,
             parameterTypes: [stringType],
             returnType: durationType,
             canThrow: true,
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationCompanionMethod(
-            named: "parseIsoStringOrNull",
+        registerDurationTopLevelBridgeFunction(
+            named: "__kk_duration_parseIsoStringOrNull",
             externalLinkName: "kk_duration_parseIsoStringOrNull",
-            ownerSymbol: durationCompanionSymbol,
             parameterTypes: [stringType],
             returnType: types.makeNullable(durationType),
+            packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
 
         // --- STDLIB-582/583/584: Duration.inWhole* properties ---
-        // MIGRATION-TIME-002: inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days
-        // migrated to Kotlin source in BundledKotlinStdlib.kotlinTimeSource.
-        // inWholeNanoseconds stays native (base primitive).
-        /*
-        registerDurationMemberProperty(
-            named: "inWholeMilliseconds",
-            externalLinkName: "kk_duration_inWholeMilliseconds",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberProperty(
-            named: "inWholeSeconds",
-            externalLinkName: "kk_duration_inWholeSeconds",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberProperty(
-            named: "inWholeMinutes",
-            externalLinkName: "kk_duration_inWholeMinutes",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberProperty(
-            named: "inWholeMicroseconds",
-            externalLinkName: "kk_duration_inWholeMicroseconds",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-        */
-
+        // KSP-471: inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days are Kotlin
+        // source extension properties (Stdlib/kotlin/time/Duration.kt) built on top of
+        // inWholeNanoseconds, which stays native (base primitive) below.
         registerDurationMemberProperty(
             named: "inWholeNanoseconds",
             externalLinkName: "kk_duration_inWholeNanoseconds",
@@ -210,26 +182,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        /*
-        registerDurationMemberProperty(
-            named: "inWholeHours",
-            externalLinkName: "kk_duration_inWholeHours",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberProperty(
-            named: "inWholeDays",
-            externalLinkName: "kk_duration_inWholeDays",
-            ownerSymbol: durationSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-        */
 
         // --- STDLIB-TIME-082: Duration predicate / absoluteValue ---
         // absoluteValue, isNegative, isPositive, isInfinite are implemented in Kotlin source
@@ -286,89 +238,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MIGRATION-TIME-001 complete: absoluteValue, isNegative, isPositive, isInfinite
-        // are now resolved via Kotlin source extension functions / properties in
-        // Stdlib/kotlin/time/Duration.kt. Direct compat stubs removed.
-        /*
-        registerDurationMemberProperty(
-            named: "absoluteValue",
-            externalLinkName: "kk_duration_absoluteValue",
-            ownerSymbol: durationSymbol,
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-471: absoluteValue, isNegative, isPositive, isInfinite, isFinite are all
+        // resolved via Kotlin source extension functions/properties in
+        // Stdlib/kotlin/time/Duration.kt; isFinite delegates to isInfinite() directly
+        // with no native bridge needed.
 
-        registerDurationMemberMethod(
-            named: "isNegative",
-            externalLinkName: "kk_duration_isNegative",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "isPositive",
-            externalLinkName: "kk_duration_isPositive",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "isInfinite",
-            externalLinkName: "kk_duration_isInfinite",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-        */
-
-        // isFinite stays as a direct property stub (not yet migrated)
-        registerDurationMemberProperty(
-            named: "isFinite",
-            externalLinkName: "kk_duration_isFinite",
-            ownerSymbol: durationSymbol,
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MIGRATION-TIME-002: toIsoString and toComponents migrated to Kotlin source.
-        /*
-        registerDurationMemberMethod(
-            named: "toIsoString",
-            externalLinkName: "kk_duration_toIsoString",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: stringType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TIME-STABLE-004: Duration.toComponents overloads ---
-        registerDurationToComponentsMethods(
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        */
+        // KSP-471: toIsoString and toComponents are Kotlin source (Duration.kt),
+        // computed directly from inWholeNanoseconds; no native bridge needed.
 
         // --- STDLIB-TIME-082: Duration operator bridges (MIGRATION-TIME-001) ---
         // plus, minus, times, div, unaryMinus are implemented in Kotlin source
@@ -448,163 +324,24 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MIGRATION-TIME-001 complete: plus, minus, times, div, unaryMinus are now resolved
-        // via Kotlin source extension operators in Stdlib/kotlin/time/Duration.kt.
-        // Direct compat stubs removed.
-        /*
+        // KSP-471: compareTo is a Kotlin source extension operator function
+        // (Stdlib/kotlin/time/Duration.kt) delegating to this bridge.
         registerDurationMemberMethod(
-            named: "plus",
-            externalLinkName: "kk_duration_plus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "minus",
-            externalLinkName: "kk_duration_minus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "times",
-            externalLinkName: "kk_duration_times_int",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [intType],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "div",
-            externalLinkName: "kk_duration_div_int",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [intType],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "div",
-            externalLinkName: "kk_duration_div_duration",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: doubleType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "unaryMinus",
-            externalLinkName: "kk_duration_unary_minus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-        */
-
-        // compareTo stays as a direct synthetic stub (not in MIGRATION-TIME-001 scope)
-        registerDurationMemberMethod(
-            named: "compareTo",
+            named: "__kk_duration_compareTo",
             externalLinkName: "kk_duration_compareTo",
             ownerSymbol: durationSymbol,
             ownerType: durationType,
             parameterTypes: [durationType],
             returnType: intType,
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )
 
-        // --- Duration.Companion extension properties (Int.seconds, Int.milliseconds, etc.) ---
-        // These are extension properties on Int that return Duration.
-        // Kotlin: val Int.seconds: Duration  (extension on Duration.Companion)
-        // We register them as extension properties on Int with external link names.
-
-        registerDurationFactoryExtensionProperty(
-            named: "seconds",
-            externalLinkName: "kk_duration_from_seconds",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "milliseconds",
-            externalLinkName: "kk_duration_from_milliseconds",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "minutes",
-            externalLinkName: "kk_duration_from_minutes",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "nanoseconds",
-            externalLinkName: "kk_duration_from_nanoseconds",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "microseconds",
-            externalLinkName: "kk_duration_from_microseconds",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "hours",
-            externalLinkName: "kk_duration_from_hours",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "days",
-            externalLinkName: "kk_duration_from_days",
-            receiverType: intType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-471: Int/Long/Double.{nanoseconds,microseconds,milliseconds,seconds,
+        // minutes,hours,days} factory extension properties are now Kotlin source
+        // top-level extension properties (Stdlib/kotlin/time/Duration.kt) built on
+        // top of the toDuration(unit) bridges registered above. No direct stubs.
 
         // --- STDLIB-660: TimedValue class ---
         let timedValueSymbol = ensureClassSymbol(
@@ -634,149 +371,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-663: Long receiver Duration factory extension properties ---
-        // Kotlin: val Long.seconds: Duration  (extension on Duration.Companion)
-
-        registerDurationFactoryExtensionProperty(
-            named: "seconds",
-            externalLinkName: "kk_duration_from_seconds_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "milliseconds",
-            externalLinkName: "kk_duration_from_milliseconds_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "minutes",
-            externalLinkName: "kk_duration_from_minutes_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "nanoseconds",
-            externalLinkName: "kk_duration_from_nanoseconds_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "microseconds",
-            externalLinkName: "kk_duration_from_microseconds_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "hours",
-            externalLinkName: "kk_duration_from_hours_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "days",
-            externalLinkName: "kk_duration_from_days_long",
-            receiverType: longType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TIME-STABLE-005: Double receiver Duration factory extension properties ---
-        registerDurationFactoryExtensionProperty(
-            named: "seconds",
-            externalLinkName: "kk_duration_from_seconds_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "milliseconds",
-            externalLinkName: "kk_duration_from_milliseconds_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "microseconds",
-            externalLinkName: "kk_duration_from_microseconds_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "nanoseconds",
-            externalLinkName: "kk_duration_from_nanoseconds_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "minutes",
-            externalLinkName: "kk_duration_from_minutes_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "hours",
-            externalLinkName: "kk_duration_from_hours_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationFactoryExtensionProperty(
-            named: "days",
-            externalLinkName: "kk_duration_from_days_double",
-            receiverType: doubleType,
-            returnType: durationType,
-            companionFQName: durationCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-471: Long/Double factory extension properties are also Kotlin
+        // source (see note above); no direct stubs for those receivers either.
     }
 
     private func ensureSyntheticDurationUnitEnumClass(
@@ -897,129 +493,6 @@ extension DataFlowSemaPhase {
 
     // MARK: - Duration member method registration (STDLIB-TIME-082)
 
-    private func registerDurationToComponentsMethods(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let overloads: [(externalLinkName: String, actionParameterTypes: [TypeID])] = [
-            (
-                "kk_duration_toComponents_seconds",
-                [types.longType, types.intType]
-            ),
-            (
-                "kk_duration_toComponents_minutes",
-                [types.longType, types.intType, types.intType]
-            ),
-            (
-                "kk_duration_toComponents_hours",
-                [types.longType, types.intType, types.intType, types.intType]
-            ),
-            (
-                "kk_duration_toComponents_days",
-                [types.longType, types.intType, types.intType, types.intType, types.intType]
-            ),
-        ]
-
-        for overload in overloads {
-            registerDurationToComponentsMethod(
-                externalLinkName: overload.externalLinkName,
-                actionParameterTypes: overload.actionParameterTypes,
-                ownerSymbol: ownerSymbol,
-                ownerType: ownerType,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-    }
-
-    private func registerDurationToComponentsMethod(
-        externalLinkName: String,
-        actionParameterTypes: [TypeID],
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let functionName = interner.intern("toComponents")
-        let functionFQName = ownerInfo.fqName + [functionName]
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID),
-                  signature.parameterTypes.count == 1,
-                  let actionType = signature.parameterTypes.first,
-                  case let .functionType(functionType) = types.kind(of: types.makeNonNullable(actionType))
-            else {
-                return false
-            }
-            return functionType.params == actionParameterTypes
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.insertFlags([.inlineFunction], for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        let typeParamName = interner.intern("T\(actionParameterTypes.count)")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: functionFQName + [typeParamName],
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        let resultType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
-        let actionType = types.make(.functionType(FunctionType(
-            params: actionParameterTypes,
-            returnType: resultType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        let actionParameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: interner.intern("action"),
-            fqName: functionFQName + [interner.intern("action\(actionParameterTypes.count)")],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: actionParameterSymbol)
-        symbols.setPropertyType(actionType, for: actionParameterSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [actionType],
-                returnType: resultType,
-                isSuspend: false,
-                valueParameterSymbols: [actionParameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol]
-            ),
-            for: functionSymbol
-        )
-    }
-
     private func registerDurationMemberMethod(
         named name: String,
         externalLinkName: String,
@@ -1028,6 +501,7 @@ extension DataFlowSemaPhase {
         parameterTypes: [TypeID],
         returnType: TypeID,
         isOperator: Bool = true,
+        canThrow: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1045,6 +519,9 @@ extension DataFlowSemaPhase {
             if isOperator {
                 symbols.insertFlags([.operatorFunction], for: existing)
             }
+            if canThrow {
+                symbols.insertFlags([.throwingFunction], for: existing)
+            }
             if let existingSignature = symbols.functionSignature(for: existing),
                existingSignature.receiverType != ownerType
             {
@@ -1059,6 +536,9 @@ extension DataFlowSemaPhase {
         var flags: SymbolFlags = [.synthetic]
         if isOperator {
             flags.insert(.operatorFunction)
+        }
+        if canThrow {
+            flags.insert(.throwingFunction)
         }
         let functionSymbol = symbols.define(
             kind: .function,
@@ -1099,103 +579,11 @@ extension DataFlowSemaPhase {
                 parameterTypes: parameterTypes,
                 returnType: returnType,
                 isSuspend: false,
+                canThrow: canThrow,
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: paramDefaults,
                 valueParameterIsVararg: paramVarargs,
                 typeParameterSymbols: []
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerDurationCompanionMethod(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        canThrow: Bool = false,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let functionName = interner.intern(name)
-        let functionFQName = ownerInfo.fqName + [functionName]
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .function,
-                  let sig = symbols.functionSignature(for: symbolID) else { return false }
-            return sig.parameterTypes == parameterTypes
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if canThrow {
-                symbols.insertFlags([.throwingFunction], for: existing)
-            }
-            if let existingSignature = symbols.functionSignature(for: existing),
-               existingSignature.returnType != returnType
-            {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: existingSignature.receiverType,
-                        parameterTypes: existingSignature.parameterTypes,
-                        returnType: returnType,
-                        isSuspend: existingSignature.isSuspend,
-                        canThrow: existingSignature.canThrow || canThrow,
-                        valueParameterSymbols: existingSignature.valueParameterSymbols,
-                        valueParameterHasDefaultValues: existingSignature.valueParameterHasDefaultValues,
-                        valueParameterIsVararg: existingSignature.valueParameterIsVararg,
-                        typeParameterSymbols: existingSignature.typeParameterSymbols,
-                        reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
-                        typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
-                        typeParameterUpperBoundsList: existingSignature.typeParameterUpperBoundsList,
-                        classTypeParameterCount: existingSignature.classTypeParameterCount
-                    ),
-                    for: existing
-                )
-            }
-            return
-        }
-
-        var flags: SymbolFlags = [.synthetic]
-        if canThrow {
-            flags.insert(.throwingFunction)
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var paramSymbols: [SymbolID] = []
-        for (idx, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(idx)")
-            let paramFQName = functionFQName + [paramName]
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramName,
-                fqName: paramFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            symbols.setPropertyType(paramType, for: paramSymbol)
-            paramSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                canThrow: canThrow,
-                valueParameterSymbols: paramSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)
             ),
             for: functionSymbol
         )
@@ -1233,87 +621,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
-    }
-
-    private func registerDurationFactoryExtensionProperty(
-        named name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        returnType: TypeID,
-        companionFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = companionFQName + [propertyName]
-
-        // Check if already registered
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-                && symbols.extensionPropertyReceiverType(for: symbolID) == receiverType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            // Also refresh the getter accessor's signature and external link name.
-            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [],
-                        returnType: returnType
-                    ),
-                    for: getterSymbol
-                )
-                symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
-            }
-            return
-        }
-
-        if let types = BundledSyntheticStubRegistration.types,
-           BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: companionFQName,
-               receiverType: receiverType,
-               name: propertyName,
-               arity: 0,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           )
-        {
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setPropertyType(returnType, for: propertySymbol)
-        symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-
-        let getterSymbol = symbols.define(
-            kind: .function,
-            name: interner.intern("get"),
-            fqName: propertyFQName + [interner.intern("$get")],
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType
-            ),
-            for: getterSymbol
-        )
-        symbols.setParentSymbol(propertySymbol, for: getterSymbol)
-        symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
     }
 
     private func registerDurationFactoryExtensionFunction(
@@ -1382,6 +689,82 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: parameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: parameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: parameterSymbols.count)
+            ),
+            for: functionSymbol
+        )
+    }
+
+    /// Registers a receiver-less bridge function at package scope. Unlike
+    /// registerDurationMemberMethod (which passes the receiver's internal handle
+    /// as the native call's first argument), this has no receiver at all, so it
+    /// matches native factory functions like kk_duration_zero() that take no
+    /// argument. Kotlin source calls it without a `this.` prefix.
+    private func registerDurationTopLevelBridgeFunction(
+        named name: String,
+        externalLinkName: String,
+        parameterTypes: [TypeID],
+        returnType: TypeID,
+        canThrow: Bool = false,
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == nil && signature.parameterTypes == parameterTypes
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if canThrow {
+                symbols.insertFlags([.throwingFunction], for: existing)
+            }
+            return
+        }
+
+        var flags: SymbolFlags = [.synthetic]
+        if canThrow {
+            flags.insert(.throwingFunction)
+        }
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: flags
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        var paramSymbols: [SymbolID] = []
+        for (idx, paramType) in parameterTypes.enumerated() {
+            let paramName = interner.intern("p\(idx)")
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: functionFQName + [paramName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
+            symbols.setPropertyType(paramType, for: paramSymbol)
+            paramSymbols.append(paramSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                canThrow: canThrow,
+                valueParameterSymbols: paramSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)
             ),
             for: functionSymbol
         )
