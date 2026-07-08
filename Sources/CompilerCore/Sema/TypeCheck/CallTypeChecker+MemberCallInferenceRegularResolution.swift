@@ -1341,7 +1341,7 @@ extension CallTypeChecker {
             typeName = "UIntProgression"
         case .ulongProgression:
             typeName = "ULongProgression"
-        case .iterable, .list, .set, .collection, .map, .sequence:
+        case .iterable, .list, .set, .collection, .map, .sequence, .string, .charSequence:
             return nil
         }
 
