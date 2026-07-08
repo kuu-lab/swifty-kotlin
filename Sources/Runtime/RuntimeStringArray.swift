@@ -478,12 +478,11 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
 
     case RuntimeTypeTokenEncoding.intBase,
          RuntimeTypeTokenEncoding.uintBase,
-         RuntimeTypeTokenEncoding.ulongBase,
          RuntimeTypeTokenEncoding.ubyteBase,
          RuntimeTypeTokenEncoding.ushortBase:
         // NOTE: an unboxed (non-object-pointer) value here is treated as a
-        // match. That's unsound in general — Int/UInt/ULong/UByte/UShort share
-        // no value-range heuristic that distinguishes them from Long/Double/
+        // match. That's unsound in general — Int/UInt/UByte/UShort share no
+        // value-range heuristic that distinguishes them from Long/Double/
         // Float/Char once unboxed (all reinterpret the same 64-bit word) — but
         // some existing callers (e.g. Sequence element storage) still hand
         // kk_op_is genuinely unboxed primitives, so tightening this to a
@@ -491,6 +490,11 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // are fixed to always box their operand before reaching here (see
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
+        //
+        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
+        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
+        // indistinguishable from each other here — a separate, pre-existing
+        // limitation of the box representation itself, not fixed by this check.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -502,7 +506,14 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
-    case RuntimeTypeTokenEncoding.longBase:
+    case RuntimeTypeTokenEncoding.longBase,
+         RuntimeTypeTokenEncoding.ulongBase:
+        // ULong boxes via kk_box_long into RuntimeLongBox, the same as Long
+        // (see BoxingCalleeTable) — it must be checked here rather than
+        // grouped with the RuntimeIntBox family above, or a genuinely-boxed
+        // ULong value would fail its own `is ULong` check. Long and ULong
+        // remain indistinguishable from each other (same pre-existing box
+        // representation limitation noted above).
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
