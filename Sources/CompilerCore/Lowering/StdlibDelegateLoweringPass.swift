@@ -64,8 +64,6 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                     let calleeName = interner.resolve(callee)
                     if let kind = delegateFactoryKind(calleeName) {
                         delegateKindByFieldName[fieldName] = kind
-                    } else if calleeName == "kk_custom_delegate_create" {
-                        delegateKindByFieldName[fieldName] = .custom
                     }
                 }
                 return function // no mutation in this scan pass
@@ -209,9 +207,9 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                     continue
                                 }
                             case .custom:
-                                // Custom delegates: the kk_custom_delegate_create
-                                // call was already emitted by KIR lowering.
-                                // Pass through as-is.
+                                // Custom delegates: MemberLowerer+DelegatedAndAccessorLowering
+                                // already resolves getValue/setValue to a direct call on the
+                                // user-defined operator symbol. No rewrite needed here.
                                 break
                             }
                         }

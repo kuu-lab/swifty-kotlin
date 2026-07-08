@@ -492,9 +492,10 @@
   - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
   - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
   - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
-- [ ] KSP-492: custom delegate / KProperty メタデータ経路を整理する
+- [x] KSP-492: custom delegate / KProperty メタデータ経路を整理する
   - 前提: KSP-491。対象: `kk_custom_delegate_create/get_value/set_value`, `kk_delegate_get_value/set_value`, `kk_kproperty_stub_*` 系
   - custom delegate（ユーザー定義 getValue/setValue）が operator 規約の通常解決で動くなら特例削除、`KProperty` メタデータ生成は `__kk_` 降格 / diff: `delegate_custom_basic.kt`, `delegate_provide.kt`, `property_delegate_edge_cases.kt`（既存）
+  - 2026-07-08 完了: KSP-491（未着手）とは独立に完了。`StdlibDelegateLoweringPass.swift` の `.custom` ケースは lazy/observable/vetoable/notNull 特例と別ブロックのため依存なし。実測（`--emit llvm` で生成コード確認）で custom delegate の getValue/setValue は既に Sema 解決済みシンボルへの直接呼び出しで動作しており `kk_custom_delegate_create/get_value/set_value` と `kk_delegate_get_value/set_value` はデッドコードと判明したため削除。`kk_kproperty_stub_*` は生きたブリッジのため `__kk_kproperty_stub_*` へ改名
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 

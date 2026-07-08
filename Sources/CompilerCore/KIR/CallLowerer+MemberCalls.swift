@@ -44,7 +44,7 @@ extension CallLowerer {
             return lateinitStatus
         }
 
-        // ── KProperty<*>.name → kk_kproperty_stub_name(receiver) ────────
+        // ── KProperty<*>.name → __kk_kproperty_stub_name(receiver) ────────
         if let kPropertyResult = tryLowerKPropertyMemberAccess(
             exprID,
             receiverExpr: receiverExpr,
