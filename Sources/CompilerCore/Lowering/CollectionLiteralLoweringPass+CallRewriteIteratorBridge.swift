@@ -76,10 +76,11 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_iterator on list/set → kk_list_iterator ---
+        // --- Rewrite kk_range_iterator on list/set/array → kk_list_iterator ---
         if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
             let argID = arguments[0]
-            if state.listExprIDs.contains(argID.rawValue) || state.setExprIDs.contains(argID.rawValue) {
+            if state.listExprIDs.contains(argID.rawValue) || state.setExprIDs.contains(argID.rawValue)
+                || state.arrayExprIDs.contains(argID.rawValue) {
                 if let result { state.listIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
                     symbol: nil,

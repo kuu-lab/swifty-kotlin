@@ -29,6 +29,7 @@ Cases:
 - `local_assign.kt`: block 内 local `var` 再代入
 - `loop_basic.kt`: `while` / `do-while` の制御フローと `break` の基本実行
 - `array_index.kt`: `IntArray` の index read/write と算術
+- `array_for_loop.kt`: `for (x in array)` の実行 parity（`arrayOf`/`intArrayOf`/`IntArray(n){}`/各プリミティブ配列、inline・`val`経由・空配列・関数引数）
 - `overload.kt`: overload resolution by parameter type
 - `string_concat.kt`: string `+` lowering via runtime concat helper
 - `val_reassign_error.kt`: local `val` 再代入の compile-error parity
