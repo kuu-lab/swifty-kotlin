@@ -37,8 +37,8 @@ struct BundledDeclarationIndex: Sendable {
     /// Build from AST bundled sources before SymbolTable header collection.
     /// AST scanning preserves the current phase order while supplying
     /// `(owner, name, arity)` keys to synthetic stub registration.
-    static func build(ast: ASTModule, sourceManager: SourceManager) -> BundledDeclarationIndex {
-        BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager))
+    static func build(ast: ASTModule, sourceManager: SourceManager, interner: StringInterner) -> BundledDeclarationIndex {
+        BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager, interner: interner))
     }
 
     static func build(
@@ -48,7 +48,7 @@ struct BundledDeclarationIndex: Sendable {
         sourceManager: SourceManager,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
-        var keys = buildKeys(ast: ast, sourceManager: sourceManager)
+        var keys = buildKeys(ast: ast, sourceManager: sourceManager, interner: interner)
         addListIterableAliases(to: &keys, interner: interner)
         return BundledDeclarationIndex(keys: keys)
     }
@@ -259,7 +259,11 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    private static func buildKeys(ast: ASTModule, sourceManager: SourceManager) -> Set<BundledMemberKey> {
+    private static func buildKeys(
+        ast: ASTModule,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> Set<BundledMemberKey> {
         let bundledFileIDs = bundledFileIDs(in: sourceManager)
         guard !bundledFileIDs.isEmpty else {
             return []
@@ -271,6 +275,7 @@ struct BundledDeclarationIndex: Sendable {
             files: bundledFiles,
             ast: ast
         )
+        let builtinNames = BuiltinTypeNames(interner: interner)
 
         var keys: Set<BundledMemberKey> = []
         for file in bundledFiles {
@@ -281,6 +286,8 @@ struct BundledDeclarationIndex: Sendable {
                     packageFQName: file.packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
                     ast: ast,
+                    builtinNames: builtinNames,
+                    interner: interner,
                     keys: &keys
                 )
             }
@@ -464,6 +471,8 @@ struct BundledDeclarationIndex: Sendable {
         packageFQName: [InternedString],
         topLevelNominalNames: Set<InternedString>,
         ast: ASTModule,
+        builtinNames: BuiltinTypeNames,
+        interner: StringInterner,
         keys: inout Set<BundledMemberKey>
     ) {
         guard let decl = ast.arena.decl(declID) else {
@@ -478,7 +487,9 @@ struct BundledDeclarationIndex: Sendable {
                     for: receiverType,
                     relativeTo: packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
-                    ast: ast
+                    ast: ast,
+                    builtinNames: builtinNames,
+                    interner: interner
                   )
             else {
                 return
@@ -498,7 +509,9 @@ struct BundledDeclarationIndex: Sendable {
                     for: receiverType,
                     relativeTo: packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
-                    ast: ast
+                    ast: ast,
+                    builtinNames: builtinNames,
+                    interner: interner
                   )
             else {
                 return
@@ -667,7 +680,9 @@ struct BundledDeclarationIndex: Sendable {
         for typeRef: TypeRef,
         relativeTo packageFQName: [InternedString],
         topLevelNominalNames: Set<InternedString>,
-        ast: ASTModule
+        ast: ASTModule,
+        builtinNames: BuiltinTypeNames,
+        interner: StringInterner
     ) -> [InternedString]? {
         switch typeRef {
         case let .named(path, _, _):
@@ -676,6 +691,17 @@ struct BundledDeclarationIndex: Sendable {
             }
             if pathStarts(with: path, prefix: packageFQName) {
                 return path
+            }
+            // Single-segment names normally resolve relative to the current
+            // bundled package (e.g. `Duration.foo()` inside kotlin.time), but
+            // built-in root types (Int, String, ...) live under `kotlin`
+            // regardless of which subpackage references them. Without this
+            // check, e.g. `Int.seconds` declared in kotlin.time was keyed as
+            // kotlin.time.Int instead of kotlin.Int, so the KSP-002 skip guard
+            // never matched and a conflicting synthetic stub was registered
+            // alongside the bundled source declaration.
+            if path.count == 1, isBuiltinRootTypeName(first, builtinNames: builtinNames) {
+                return [interner.intern("kotlin"), first]
             }
             if path.count == 1 || topLevelNominalNames.contains(first) {
                 return packageFQName + path
@@ -689,11 +715,31 @@ struct BundledDeclarationIndex: Sendable {
                 for: baseRef,
                 relativeTo: packageFQName,
                 topLevelNominalNames: topLevelNominalNames,
-                ast: ast
+                ast: ast,
+                builtinNames: builtinNames,
+                interner: interner
             )
         case .functionType, .intersection:
             return nil
         }
+    }
+
+    /// True when `name` is one of the primitive types that live directly
+    /// under the `kotlin` package (Int, Long, Double, ...), matching the
+    /// `.primitive` case that `receiverOwnerFQName(for:symbols:types:interner:)`
+    /// resolves once a `TypeID` is available. Keeping the two in sync is what
+    /// makes the `shouldSkipRegistration` key lookup find bundled source
+    /// declarations.
+    ///
+    /// Deliberately narrower than `BuiltinTypeNames`: String/Any/Unit/Nothing
+    /// are NOT included here because `receiverOwnerFQName` only handles
+    /// `.classType` and `.primitive` type kinds, not `.stringStruct`, `.any`,
+    /// `.unit`, or `.nothing` — including them here without a matching case
+    /// there would make this function key bundled declarations under
+    /// `["kotlin", "String"]` etc. while the skip-guard check still falls
+    /// back to the declared (non-root) owner, so the two would never match.
+    private static func isBuiltinRootTypeName(_ name: InternedString, builtinNames: BuiltinTypeNames) -> Bool {
+        builtinNames.primitiveType(for: name) != nil
     }
 
     private static func collectTopLevelNominalNamesByPackage(
