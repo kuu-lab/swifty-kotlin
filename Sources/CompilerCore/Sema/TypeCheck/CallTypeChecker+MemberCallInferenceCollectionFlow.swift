@@ -2917,7 +2917,30 @@ extension CallTypeChecker {
             sema.bindings.markCollectionHOFLambdaExpr(lambdaArg)
         }
 
+        // KSP-499 Stage 3: a real bundled/user Kotlin declaration for this
+        // exact (Flow owner, member name, arity) takes priority over the
+        // hard-coded Flow intrinsic dispatch below — mirrors the declaration
+        // priority rule already established for synthetic stub registration
+        // (BundledDeclarationIndex / KSP-001-003). Without this, migrating a
+        // Flow operator to real Kotlin source would compile but never run:
+        // this special-case would keep intercepting the call by name.
+        let flowOwnerFQNameForPriorityCheck: [InternedString]? = {
+            guard case let .classType(classType) = sema.types.kind(of: receiverType),
+                  let ownerSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return nil
+            }
+            return ownerSymbol.fqName
+        }()
+        let hasBundledFlowDeclaration = flowOwnerFQNameForPriorityCheck.map {
+            sema.bundledIndex.contains(
+                ownerFQName: $0,
+                name: calleeName,
+                arity: args.count
+            )
+        } ?? false
         if isFlowReceiver,
+           !hasBundledFlowDeclaration,
            let builtinFlowType = tryBuiltinFlowMemberCall(
                id,
                calleeName: calleeName,

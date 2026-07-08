@@ -53,6 +53,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             interner: ctx.interner
         )
+        // KSP-499 Stage 3: keep the bundled declaration index reachable via
+        // `sema.bundledIndex` for the rest of the compilation (body
+        // type-checking, KIR lowering) — the transient
+        // `BundledSyntheticStubRegistration` thread-local used above is
+        // already cleared by `registerSyntheticDelegateStubs`'s own `defer`
+        // once header registration finished.
+        sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
