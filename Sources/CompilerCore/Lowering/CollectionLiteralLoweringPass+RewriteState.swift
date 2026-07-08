@@ -1,4 +1,4 @@
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralLoweringSupport {
     struct CollectionRewriteState {
         var listExprIDs: Set<Int32> = []
         var setExprIDs: Set<Int32> = []

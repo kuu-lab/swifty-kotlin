@@ -1,0 +1,422 @@
+extension CallLowerer {
+    func tryLowerCollectionFactoryCall(
+        sourceCalleeName: InternedString,
+        args: [CallArgument],
+        loweredArgIDs: [KIRExprID],
+        chosenCallee: SymbolID?,
+        boundType: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        let name = interner.resolve(sourceCalleeName)
+        guard isStdlibCollectionFactoryTarget(
+            name: name,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        ) else {
+            return nil
+        }
+
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        switch name {
+        case "emptyList", "listOf", "listOfNotNull":
+            if loweredArgIDs.isEmpty {
+                emitNoArgCall("kk_emptyList", result: result, interner: interner, instructions: &instructions)
+                return result
+            }
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            emitRuntimeCollectionFactory(
+                name == "listOfNotNull" ? "kk_list_of_not_null" : "kk_list_of",
+                array: packed.array,
+                count: packed.count,
+                result: result,
+                interner: interner,
+                instructions: &instructions
+            )
+            return result
+
+        case "mutableListOf", "arrayListOf":
+            if loweredArgIDs.isEmpty {
+                emitNullArrayCountCall(
+                    "kk_list_of",
+                    arity: 1,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            emitRuntimeCollectionFactory(
+                "kk_list_of",
+                array: packed.array,
+                count: packed.count,
+                result: result,
+                interner: interner,
+                instructions: &instructions
+            )
+            return result
+
+        case "emptySet", "setOf", "setOfNotNull":
+            if loweredArgIDs.isEmpty {
+                emitNoArgCall("kk_emptySet", result: result, interner: interner, instructions: &instructions)
+                return result
+            }
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            emitRuntimeCollectionFactory(
+                name == "setOfNotNull" ? "kk_set_of_not_null" : "kk_set_of",
+                array: packed.array,
+                count: packed.count,
+                result: result,
+                interner: interner,
+                instructions: &instructions
+            )
+            return result
+
+        case "mutableSetOf", "hashSetOf", "linkedSetOf":
+            if loweredArgIDs.isEmpty {
+                emitNullArrayCountCall(
+                    "kk_set_of",
+                    arity: 1,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            emitRuntimeCollectionFactory(
+                "kk_set_of",
+                array: packed.array,
+                count: packed.count,
+                result: result,
+                interner: interner,
+                instructions: &instructions
+            )
+            return result
+
+        case "emptyMap", "mapOf":
+            if loweredArgIDs.isEmpty {
+                emitNoArgCall("kk_emptyMap", result: result, interner: interner, instructions: &instructions)
+                return result
+            }
+            return emitMapFactoryCall(
+                loweredArgIDs: loweredArgIDs,
+                spreadFlags: args.map(\.isSpread),
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+
+        case "mutableMapOf", "hashMapOf", "linkedMapOf":
+            if loweredArgIDs.isEmpty {
+                emitNullArrayCountCall(
+                    "kk_map_of",
+                    arity: 2,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
+            return emitMapFactoryCall(
+                loweredArgIDs: loweredArgIDs,
+                spreadFlags: args.map(\.isSpread),
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+
+        default:
+            return nil
+        }
+    }
+
+    private func isStdlibCollectionFactoryTarget(
+        name: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard [
+            "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
+            "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
+            "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
+        ].contains(name),
+            let chosenCallee,
+            let symbol = sema.symbols.symbol(chosenCallee),
+            symbol.kind == .function,
+            symbol.name == interner.intern(name),
+            symbol.fqName.count >= 3
+        else {
+            return false
+        }
+        return interner.resolve(symbol.fqName[0]) == "kotlin"
+            && interner.resolve(symbol.fqName[1]) == "collections"
+    }
+
+    private func emitPackedCollectionFactoryArguments(
+        args: [CallArgument],
+        loweredArgIDs: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (array: KIRExprID, count: KIRExprID) {
+        let intType = sema.types.intType
+        let boxedArgs = loweredArgIDs.enumerated().map { index, argID in
+            if index < args.count, args[index].isSpread {
+                return argID
+            }
+            return boxCollectionFactoryElementIfNeeded(
+                argID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        let argIndices = Array(boxedArgs.indices)
+        let array = driver.callSupportLowerer.packVarargArguments(
+            argIndices: argIndices,
+            providedArguments: boxedArgs,
+            spreadFlags: args.map(\.isSpread),
+            listifyResult: false,
+            arena: arena,
+            interner: interner,
+            intType: intType,
+            anyType: sema.types.anyType,
+            instructions: &instructions
+        )
+
+        if args.contains(where: \.isSpread) {
+            let count = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_size"),
+                arguments: [array],
+                result: count,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return (array, count)
+        }
+
+        let count = arena.appendExpr(.intLiteral(Int64(loweredArgIDs.count)), type: intType)
+        instructions.append(.constValue(result: count, value: .intLiteral(Int64(loweredArgIDs.count))))
+        return (array, count)
+    }
+
+    private func boxCollectionFactoryElementIfNeeded(
+        _ argID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let argType = arena.exprType(argID),
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: argType,
+                  types: sema.types,
+                  requireNonNull: false
+              )
+        else {
+            return argID
+        }
+        return emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argID,
+            resultType: sema.types.anyType,
+            arena: arena,
+            into: &instructions
+        )
+    }
+
+    private func emitMapFactoryCall(
+        loweredArgIDs: [KIRExprID],
+        spreadFlags: [Bool],
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard !spreadFlags.contains(true) else {
+            return nil
+        }
+
+        let intType = sema.types.intType
+        let count = arena.appendExpr(.intLiteral(Int64(loweredArgIDs.count)), type: intType)
+        instructions.append(.constValue(result: count, value: .intLiteral(Int64(loweredArgIDs.count))))
+        let keysArray = driver.callSupportLowerer.emitArrayNew(
+            count: loweredArgIDs.count,
+            arena: arena,
+            interner: interner,
+            intType: intType,
+            anyType: sema.types.anyType,
+            instructions: &instructions
+        )
+        let valuesArray = driver.callSupportLowerer.emitArrayNew(
+            count: loweredArgIDs.count,
+            arena: arena,
+            interner: interner,
+            intType: intType,
+            anyType: sema.types.anyType,
+            instructions: &instructions
+        )
+
+        for (index, pair) in loweredArgIDs.enumerated() {
+            let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
+            instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
+
+            let key = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_pair_first"),
+                arguments: [pair],
+                result: key,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let value = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_pair_second"),
+                arguments: [pair],
+                result: value,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [keysArray, indexExpr, key],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [valuesArray, indexExpr, value],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_map_of"),
+            arguments: [keysArray, valuesArray, count],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return result
+    }
+
+    private func emitNoArgCall(
+        _ callee: String,
+        result: KIRExprID,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(callee),
+            arguments: [],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    private func emitNullArrayCountCall(
+        _ callee: String,
+        arity: Int,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let zero = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zero, value: .intLiteral(0)))
+        var arguments: [KIRExprID] = []
+        for _ in 0 ..< arity {
+            let nullArray = arena.appendExpr(.intLiteral(0), type: sema.types.anyType)
+            instructions.append(.constValue(result: nullArray, value: .intLiteral(0)))
+            arguments.append(nullArray)
+        }
+        arguments.append(zero)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(callee),
+            arguments: arguments,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    private func emitRuntimeCollectionFactory(
+        _ callee: String,
+        array: KIRExprID,
+        count: KIRExprID,
+        result: KIRExprID,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(callee),
+            arguments: [array, count],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+}

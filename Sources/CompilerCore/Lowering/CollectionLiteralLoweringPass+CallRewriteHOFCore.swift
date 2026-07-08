@@ -1,5 +1,5 @@
 /// Core one-lambda higher-order collection rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteCoreHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],

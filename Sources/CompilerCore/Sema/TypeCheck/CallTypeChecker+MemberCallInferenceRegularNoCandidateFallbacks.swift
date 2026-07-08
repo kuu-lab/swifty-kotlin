@@ -481,8 +481,6 @@ extension CallTypeChecker {
                 let resultType: TypeID? = switch calleeStr {
                 case "startsWith", "endsWith", "contains":
                     sema.types.make(.primitive(.boolean, .nonNull))
-                case "split":
-                    sema.types.anyType
                 case "indexOf", "lastIndexOf", "compareTo":
                     sema.types.make(.primitive(.int, .nonNull))
                 case "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast":
@@ -1090,7 +1088,7 @@ extension CallTypeChecker {
                    "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
+                   "takeWhile", "dropWhile", "find", "findLast",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
                    "partition",
@@ -1108,7 +1106,7 @@ extension CallTypeChecker {
             {
                 let charType = sema.types.make(.primitive(.char, .nonNull))
                 let intType = sema.types.intType
-                if calleeStr != "splitToSequence" && calleeStr != "zipWithNext" {
+                if calleeStr != "zipWithNext" {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -1302,17 +1300,6 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
-                let sequenceStringType: TypeID = {
-                    let knownNames = KnownCompilerNames(interner: interner)
-                    guard let sequenceSymbol = sema.symbols.lookupAll(fqName: knownNames.kotlinSequenceFQName).first else {
-                        return sema.types.anyType
-                    }
-                    return sema.types.make(.classType(ClassType(
-                        classSymbol: sequenceSymbol,
-                        args: [.out(sema.types.stringType)],
-                        nullability: .nonNull
-                    )))
-                }()
                 bindSyntheticStringMemberDirectlyIfAvailable(
                     id,
                     calleeName: calleeName,
@@ -1344,7 +1331,6 @@ extension CallTypeChecker {
                 case "any", "all", "none": sema.types.booleanType
                 case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
                 case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
-                case "splitToSequence": sequenceStringType
                 case "partition": pairStringStringType
                 case "ifBlank", "ifEmpty": sema.types.stringType
                 case "reduceRightIndexed": charType

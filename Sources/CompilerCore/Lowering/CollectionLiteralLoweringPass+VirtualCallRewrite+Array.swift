@@ -2,7 +2,7 @@
 /// (STDLIB-087/088/089).
 ///
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionVirtualCallRewriteLoweringPass {
     // MARK: - Array virtual call operations (STDLIB-087/088/089)
 
     func rewriteArrayVirtualCall(

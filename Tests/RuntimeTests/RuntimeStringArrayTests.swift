@@ -2576,18 +2576,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringCodePointCountUsesUTF16Ranges() {
         let textRaw = rawFromRuntimeString("a😀b")
 
-        XCTAssertEqual(kk_string_codePointCount(textRaw), 3)
+        XCTAssertEqual(__kk_string_codePointCount(textRaw), 3)
 
         var thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_from(textRaw, 1, &thrown), 2)
+        XCTAssertEqual(__kk_string_codePointCount_from(textRaw, 1, &thrown), 2)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 1, 3, &thrown), 1)
+        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 1, 3, &thrown), 1)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 0, 2, &thrown), 2)
+        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 0, 2, &thrown), 2)
         XCTAssertEqual(thrown, 0)
     }
 
@@ -2595,15 +2595,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let textRaw = rawFromRuntimeString("abc")
 
         var thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_range(textRaw, -1, 1, &thrown), 0)
+        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, -1, 1, &thrown), 0)
         XCTAssertNotEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 0, 4, &thrown), 0)
+        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 0, 4, &thrown), 0)
         XCTAssertNotEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 2, 1, &thrown), 0)
+        XCTAssertEqual(__kk_string_codePointCount_range(textRaw, 2, 1, &thrown), 0)
         XCTAssertNotEqual(thrown, 0)
     }
 

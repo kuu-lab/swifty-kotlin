@@ -431,27 +431,6 @@ extension CallTypeChecker {
         return sema.types.anyType
     }
 
-    func isArrayLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        return isArrayLikeType(receiverType, sema: sema, interner: interner)
-    }
-
-    private func isArrayLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isArrayLikeName(symbol.name)
-    }
-
     // MARK: - KFunction member call fallback (STDLIB-REFLECT-063)
 
     /// Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
