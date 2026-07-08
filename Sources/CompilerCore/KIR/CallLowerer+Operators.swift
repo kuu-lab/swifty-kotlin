@@ -15,6 +15,26 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let boolType = sema.types.booleanType
+        // `&&` / `||` must short-circuit: rhs may only be evaluated once lhs's
+        // value doesn't already pin down the result. The generic path below
+        // evaluates both operands unconditionally before combining them, which
+        // is correct for ordinary binary operators but would run rhs's side
+        // effects/exceptions even when they must not fire, so these two get
+        // their own control-flow lowering instead of falling through.
+        if op == .logicalAnd || op == .logicalOr {
+            return lowerShortCircuitLogicalExpr(
+                op: op,
+                lhs: lhs,
+                rhs: rhs,
+                boolType: boolType,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let boundType: TypeID? = switch op {
         case .equal, .notEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             boolType
@@ -627,6 +647,60 @@ extension CallLowerer {
             preconditionFailure("Bitwise/shift binary operators must be lowered through member-call special handling")
         }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
+        return result
+    }
+
+    /// Lowers `&&`/`||` with proper short-circuit control flow.
+    ///
+    /// `lhs && rhs` behaves like `if (lhs) rhs else false`; `lhs || rhs`
+    /// behaves like `if (lhs) true else rhs`. Either way, rhs is only lowered
+    /// (and its instructions only emitted) behind a branch that is skipped
+    /// once lhs already equals `shortCircuitsOn` (false for `&&`, true for
+    /// `||`), matching the desugarings above.
+    private func lowerShortCircuitLogicalExpr(
+        op: BinaryOp,
+        lhs: ExprID,
+        rhs: ExprID,
+        boolType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let lhsID = driver.lowerExpr(
+            lhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let shortCircuitsOn = op == .logicalOr
+        let shortCircuitLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let result = arena.appendTemporary(type: boolType)
+        let shortCircuitLiteral = arena.appendExpr(.boolLiteral(shortCircuitsOn), type: boolType)
+        instructions.append(.constValue(result: shortCircuitLiteral, value: .boolLiteral(shortCircuitsOn)))
+        instructions.append(.jumpIfEqual(lhs: lhsID, rhs: shortCircuitLiteral, target: shortCircuitLabel))
+        let rhsID = driver.lowerExpr(
+            rhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if !driver.controlFlowLowerer.isTerminatedExpr(rhsID, arena: arena, sema: sema) {
+            instructions.append(.copy(from: rhsID, to: result))
+            instructions.append(.jump(endLabel))
+        }
+        instructions.append(.label(shortCircuitLabel))
+        instructions.append(.copy(from: shortCircuitLiteral, to: result))
+        instructions.append(.label(endLabel))
         return result
     }
 
