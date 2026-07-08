@@ -329,14 +329,19 @@ extension DataFlowSemaPhase {
             variance: TypeVariance
         ) -> SymbolID {
             let typeParamName = interner.intern("T")
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: ownerFQName + [typeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
+            let typeParamFQName = ownerFQName + [typeParamName]
+            let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
+                existing
+            } else {
+                symbols.define(
+                    kind: .typeParameter,
+                    name: typeParamName,
+                    fqName: typeParamFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+            }
             types.setNominalTypeParameterSymbols([typeParamSymbol], for: owner)
             types.setNominalTypeParameterVariances([variance], for: owner)
             return typeParamSymbol

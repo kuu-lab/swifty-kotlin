@@ -13,16 +13,13 @@ final class DataFlowSemaPhase: CompilerPhase {
         let types = TypeSystem()
         types.symbolTable = symbols
         let bindings = BindingTable()
-        let sema = SemaModule(
-            symbols: symbols, types: types,
-            bindings: bindings, diagnostics: ctx.diagnostics
-        )
-
-        let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
 
         // Build the bundled declaration index from AST before synthetic registration,
         // but keep bundled SymbolTable header collection after synthetic type foundations.
+        // Computed before SemaModule construction so it can be passed into the
+        // initializer directly (see SemaModule.bundledIndex) rather than set
+        // via a later mutation, matching the existing importedInlineFunctions
+        // constructor-parameter convention.
         let bundledIndex = BundledDeclarationIndex.build(
             ast: ast,
             symbols: symbols,
@@ -30,6 +27,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager,
             interner: ctx.interner
         )
+        let sema = SemaModule(
+            symbols: symbols, types: types,
+            bindings: bindings, diagnostics: ctx.diagnostics,
+            bundledIndex: bundledIndex
+        )
+
+        let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
+        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
+
         registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,

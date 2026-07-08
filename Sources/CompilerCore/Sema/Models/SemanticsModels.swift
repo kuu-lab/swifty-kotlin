@@ -1510,7 +1510,7 @@ public final class SemaModule {
     /// compiler intrinsic special-case (e.g. the Flow operator dispatch in
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
-    var bundledIndex: BundledDeclarationIndex = .empty
+    var bundledIndex: BundledDeclarationIndex
 
     public init(
         symbols: SymbolTable,
@@ -1524,5 +1524,27 @@ public final class SemaModule {
         self.bindings = bindings
         self.diagnostics = diagnostics
         self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = .empty
+    }
+
+    /// Module-internal overload that also accepts the bundled declaration
+    /// index at construction time (see `bundledIndex` above). Not `public`
+    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
+    /// callers outside the module get the public initializer above, which
+    /// defaults `bundledIndex` to `.empty`.
+    init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = bundledIndex
     }
 }
