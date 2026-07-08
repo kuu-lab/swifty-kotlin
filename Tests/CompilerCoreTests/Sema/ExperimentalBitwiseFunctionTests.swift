@@ -49,6 +49,11 @@ struct ExperimentalBitwiseFunctionTests {
             guard bitwiseNames.contains(name) else {
                 continue
             }
+            guard let range = ast.arena.exprRange(exprID),
+                  !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            else {
+                continue
+            }
 
             seenCalls[name, default: 0] += 1
             #expect(sema.bindings.exprTypes[receiver] == sema.types.intType)

@@ -17,13 +17,16 @@ struct FileStartsWithFunctionTests {
     private func memberCallExprIDs(
         named name: String,
         in ast: ASTModule,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager
     ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
+                  interner.resolve(callee) == name,
+                  let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
             }
@@ -109,7 +112,7 @@ struct FileStartsWithFunctionTests {
             let booleanType = sema.types.booleanType
 
             let ast = try #require(ctx.ast)
-            let callExprs = memberCallExprIDs(named: "startsWith", in: ast, interner: interner)
+            let callExprs = memberCallExprIDs(named: "startsWith", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(callExprs.count == 2, "expected two startsWith member calls")
             for callExpr in callExprs {
                 #expect(

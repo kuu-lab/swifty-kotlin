@@ -189,9 +189,12 @@ struct RegexSemaLoweringTests {
             let sema = try #require(ctx.sema)
 
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "replace"
+                firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr,
+                          ctx.interner.resolve(callee) == "replace",
+                          let range = ast.arena.exprRange(exprID)
+                    else { return false }
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 },
                 "Expected .replace(...) member call"
             )
