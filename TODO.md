@@ -469,11 +469,10 @@
   - 手順: T / diff: `hexformat_basic.kt`（既存）+ `hexformat_padding_and_arrays.kt`（新規、`Long.toHexString` の桁パディング等）/ 完了: `rg '"kk_hexformat_|"kk_string_hexTo' Sources/CompilerCore` 0 件 + G
   - 2026-07-08 完了。HexFormat は単一フラットクラス（`NumberHexFormat`/`BytesHexFormat` 分離なし、`bytes`/`number` は `this` を返すエイリアス）として実装。`STDLIB-HEX-001`（`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`）は実配線後は到達不能と確認しdelete。旧 kk_* 実装のバグ（`Long.toHexString` が正の値でゼロパディングされない）を発見・修正（`Scripts/diff_cases/hexformat_padding_and_arrays.kt` で固定）。
   - 既知の制約（本タスクでは対処せず、影響範囲を確認しコード内コメントで明記のみ）: (1) 実 Kotlin の `HexFormat { }` ビルダー DSL 構文が使えない — トップレベル関数とクラスの同名宣言が `KSWIFTK-SEMA-0001` で拒否される件、およびコンストラクタ本体からその関数型パラメータを参照するとコード生成が未定義シンボルを吐く件、の2つの独立したコンパイラ制約による。回避策としてカスタム format は通常の名前付き引数コンストラクタ（`HexFormat(prefix = "0x", ...)`）経由でのみ構築可能にした（この経路は `diff_kotlinc` 非対応のため `CodegenBackendIntegrationTests+EncodingEdgeCases.swift` の `testCodegenCompilesHexFormatCustomization` で個別に固定）。(2) `Int/Long.toUInt()` 系の符号なし変換は、変換元が符号あり型へのナローイングを経て負値になるケースで壊れる（`hexToUInt`/`hexToUShort`/`hexToUByte` は Long アキュムレータから直接 `.toUInt()` 等を呼ぶことで回避）。(3) `StringBuilder(capacity: Int)` （容量指定コンストラクタ）呼び出しがクラッシュする（無引数 `StringBuilder()` で回避）。
-- [ ] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
-  - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/Base64.kt`（クラス + variant 実装あり）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`
-  - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
-  - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
-  - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
+- [x] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`。旧synthetic stubsと`CallLowerer+Base64MemberCalls.swift`、RuntimeのBase64公開ABIを削除済み。
+  - 残留ブリッジ: `__kk_output_stream_encodingWith` のみ。Base64インスタンスのalphabet/paddingをプリミティブ引数で受け取る。
+  - 実Kotlin APIに合わせて`decode(ByteArray)`を使用し、存在しない`String.decodingWith`は削除。`base64_edge_cases.kt`で固定。
 - [x] KSP-483: File のパス純ロジック層を Kotlin 化する
   - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
   - 削除 kk_*: `kk_file_name`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）

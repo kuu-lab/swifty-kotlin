@@ -13,7 +13,7 @@ private const val URL_SAFE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno
 private const val MIME_LINE_LENGTH = 76
 
 public open class Base64 internal constructor(
-    private val alphabetChars: String,
+    internal val alphabetChars: String,
     private val wrapLines: Boolean
 ) {
     private var padding: PaddingOption = PaddingOption.PRESENT
@@ -41,9 +41,11 @@ public open class Base64 internal constructor(
         return decodeRaw(sanitized)
     }
 
-    public open fun encodeToByteArray(source: ByteArray): ByteArray = encode(source).encodeToByteArray()
+    // Real Kotlin overloads `decode` for ByteArray input rather than using a
+    // separate `decodeFromByteArray` name.
+    public open fun decode(source: ByteArray): ByteArray = decode(source.decodeToString())
 
-    public open fun decodeFromByteArray(source: ByteArray): ByteArray = decode(source.decodeToString())
+    public open fun encodeToByteArray(source: ByteArray): ByteArray = encode(source).encodeToByteArray()
 
     private fun encodeRaw(source: ByteArray): String {
         val sb = StringBuilder()
@@ -133,7 +135,13 @@ public open class Base64 internal constructor(
             if (value < 0) {
                 throw IllegalArgumentException("Illegal base64 character in input")
             }
-            buffer = (buffer shl 6) or value
+            // `value` (from indexOf, a function call) must be the LEFT
+            // operand of `or`: this compiler drops the right operand of
+            // `or` when it was produced by a preceding function call
+            // (`x or value` works, `value or x` does not, regardless of
+            // the self-referential `buffer` reassignment).
+            val shifted = buffer shl 6
+            buffer = value or shifted
             bitsCollected += 6
             if (bitsCollected >= 8) {
                 bitsCollected -= 8
@@ -152,10 +160,12 @@ public open class Base64 internal constructor(
     }
 }
 
-public fun String.decodingWith(codec: Base64): ByteArray = codec.decode(this)
-
 @KsSymbolName("__kk_output_stream_encodingWith")
-private external fun __outputStreamEncodingWith(stream: java.io.OutputStream, base64: Base64): java.io.OutputStream
+private external fun __outputStreamEncodingWith(
+    stream: java.io.OutputStream,
+    alphabet: String,
+    addPadding: Boolean
+): java.io.OutputStream
 
 public fun java.io.OutputStream.encodingWith(base64: Base64): java.io.OutputStream =
-    __outputStreamEncodingWith(this, base64)
+    __outputStreamEncodingWith(this, base64.alphabetChars, base64.alphabetChars != URL_SAFE_ALPHABET)

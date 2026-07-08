@@ -241,7 +241,6 @@ kk_write_barrier
 | **TEST-COL-012** (Set HOF) | `kk_set_{map,forEach,filterNot,mapNotNull,flatMap,count_predicate}` | `RuntimeCollectionHOF.swift` |
 | **Flow API 完全実装** | `kk_flow_{count,fold,reduce,emit_with_timestamp}` | `RuntimeCoroutineFlow.swift` |
 | **STDLIB-CINTEROP-FN-009/042** | `kk_pinned_get` / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
-| **MIGRATION-ENC-001** (Base64) | `kk_base64_{encode,encodeToByteArray}_instance` / `kk_base64_withPadding_{default,mime,urlsafe}` | `RuntimeBase64.swift` |
 | **数値型変換** | `kk_byte_to_{char,uint,ulong}` / `kk_short_to_{char,uint,ulong}` | `RuntimeNumericCoercion.swift` |
 | **Char 演算** | `kk_char_fromCode` / `kk_char_minus` | `RuntimeChar.swift` |
 | **coroutine channel** | `kk_channel_is_closed_token` | `RuntimeCoroutineChannel.swift` |
