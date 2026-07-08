@@ -156,16 +156,12 @@ extension ABIMismatchTests {
     ]
 
     // MARK: UUID (kotlin.uuid)
-    private static let uuidStubLinkNames: Set<String> = [
-        "__kk_uuid_fromLongs",
-        "__kk_uuid_lexicalOrder",
-        "__kk_uuid_nameUUIDFromBytes",
-        "__kk_uuid_random",
-        "kk_byteArray_putUuid",
-        "kk_byteArray_uuid",
-        "kk_uuid_getUuid",
-        "kk_uuid_toKotlinUuid",
-    ]
+    // KSP-476: Uuid's remaining native bridges (__kk_uuid_random,
+    // __kk_uuid_fromLongs, __kk_uuid_nameUUIDFromBytes,
+    // __kk_uuid_lexicalOrder, __kk_uuid_toKotlinUuid) are declared via
+    // @KsSymbolName inside Stdlib/kotlin/uuid/Uuid.kt, not as synthetic Sema
+    // stubs, so none of them belong in this list anymore. ByteArray.getUuid/
+    // uuid/putUuid are pure Kotlin with no backing bridge at all.
 
     // MARK: Instant / Clock / time conversions
     private static let instantStubLinkNames: Set<String> = [
@@ -459,7 +455,6 @@ extension ABIMismatchTests {
         result.formUnion(stringRadixStubLinkNames)
         result.formUnion(charRadixStubLinkNames)
         result.formUnion(systemStubLinkNames)
-        result.formUnion(uuidStubLinkNames)
         result.formUnion(instantStubLinkNames)
         result.formUnion(durationStubLinkNames)
         result.formUnion(lazyStubLinkNames)

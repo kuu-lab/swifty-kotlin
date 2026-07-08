@@ -1216,7 +1216,7 @@ extension ABIMismatchTests {
         "__kk_uuid_lexicalOrder",
         "__kk_uuid_nameUUIDFromBytes",
         "__kk_uuid_random",
-        "kk_uuid_toKotlinUuid",
+        "__kk_uuid_toKotlinUuid",
         "kk_vararg_spread_concat",
         "kk_vetoable_create",
         "kk_vetoable_get_value",
