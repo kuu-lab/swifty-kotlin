@@ -139,7 +139,10 @@ public open class Base64 internal constructor(
             // operand of `or`: this compiler drops the right operand of
             // `or` when it was produced by a preceding function call
             // (`x or value` works, `value or x` does not, regardless of
-            // the self-referential `buffer` reassignment).
+            // the self-referential `buffer` reassignment). Tracked as
+            // DEBT-KIR-004 in TODO.md; do not "simplify" this back to
+            // `buffer = (buffer shl 6) or value` without that bug being
+            // fixed first.
             val shifted = buffer shl 6
             buffer = value or shifted
             bitsCollected += 6
