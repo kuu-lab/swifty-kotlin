@@ -31,6 +31,76 @@ extension DeclTypeChecker {
         )))
     }
 
+    /// Type-checks each parameter's default-value expression (if any) against its
+    /// declared type, visiting parameters in declaration order and revealing each
+    /// parameter symbol to `locals` only after its own default has been checked.
+    /// This mirrors the visibility that `CallSupportLowerer.generateDefaultStubFunction`
+    /// assumes when it lowers these same expressions: a default value may reference
+    /// the current or an earlier parameter, but not a later one.
+    ///
+    /// Without this, default-value expressions are never visited by Sema at all, so
+    /// `sema.bindings` (call bindings, expr types, ...) stay empty for them and KIR
+    /// lowering silently mis-resolves anything beyond a literal (constructor calls,
+    /// property reads, ...).
+    func typeCheckParameterDefaultValues(
+        _ valueParams: [ValueParamDecl],
+        signature: FunctionSignature,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        let sema = ctx.sema
+        var locals: LocalBindings = [:]
+        for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
+            guard let param = sema.symbols.symbol(paramSymbol) else { continue }
+            let type = localTypeForParameter(
+                at: index, signature: signature, sema: sema, interner: ctx.interner
+            )
+            if index < valueParams.count, let defaultExprID = valueParams[index].defaultValue {
+                let defaultType = driver.inferExpr(
+                    defaultExprID, ctx: ctx, locals: &locals, expectedType: type
+                )
+                driver.emitSubtypeConstraint(
+                    left: defaultType, right: type,
+                    range: ctx.ast.arena.exprRange(defaultExprID),
+                    solver: solver, sema: sema, diagnostics: diagnostics
+                )
+            }
+            locals[param.name] = (type, paramSymbol, false, true)
+        }
+    }
+
+    /// Type-checks primary constructor parameter default-value expressions.
+    /// Primary constructor parameters never go through `typeCheckSecondaryConstructors`
+    /// or a function body check, so without this call their defaults would never be
+    /// visited by Sema at all (see `typeCheckParameterDefaultValues`).
+    func typeCheckPrimaryConstructorDefaultValues(
+        _ classDecl: ClassDecl,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard classDecl.primaryConstructorParams.contains(where: { $0.defaultValue != nil }) else {
+            return
+        }
+        let sema = ctx.sema
+        let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap { sema.symbols.symbol($0) }
+            .first { $0.kind == .constructor }
+        guard let primaryCtorSymbol,
+              let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id)
+        else {
+            return
+        }
+        typeCheckParameterDefaultValues(
+            classDecl.primaryConstructorParams,
+            signature: signature,
+            ctx: ctx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+    }
+
     // MARK: - Init Block & Secondary Constructor Type Checking
 
     func typeCheckInitBlocks(
@@ -48,6 +118,8 @@ extension DeclTypeChecker {
     func typeCheckSecondaryConstructors(
         _ constructors: [ConstructorDecl],
         ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
         hasPrimaryConstructor: Bool = true
     ) {
@@ -84,6 +156,13 @@ extension DeclTypeChecker {
                         }
                     }
                     constructorCtx = ctx.copying(scope: constructorScope)
+                    typeCheckParameterDefaultValues(
+                        ctor.valueParams,
+                        signature: signature,
+                        ctx: constructorCtx,
+                        solver: solver,
+                        diagnostics: diagnostics
+                    )
                 }
             }
 
@@ -266,6 +345,14 @@ extension DeclTypeChecker {
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
         functionCtx.suppressPlatformReturnWarning = (function.returnType == nil)
+
+        typeCheckParameterDefaultValues(
+            function.valueParams,
+            signature: signature,
+            ctx: functionCtx,
+            solver: solver,
+            diagnostics: diagnostics
+        )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect
         // functions declare a contract only, while external functions lower to a
