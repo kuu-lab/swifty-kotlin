@@ -412,14 +412,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
         case ("withIndex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
-        case ("trimIndent", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimIndent_flat")
-        case ("trimMargin", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimMargin_default_flat")
-        case ("prependIndent", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_default_flat")
-        case ("replaceIndent", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_default_flat")
         case ("trim", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trim_flat")
         case ("trimStart", 0):
@@ -522,12 +514,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSuffix_flat")
         case ("removeSurrounding", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_flat")
-        case ("trimMargin", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimMargin_flat")
-        case ("prependIndent", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_flat")
-        case ("replaceIndent", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_flat")
         case ("trim", 1):
             return MemberRuntimeCallSpec(
                 runtimeLinkName: "kk_string_trim_predicate_flat",
@@ -565,8 +551,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
         case ("compareTo", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareToIgnoreCase_flat")
-        case ("replaceIndentByMargin", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndentByMargin_flat")
         case ("removeSurrounding", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_pair_flat")
         case ("removeRange", 2):
