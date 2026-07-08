@@ -893,7 +893,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, isDelegated, _):
             if let initializer {
                 let initializerID = lowerExpr(
                     initializer,
@@ -905,10 +905,31 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
-                    let declaredType = arena.exprType(initializerID)
+                    let initializerType = arena.exprType(initializerID)
+                    // Prefer the symbol's Sema-recorded declared type over the
+                    // initializer's own type: an explicit widening annotation
+                    // (e.g. `val x: Any = 42L`) records `Any` on the symbol while
+                    // the literal's own arena type stays `Long`. Falling back to
+                    // the initializer's type here would silently drop the
+                    // widening, leaving the local aliased to an unboxed literal
+                    // register.
+                    let declaredType = (isDelegated ? nil : sema.symbols.propertyType(for: symbol))
+                        ?? initializerType
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                    driver.ctx.setLocalValue(initializerID, for: symbol)
+                    // When the declared type differs from the initializer's own
+                    // type, route through a `.copy` into a freshly typed slot so
+                    // ABILoweringPass's existing copy-boxing logic (the same path
+                    // used for reassignment) inserts the box/unbox call. Skip for
+                    // delegated locals: `initializer` there is the delegate
+                    // factory call, not a value of the property's type.
+                    if !isDelegated, let initializerType, initializerType != declaredType {
+                        let localSlot = arena.appendTemporary(type: declaredType)
+                        instructions.append(.copy(from: initializerID, to: localSlot))
+                        driver.ctx.setLocalValue(localSlot, for: symbol)
+                    } else {
+                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                    }
                 }
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
