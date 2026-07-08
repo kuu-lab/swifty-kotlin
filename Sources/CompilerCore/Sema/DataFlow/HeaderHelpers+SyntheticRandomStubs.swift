@@ -1,8 +1,34 @@
 
-/// Synthetic stdlib stubs for kotlin.random.Random
-/// (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655).
-/// Registers the Random object, seeded constructor-style factory, and
-/// nextInt/nextLong/nextFloat/nextDouble/nextBoolean/nextBytes methods.
+/// Synthetic stdlib compat stubs for kotlin.random.Random (KSP-466).
+///
+/// The core Random API (nextInt/nextLong/nextFloat/nextDouble/nextBoolean/nextBits/
+/// nextBytes, the Default companion, and the Random(seed) factories) now lives in
+/// real Kotlin source (Sources/CompilerCore/Stdlib/kotlin/random/{Random,XorWowRandom,
+/// URandom}.kt). This file only registers the surface that is *not yet* migrated:
+///
+/// - `Random` itself is registered here only as a bare `.class`-kind placeholder
+///   symbol (matching the `Uuid` pattern in HeaderHelpers+SyntheticUuidStubs.swift):
+///   the bundled Kotlin source's `abstract class Random` declaration reuses this
+///   same symbol (matching kind avoids "duplicate declaration") once header
+///   collection processes it, and this placeholder just needs to exist early
+///   enough for the "Collections" bucket's `List.shuffled(random: Random)`
+///   registration (which runs in the same pre-bundled pass) to resolve the type.
+/// - Likewise, `java.util.Random` is registered here as a bare placeholder for
+///   the same reason: `kotlin.random.asKotlinRandom()`'s receiver type is
+///   `java.util.Random`, and that file (JavaRandomInterop.kt) sorts before
+///   JavaUtilRandom.kt in bundled-source dictionary order, so without an early
+///   placeholder the receiver type would not resolve yet when that file's
+///   header is collected.
+/// - `nextInt(IntRange)` / `nextLong(LongRange)` range-object variants (KSP-457)
+/// - `nextUInt(UIntRange)` / `nextULong(ULongRange)` range-object variants (KSP-457)
+/// - `SecureRandom` (KSP-467)
+///
+/// `asKotlinRandom` / `asJavaRandom` / `java.util.Random`'s own members are NOT
+/// registered here: they are real Kotlin source (Sources/CompilerCore/Stdlib/
+/// kotlin/random/JavaUtilRandom.kt, JavaRandomInterop.kt) — see that file's
+/// header comment for why a native pointer-passthrough shim is no longer safe
+/// now that kotlin.random.Random is a genuine compiled object instead of a
+/// SeededRandomBox.
 extension DataFlowSemaPhase {
     func registerSyntheticRandomStubs(
         symbols: SymbolTable,
@@ -14,7 +40,10 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        let randomSymbol = ensureSyntheticObjectSymbol(
+        // Bare placeholder: kind must match the real `abstract class Random`
+        // declared in bundled Kotlin source so header collection can enrich this
+        // same symbol with real members instead of erroring on redeclaration.
+        let randomSymbol = ensureClassSymbol(
             named: "Random",
             in: kotlinRandomPkg,
             symbols: symbols,
@@ -27,296 +56,27 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        symbols.setPropertyType(randomType, for: randomSymbol)
-
-        registerSyntheticRandomAsKotlinRandom(
-            packageFQName: kotlinRandomPkg,
-            returnType: randomType,
+        // Bare placeholder for java.util.Random; see the file header comment above.
+        let javaUtilPkg = ensurePackage(
+            path: ["java", "util"],
             symbols: symbols,
-            types: types,
             interner: interner
         )
-
-        registerSyntheticRandomAsJavaRandom(
-            packageFQName: kotlinRandomPkg,
-            receiverType: randomType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerSyntheticRandomProperty(
-            ownerSymbol: randomSymbol,
-            name: "Default",
-            externalLinkName: "kk_random_default",
-            propertyType: randomType,
+        _ = ensureClassSymbol(
+            named: "Random",
+            in: javaUtilPkg,
             symbols: symbols,
             interner: interner
         )
 
         let intType = types.intType
         let longType = types.longType
-        let floatType = types.floatType
-        let doubleType = types.doubleType
-        let booleanType = types.booleanType
         let ulongType = types.ulongType
         let uintType = types.uintType
         let ulongRangeType = makeRangeType(
             named: "ULongRange",
             symbols: symbols,
             types: types,
-            interner: interner
-        )
-
-        // Random(seed: Int) constructor (STDLIB-516)
-        // In Kotlin, Random(seed) is a top-level factory function, but from
-        // the user perspective it looks like a constructor call.  We register
-        // it as a constructor on the Random symbol so that the call resolver
-        // can find it when the user writes `Random(42)`.
-        registerSyntheticRandomConstructor(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            externalLinkName: "kk_random_create_seeded",
-            parameters: [(name: "seed", type: intType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomConstructor(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            externalLinkName: "kk_random_create_seeded",
-            parameters: [(name: "seed", type: longType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // nextBoolean / nextInt / nextLong / nextFloat / nextDouble are registered
-        // at package level so collectMemberFunctionCandidates returns empty and
-        // the scope-based fallback (syntheticExtStubs) resolves all variants.
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextBoolean",
-            externalLinkName: "kk_random_nextBoolean",
-            receiverType: randomType,
-            returnType: booleanType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt",
-            receiverType: randomType,
-            returnType: intType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt_until",
-            receiverType: randomType,
-            returnType: intType,
-            parameters: [(name: "until", type: intType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt_range",
-            receiverType: randomType,
-            returnType: intType,
-            parameters: [
-                (name: "from", type: intType),
-                (name: "until", type: intType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong",
-            receiverType: randomType,
-            returnType: longType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong_until",
-            receiverType: randomType,
-            returnType: longType,
-            parameters: [(name: "until", type: longType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong_range",
-            receiverType: randomType,
-            returnType: longType,
-            parameters: [
-                (name: "from", type: longType),
-                (name: "until", type: longType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat",
-            receiverType: randomType,
-            returnType: floatType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat_until",
-            receiverType: randomType,
-            returnType: floatType,
-            parameters: [(name: "until", type: floatType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat_range",
-            receiverType: randomType,
-            returnType: floatType,
-            parameters: [
-                (name: "from", type: floatType),
-                (name: "until", type: floatType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble",
-            receiverType: randomType,
-            returnType: doubleType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble_until",
-            receiverType: randomType,
-            returnType: doubleType,
-            parameters: [(name: "until", type: doubleType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble_range",
-            receiverType: randomType,
-            returnType: doubleType,
-            parameters: [
-                (name: "from", type: doubleType),
-                (name: "until", type: doubleType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextULong",
-            externalLinkName: "kk_random_nextULong",
-            returnType: ulongType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUInt",
-            externalLinkName: "kk_random_nextUInt",
-            returnType: uintType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextULong",
-            externalLinkName: "kk_random_nextULong_until",
-            returnType: ulongType,
-            parameters: [(name: "until", type: ulongType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUInt",
-            externalLinkName: "kk_random_nextUInt_until",
-            returnType: uintType,
-            parameters: [(name: "until", type: uintType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextULong",
-            externalLinkName: "kk_random_nextULong_range",
-            returnType: ulongType,
-            parameters: [
-                (name: "from", type: ulongType),
-                (name: "until", type: ulongType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUInt",
-            externalLinkName: "kk_random_nextUInt_range",
-            returnType: uintType,
-            parameters: [
-                (name: "from", type: uintType),
-                (name: "until", type: uintType),
-            ],
-            canThrow: true,
-            symbols: symbols,
             interner: interner
         )
 
@@ -347,15 +107,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // nextInt(IntRange) and nextLong(LongRange): LongRange.first/last expose raw
-        // integers in the Swift ABI (not boxed LongBox), so these require Swift runtime
-        // implementations.  Registered at package level for consistency with the other
-        // nextInt / nextLong variants; found via syntheticExtStubs in the scope fallback.
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
+        // nextInt(IntRange) and nextLong(LongRange): kept as native bridges (KSP-457
+        // scope). Registered as MEMBERS (not package-level extensions): now that
+        // Random.kt provides real member overloads for nextInt/nextLong, this
+        // compiler's overload resolution stops considering package-level
+        // extensions of the same name at all (confirmed: member candidates
+        // short-circuit the extension-scope fallback once any exist), so a
+        // same-named package-level extension here would be unreachable from user
+        // code even though the symbol itself is registered.
+        registerSyntheticRandomMember(
+            ownerSymbol: randomSymbol,
+            ownerType: randomType,
             name: "nextInt",
             externalLinkName: "kk_random_nextInt_rangeObject",
-            receiverType: randomType,
             returnType: intType,
             parameters: [(
                 name: "range",
@@ -366,11 +130,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
+        registerSyntheticRandomMember(
+            ownerSymbol: randomSymbol,
+            ownerType: randomType,
             name: "nextLong",
             externalLinkName: "kk_random_nextLong_rangeObject",
-            receiverType: randomType,
             returnType: longType,
             parameters: [(
                 name: "range",
@@ -385,99 +149,6 @@ extension DataFlowSemaPhase {
         let byteArrayType = makeListIntType(
             symbols: symbols,
             types: types,
-            interner: interner
-        )
-
-        let uByteArrayType = makePrimitiveArrayType(
-            named: "UByteArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUBytes",
-            externalLinkName: "kk_random_nextUBytes_size",
-            returnType: uByteArrayType,
-            parameters: [(name: "size", type: intType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUBytes",
-            externalLinkName: "kk_random_nextUBytes",
-            returnType: uByteArrayType,
-            parameters: [(name: "array", type: uByteArrayType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextUBytes",
-            externalLinkName: "kk_random_nextUBytes_range",
-            returnType: uByteArrayType,
-            parameters: [
-                (name: "array", type: uByteArrayType),
-                (name: "fromIndex", type: intType),
-                (name: "toIndex", type: intType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // nextBytes variants registered at package level for uniform scope-fallback resolution.
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextBytes",
-            externalLinkName: "kk_random_nextBytes_size",
-            receiverType: randomType,
-            returnType: byteArrayType,
-            parameters: [(name: "size", type: intType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextBytes",
-            externalLinkName: "kk_random_nextBytes",
-            receiverType: randomType,
-            returnType: byteArrayType,
-            parameters: [(name: "array", type: byteArrayType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticRandomPackageLevelExtension(
-            packageFQName: kotlinRandomPkg,
-            name: "nextBytes",
-            externalLinkName: "kk_random_nextBytes_range",
-            receiverType: randomType,
-            returnType: byteArrayType,
-            parameters: [
-                (name: "array", type: byteArrayType),
-                (name: "fromIndex", type: intType),
-                (name: "toIndex", type: intType),
-            ],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextBits",
-            externalLinkName: "kk_random_nextBits",
-            returnType: intType,
-            parameters: [(name: "bitCount", type: intType)],
-            canThrow: true,
-            symbols: symbols,
             interner: interner
         )
 
@@ -635,324 +306,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerSyntheticRandomAsKotlinRandom(
-        packageFQName: [InternedString],
-        returnType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let javaRandomType = ensureSyntheticJavaRandomType(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerSyntheticRandomExtensionFunction(
-            packageFQName: packageFQName,
-            name: "asKotlinRandom",
-            externalLinkName: "kk_random_asKotlinRandom",
-            receiverType: javaRandomType,
-            returnType: returnType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerSyntheticRandomAsJavaRandom(
-        packageFQName: [InternedString],
-        receiverType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let javaRandomType = ensureSyntheticJavaRandomType(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerSyntheticRandomExtensionFunction(
-            packageFQName: packageFQName,
-            name: "asJavaRandom",
-            externalLinkName: "kk_random_asJavaRandom",
-            receiverType: receiverType,
-            returnType: javaRandomType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func ensureSyntheticJavaRandomType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let javaUtilPkg = ensurePackage(
-            path: ["java", "util"],
-            symbols: symbols,
-            interner: interner
-        )
-        let javaRandomSymbol = ensureClassSymbol(
-            named: "Random",
-            in: javaUtilPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let packageSymbol = symbols.lookup(fqName: javaUtilPkg) {
-            symbols.setParentSymbol(packageSymbol, for: javaRandomSymbol)
-        }
-
-        let javaRandomType = types.make(.classType(ClassType(
-            classSymbol: javaRandomSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(javaRandomType, for: javaRandomSymbol)
-
-        registerSyntheticJavaRandomConstructor(
-            ownerSymbol: javaRandomSymbol,
-            ownerType: javaRandomType,
-            externalLinkName: "kk_random_create_seeded",
-            parameters: [(name: "seed", type: types.intType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticJavaRandomConstructor(
-            ownerSymbol: javaRandomSymbol,
-            ownerType: javaRandomType,
-            externalLinkName: "kk_random_create_seeded",
-            parameters: [(name: "seed", type: types.longType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        return javaRandomType
-    }
-
-    private func registerSyntheticJavaRandomConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        externalLinkName: String,
-        parameters: [(name: String, type: TypeID)],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let initFQName = ownerInfo.fqName + [initName]
-        if let existing = symbols.lookupAll(fqName: initFQName).first(where: { symbolID in
-            symbols.functionSignature(for: symbolID)?.parameterTypes == parameters.map(\.type)
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let constructorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: initFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: nil,
-                parameterTypes: parameters.map(\.type),
-                returnType: ownerType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count)
-            ),
-            for: constructorSymbol
-        )
-    }
-
-    private func registerSyntheticRandomExtensionFunction(
-        packageFQName: [InternedString],
-        name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        returnType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == returnType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: []
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerSyntheticRandomPackageLevelExtension(
-        packageFQName: [InternedString],
-        name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        returnType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        canThrow: Bool = false,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        let paramTypes = parameters.map(\.type)
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-            return sig.receiverType == receiverType
-                && sig.parameterTypes == paramTypes
-                && sig.returnType == returnType
-        }) {
-            return
-        }
-        var flags: SymbolFlags = [.synthetic]
-        if canThrow { flags.insert(.throwingFunction) }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: paramTypes,
-                returnType: returnType,
-                isSuspend: false,
-                canThrow: canThrow,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count)
-            ),
-            for: functionSymbol
-        )
-    }
-
-    /// Registers a constructor on the Random symbol (STDLIB-516).
-    private func registerSyntheticRandomConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        externalLinkName: String,
-        parameters: [(name: String, type: TypeID)],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerInfo.fqName + [initName]
-        let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == parameters.map(\.type)
-        }
-        guard !hasMatchingConstructor else {
-            return
-        }
-
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: ctorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: ctorSymbol
-        )
-    }
-
     private func registerSyntheticRandomMember(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -1019,52 +372,6 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    private func registerSyntheticRandomProperty(
-        ownerSymbol: SymbolID,
-        name: String,
-        externalLinkName: String,
-        propertyType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        let propertySymbol = symbols.lookup(fqName: propertyFQName) ?? symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(propertyType, for: propertySymbol)
-    }
-
-    private func makePrimitiveArrayType(
-        named name: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let symbol = ensureClassSymbol(
-            named: name,
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
     }
 
     private func makeRangeType(

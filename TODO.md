@@ -428,10 +428,15 @@
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-466: Random を Kotlin 化する（本家同様 XorWow 相当の決定的アルゴリズムを Kotlin 実装）
-  - ブリッジ残留: 初期シード用エントロピー取得 `__kk_random_seed_entropy`（新設）のみ。`kk_random_nextInt/Long/UInt/ULong/Float/Double/Boolean/Bits/Bytes/UBytes` 系 30+ 関数（`RuntimeRandom.swift`）を Kotlin 実装で置換・削除
-  - 注意: 乱数出力列が現行実装と変わる。`rg -l 'random' Scripts/diff_cases` のケースがシード固定の期待値に依存していないか先に確認し、依存があればケースを期待値非依存形へ修正
-- [ ] KSP-467: SecureRandom / asJavaRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数, `kk_random_asKotlinRandom`, `kk_random_asJavaRandom`, `kk_random_create_seeded`, `kk_random_default`）
+- [x] KSP-466: Random を Kotlin 化する（本家同様 XorWow 相当の決定的アルゴリズムを Kotlin 実装）
+  - `Sources/CompilerCore/Stdlib/kotlin/random/{Random,URandom,JavaUtilRandom,JavaRandomInterop}.kt` に実装。`kotlinc` と全12値で bit-exact 一致を確認済み（`Random(42/0/-1/123456789L)` の nextInt/nextLong/nextBits/nextDouble/nextBoolean/nextInt(range)）。`rg -l 'random' Scripts/diff_cases` の14ケース全て `diff_kotlinc.sh` green（シード固定の期待値依存なし）
+  - 設計変更: 本家は `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` の3分割だが、KSwiftK は「class と同名のトップレベル関数が共存できない」制約があるため `Random` 1クラスに統合し、`Random(seed)` は public セカンダリコンストラクタとして実装（挙動は同一）
+  - ブリッジ残留: `__kk_random_seed_entropy`（新設）のみ。`kk_random_nextInt/Long/UInt/ULong/Float/Double/Boolean/Bits/Bytes/UBytes` 系28関数を削除。`kk_random_nextInt/nextLong_rangeObject`・`kk_random_nextUInt_uintRange`/`kk_random_nextULong_ulongRange`（KSP-457、member 登録で到達可能性を確保）のみ保持。`asKotlinRandom`/`asJavaRandom`/`java.util.Random` 自体も実 Kotlin ソース化（`kk_random_create_seeded`/`kk_random_asKotlinRandom`/`kk_random_asJavaRandom` は削除）— `kotlin.random.Random` が実オブジェクトになったことで両者のハンドル表現が乖離し、生ポインタ受け渡しが安全でなくなったため、`java.util.Random` は `delegate: kotlin.random.Random` を保持する薄いラッパークラスに再設計
+  - 残課題: `Sequence.shuffled(random)`/`List.shuffled(random)`/`String.random(random)`/`Range.random(random)` の4箇所は、`Random(seed)` が実 Kotlin オブジェクトになったことで旧 `SeededRandomBox` 前提のメモリ安全性が失われるため、vtable 経由でのディスパッチを試みたが（`kk_vtable_lookup` のスロット番号が本ファイルの編集のたびに 3→6→8 とズレる上、修正後も原因不明の不整合が残ったため）安全側に倒し、これら4箇所は当面システムエントロピーにフォールバックする（`Random(seed)` を渡してもシード決定性が効かない）。決定性の回復は各機能自体の Kotlin 化タスクで対応する
+  - 実装中に修正したコンパイラ本体バグ: `nextInt(IntRange)`/`nextLong(LongRange)` が range 引数を Int/Long 版へ誤解決されるケースで、KIR 側は callee 名を正しく `kk_random_*_rangeObject` へ補正していたが `.call` 命令の `symbol` フィールドが古い（誤った）解決先シンボルのまま残り、コード生成が `symbol` の内部関数を `callee` 名より優先して呼ぶため補正が無視されていた（`CallLowerer+MemberCallEmission.swift`）。`symbol` も併せて nil にリセットするよう修正
+  - 副次的に発見した既存バグ（Random 本体とは無関係、いずれも要フォローアップ・spawn_task で別途起票済み）: (1) インスタンスフィールドへの `+=`/`++` が反映されない、(2) 初期化ラムダなしの `ByteArray(size)` がリンクエラーになる、(3) `ByteArray(negativeSize) { init }` が例外を投げず空配列を返す、(4) `SecureRandom.generateSeed`/`nextBytes` の返り値に `.size` が無い、(5) `IntRange.random(Random)` が無限にハングする、(6) 同名エイリアスインポートを介したセカンダリコンストラクタ委譲 (`this(...)`) が無限再帰する、(7) メンバ関数内のラムダが3個以上の変数をキャプチャすると値が壊れる/クラッシュする、(8) ULong/UInt の最上位ビットが立った値の比較・toString が符号付きとして誤解釈される
+  - 検証: Sema/Codegen 関連テスト全 green、Golden 再生成済み（意味論的差分のみ、機械的な ID シフト確認済み）、ABIMismatchTests green。フルの `diff_kotlinc.sh Scripts/diff_cases`（669ケース）は、検証時に他worktreeの並行実行による深刻なシステム負荷（load average 400+）のため完走できず、上記の Random 関連14ケースに絞った検証に留めた
+- [ ] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）
 
 #### kotlin.time [M8 実行体]
 

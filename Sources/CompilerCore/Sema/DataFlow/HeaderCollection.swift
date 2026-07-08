@@ -952,6 +952,10 @@ extension DataFlowSemaPhase {
             return ["kotlin", "Result"].map { interner.intern($0) }
         case "__bundled_kotlin/uuid/Uuid.kt":
             return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        case "__bundled_kotlin/random/Random.kt":
+            return ["kotlin", "random", "Random"].map { interner.intern($0) }
+        case "__bundled_kotlin/random/JavaUtilRandom.kt":
+            return ["java", "util", "Random"].map { interner.intern($0) }
         default:
             return nil
         }

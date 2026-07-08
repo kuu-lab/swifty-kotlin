@@ -2125,7 +2125,7 @@ public func kk_list_shuffled_random(_ listRaw: Int, _ randomRaw: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
     for i in stride(from: elements.count - 1, through: 1, by: -1) {
-        let j = kk_random_nextInt_until(randomRaw, i + 1, nil)
+        let j = runtimeRandomNextIntBelow(randomRaw, i + 1)
         elements.swapAt(i, j)
     }
     return registerRuntimeObject(RuntimeListBox(elements: elements))
