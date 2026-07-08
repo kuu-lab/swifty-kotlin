@@ -10,11 +10,16 @@ import kotlin.internal.KsSymbolName
 
 private const val STANDARD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 private const val URL_SAFE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+// RFC 2045 (MIME) wraps at 76 chars; RFC 1421 (PEM) wraps at 64. Real Kotlin
+// keeps these distinct (`lineLengthMime`/`lineLengthPem`) even though both
+// otherwise share the standard alphabet.
 private const val MIME_LINE_LENGTH = 76
+private const val PEM_LINE_LENGTH = 64
 
 public open class Base64 internal constructor(
     internal val alphabetChars: String,
-    private val wrapLines: Boolean
+    // 0 means "do not wrap"; a positive value is the line-wrap width.
+    private val lineLength: Int
 ) {
     internal var padding: PaddingOption = PaddingOption.PRESENT
 
@@ -26,18 +31,18 @@ public open class Base64 internal constructor(
     }
 
     public open fun withPadding(option: PaddingOption): Base64 {
-        val copy = Base64(alphabetChars, wrapLines)
+        val copy = Base64(alphabetChars, lineLength)
         copy.padding = option
         return copy
     }
 
     public open fun encode(source: ByteArray): String {
         val raw = encodeRaw(source)
-        return if (wrapLines) wrapAtLineLength(raw) else raw
+        return if (lineLength > 0) wrapAtLineLength(raw) else raw
     }
 
     public open fun decode(source: String): ByteArray {
-        val sanitized = if (wrapLines) filterToAlphabet(source) else source
+        val sanitized = if (lineLength > 0) filterToAlphabet(source) else source
         return decodeRaw(sanitized)
     }
 
@@ -79,11 +84,11 @@ public open class Base64 internal constructor(
     }
 
     private fun wrapAtLineLength(raw: String): String {
-        if (raw.length <= MIME_LINE_LENGTH) return raw
+        if (raw.length <= lineLength) return raw
         val sb = StringBuilder()
         var index = 0
         while (index < raw.length) {
-            val end = if (index + MIME_LINE_LENGTH < raw.length) index + MIME_LINE_LENGTH else raw.length
+            val end = if (index + lineLength < raw.length) index + lineLength else raw.length
             if (index != 0) sb.append("\r\n")
             sb.append(raw.substring(index, end))
             index = end
@@ -156,10 +161,10 @@ public open class Base64 internal constructor(
     }
 
     public companion object {
-        public val Default: Base64 = Base64(STANDARD_ALPHABET, false)
-        public val UrlSafe: Base64 = Base64(URL_SAFE_ALPHABET, false)
-        public val Mime: Base64 = Base64(STANDARD_ALPHABET, true)
-        public val Pem: Base64 = Base64(STANDARD_ALPHABET, true)
+        public val Default: Base64 = Base64(STANDARD_ALPHABET, 0)
+        public val UrlSafe: Base64 = Base64(URL_SAFE_ALPHABET, 0)
+        public val Mime: Base64 = Base64(STANDARD_ALPHABET, MIME_LINE_LENGTH)
+        public val Pem: Base64 = Base64(STANDARD_ALPHABET, PEM_LINE_LENGTH)
     }
 }
 

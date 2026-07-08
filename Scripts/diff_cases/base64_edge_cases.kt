@@ -24,4 +24,14 @@ fun main() {
     println(Base64.Default.encode(urlSafeNoPad.decode("4KC-IQ==")))
     val mimeNoPad = Base64.Mime.withPadding(Base64.PaddingOption.ABSENT)
     println(mimeNoPad.encode(foob))
+
+    // Mime wraps at 76 chars (RFC 2045), Pem at 64 (RFC 1421) -- distinct
+    // line lengths despite sharing the standard alphabet.
+    val longBytes = ByteArray(60) { 0x41 }
+    for (line in Base64.Mime.encode(longBytes).split("\r\n")) {
+        println(line.length)
+    }
+    for (line in Base64.Pem.encode(longBytes).split("\r\n")) {
+        println(line.length)
+    }
 }
