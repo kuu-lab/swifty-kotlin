@@ -1090,6 +1090,7 @@ public final class BindingTable {
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
@@ -1185,6 +1186,13 @@ public final class BindingTable {
 
     public func bindCastTargetType(_ expr: ExprID, type: TypeID) {
         castTargetTypes[expr] = type
+    }
+
+    /// STDLIB-REFLECT-065: Records the reified `T` argument of a
+    /// `KClass<*>.findAnnotation<T>()` call so KIR lowering can compute the
+    /// runtime search name (see `RuntimeReflection.kk_kclass_find_annotation`).
+    public func bindFindAnnotationSearchType(_ expr: ExprID, type: TypeID) {
+        findAnnotationSearchTypes[expr] = type
     }
 
     public func bindCatchClause(_ catchBodyExpr: ExprID, binding: CatchClauseBinding) {
@@ -1373,6 +1381,10 @@ public final class BindingTable {
 
     public func castTargetType(for expr: ExprID) -> TypeID? {
         castTargetTypes[expr]
+    }
+
+    public func findAnnotationSearchType(for expr: ExprID) -> TypeID? {
+        findAnnotationSearchTypes[expr]
     }
 
     public func catchClauseBinding(for catchBodyExpr: ExprID) -> CatchClauseBinding? {
