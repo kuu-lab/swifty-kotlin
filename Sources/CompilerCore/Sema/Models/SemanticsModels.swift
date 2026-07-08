@@ -485,16 +485,20 @@ public final class SymbolTable {
         fqName: [InternedString],
         declSite: SourceRange?,
         visibility: Visibility,
-        flags: SymbolFlags = []
+        flags: SymbolFlags = [],
+        isExtensionProperty: Bool = false
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
 
         if let existing = byFQName[fqName], !existing.isEmpty {
             let existingSymbols = existing.compactMap { symbol($0) }
-            let existingKinds = existingSymbols.map(\.kind)
 
-            let shouldCoexist = canCoexistAsOverload(kind: kind, existingKinds: existingKinds)
+            let shouldCoexist = canCoexistAsOverload(
+                kind: kind,
+                existingSymbols: existingSymbols,
+                isExtensionProperty: isExtensionProperty
+            )
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
             if shouldCoexist {
@@ -551,7 +555,11 @@ public final class SymbolTable {
         return id
     }
 
-    private func canCoexistAsOverload(kind: SymbolKind, existingKinds: [SymbolKind]) -> Bool {
+    private func canCoexistAsOverload(
+        kind: SymbolKind,
+        existingSymbols: [SemanticSymbol],
+        isExtensionProperty: Bool = false
+    ) -> Bool {
         func isCallableLike(_ kind: SymbolKind) -> Bool {
             switch kind {
             case .function, .constructor:
@@ -563,11 +571,25 @@ public final class SymbolTable {
         if kind == .package {
             return true
         }
-        let existingNonPackageKinds = existingKinds.filter { $0 != .package }
-        if existingNonPackageKinds.isEmpty {
+        let existingNonPackage = existingSymbols.filter { $0.kind != .package }
+        if existingNonPackage.isEmpty {
             return true
         }
+        let existingNonPackageKinds = existingNonPackage.map(\.kind)
         if kind == .property {
+            if isExtensionProperty {
+                // Extension properties are disambiguated by receiver type at
+                // call sites, the same way overloaded extension functions
+                // are (e.g. `val Int.seconds` and `val Long.seconds`), so two
+                // extension properties sharing a short name may coexist as
+                // separate symbols. A non-extension property at the same FQ
+                // name is still a genuine clash: it has no receiver to
+                // disambiguate by.
+                return existingNonPackage.allSatisfy { existing in
+                    isCallableLike(existing.kind)
+                        || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
+                }
+            }
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
                 && !existingNonPackageKinds.contains(.property)
         }
