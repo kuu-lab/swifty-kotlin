@@ -111,9 +111,9 @@ private fun fileResolveSiblingPath(base: String, sibling: String): String {
     return if (parent.isEmpty()) "/$sibling" else "$parent/$sibling"
 }
 
-public fun File.resolveSibling(sibling: File): File = File(fileResolveSiblingPath(path, sibling.path))
+public fun File.resolveSibling(relative: File): File = File(fileResolveSiblingPath(path, relative.path))
 
-public fun File.resolveSibling(sibling: String): File = File(fileResolveSiblingPath(path, sibling))
+public fun File.resolveSibling(relative: String): File = File(fileResolveSiblingPath(path, relative))
 
 private fun filePathRootAndSegments(path: String): Pair<String, List<String>> {
     if (path.isEmpty()) return Pair("", emptyList())
