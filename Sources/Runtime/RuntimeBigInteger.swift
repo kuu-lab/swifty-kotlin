@@ -708,8 +708,8 @@ public func kk_biginteger_fromString(_ strRaw: Int, _ outThrown: UnsafeMutablePo
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_biginteger_fromString received invalid string handle")
     }
     guard let value = runtimeParseBigIntegerDecimalString(str) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NumberFormatException: For input string: \"\(str)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(str)\""
         )
         return 0
     }
@@ -767,7 +767,7 @@ public func kk_biginteger_divide(_ selfRaw: Int, _ otherRaw: Int, _ outThrown: U
         return kk_biginteger_valueOf(0)
     }
     if otherBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: / by zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
         return 0
     }
     let result = selfBox.value.divide(otherBox.value)
@@ -804,7 +804,7 @@ public func kk_biginteger_abs(_ selfRaw: Int) -> Int {
 public func kk_biginteger_pow(_ selfRaw: Int, _ exponent: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if exponent < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Negative exponent")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Negative exponent")
         return 0
     }
     guard let selfBox = runtimeBigIntegerBox(from: selfRaw) else {
@@ -897,7 +897,7 @@ public func kk_biginteger_modInverse(_ selfRaw: Int, _ modulusRaw: Int, _ outThr
         return kk_biginteger_valueOf(0)
     }
     if modulusBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Modulus must be non-zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Modulus must be non-zero")
         return 0
     }
 
@@ -909,7 +909,7 @@ public func kk_biginteger_modInverse(_ selfRaw: Int, _ modulusRaw: Int, _ outThr
         outThrown?.pointee = runtimeAllocateThrowable(message: errorMessage)
         return 0
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: BigInteger has no modular inverse")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "BigInteger has no modular inverse")
         return 0
     }
 }
@@ -926,7 +926,7 @@ public func kk_biginteger_modPow(_ selfRaw: Int, _ exponentRaw: Int, _ modulusRa
         return kk_biginteger_valueOf(0)
     }
     if modulusBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Modulus must be non-zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Modulus must be non-zero")
         return 0
     }
 
