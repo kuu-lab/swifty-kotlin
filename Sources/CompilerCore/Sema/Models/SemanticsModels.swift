@@ -1538,6 +1538,16 @@ public final class SemaModule {
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
     public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// KSP-499 Stage 3: the bundled/user declaration index built once per
+    /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
+    /// in the transient `BundledSyntheticStubRegistration` thread-local, which
+    /// is cleared once header registration finishes — so later phases (body
+    /// type-checking, KIR lowering) can still ask "does a real declaration
+    /// exist for this (owner, name, arity)?" before applying a hard-coded
+    /// compiler intrinsic special-case (e.g. the Flow operator dispatch in
+    /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
+    /// CallLowerer+MemberCalls.swift).
+    var bundledIndex: BundledDeclarationIndex
 
     public init(
         symbols: SymbolTable,
@@ -1551,5 +1561,27 @@ public final class SemaModule {
         self.bindings = bindings
         self.diagnostics = diagnostics
         self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = .empty
+    }
+
+    /// Module-internal overload that also accepts the bundled declaration
+    /// index at construction time (see `bundledIndex` above). Not `public`
+    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
+    /// callers outside the module get the public initializer above, which
+    /// defaults `bundledIndex` to `.empty`.
+    init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = bundledIndex
     }
 }
