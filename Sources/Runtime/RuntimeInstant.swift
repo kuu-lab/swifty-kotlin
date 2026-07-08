@@ -271,26 +271,3 @@ public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     let durationBox = RuntimeDurationBox(nanoseconds: totalNs)
     return registerRuntimeObject(durationBox)
 }
-
-// MARK: - elapsed() — Duration from Instant to now
-
-/// Returns the Duration from this Instant until the current wall-clock time.
-///
-/// Kotlin: instant.elapsed()
-@_cdecl("kk_instant_elapsed")
-public func kk_instant_elapsed(_ instantRaw: Int) -> Int {
-    guard let instantBox = runtimeInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_elapsed received invalid Instant handle")
-    }
-    let now = Date()
-    let interval = now.timeIntervalSince1970
-    let nowEpochSec = Int64(interval)
-    let nowFracSec = interval - Double(nowEpochSec)
-    let nowNano = Int32(nowFracSec * 1_000_000_000)
-    let nowBox = RuntimeInstantBox(epochSeconds: nowEpochSec, nanoOfSecond: nowNano)
-    let secDiff = saturatingAdd(nowBox.epochSeconds, -instantBox.epochSeconds)
-    let nanoDiff = Int64(nowBox.nanoOfSecond) - Int64(instantBox.nanoOfSecond)
-    let secNs = saturatingMultiply(secDiff, 1_000_000_000)
-    let totalNs = saturatingAdd(secNs, nanoDiff)
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: totalNs))
-}
