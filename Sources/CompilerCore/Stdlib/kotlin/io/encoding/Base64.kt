@@ -16,7 +16,7 @@ public open class Base64 internal constructor(
     internal val alphabetChars: String,
     private val wrapLines: Boolean
 ) {
-    private var padding: PaddingOption = PaddingOption.PRESENT
+    internal var padding: PaddingOption = PaddingOption.PRESENT
 
     public enum class PaddingOption {
         PRESENT,
@@ -168,4 +168,8 @@ private external fun __outputStreamEncodingWith(
 ): java.io.OutputStream
 
 public fun java.io.OutputStream.encodingWith(base64: Base64): java.io.OutputStream =
-    __outputStreamEncodingWith(this, base64.alphabetChars, base64.alphabetChars != URL_SAFE_ALPHABET)
+    __outputStreamEncodingWith(
+        this,
+        base64.alphabetChars,
+        base64.padding == Base64.PaddingOption.PRESENT || base64.padding == Base64.PaddingOption.PRESENT_OPTIONAL
+    )
