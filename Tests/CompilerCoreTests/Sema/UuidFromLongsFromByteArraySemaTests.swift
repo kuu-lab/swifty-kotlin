@@ -2,10 +2,10 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-UUID-ABI-001/002: Uuid.fromLongs and Uuid.fromByteArray sema stubs
+// MARK: - STDLIB-UUID-ABI-001/002: Uuid.fromLongs and Uuid.fromByteArray source declarations
 //
 // Verifies that fromLongs(msb, lsb) and fromByteArray(byteArray) companion factory
-// methods are registered with the correct ABI external-link names.
+// methods are sourced from Stdlib/kotlin/uuid/Uuid.kt without pure runtime links.
 
 @Suite
 struct UuidFromLongsFromByteArraySemaTests {
@@ -48,8 +48,8 @@ struct UuidFromLongsFromByteArraySemaTests {
             interner: interner
         )
         #expect(
-            links.contains("kk_uuid_fromLongs"),
-            "Uuid.fromLongs() must link to kk_uuid_fromLongs; found: \(links)"
+            links.isEmpty,
+            "Uuid.fromLongs() must be Kotlin source-backed, not linked to kk_uuid_fromLongs; found: \(links)"
         )
     }
 
@@ -101,8 +101,8 @@ struct UuidFromLongsFromByteArraySemaTests {
             interner: interner
         )
         #expect(
-            links.contains("kk_uuid_fromByteArray"),
-            "Uuid.fromByteArray() must link to kk_uuid_fromByteArray; found: \(links)"
+            links.isEmpty,
+            "Uuid.fromByteArray() must be Kotlin source-backed, not linked to kk_uuid_fromByteArray; found: \(links)"
         )
     }
 
@@ -141,16 +141,12 @@ struct UuidFromLongsFromByteArraySemaTests {
         }
     }
 
-    // MARK: - Full companion link surface
+    // MARK: - Full companion source surface
 
     @Test
-    func testAllNewCompanionLinksArePresent() throws {
+    func testMigratedCompanionFactoriesHaveNoPureRuntimeLinks() throws {
         let (sema, interner) = try makeSema()
         let companionFQ = ["kotlin", "uuid", "Uuid", "Companion"]
-        let requiredLinks: Set<String> = [
-            "kk_uuid_fromLongs",
-            "kk_uuid_fromByteArray",
-        ]
         var foundLinks: Set<String> = []
         for memberName in ["fromLongs", "fromByteArray"] {
             let path = companionFQ + [memberName]
@@ -162,8 +158,8 @@ struct UuidFromLongsFromByteArraySemaTests {
             foundLinks.formUnion(links)
         }
         #expect(
-            requiredLinks.isSubset(of: foundLinks),
-            "fromLongs and fromByteArray companion methods must be registered; found: \(foundLinks)"
+            foundLinks.isEmpty,
+            "fromLongs and fromByteArray must not register pure runtime links; found: \(foundLinks)"
         )
     }
 }

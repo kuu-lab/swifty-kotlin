@@ -1,9 +1,11 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-069 / RF-STDLIB-005: validates that `String.split(...)`
-/// resolves through the bundled Kotlin source wrappers. The public overloads
-/// must not carry the runtime external link; only the private `__kk_*` bridges do.
+/// STDLIB-TEXT-FN-069: Validates that `CharSequence.split(delimiter, ignoreCase, limit)`
+/// resolves through Sema for `String` receivers across all registered overloads.
+///
+/// The public overloads are loaded from `Stdlib/kotlin/text/StringSplitJoin.kt`;
+/// that source delegates to private `__kk_string_split*` bridge stubs.
 @Suite
 struct StringSplitFunctionTests {
     private func assertPublicMemberCallIsSourceBacked(

@@ -2549,6 +2549,174 @@ final class CallTypeChecker {
             locals: &locals
         )
         let argTypes = preparedArgs.argTypes
+
+        func sourceBackedCollectionFactoryType(
+            name: String
+        ) -> (type: TypeID, typeArgs: [TypeID])? {
+            func typeArgs(from type: TypeID) -> [TypeID] {
+                guard case let .classType(classType) = sema.types.kind(of: type) else {
+                    return []
+                }
+                return classType.args.map { arg in
+                    switch arg {
+                    case let .invariant(type), let .in(type), let .out(type):
+                        type
+                    case .star:
+                        sema.types.anyType
+                    }
+                }
+            }
+
+            func expectedCollectionType(withArity arity: Int) -> TypeID? {
+                guard let expectedType,
+                      expectedType != sema.types.errorType,
+                      case let .classType(expectedClassType) = sema.types.kind(of: expectedType),
+                      expectedClassType.args.count >= arity
+                else {
+                    return nil
+                }
+                return expectedType
+            }
+
+            switch name {
+            case "emptyList", "listOf", "mutableListOf":
+                if let expectedType = expectedCollectionType(withArity: 1) {
+                    return (expectedType, typeArgs(from: expectedType))
+                }
+                let elementType = explicitTypeArgs.first
+                    ?? (argTypes.isEmpty ? sema.types.nothingType : sema.types.lub(argTypes))
+                let resultType = name == "mutableListOf"
+                    ? makeSyntheticMutableListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                    : makeSyntheticListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                return (resultType, [elementType])
+
+            case "emptySet", "setOf", "mutableSetOf":
+                if let expectedType = expectedCollectionType(withArity: 1) {
+                    return (expectedType, typeArgs(from: expectedType))
+                }
+                let elementType = explicitTypeArgs.first
+                    ?? (argTypes.isEmpty ? sema.types.nothingType : sema.types.lub(argTypes))
+                let resultType = name == "mutableSetOf"
+                    ? makeSyntheticMutableSetType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                    : makeSyntheticSetType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                return (resultType, [elementType])
+
+            case "emptyMap", "mapOf", "mutableMapOf":
+                if let expectedType = expectedCollectionType(withArity: 2) {
+                    return (expectedType, typeArgs(from: expectedType))
+                }
+                let keyType: TypeID
+                let valueType: TypeID
+                if explicitTypeArgs.count == 2 {
+                    keyType = explicitTypeArgs[0]
+                    valueType = explicitTypeArgs[1]
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: args, ctx: ctx, locals: &locals) {
+                    keyType = inferred.keyType
+                    valueType = inferred.valueType
+                } else {
+                    keyType = sema.types.nothingType
+                    valueType = sema.types.nothingType
+                }
+                let resultType = name == "mutableMapOf"
+                    ? makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                    : makeSyntheticMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                return (resultType, [keyType, valueType])
+
+            default:
+                return nil
+            }
+        }
+
+        func isKotlinCollectionsFactorySymbol(_ symbol: SemanticSymbol, named name: InternedString) -> Bool {
+            guard symbol.kind == .function,
+                  symbol.name == name,
+                  symbol.fqName.count >= 3
+            else {
+                return false
+            }
+            return interner.resolve(symbol.fqName[0]) == "kotlin"
+                && interner.resolve(symbol.fqName[1]) == "collections"
+        }
+
+        func hasNonStdlibCollectionFactoryShadow(
+            _ name: InternedString,
+            locals: LocalBindings,
+            ctx: TypeInferenceContext
+        ) -> Bool {
+            if locals[name] != nil {
+                return true
+            }
+            return ctx.cachedScopeLookup(name).contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      !symbol.flags.contains(.synthetic)
+                else {
+                    return false
+                }
+                return !isKotlinCollectionsFactorySymbol(symbol, named: name)
+            }
+        }
+
+        if let calleeName {
+            let resolvedName = interner.resolve(calleeName)
+            if let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
+               !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
+               let chosen = candidates.first(where: { candidate in
+                   guard let symbol = ctx.cachedSymbol(candidate) else {
+                       return false
+                   }
+                   guard isKotlinCollectionsFactorySymbol(symbol, named: calleeName) else {
+                       return false
+                   }
+                   return args.isEmpty || (sema.symbols.functionSignature(for: candidate)?.parameterTypes.isEmpty == false)
+               })
+            {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: sourceBackedFactory.typeArgs,
+                        parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, 0) })
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: sourceBackedFactory.type)
+                return sourceBackedFactory.type
+            }
+        }
+
         if let calleeName,
            interner.resolve(calleeName) == "LinkedHashSet",
            args.isEmpty,

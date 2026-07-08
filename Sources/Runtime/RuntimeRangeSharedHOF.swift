@@ -6,15 +6,31 @@ private typealias RuntimeRangeIndexedLambda = @convention(c) (Int, Int, Int, Uns
 private typealias RuntimeRangeFoldLambda = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RuntimeRangeIndexedFoldLambda = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
-private protocol RuntimeRangeHOFKind {
+protocol RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (_ value: Int, _ index: Int) -> Bool) -> Bool
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool
     static func count(_ range: RuntimeRangeBox) -> Int
     static func doubleValue(_ value: Int) -> Double
     static func sortValues(_ values: inout [Int])
+    static func firstMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int
+    static func lastMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int
+    static func randomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int
+    static func random(_ range: RuntimeRangeBox, randomRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int
 }
 
-private enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
+enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (Int, Int) -> Bool) -> Bool {
         runtimeSignedRangeTraverse(range, body)
     }
@@ -34,9 +50,38 @@ private enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
     static func sortValues(_ values: inout [Int]) {
         values.sort()
     }
+
+    static func firstMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int {
+        runtimeSignedRangeFirstMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
+
+    static func lastMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int {
+        runtimeSignedRangeLastMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
+
+    static func randomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
+        runtimeSignedRangeRandomOrNull(range, randomRaw: randomRaw)
+    }
+
+    static func random(_ range: RuntimeRangeBox, randomRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        runtimeSignedRangeRandom(first: range.first, last: range.last, step: range.step,
+                                 randomRaw: randomRaw, outThrown: outThrown)
+    }
 }
 
-private enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
+enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (Int, Int) -> Bool) -> Bool {
         runtimeUnsignedRangeTraverse(range) { current, index in
             body(Int(bitPattern: current), index)
@@ -57,6 +102,38 @@ private enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func sortValues(_ values: inout [Int]) {
         values.sort { UInt(bitPattern: $0) < UInt(bitPattern: $1) }
+    }
+
+    static func firstMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int {
+        runtimeUnsignedRangeFirstMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
+
+    static func lastMatch(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?,
+        orNull: Bool
+    ) -> Int {
+        runtimeUnsignedRangeLastMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
+
+    static func randomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
+        runtimeUnsignedRangeRandomOrNull(range, randomRaw: randomRaw)
+    }
+
+    static func random(_ range: RuntimeRangeBox, randomRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        runtimeUnsignedRangeRandom(first: UInt(bitPattern: range.first),
+                                   last: UInt(bitPattern: range.last),
+                                   step: range.step,
+                                   randomRaw: randomRaw,
+                                   outThrown: outThrown)
     }
 }
 
@@ -435,264 +512,271 @@ private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range
     return runtimeRangeList(elements)
 }
 
-// MARK: - Signed HOF entry helpers
+extension RuntimeRangeHOFKind {
+    static func toList(_ range: RuntimeRangeBox) -> Int {
+        runtimeRangeToList(Self.self, range)
+    }
 
-func runtimeSignedRangeToList(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeToList(RuntimeSignedRangeHOFKind.self, range)
+    static func forEach(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeForEach(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func map(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeMap(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func mapIndexed(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeMapIndexed(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func mapNotNull(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeMapNotNull(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func filter(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeFilter(Self.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: true)
+    }
+
+    static func filterIndexed(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeFilterIndexed(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func filterNot(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeFilter(Self.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: false)
+    }
+
+    static func reduce(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeReduce(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func reduceIndexed(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeReduceIndexed(Self.self, range, fnPtr, closureRaw, outThrown)
+    }
+
+    static func fold(
+        _ range: RuntimeRangeBox,
+        _ initialValue: Int,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeFold(Self.self, range, initialValue, fnPtr, closureRaw, outThrown)
+    }
+
+    static func foldIndexed(
+        _ range: RuntimeRangeBox,
+        _ initialValue: Int,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangeFoldIndexed(Self.self, range, initialValue, fnPtr, closureRaw, outThrown)
+    }
+
+    static func firstOrNull(_ range: RuntimeRangeBox) -> Int {
+        isEmpty(range) ? runtimeNullSentinelInt : range.first
+    }
+
+    static func lastOrNull(_ range: RuntimeRangeBox) -> Int {
+        isEmpty(range) ? runtimeNullSentinelInt : range.last
+    }
+
+    static func any(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangePredicate(Self.self, range, fnPtr, closureRaw, outThrown,
+                              initialResult: 0, stopWhen: { $0 != 0 }, finalResultForStop: 1)
+    }
+
+    static func all(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangePredicate(Self.self, range, fnPtr, closureRaw, outThrown,
+                              initialResult: 1, stopWhen: { $0 == 0 }, finalResultForStop: 0)
+    }
+
+    static func none(
+        _ range: RuntimeRangeBox,
+        _ fnPtr: Int,
+        _ closureRaw: Int,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        runtimeRangePredicate(Self.self, range, fnPtr, closureRaw, outThrown,
+                              initialResult: 1, stopWhen: { $0 != 0 }, finalResultForStop: 0)
+    }
+
+    static func chunked(_ range: RuntimeRangeBox, _ size: Int) -> Int {
+        runtimeRangeChunked(Self.self, range, size)
+    }
+
+    static func windowed(_ range: RuntimeRangeBox, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+        runtimeRangeWindowed(Self.self, range, size, step, partialWindows)
+    }
+
+    static func take(_ range: RuntimeRangeBox, _ n: Int) -> Int {
+        runtimeRangeTake(Self.self, range, n)
+    }
+
+    static func drop(_ range: RuntimeRangeBox, _ n: Int) -> Int {
+        runtimeRangeDrop(Self.self, range, n)
+    }
+
+    static func average(_ range: RuntimeRangeBox) -> Int {
+        runtimeRangeAverage(Self.self, range)
+    }
+
+    static func sorted(_ range: RuntimeRangeBox) -> Int {
+        runtimeRangeSorted(Self.self, range)
+    }
 }
 
-func runtimeSignedRangeForEach(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeEntry<Kind: RuntimeRangeHOFKind>(
+    _: Kind.Type,
+    _ rangeRaw: Int,
+    functionName: String,
+    _ body: (RuntimeRangeBox) -> Int
 ) -> Int {
-    runtimeRangeForEach(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in \(functionName)")
+    }
+    return body(range)
 }
 
-func runtimeSignedRangeMap(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeHOFEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    operation: (RuntimeRangeBox, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 ) -> Int {
-    runtimeRangeMap(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
+    runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        operation(range, fnPtr, closureRaw, outThrown)
+    }
 }
 
-func runtimeSignedRangeMapIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeFoldHOFEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    _ initialValue: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    operation: (RuntimeRangeBox, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 ) -> Int {
-    runtimeRangeMapIndexed(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
+    runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        operation(range, initialValue, fnPtr, closureRaw, outThrown)
+    }
 }
 
-func runtimeSignedRangeMapNotNull(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeFirstMatchEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    orNull: Bool
 ) -> Int {
-    runtimeRangeMapNotNull(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
+    runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.firstMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
 }
 
-func runtimeSignedRangeFilter(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeLastMatchEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    orNull: Bool
 ) -> Int {
-    runtimeRangeFilter(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: true)
+    runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.lastMatch(range, fnPtr, closureRaw, outThrown, orNull: orNull)
+    }
 }
 
-func runtimeSignedRangeFilterIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeRandomOrNullEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    randomRaw: Int?,
+    functionName: String
 ) -> Int {
-    runtimeRangeFilterIndexed(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
+    runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.randomOrNull(range, randomRaw: randomRaw)
+    }
 }
 
-func runtimeSignedRangeFilterNot(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+@inline(__always)
+func runtimeRangeRandomEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    _ randomRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
 ) -> Int {
-    runtimeRangeFilter(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: false)
-}
-
-func runtimeSignedRangeReduce(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeReduce(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeSignedRangeReduceIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeReduceIndexed(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeSignedRangeFold(
-    _ range: RuntimeRangeBox, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFold(RuntimeSignedRangeHOFKind.self, range, initialValue, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeSignedRangeFoldIndexed(
-    _ range: RuntimeRangeBox, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFoldIndexed(RuntimeSignedRangeHOFKind.self, range, initialValue, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeSignedRangeAny(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 0, stopWhen: { $0 != 0 }, finalResultForStop: 1)
-}
-
-func runtimeSignedRangeAll(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 1, stopWhen: { $0 == 0 }, finalResultForStop: 0)
-}
-
-func runtimeSignedRangeNone(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeSignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 1, stopWhen: { $0 != 0 }, finalResultForStop: 0)
-}
-
-func runtimeSignedRangeChunked(_ range: RuntimeRangeBox, _ size: Int) -> Int {
-    runtimeRangeChunked(RuntimeSignedRangeHOFKind.self, range, size)
-}
-
-func runtimeSignedRangeWindowed(_ range: RuntimeRangeBox, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    runtimeRangeWindowed(RuntimeSignedRangeHOFKind.self, range, size, step, partialWindows)
-}
-
-func runtimeSignedRangeTake(_ range: RuntimeRangeBox, _ n: Int) -> Int {
-    runtimeRangeTake(RuntimeSignedRangeHOFKind.self, range, n)
-}
-
-func runtimeSignedRangeDrop(_ range: RuntimeRangeBox, _ n: Int) -> Int {
-    runtimeRangeDrop(RuntimeSignedRangeHOFKind.self, range, n)
-}
-
-func runtimeSignedRangeAverage(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeAverage(RuntimeSignedRangeHOFKind.self, range)
-}
-
-func runtimeSignedRangeSorted(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeSorted(RuntimeSignedRangeHOFKind.self, range)
-}
-
-// MARK: - Unsigned HOF entry helpers
-
-func runtimeUnsignedRangeToList(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeToList(RuntimeUnsignedRangeHOFKind.self, range)
-}
-
-func runtimeUnsignedRangeForEach(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeForEach(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeMap(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeMap(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeMapIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeMapIndexed(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeMapNotNull(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeMapNotNull(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeFilter(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFilter(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: true)
-}
-
-func runtimeUnsignedRangeFilterIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFilterIndexed(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeFilterNot(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFilter(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown, keepOnTrue: false)
-}
-
-func runtimeUnsignedRangeReduce(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeReduce(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeReduceIndexed(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeReduceIndexed(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeFold(
-    _ range: RuntimeRangeBox, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFold(RuntimeUnsignedRangeHOFKind.self, range, initialValue, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeFoldIndexed(
-    _ range: RuntimeRangeBox, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangeFoldIndexed(RuntimeUnsignedRangeHOFKind.self, range, initialValue, fnPtr, closureRaw, outThrown)
-}
-
-func runtimeUnsignedRangeAny(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 0, stopWhen: { $0 != 0 }, finalResultForStop: 1)
-}
-
-func runtimeUnsignedRangeAll(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 1, stopWhen: { $0 == 0 }, finalResultForStop: 0)
-}
-
-func runtimeUnsignedRangeNone(
-    _ range: RuntimeRangeBox, _ fnPtr: Int, _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeRangePredicate(RuntimeUnsignedRangeHOFKind.self, range, fnPtr, closureRaw, outThrown,
-                          initialResult: 1, stopWhen: { $0 != 0 }, finalResultForStop: 0)
-}
-
-func runtimeUnsignedRangeChunked(_ range: RuntimeRangeBox, _ size: Int) -> Int {
-    runtimeRangeChunked(RuntimeUnsignedRangeHOFKind.self, range, size)
-}
-
-func runtimeUnsignedRangeWindowed(_ range: RuntimeRangeBox, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    runtimeRangeWindowed(RuntimeUnsignedRangeHOFKind.self, range, size, step, partialWindows)
-}
-
-func runtimeUnsignedRangeTake(_ range: RuntimeRangeBox, _ n: Int) -> Int {
-    runtimeRangeTake(RuntimeUnsignedRangeHOFKind.self, range, n)
-}
-
-func runtimeUnsignedRangeDrop(_ range: RuntimeRangeBox, _ n: Int) -> Int {
-    runtimeRangeDrop(RuntimeUnsignedRangeHOFKind.self, range, n)
-}
-
-func runtimeUnsignedRangeAverage(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeAverage(RuntimeUnsignedRangeHOFKind.self, range)
-}
-
-func runtimeUnsignedRangeSorted(_ range: RuntimeRangeBox) -> Int {
-    runtimeRangeSorted(RuntimeUnsignedRangeHOFKind.self, range)
+    outThrown?.pointee = 0
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.random(range, randomRaw: randomRaw, outThrown: outThrown)
+    }
 }

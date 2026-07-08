@@ -1335,6 +1335,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_split",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "delimRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_split_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -1345,6 +1355,18 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delimiterLength", type: .intptr),
                 RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
                 RuntimeABIParameter(name: "delimiterHash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_split_limit",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "delimRaw", type: .intptr),
+                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+                RuntimeABIParameter(name: "limitRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String",
@@ -2716,6 +2738,16 @@ public extension RuntimeABISpec {
         flatStringHOFReturnSpec(name: "kk_string_takeLastWhile_flat"),
         flatStringHOFReturnSpec(name: "kk_string_dropWhile_flat"),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_splitToSequence",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "delimRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_splitToSequence_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2729,6 +2761,18 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_joinToString",
+            parameters: [
+                RuntimeABIParameter(name: "strListRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_joinToString",
@@ -3023,7 +3067,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount",
+            name: "__kk_string_codePointCount",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -3031,7 +3075,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount_from",
+            name: "__kk_string_codePointCount_from",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
@@ -3041,7 +3085,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount_range",
+            name: "__kk_string_codePointCount_range",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
@@ -3081,7 +3125,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_random",
+            name: "__kk_string_random",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -3090,7 +3134,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_random_random",
+            name: "__kk_string_random_random",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
