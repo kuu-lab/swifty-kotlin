@@ -8,14 +8,19 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
-    // Float/Double MUST be decoded before the null-sentinel check:
-    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt.
-    // Elevating tags 5/6 preserves the sign bit of negative zero and NaN payloads.
+    // Float/Double/ULong MUST be decoded before the null-sentinel check:
+    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
+    // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
+    // tags 5/6/7 preserves the sign bit of negative zero/NaN payloads and the
+    // top bit of large ULong values instead of misreading them as null.
     if tag == 5 {
         return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedFloatValue(value)))
     }
     if tag == 6 {
         return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedDoubleValue(value)))
+    }
+    if tag == 7 {
+        return runtimeMakeStringPointer(String(UInt(bitPattern: value)))
     }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
@@ -1688,6 +1693,35 @@ public func kk_op_gt(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("kk_op_ge")
 public func kk_op_ge(_ lhs: Int, _ rhs: Int) -> Int {
     lhs >= rhs ? 1 : 0
+}
+
+// MARK: - Unsigned comparison ops (UInt/ULong/UByte/UShort)
+//
+// UByte/UShort/UInt are always zero-extended into this 64-bit container, so
+// their positive range never sets bit 63 and kk_op_lt/le/gt/ge above already
+// agree with unsigned ordering for them. ULong is the one unsigned type that
+// spans the full 64 bits, so a value >= 2^63 looks negative under signed
+// comparison. Reinterpreting both operands as UInt (bitPattern) fixes ULong
+// while remaining a no-op for the narrower unsigned types.
+
+@_cdecl("kk_op_ult")
+public func kk_op_ult(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) < UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_ule")
+public func kk_op_ule(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) <= UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_ugt")
+public func kk_op_ugt(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) > UInt(bitPattern: rhs) ? 1 : 0
+}
+
+@_cdecl("kk_op_uge")
+public func kk_op_uge(_ lhs: Int, _ rhs: Int) -> Int {
+    UInt(bitPattern: lhs) >= UInt(bitPattern: rhs) ? 1 : 0
 }
 
 // MARK: - Int/Long arithmetic ops (flooring division and modulo)

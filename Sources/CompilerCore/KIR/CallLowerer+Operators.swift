@@ -470,6 +470,39 @@ extension CallLowerer {
         default:
             break
         }
+        // Unsigned-aware path for UInt/ULong/UByte/UShort relational operators.
+        // builtinBinaryRuntimeCallee below maps <,<=,>,>= to kk_op_lt/le/gt/ge,
+        // which reinterpret both operands as signed Int64 — wrong for ULong once
+        // the value's high bit is set (any ULong >= 2^63, e.g. UInt64.MAX_VALUE),
+        // since e.g. `17663719463477156090uL > 5uL` would compare a negative
+        // signed reinterpretation against 5. Route unsigned operands through the
+        // dedicated kk_op_u{lt,le,gt,ge} entry points, which compare the raw bit
+        // pattern via UInt(bitPattern:) instead.
+        switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            let unsignedTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                              ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
+                let suffix: String = switch op {
+                case .lessThan: "ult"
+                case .lessOrEqual: "ule"
+                case .greaterThan: "ugt"
+                case .greaterOrEqual: "uge"
+                default: fatalError("Unreachable: switch only reached for relational ops")
+                }
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_\(suffix)"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(

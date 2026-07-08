@@ -58,6 +58,14 @@ extension CallLowerer {
             5
         case .primitive(.double, _):
             6
+        case .primitive(.ulong, _):
+            // ULong spans the full 64 bits, so kk_any_to_string must reinterpret
+            // it as unsigned (tag 1 would print the signed reinterpretation, or
+            // even "null" for values whose bit pattern equals Int.min). UInt/
+            // UByte/UShort stay on the default tag: they are always
+            // zero-extended into this container, so tag 1's signed decimal
+            // rendering already matches their unsigned value.
+            7
         default:
             1
         }

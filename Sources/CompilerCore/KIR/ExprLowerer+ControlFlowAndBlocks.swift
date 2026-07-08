@@ -106,20 +106,26 @@ extension ExprLowerer {
                             5
                         case .primitive(.double, _):
                             6
+                        case .primitive(.ulong, _):
+                            // ULong spans the full 64 bits, so it needs the same
+                            // unsigned-aware tag/guard treatment as Float/Double below
+                            // (see anyFallbackTag for the full rationale).
+                            7
                         default:
                             1
                         }
                         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
                         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
                         let converted = arena.appendTemporary(type: stringType)
-                        // Nullable Float?/Double? needs an explicit null guard before
+                        // Nullable Float?/Double?/ULong? needs an explicit null guard before
                         // kk_any_to_string: the null sentinel (Int.min) is identical to
-                        // the -0.0 bit pattern, so kk_any_to_string with tag 5/6 would
-                        // decode a null as -0.0 instead of "null". Non-nullable Float/
-                        // Double bypass this guard because their raw bits go directly to
+                        // the -0.0 bit pattern (Double) and to a ULong of exactly 2^63, so
+                        // kk_any_to_string with tag 5/6/7 would decode a null as -0.0 or a
+                        // large positive ULong instead of "null". Non-nullable Float/Double/
+                        // ULong bypass this guard because their raw bits go directly to
                         // kk_any_to_string and the null-before-tag ordering would have
-                        // already returned "null" for legitimate -0.0 values.
-                        if isNullable, tag == 5 || tag == 6 {
+                        // already returned "null" for legitimate -0.0/2^63 values.
+                        if isNullable, tag == 5 || tag == 6 || tag == 7 {
                             let nonNullLabel = driver.ctx.makeLoopLabel()
                             let endLabel = driver.ctx.makeLoopLabel()
                             let nullStr = interner.intern("null")
