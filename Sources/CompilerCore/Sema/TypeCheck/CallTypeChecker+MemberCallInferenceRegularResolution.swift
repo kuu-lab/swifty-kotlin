@@ -294,6 +294,25 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            // `Owner.Nested` and `Owner.Nested()` parse to the identical
+            // zero-arg `.memberCall` node — there is no AST signal for
+            // whether call syntax was written. When `Nested` is itself a
+            // valid nominal type, prefer the bare type/nested-owner reading
+            // over an implicit zero-arg constructor call: Kotlin never
+            // invokes a constructor without explicit parentheses, so a
+            // reference used as e.g. the receiver of a further member access
+            // (`Owner.Nested.ENTRY`) must resolve to the type, not an
+            // instance.
+            if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first {
+                let nestedType = sema.types.make(.classType(ClassType(
+                    classSymbol: nestedOwner,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
+                sema.bindings.bindExprType(id, type: nestedType)
+                return nestedType
+            }
             let nestedCtorFQName = owner.fqName + [calleeName, interner.intern("<init>")]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
@@ -379,18 +398,6 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-            }
-            if args.isEmpty,
-               let nestedOwner = nestedOwnerSymbols.first
-            {
-                let nestedType = sema.types.make(.classType(ClassType(
-                    classSymbol: nestedOwner,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
-                sema.bindings.bindExprType(id, type: nestedType)
-                return nestedType
             }
         }
 
