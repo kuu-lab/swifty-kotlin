@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): requires kotlinx-serialization jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no @Serializable annotation (this file's local decoy is a workaround, not a bug); its reflection-based Json.encodeToString(Any) also always emits default-valued fields, unlike real kotlinx.serialization's encodeDefaults=false. See docs/diff-skip-inventory.md.
 annotation class Serializable
 
 @Serializable
