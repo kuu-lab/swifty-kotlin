@@ -1437,7 +1437,7 @@ public func kk_println_char(_ value: Int) {
     if let scalar = UnicodeScalar(unboxed) {
         Swift.print(String(scalar))
     } else {
-        Swift.print("\u{FFFD}")
+        Swift.print("?")
     }
 }
 

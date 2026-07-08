@@ -48,7 +48,7 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomProperty(
             ownerSymbol: randomSymbol,
             name: "Default",
-            externalLinkName: "kk_random_default",
+            externalLinkName: "__kk_random_default",
             propertyType: randomType,
             symbols: symbols,
             interner: interner
@@ -76,7 +76,7 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomConstructor(
             ownerSymbol: randomSymbol,
             ownerType: randomType,
-            externalLinkName: "kk_random_create_seeded",
+            externalLinkName: "__kk_random_create_seeded",
             parameters: [(name: "seed", type: intType)],
             symbols: symbols,
             interner: interner
@@ -84,7 +84,7 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomConstructor(
             ownerSymbol: randomSymbol,
             ownerType: randomType,
-            externalLinkName: "kk_random_create_seeded",
+            externalLinkName: "__kk_random_create_seeded",
             parameters: [(name: "seed", type: longType)],
             symbols: symbols,
             interner: interner
@@ -502,7 +502,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticRandomCompanionMethod(
             named: "getInstance",
-            externalLinkName: "kk_secure_random_get_instance",
+            externalLinkName: "__kk_secure_random_get_instance",
             returnType: secureRandomType,
             parameters: [],
             companionFQName: secureCompanionFQName,
@@ -514,7 +514,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: secureRandomSymbol,
             ownerType: secureRandomType,
             name: "setSeed",
-            externalLinkName: "kk_secure_random_set_seed",
+            externalLinkName: "__kk_secure_random_set_seed",
             returnType: secureRandomType,
             parameters: [(name: "seed", type: intType)],
             symbols: symbols,
@@ -525,7 +525,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: secureRandomSymbol,
             ownerType: secureRandomType,
             name: "generateSeed",
-            externalLinkName: "kk_secure_random_generate_seed",
+            externalLinkName: "__kk_secure_random_generate_seed",
             returnType: byteArrayType,
             parameters: [(name: "size", type: intType)],
             symbols: symbols,
@@ -536,7 +536,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: secureRandomSymbol,
             ownerType: secureRandomType,
             name: "nextBytes",
-            externalLinkName: "kk_secure_random_next_bytes",
+            externalLinkName: "__kk_secure_random_next_bytes",
             returnType: byteArrayType,
             parameters: [(name: "array", type: byteArrayType)],
             symbols: symbols,
@@ -651,7 +651,7 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomExtensionFunction(
             packageFQName: packageFQName,
             name: "asKotlinRandom",
-            externalLinkName: "kk_random_asKotlinRandom",
+            externalLinkName: "__kk_random_asKotlinRandom",
             receiverType: javaRandomType,
             returnType: returnType,
             symbols: symbols,
@@ -675,7 +675,7 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomExtensionFunction(
             packageFQName: packageFQName,
             name: "asJavaRandom",
-            externalLinkName: "kk_random_asJavaRandom",
+            externalLinkName: "__kk_random_asJavaRandom",
             receiverType: receiverType,
             returnType: javaRandomType,
             symbols: symbols,
@@ -713,7 +713,7 @@ extension DataFlowSemaPhase {
         registerSyntheticJavaRandomConstructor(
             ownerSymbol: javaRandomSymbol,
             ownerType: javaRandomType,
-            externalLinkName: "kk_random_create_seeded",
+            externalLinkName: "__kk_random_create_seeded",
             parameters: [(name: "seed", type: types.intType)],
             symbols: symbols,
             interner: interner
@@ -721,7 +721,7 @@ extension DataFlowSemaPhase {
         registerSyntheticJavaRandomConstructor(
             ownerSymbol: javaRandomSymbol,
             ownerType: javaRandomType,
-            externalLinkName: "kk_random_create_seeded",
+            externalLinkName: "__kk_random_create_seeded",
             parameters: [(name: "seed", type: types.longType)],
             symbols: symbols,
             interner: interner

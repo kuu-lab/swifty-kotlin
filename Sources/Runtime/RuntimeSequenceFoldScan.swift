@@ -16,17 +16,12 @@ public func kk_sequence_scan(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var acc = maybeUnbox(initial)
     var results: [Int] = [acc]
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        var thrown = 0
-        let nextAcc = lambda(closureRaw, acc, elem, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         results.append(acc)
         return true
     }
@@ -56,7 +51,6 @@ public func kk_sequence_runningReduce(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var hasAccumulator = false
     var acc = 0
     var results: [Int] = []
@@ -67,13 +61,9 @@ public func kk_sequence_runningReduce(
             results.append(acc)
             return true
         }
-        var thrown = 0
-        let nextAcc = lambda(closureRaw, acc, elem, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         results.append(acc)
         return true
     }
@@ -113,20 +103,16 @@ public func kk_sequence_runningReduceIndexed(
             index += 1
             return true
         }
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
+        let step = runtimeApplyFoldIndexedStep(
+            index: index,
+            accumulator: acc,
+            element: elem,
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            arg1: index,
-            arg2: acc,
-            arg3: elem,
-            outThrown: &thrown
+            outThrown: outThrown
         )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         results.append(acc)
         index += 1
         return true
@@ -153,15 +139,16 @@ public func kk_sequence_foldIndexed(
     var acc = initial
     var index = 0
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
-            fnPtr: fnPtr, closureRaw: closureRaw,
-            arg1: index, arg2: acc, arg3: elem, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldIndexedStep(
+            index: index,
+            accumulator: acc,
+            element: elem,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            outThrown: outThrown
+        )
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         index += 1
         return true
     }
@@ -196,15 +183,16 @@ public func kk_sequence_scanIndexed(
     var index = 0
     var results: [Int] = [acc]
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
-            fnPtr: fnPtr, closureRaw: closureRaw,
-            arg1: index, arg2: acc, arg3: elem, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldIndexedStep(
+            index: index,
+            accumulator: acc,
+            element: elem,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            outThrown: outThrown
+        )
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         index += 1
         results.append(acc)
         return true
@@ -234,15 +222,16 @@ public func kk_sequence_reduceIndexed(
             index += 1
             return true
         }
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
-            fnPtr: fnPtr, closureRaw: closureRaw,
-            arg1: index, arg2: acc, arg3: elem, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldIndexedStep(
+            index: index,
+            accumulator: acc,
+            element: elem,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            outThrown: outThrown
+        )
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         index += 1
         return true
     }
@@ -278,20 +267,16 @@ public func kk_sequence_reduceIndexedOrNull(
             index += 1
             return true
         }
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
+        let step = runtimeApplyFoldIndexedStep(
+            index: index,
+            accumulator: acc,
+            element: elem,
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            arg1: index,
-            arg2: acc,
-            arg3: elem,
-            outThrown: &thrown
+            outThrown: outThrown
         )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         index += 1
         return true
     }

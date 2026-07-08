@@ -106,7 +106,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 302)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 301)
     }
 
     func testRegexFunctionCount() {
@@ -611,6 +611,7 @@ final class ABIMismatchTests: XCTestCase {
     func testKKStringReplaceFirstRangePointerABIRemoved() {
         let legacyNames = [
             "kk_string_replaceFirst",
+            "kk_string_replaceFirst_ignoreCase",
             "kk_string_replaceRange",
             "kk_string_removeRange",
             "kk_string_removeRange_range",

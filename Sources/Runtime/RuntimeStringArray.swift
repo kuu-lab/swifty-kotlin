@@ -1543,7 +1543,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         if let scalar = UnicodeScalar(charBox.value) {
             Swift.print(Character(scalar))
         } else {
-            Swift.print("�")
+            Swift.print("?")
         }
         return
     }
@@ -1843,7 +1843,7 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
             hash: value.payload3
         )
     case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "�"
+        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "?"
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }

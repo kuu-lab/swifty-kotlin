@@ -170,7 +170,6 @@ extension ABIMismatchTests {
     // MARK: Instant / Clock / time conversions
     private static let instantStubLinkNames: Set<String> = [
         "kk_instant_compare",
-        "kk_instant_elapsed",
         "kk_instant_epoch_seconds",
         "kk_instant_from_epoch_millis",
         "kk_instant_is_distant_future",

@@ -134,15 +134,15 @@ extension CodegenBackendIntegrationTests {
     }
 
     // TEST-TEXT-018: first / last / single — happy path (non-empty strings)
-    // Exception behavior on empty string is verified at the runtime ABI level
-    // (RuntimeStringHOFTests pattern with kk_string_first/last/single + thrown out-parameter).
-    // Kotlin try/catch codegen is not yet supported, so exception tests are excluded here.
     func testCodegenStringFirstLastSingle() throws {
         let source = """
         fun main() {
             println("abc".first())
             println("abc".last())
             println("a".single())
+            println("abc".first { it > 'a' })
+            println("abc".last { it < 'c' })
+            println("abc".single { it == 'b' })
         }
         """
         try assertKotlinOutput(
@@ -153,6 +153,9 @@ extension CodegenBackendIntegrationTests {
                 a
                 c
                 a
+                b
+                b
+                b
                 """
                 + "\n"
         )
@@ -170,6 +173,16 @@ extension CodegenBackendIntegrationTests {
             println("".singleOrNull())
             println("ab".singleOrNull())
             println("abc".singleOrNull())
+            println("abc".firstOrNull { it == 'b' })
+            println("abc".firstOrNull { it == 'z' })
+            println("abc".lastOrNull { it < 'c' })
+            println("abc".lastOrNull { it == 'z' })
+            println("abc".singleOrNull { it == 'b' })
+            println("abc".singleOrNull { it > 'a' })
+            println("abc".getOrNull(1))
+            println("abc".getOrNull(-1))
+            println("abc".getOrNull(3))
+            println("hello🌟".lastOrNull())
         }
         """
         try assertKotlinOutput(
@@ -185,6 +198,16 @@ extension CodegenBackendIntegrationTests {
                 null
                 null
                 null
+                b
+                null
+                b
+                null
+                b
+                null
+                b
+                null
+                null
+                ?
                 """
                 + "\n"
         )
@@ -289,4 +312,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-

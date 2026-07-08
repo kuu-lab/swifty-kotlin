@@ -3154,18 +3154,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_replaceFirst_ignoreCase",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "oldRaw", type: .intptr),
-                RuntimeABIParameter(name: "newRaw", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_replaceRange_indices",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),

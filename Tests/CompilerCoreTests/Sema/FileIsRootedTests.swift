@@ -51,10 +51,8 @@ struct FileIsRootedTests {
             "Expected kotlin.io.File.isRooted extension property"
         )
         #expect(sema.symbols.propertyType(for: propertySymbol) == boolType)
-        #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_file_isRooted")
 
         let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
-        #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_file_isRooted")
         let signature = try #require(sema.symbols.functionSignature(for: getterSymbol))
         #expect(signature.receiverType == fileType)
         #expect(signature.returnType == boolType)

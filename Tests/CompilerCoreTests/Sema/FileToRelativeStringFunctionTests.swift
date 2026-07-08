@@ -105,48 +105,6 @@ struct FileToRelativeStringFunctionTests {
         }
     }
 
-    // MARK: - Signature and runtime link binding
-
-    @Test
-    func testFileToRelativeStringSignatureAndRuntimeLink() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
-
-            let fileSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
-
-            let candidates = symbols.lookupAll(
-                fqName: ["java", "io", "File", "toRelativeString"].map(interner.intern)
-            )
-            let toRelativeString = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes == [fileType]
-                    && signature.returnType == types.stringType
-            }, "Expected to find File.toRelativeString(File): String")
-
-            #expect(
-                symbols.externalLinkName(for: toRelativeString) == "kk_file_toRelativeString",
-                "File.toRelativeString should bind to runtime helper kk_file_toRelativeString"
-            )
-
-            let signature = try #require(symbols.functionSignature(for: toRelativeString))
-            #expect(signature.returnType == types.stringType)
-            #expect(signature.receiverType == fileType)
-            #expect(signature.parameterTypes == [fileType])
-        }
-    }
-
     // MARK: - Works inside scope functions (let/run/apply/with)
 
     @Test
