@@ -164,9 +164,13 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
           let array = runtimeArrayBox(from: arrayRaw) else {
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    for index in array.elements.indices {
-        array.elements[index] = box.nextByte()
+    // `elements` maps storage on every get/set, so update a local copy and
+    // write it back once instead of paying a full storage conversion per byte.
+    var elements = array.elements
+    for index in elements.indices {
+        elements[index] = box.nextByte()
     }
+    array.elements = elements
     return arrayRaw
 }
 
