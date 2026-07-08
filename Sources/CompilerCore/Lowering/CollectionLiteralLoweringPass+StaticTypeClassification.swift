@@ -7,7 +7,7 @@ enum CollectionLiteralTrackedStaticTypeKind {
     case string
 }
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralLoweringSupport {
     func classifyTrackedExprByStaticType(
         _ expr: KIRExprID,
         module: KIRModule,

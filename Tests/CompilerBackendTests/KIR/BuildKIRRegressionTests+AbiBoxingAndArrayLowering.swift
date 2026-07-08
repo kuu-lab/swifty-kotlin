@@ -580,8 +580,11 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 ([primary] + aliases).compactMap { throwFlags[$0] }.first
             }
             XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
+            // Public split is source-backed now, so the caller should no longer
+            // lower directly to a string runtime ABI callee.
             XCTAssertNil(throwFlags["kk_string_split_flat"])
             XCTAssertNil(throwFlags["kk_string_split"])
+            XCTAssertNotNil(throwFlags["split"])
             XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
             XCTAssertNil(throwFlags["kk_string_subSequence"])
             XCTAssertEqual(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat")?.allSatisfy { $0 == false }, true)

@@ -26,24 +26,6 @@ extension CallTypeChecker {
         ]
     }
 
-    func isMutableListType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let symbolID = driver.helpers.nominalSymbol(
-            of: sema.types.makeNonNullable(type),
-            types: sema.types
-        ),
-            let symbol = sema.symbols.symbol(symbolID)
-        else {
-            return false
-        }
-        return symbol.name == knownNames.mutableList
-            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-    }
-
     func isSyntheticStringFormatCandidate(
         _ symbolID: SymbolID,
         sema: SemaModule,
@@ -617,24 +599,6 @@ extension CallTypeChecker {
         default:
             return directElementType
         }
-    }
-
-    func isMapLikeCollectionType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
-            return false
-        }
-        return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
-    }
-
-    func isConcreteListLikeType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
-            return false
-        }
-        return knownNames.isConcreteListLikeSymbol(symbol) && classType.args.count == 1
     }
 
     func makeSyntheticPairType(

@@ -1,4 +1,4 @@
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     struct CollectionCallRewrite {
         let callee: InternedString
         let arguments: [KIRExprID]
