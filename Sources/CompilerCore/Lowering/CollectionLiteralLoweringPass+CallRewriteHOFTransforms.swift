@@ -1,5 +1,5 @@
 /// Destination, association, zip, and indexed higher-order collection rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteTransformHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],

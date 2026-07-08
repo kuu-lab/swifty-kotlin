@@ -91,7 +91,7 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
-    func testCoroutineLoweringKeepsRangeLoopSequenceBuildersOnLegacyRuntimeABI() throws {
+    func testCoroutineLoweringRewritesRangeLoopSequenceBuildersToCPSRuntimeABI() throws {
         let source = """
         fun main() {
             val seq = sequence {
@@ -104,7 +104,7 @@ extension LoweringPassRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderRangeLoopLegacy", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderRangeLoopCPS", emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -114,8 +114,23 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("kk_sequence_builder_build"), "Callees: \(allCallees)")
-            #expect(!allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+
+            let rangeYieldFunctions = functions.filter { function in
+                let callees = extractCallees(from: function.body, interner: ctx.interner)
+                return callees.contains("kk_sequence_builder_yield")
+                    && callees.contains("kk_range_hasNext")
+                    && callees.contains("kk_range_next")
+            }
+            #expect(!rangeYieldFunctions.isEmpty, "Expected a CPS-lowered range-loop builder, callees: \(allCallees)")
+            #expect(rangeYieldFunctions.allSatisfy { function in
+                function.body.contains { instruction in
+                    if case .returnIfEqual = instruction {
+                        return true
+                    }
+                    return false
+                }
+            }, "range-loop yield() calls must propagate COROUTINE_SUSPENDED")
         }
     }
 

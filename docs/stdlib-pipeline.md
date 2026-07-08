@@ -263,7 +263,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` | 85 | (a) | `kotlin.js.nativeGetter/nativeSetter/nativeInvoke`; cleanup candidate. |
 | `HeaderHelpers+SyntheticNativeInteropHelpers.swift` | 1292 | (c) | Kotlin/Native interop helper surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticNativeInteropStubs.swift` | 386 | (c) | Kotlin/Native interop annotations/types. |
-| `HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift` | 1135 | (c) | Native ref runtime support; declarative residual candidate. |
+| `HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift` | 759 | (c) | Native ref runtime support; constructor/member/property surface moved to `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` for RF-STUB-003. |
 | `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | File-tree walk support; cleanup with file-walk surface. |
 | `HeaderHelpers+SyntheticPairTripleStubs.swift` | 409 | (b) | Public `Pair`/`Triple` source migration candidate. |
 | `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` | 548 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
@@ -337,7 +337,8 @@ should follow the same shape:
 3. After RF-STDLIB-003, migrate one narrow (b) slice end-to-end and use it as the
    template for the remaining M1-M17 rows.
 4. Continue RF-STUB-003 residual table migration only on files classified (c); do not table-drive code
-   that is already scheduled for deletion or Kotlin source migration.
+   that is already scheduled for deletion or Kotlin source migration. `SyntheticNativeRefRuntimeSurfaceSpec`
+   is the current reference pattern for residual constructor/member/property tables.
 
 ## 10. モジュール移行プレイブック
 

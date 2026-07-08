@@ -69,5 +69,27 @@ struct MemberRuntimeDispatchTests {
             )
         }
     }
+
+    @Test func testStringRuntimeDispatchUsesFlatStringTable() {
+        let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
+            ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
+            ("toInt", 0, "kk_string_toInt_flat", true, .lowered, .none),
+            ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
+            ("mapIndexed", 1, "kk_string_mapIndexed_flat", false, .normalized, .none),
+            ("partition", 1, "kk_string_partition_flat", true, .normalized, .nullableAny),
+            ("take", 1, "kk_string_take_flat", true, .lowered, .none),
+            ("removeSurrounding", 2, "kk_string_removeSurrounding_pair_flat", false, .lowered, .none),
+            ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
+        ]
+
+        for (memberName, arity, expectedLinkName, canThrow, argumentMode, thrownResultMode) in cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            let spec = MemberRuntimeDispatch.stringRuntimeCall(for: key)
+            #expect(spec?.runtimeLinkName == expectedLinkName, "String.\(memberName)/\(arity)")
+            #expect(spec?.canThrow == canThrow, "String.\(memberName)/\(arity) canThrow")
+            #expect(spec?.argumentMode == argumentMode, "String.\(memberName)/\(arity) argument mode")
+            #expect(spec?.thrownResultMode == thrownResultMode, "String.\(memberName)/\(arity) thrown result")
+        }
+    }
 }
 #endif

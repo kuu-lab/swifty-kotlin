@@ -1,4 +1,12 @@
 public extension RuntimeABISpec {
+    private static let listComponentFunctions = numberedUnaryRuntimeABIFunctionSpecs(
+        prefix: "kk_list_component",
+        range: 1...5,
+        parameterName: "listRaw",
+        section: "Collection",
+        isThrowing: false
+    )
+
     private static func stdlibSetHOFName(_ memberName: String, fallback: String) -> String {
         StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
             ownerKind: .set,
@@ -71,41 +79,9 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component1",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component2",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component3",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component4",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component5",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+    ]
+    + listComponentFunctions
+    + [
         RuntimeABIFunctionSpec(
             name: "kk_list_contains",
             parameters: [

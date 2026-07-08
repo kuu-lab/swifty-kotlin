@@ -26,11 +26,13 @@ extension CallTypeChecker {
         if sema.bindings.exprTypes[receiverID] == nil {
             _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         }
-        let isArrayReceiver = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let receiverClassification = receiverClassifier.classify(receiverID: receiverID)
+        let isArrayReceiver = receiverClassification.isArrayReceiver
         let isIterableWindowedTransformCall: Bool = {
             guard memberName == "windowed",
                   (2...4).contains(args.count),
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  receiverClassification.isIterableReceiver,
                   let lastArgExpr = args.last?.expr,
                   let lastArgExprNode = ctx.ast.arena.expr(lastArgExpr)
             else {
@@ -41,7 +43,7 @@ extension CallTypeChecker {
         let isIterableChunkedTransformCall: Bool = {
             guard memberName == "chunked",
                   args.count == 2,
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  receiverClassification.isIterableReceiver,
                   let lastArgExpr = args.last?.expr,
                   let lastArgExprNode = ctx.ast.arena.expr(lastArgExpr)
             else {
@@ -52,7 +54,7 @@ extension CallTypeChecker {
         let isIterableFirstNotNullOfCall: Bool = {
             guard memberName == "firstNotNullOf",
                   args.count == 1,
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner) || isArrayReceiver,
+                  receiverClassification.isIterableReceiver || isArrayReceiver,
                   let firstArgExpr = args.first?.expr,
                   let firstArgNode = ctx.ast.arena.expr(firstArgExpr)
             else {
@@ -63,7 +65,7 @@ extension CallTypeChecker {
         let isIterableFirstNotNullOfOrNullCall: Bool = {
             guard memberName == "firstNotNullOfOrNull",
                   args.count == 1,
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner) || isArrayReceiver,
+                  receiverClassification.isIterableReceiver || isArrayReceiver,
                   let firstArgExpr = args.first?.expr,
                   let firstArgNode = ctx.ast.arena.expr(firstArgExpr)
             else {
@@ -74,9 +76,9 @@ extension CallTypeChecker {
         let isIterableRequireNoNullsCall =
             memberName == "requireNoNulls"
             && args.isEmpty
-            && isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isCollectionReceiver = isCollectionLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isSequenceReceiver = isSequenceLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+            && receiverClassification.isIterableReceiver
+        let isCollectionReceiver = receiverClassification.isCollectionReceiver
+        let isSequenceReceiver = receiverClassification.isSequenceReceiver
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
@@ -92,14 +94,14 @@ extension CallTypeChecker {
             return nil
         }
 
-        let isIterableReceiver = isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMapReceiver = isMapLikeCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isSetReceiver = isSetLikeCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMutableCollectionReceiverFlag = isMutableCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMutableListReceiver = isMutableListCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMutableSetReceiver = isMutableSetCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMutableMapReceiver = isMutableMapCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isListReceiver = isConcreteListLikeCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isIterableReceiver = receiverClassification.isIterableReceiver
+        let isMapReceiver = receiverClassification.isMapReceiver
+        let isSetReceiver = receiverClassification.isSetReceiver
+        let isMutableCollectionReceiverFlag = receiverClassification.isMutableCollectionReceiver
+        let isMutableListReceiver = receiverClassification.isMutableListReceiver
+        let isMutableSetReceiver = receiverClassification.isMutableSetReceiver
+        let isMutableMapReceiver = receiverClassification.isMutableMapReceiver
+        let isListReceiver = receiverClassification.isListReceiver
         let addAllFirstArgumentExpr: ExprID? = if memberName == "addAll",
                                                   args.count == 1,
                                                   let firstArg = args.first {
@@ -112,20 +114,20 @@ extension CallTypeChecker {
         {
             _ = driver.inferExpr(addAllFirstArgumentExpr, ctx: ctx, locals: &locals)
         }
-        let isAddAllArrayArgument = addAllFirstArgumentExpr.map {
-            isArrayLikeReceiver(receiverID: $0, sema: sema, interner: interner)
-        } ?? false
-        let isAddAllSequenceArgument: Bool = if let addAllFirstArgumentExpr,
-                                                let firstArgType = sema.bindings.exprTypes[addAllFirstArgumentExpr] {
-            isSequenceLikeType(firstArgType, sema: sema, interner: interner)
+        let addAllArgumentClassification = addAllFirstArgumentExpr.map {
+            receiverClassifier.classify(receiverID: $0)
+        }
+        let isAddAllArrayArgument = addAllArgumentClassification?.isArrayReceiver ?? false
+        let addAllFirstArgumentType = addAllFirstArgumentExpr.flatMap { sema.bindings.exprTypes[$0] }
+        let isAddAllSequenceArgument: Bool = if let firstArgType = addAllFirstArgumentType {
+            receiverClassifier.isSequenceLikeType(firstArgType)
         } else {
             false
         }
-        let isAddAllIterableArgument: Bool = if let addAllFirstArgumentExpr,
-                                                let firstArgType = sema.bindings.exprTypes[addAllFirstArgumentExpr] {
-            isIterableLikeReceiver(receiverID: addAllFirstArgumentExpr, sema: sema, interner: interner)
-                && !isCollectionLikeType(firstArgType, sema: sema, interner: interner)
-                && !isSequenceLikeType(firstArgType, sema: sema, interner: interner)
+        let isAddAllIterableArgument: Bool = if let firstArgType = addAllFirstArgumentType {
+            addAllArgumentClassification?.isIterableReceiver == true
+                && !receiverClassifier.isCollectionLikeType(firstArgType)
+                && !receiverClassifier.isSequenceLikeType(firstArgType)
         } else {
             false
         }
@@ -174,7 +176,7 @@ extension CallTypeChecker {
         // so we let it through to preserve the pre-migration behaviour.
         if interner.resolve(calleeName) == "flatten", !isSequenceReceiver,
            receiverElementType != sema.types.anyType,
-           !isCollectionLikeType(receiverElementType, sema: sema, interner: interner) {
+           !receiverClassifier.isCollectionLikeType(receiverElementType) {
             return nil
         }
 
@@ -248,7 +250,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
+                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
             }) else {
                 return false
             }
@@ -489,6 +491,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let roots = driver.helpers.allNominalSymbols(
             of: sema.types.makeNonNullable(receiverType),
             types: sema.types,
@@ -596,14 +599,14 @@ extension CallTypeChecker {
             if memberName == interner.intern("addAll"),
                argCount == 1,
                let firstArgExpr = argExprs.first,
-               isArrayLikeReceiver(receiverID: firstArgExpr, sema: sema, interner: interner),
+               receiverClassifier.isArrayLikeReceiver(receiverID: firstArgExpr),
                let arrayMatch = allCandidates.first(where: { candidate in
                    guard let signature = sema.symbols.functionSignature(for: candidate),
                          let parameterType = signature.parameterTypes.first
                    else {
                        return false
                    }
-                   return isCollectionFallbackArrayLikeType(parameterType, sema: sema, interner: interner)
+                   return receiverClassifier.isArrayLikeType(parameterType)
                })
             {
                 return arrayMatch
@@ -612,7 +615,7 @@ extension CallTypeChecker {
                argCount == 1,
                let firstArgExpr = argExprs.first,
                let firstArgType = sema.bindings.exprTypes[firstArgExpr],
-               isSequenceLikeType(firstArgType, sema: sema, interner: interner),
+               receiverClassifier.isSequenceLikeType(firstArgType),
                let sequenceMatch = allCandidates.first(where: { candidate in
                    guard let sig = sema.symbols.functionSignature(for: candidate),
                          sig.parameterTypes.count == 1,
@@ -620,7 +623,7 @@ extension CallTypeChecker {
                    else {
                        return false
                    }
-                   return isSequenceLikeType(firstParamType, sema: sema, interner: interner)
+                   return receiverClassifier.isSequenceLikeType(firstParamType)
                })
             {
                 return sequenceMatch
@@ -628,15 +631,15 @@ extension CallTypeChecker {
             if memberName == interner.intern("addAll"),
                argCount == 1,
                let firstArgExpr = argExprs.first,
-               isIterableLikeReceiver(receiverID: firstArgExpr, sema: sema, interner: interner),
-               !isCollectionLikeType(sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType, sema: sema, interner: interner),
+               receiverClassifier.isIterableLikeReceiver(receiverID: firstArgExpr),
+               !receiverClassifier.isCollectionLikeType(sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType),
                let iterableMatch = allCandidates.first(where: { candidate in
                    guard let signature = sema.symbols.functionSignature(for: candidate),
                          let parameterType = signature.parameterTypes.first
                    else {
                        return false
                    }
-                   return isCollectionFallbackIterableLikeType(parameterType, sema: sema, interner: interner)
+                   return receiverClassifier.isIterableLikeType(parameterType)
                })
             {
                 return iterableMatch
@@ -681,34 +684,6 @@ extension CallTypeChecker {
         queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return nil
-    }
-
-    private func isCollectionFallbackArrayLikeType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
-        }
-        return knownNames.isArrayLikeName(symbol.name)
-    }
-
-    private func isCollectionFallbackIterableLikeType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
-        }
-        return symbol.name == interner.intern("Iterable")
-            || symbol.fqName == [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Iterable"),
-            ]
     }
 
     private func stdlibSurfaceOwnerKindsForCollectionFallback(
@@ -2800,180 +2775,6 @@ extension CallTypeChecker {
         case .star:
             sema.types.anyType
         }
-    }
-
-    func isCollectionLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        if sema.bindings.isCollectionExpr(receiverID) {
-            return true
-        }
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        return isCollectionLikeType(receiverType, sema: sema, interner: interner)
-    }
-
-    func isIterableLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return symbol.name == interner.intern("Iterable")
-            || symbol.fqName == [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Iterable"),
-            ]
-    }
-
-    private func isSequenceLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        return isSequenceLikeType(receiverType, sema: sema, interner: interner)
-    }
-
-    func isSequenceLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isSequenceSymbol(symbol)
-    }
-
-    func isCollectionLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        for (_, symbol) in collectionFallbackClassTypes(receiverType, sema: sema) {
-            if knownNames.isCollectionLikeSymbol(symbol) {
-                return true
-            }
-        }
-        return false
-    }
-
-    func isListLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isConcreteListLikeSymbol(symbol)
-    }
-
-    private func isMapLikeCollectionReceiver(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
-    }
-
-    private func isMutableListCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return (
-            symbol.name == knownNames.mutableList
-                || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-        ) && classType.args.count == 1
-    }
-
-    private func isMutableCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        for (classType, symbol) in collectionFallbackClassTypes(receiverType, sema: sema) {
-            if (
-                symbol.name == interner.intern("MutableCollection")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("MutableCollection"),
-                    ]
-            ) && classType.args.count == 1 {
-                return true
-            }
-        }
-        return false
-    }
-
-    private func isMutableSetCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isMutableSetSymbol(symbol) && classType.args.count == 1
-    }
-
-    private func isMutableMapCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isMutableMapSymbol(symbol) && classType.args.count == 2
-    }
-
-    private func isConcreteListLikeCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isConcreteListLikeSymbol(symbol) && !knownNames.isMapLikeSymbol(symbol)
-    }
-
-    private func isSetLikeCollectionReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.collectionKind(of: symbol) == .set && classType.args.count == 1
     }
 
     // MARK: - Array member fallback (STDLIB-087/088/089)

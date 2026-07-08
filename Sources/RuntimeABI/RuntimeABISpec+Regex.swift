@@ -91,6 +91,19 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_split_regex_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_option_flat",

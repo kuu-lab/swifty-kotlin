@@ -88,14 +88,6 @@ extension CallLowerer {
             {
                 return true
             }
-            if resultRuntimeHOFMemberCalleeName(
-                memberName: interner.resolve(calleeName),
-                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) != nil {
-                return true
-            }
             return sema.symbols.symbol(chosenCallee)?.declSite == nil
         }()
         let normalizedArgIDs: [KIRExprID] = {
@@ -1230,6 +1222,22 @@ extension CallLowerer {
             return result
         }
 
+        if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            loweredReceiverID: loweredReceiverID,
+            loweredArgIDs: loweredArgIDs,
+            normalizedArgIDs: normalizedArgIDs,
+            result: result,
+            instructions: &instructions
+        ) {
+            return tableDrivenStringMember
+        }
+
         // String stdlib: nullable-receiver 0-arg methods (NULL-002)
         // isNullOrEmpty/isNullOrBlank pass the raw (potentially null) receiver pointer to C runtime.
         if args.isEmpty {
@@ -1870,7 +1878,7 @@ extension CallLowerer {
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
+                        ("__kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         nil
                     }

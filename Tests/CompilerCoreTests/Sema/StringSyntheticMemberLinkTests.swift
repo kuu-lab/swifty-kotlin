@@ -95,18 +95,18 @@ struct StringSyntheticMemberLinkTests {
         )
         #expect(
             externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
-                .contains("kk_string_split_flat"),
-            "String.__kk_string_split should bridge to kk_string_split_flat"
+                .contains("__kk_string_split"),
+            "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
         )
         #expect(
             externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
-                .contains("kk_string_split_limit_flat"),
-            "String.__kk_string_split_limit should bridge to kk_string_split_limit_flat"
+                .contains("__kk_string_split_limit"),
+            "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
         )
         #expect(
             externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
-                .contains("kk_string_splitToSequence_flat"),
-            "String.__kk_string_splitToSequence should bridge to kk_string_splitToSequence_flat"
+                .contains("__kk_string_splitToSequence"),
+            "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
         )
         #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
@@ -238,16 +238,16 @@ struct StringSyntheticMemberLinkTests {
 
         let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount"),
-            "CharSequence.codePointCount() should link to kk_string_codePointCount"
+            codePointCountLinks.contains("__kk_string_codePointCount"),
+            "CharSequence.codePointCount() should link to __kk_string_codePointCount"
         )
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount_from"),
-            "CharSequence.codePointCount(startIndex) should link to kk_string_codePointCount_from"
+            codePointCountLinks.contains("__kk_string_codePointCount_from"),
+            "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
         )
         #expect(
-            codePointCountLinks.contains("kk_string_codePointCount_range"),
-            "CharSequence.codePointCount(startIndex, endIndex) should link to kk_string_codePointCount_range"
+            codePointCountLinks.contains("__kk_string_codePointCount_range"),
+            "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
         )
     }
 
@@ -255,12 +255,12 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "normalize", sema: sema, interner: interner) == "kk_string_normalize_flat",
-            "String.normalize should link to kk_string_normalize_flat"
+            externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
+            "String.normalize should link to __kk_string_normalize_flat"
         )
         #expect(
-            externalLink(for: "isNormalized", sema: sema, interner: interner) == "kk_string_isNormalized_flat",
-            "String.isNormalized should link to kk_string_isNormalized_flat"
+            externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
+            "String.isNormalized should link to __kk_string_isNormalized_flat"
         )
     }
 
@@ -701,8 +701,8 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "normalize": "kk_string_normalize_flat",
-                "isNormalized": "kk_string_isNormalized_flat",
+                "normalize": "__kk_string_normalize_flat",
+                "isNormalized": "__kk_string_isNormalized_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {

@@ -4,7 +4,7 @@
 ///
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
 /// to keep each rewrite source scoped to a single receiver kind.
-extension CollectionLiteralLoweringPass {
+extension CollectionVirtualCallRewriteLoweringPass {
     // MARK: - Sequence operations
 
     func rewriteSequenceVirtualCall(
