@@ -118,6 +118,27 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | `variance_generics.kt` | Sema variance checking gap | variance type checker の実装後に通常 diff へ戻す。実装前は Sema golden / diagnostic case として固定 |
 | `math_rounding_functions.kt` | math API ではなく boxed `Double` iteration lowering bug | List<Double> iteration unboxing の最小再現を別 case 化し、math 関数 case から分離 |
 
+## 既知の限界: 両側コンパイル失敗時の exit code 一致による偽陽性
+
+`Scripts/diff_kotlinc.sh` の `run_case()`（719行目付近）は、compile 失敗を次の条件でのみ mismatch として検出する。
+
+```bash
+if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
+  ok=0
+  echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
+fi
+```
+
+stdout 比較ブロック（735行目以降）は `ref_compile_exit -eq 0 && cand_compile_exit -eq 0` を前提に実行される。つまり **reference (kotlinc) と candidate (kswiftc) が両方ともコンパイルに失敗し、かつ exit code がたまたま一致していれば、実際のエラーメッセージの内容や個数を一切比較せずに "PASS" と報告される**。この場合プログラムは一度も実行されず、`ref_run.stdout` / `cand_run.stdout` は 0 バイトのまま残る。DEBT-DIFF-006 の `error_type_inference.kt`（117行目）で触れている「stderr parity を厳密比較しない」設計上のギャップと同根だが、こちらは `SKIP-DIFF` マーカーの無い通常運用ケースでも無警告で発生し得る点でより見落としやすい。
+
+**実例:** `math_exp_log_functions.kt`（skip マーカー無し）は、トップレベル `log(E)`（Kotlin の `kotlin.math.log` は単項オーバーロードが無く `log(x, base)` の2引数版のみ）と `pow(2.0, 3.0)`（トップレベル `pow` 自体が存在せず `Double.pow()` 拡張関数のみ）という、そもそも invalid な Kotlin コードを含んでいた。kotlinc 側は `no value passed for parameter 'base'` + `unresolved reference 'pow'` の4エラー、kswiftc 側は `KSWIFTK-SEMA-0002: No viable overload found for call` の2エラーを出し、内容も個数も異なるが exit code（非ゼロ）が一致したため "PASS" と表示されていた。`ln(E)` / `2.0.pow(3.0)` 等の正しい API 呼び出しへ修正して初めて両者が実行され、`exp(1.0)` で JVM `Math.exp` と macOS system libm の1 ULP差（後述の対処と同種の既知差異）が新たに検出された。
+
+**対処:**
+- "PASS" 表示だけで安心せず、疑わしいケースは `--keep-temp` を付けて `<tmp_dir>/ref_run.stdout` / `cand_run.stdout`（`.norm` ではなく raw ファイル）のバイト数を直接確認する。0 バイトなら未実行 = コンパイル失敗の可能性が高い。
+- トップレベル関数呼び出し（`log(x)`, `pow(x,y)` 等）を書く diff_cases は、拡張関数 vs トップレベル関数・引数個数を実際の Kotlin 言語仕様で事前に確認する。
+- 三角関数・双曲線関数・exp/log 系の生の `Double` 値を `println()` する設計は、JVM 側の実装詳細（intrinsic / fdlibm）依存の1 ULP差で偽陰性/偽陽性双方になり得る。`Scripts/diff_cases/float_precision.kt` の手法（`println(abs(actual - expected) < 1e-9)` のように真偽値/許容誤差判定を出力する）に倣うのが対処であり、kswiftc 側の exp/log 実装を JVM 互換に作り替える必要はない。
+- 両側失敗時の stderr 内容/個数比較を `run_case()` へ追加する改修は未着手。同種の「両側失敗 + exit code 一致」が他の `diff_cases` にも潜んでいる可能性があり、棚卸しも未着手。
+
 ## 解除手順
 
 1. 対象ケースだけを `--force-run-skipped` で実行する。
