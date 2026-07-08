@@ -1,5 +1,5 @@
 /// Numeric and extrema higher-order collection rewrites, including comparator trampoline expansion.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteExtremaHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],

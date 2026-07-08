@@ -107,7 +107,11 @@ extension BuildKIRRegressionTests {
             let sema = try #require(ctx.sema)
             let module = try #require(ctx.kir)
 
-            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            let tryExprID = try #require(firstExprID(in: ast) { exprID, expr in
+                guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
+                    return false
+                }
                 if case .tryExpr = expr {
                     return true
                 }

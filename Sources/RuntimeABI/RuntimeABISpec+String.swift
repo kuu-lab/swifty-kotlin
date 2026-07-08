@@ -3067,7 +3067,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount",
+            name: "__kk_string_codePointCount",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -3075,7 +3075,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount_from",
+            name: "__kk_string_codePointCount_from",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
@@ -3085,7 +3085,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_codePointCount_range",
+            name: "__kk_string_codePointCount_range",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
@@ -3125,7 +3125,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_random",
+            name: "__kk_string_random",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -3134,7 +3134,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_random_random",
+            name: "__kk_string_random_random",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),

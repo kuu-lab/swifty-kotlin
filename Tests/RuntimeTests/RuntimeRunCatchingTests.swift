@@ -33,22 +33,22 @@ final class RuntimeRunCatchingTests: XCTestCase {
     func testRunCatchingWrapsSuccessAsResult() {
         var thrown = 0
         let fn = unsafeBitCast(runtime_runcatching_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
-        let resultRaw = kk_runCatching(fn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(fn, 0, &thrown)
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 1)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 0)
-        XCTAssertEqual(kk_result_getOrNull(resultRaw), 99)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1)
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 0)
+        XCTAssertEqual(runtimeResultValueOrNull(resultRaw), 99)
     }
 
     func testRunCatchingWrapsFailureWithoutThrowingOutward() {
         var thrown = 0
         let fn = unsafeBitCast(runtime_runcatching_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
-        let resultRaw = kk_runCatching(fn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(fn, 0, &thrown)
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 0)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1)
-        XCTAssertNotEqual(kk_result_exceptionOrNull(resultRaw), runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 0)
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
+        XCTAssertNotEqual(runtimeResultExceptionOrNull(resultRaw), runtimeNullSentinelInt)
     }
 }

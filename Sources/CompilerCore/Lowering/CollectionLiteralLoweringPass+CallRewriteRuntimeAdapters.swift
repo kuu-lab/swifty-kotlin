@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
 
     /// Rewrites late-stage runtime call adapters after direct collection/HOF rewrites.
     func rewriteRuntimeAdapterCall(

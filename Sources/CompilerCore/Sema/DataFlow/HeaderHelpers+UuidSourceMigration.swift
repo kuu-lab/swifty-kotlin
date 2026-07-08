@@ -14,13 +14,11 @@ extension DataFlowSemaPhase {
         guard isBundledUuidSource(sourceFileID, ctx: ctx),
               let symbol = symbols.symbol(symbolID),
               symbol.kind == .function,
-              !symbol.flags.contains(.synthetic),
-              let externalLinkName = uuidSourceMigrationLinkName(for: fqName, interner: interner)
+              !symbol.flags.contains(.synthetic)
         else {
             return
         }
 
-        symbols.setExternalLinkName(externalLinkName, for: symbolID)
         attachUuidSourceMigrationExperimentalAnnotation(to: symbolID, symbols: symbols)
     }
 
@@ -59,28 +57,6 @@ extension DataFlowSemaPhase {
             return
         }
         attachUuidSourceMigrationExperimentalAnnotation(to: symbolID, symbols: symbols)
-    }
-
-    private func uuidSourceMigrationLinkName(
-        for fqName: [InternedString],
-        interner: StringInterner
-    ) -> String? {
-        if matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "Companion", "random"], interner: interner) {
-            return "kk_uuid_random"
-        }
-        if matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "Companion", "parse"], interner: interner) {
-            return "kk_uuid_parse"
-        }
-        if matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "toString"], interner: interner) {
-            return "kk_uuid_toString"
-        }
-        if matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "toLongs"], interner: interner) {
-            return "kk_uuid_toLongs"
-        }
-        if matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "toByteArray"], interner: interner) {
-            return "kk_uuid_toByteArray"
-        }
-        return nil
     }
 
     private func matchesFQName(

@@ -1,6 +1,6 @@
 /// Sequence-producing and sequence-consuming call rewrites split out from
 /// `CollectionLiteralLoweringPass+CallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequenceCollectionCall(
         symbol: SymbolID?,
         callee: InternedString,

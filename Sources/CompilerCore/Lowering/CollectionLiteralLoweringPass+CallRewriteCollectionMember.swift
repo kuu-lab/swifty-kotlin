@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
 
     /// Rewrites simple collection member calls that do not require closure ABI expansion.
     func rewriteCollectionMemberCall(
