@@ -231,7 +231,7 @@ public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closu
             return normalized
         }
     }
-    let thrown = runtimeAllocateThrowable(message: "No element of the collection was transformed to a non-null value.")
+    let thrown = runtimeAllocateNoSuchElementException(message: "No element of the collection was transformed to a non-null value.")
     return handleCollectionLambdaThrow(thrown, outThrown)
 }
 
@@ -321,7 +321,7 @@ public func kk_iterable_requireNoNulls(_ iterableRaw: Int, _ outThrown: UnsafeMu
         invalidContainerPanic(#function, "iterable")
     }
     for elem in elements where runtimeNormalizeNullableCollectionValue(elem) == nil {
-        let thrown = runtimeAllocateThrowable(message: "null element found in collection.")
+        let thrown = runtimeAllocateIllegalArgumentException(message: "null element found in collection.")
         return handleCollectionLambdaThrow(thrown, outThrown)
     }
     return iterableRaw
@@ -1197,7 +1197,7 @@ public func kk_list_first(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         invalidContainerPanic(#function, "list")
     }
     guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "Collection is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
     }
     if fnPtr == 0 {
         return list.elements[0]
@@ -1208,7 +1208,7 @@ public func kk_list_first(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if maybeUnbox(result) != 0 { return elem }
     }
-    outThrown?.pointee = runtimeAllocateThrowable(
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(
         message: "Collection contains no element matching the predicate."
     )
     return handleCollectionLambdaThrow(outThrown!.pointee, outThrown)
@@ -1220,7 +1220,7 @@ public func kk_list_last(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
         invalidContainerPanic(#function, "list")
     }
     guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "Collection is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
     }
     if fnPtr == 0 {
         return list.elements.last!
@@ -1233,7 +1233,7 @@ public func kk_list_last(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
         if maybeUnbox(result) != 0 { lastMatch = elem }
     }
     if let match = lastMatch { return match }
-    outThrown?.pointee = runtimeAllocateThrowable(
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(
         message: "Collection contains no element matching the predicate."
     )
     return handleCollectionLambdaThrow(outThrown!.pointee, outThrown)
@@ -1852,7 +1852,7 @@ public func kk_list_min(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?)
     }
     guard let first = list.elements.first else {
         return handleCollectionLambdaThrow(
-            runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."),
+            runtimeAllocateNoSuchElementException(message: "List is empty."),
             outThrown
         )
     }
@@ -1893,7 +1893,7 @@ public func kk_list_maxBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         invalidContainerPanic(#function, "list")
     }
     guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "List is empty."), outThrown)
     }
     var bestElem = list.elements[0]
     var thrown = 0
@@ -1941,7 +1941,7 @@ public func kk_list_minBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         invalidContainerPanic(#function, "list")
     }
     guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "List is empty."), outThrown)
     }
     var bestElem = list.elements[0]
     var thrown = 0
@@ -2032,7 +2032,7 @@ public func kk_list_random(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int
         invalidContainerPanic(#function, "collection")
     }
     guard !elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "NoSuchElementException: Collection is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
     }
     return elements.randomElement()!
 }
@@ -2293,14 +2293,14 @@ public func kk_list_binarySearch_comparator(_ listRaw: Int, _ element: Int, _ fn
     if fromIndex > toIndex {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateThrowable(message: "IllegalArgumentException: fromIndex \(fromIndex) must not be greater than toIndex \(toIndex)")
+            runtimeAllocateIllegalArgumentException(message: "fromIndex \(fromIndex) must not be greater than toIndex \(toIndex)")
         )
         return 0
     }
     if fromIndex < 0 || toIndex < 0 || fromIndex > size || toIndex > size {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateThrowable(message: "IndexOutOfBoundsException: fromIndex=\(fromIndex), toIndex=\(toIndex), size=\(size)")
+            runtimeAllocateIndexOutOfBoundsException(message: "fromIndex=\(fromIndex), toIndex=\(toIndex), size=\(size)")
         )
         return 0
     }

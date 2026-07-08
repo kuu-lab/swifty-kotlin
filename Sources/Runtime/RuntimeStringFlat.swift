@@ -191,7 +191,7 @@ public func kk_string_repeat_flat(
     guard countRaw >= 0 else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: Requested element count \(countRaw) is less than zero."
+            runtimeAllocateIllegalArgumentException(message: "Requested element count \(countRaw) is less than zero.")
         )
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
@@ -243,7 +243,7 @@ public func kk_string_first_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let first = codeUnits.first else {
-        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     return Int(first)
@@ -260,7 +260,7 @@ public func kk_string_last_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let last = codeUnits.last else {
-        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     return Int(last)
@@ -277,8 +277,11 @@ public func kk_string_single_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard codeUnits.count == 1 else {
-        let msg = codeUnits.isEmpty ? "Char sequence is empty." : "Char sequence has more than one element."
-        runtimeSetThrown(outThrown, message: msg)
+        if codeUnits.isEmpty {
+            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        } else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+        }
         return 0
     }
     return Int(codeUnits[0])
@@ -749,7 +752,7 @@ public func kk_string_toBooleanStrict_flat(
     case "false":
         return 0
     default:
-        runtimeSetThrown(outThrown, message: "The string doesn't represent a boolean value: \(source)")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)"))
         return 0
     }
 }

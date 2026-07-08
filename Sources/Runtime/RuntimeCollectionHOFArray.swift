@@ -192,7 +192,7 @@ public func kk_array_reduce(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
         invalidContainerPanic(#function, "array")
     }
     guard !array.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "Empty collection can't be reduced."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced."), outThrown)
     }
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {
@@ -209,7 +209,7 @@ public func kk_array_reduceIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: 
         invalidContainerPanic(#function, "array")
     }
     guard !array.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "Empty collection can't be reduced."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced."), outThrown)
     }
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {

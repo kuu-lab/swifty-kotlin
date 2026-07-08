@@ -305,8 +305,8 @@ private func runtimeByteArrayRangeError(
     size: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(
-        message: "IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), size=\(size)"
+    outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+        message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(size)"
     )
     return runtimeMakeStringRaw("")
 }

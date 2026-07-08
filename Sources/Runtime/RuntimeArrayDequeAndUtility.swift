@@ -33,11 +33,11 @@ public func kk_arraydeque_addLast(_ dequeRaw: Int, _ element: Int) -> Int {
 public func kk_arraydeque_removeFirst(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     return deque.elements.removeFirst()
@@ -47,11 +47,11 @@ public func kk_arraydeque_removeFirst(_ dequeRaw: Int, _ outThrown: UnsafeMutabl
 public func kk_arraydeque_removeLast(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     return deque.elements.removeLast()
@@ -61,11 +61,11 @@ public func kk_arraydeque_removeLast(_ dequeRaw: Int, _ outThrown: UnsafeMutable
 public func kk_arraydeque_first(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     return deque.elements[0]
@@ -75,11 +75,11 @@ public func kk_arraydeque_first(_ dequeRaw: Int, _ outThrown: UnsafeMutablePoint
 public func kk_arraydeque_last(_ dequeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let deque = runtimeArrayDequeBox(from: dequeRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     guard !deque.elements.isEmpty else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArrayDeque is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "ArrayDeque is empty.")
         return 0
     }
     return deque.elements[deque.elements.count - 1]

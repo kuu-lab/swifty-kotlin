@@ -1398,8 +1398,8 @@ public func kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutable
     let result = runtimeFlowEvaluate(flow: flow)
     runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
     guard result.values.count == 1 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NoSuchElementException: Flow does not contain exactly one element."
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(
+            message: "Flow does not contain exactly one element."
         )
         return 0
     }
