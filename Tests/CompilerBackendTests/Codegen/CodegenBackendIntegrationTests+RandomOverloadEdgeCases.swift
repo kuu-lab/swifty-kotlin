@@ -20,9 +20,14 @@ extension CodegenBackendIntegrationTests {
             val zero = r.nextBits(0)
             val one = r.nextBits(1)
             val thirtyOne = r.nextBits(31)
+            // nextBits(32) spans the full Int range (unlike thirtyOne, it can be
+            // negative), so there's no range invariant left to assert beyond the
+            // call completing without crashing.
+            r.nextBits(32)
             println(zero == 0)
             println(one == 0 || one == 1)
             println(thirtyOne >= 0)
+            println(true)
             r.nextBits(33)
             println(true)
         }
@@ -33,6 +38,7 @@ extension CodegenBackendIntegrationTests {
             moduleName: "RandomNextBitsMember",
             expected:
                 """
+                true
                 true
                 true
                 true
@@ -341,6 +347,47 @@ extension CodegenBackendIntegrationTests {
                 """
                 true
                 true
+                true
+                true
+                """ + "\n"
+        )
+    }
+
+    func testCodegenCompilesRandomNextDoubleRejectsNaNBounds() throws {
+        // KSP-466 review follow-up: nextDouble(from, until) matches upstream's own
+        // `checkRangeBounds(from, until) = require(until > from) { ... }` — no
+        // explicit isNaN() check exists (or is needed) in either upstream or this
+        // port, since IEEE754 comparisons against NaN are always false, so
+        // `until > from` already evaluates to false whenever either bound is NaN,
+        // and `require` throws IllegalArgumentException same as any other
+        // out-of-order bounds. This test locks that behavior in explicitly.
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            val r = Random(7)
+
+            try {
+                r.nextDouble(Double.NaN, 10.0)
+                println(false)
+            } catch (e: IllegalArgumentException) {
+                println(true)
+            }
+
+            try {
+                r.nextDouble(0.0, Double.NaN)
+                println(false)
+            } catch (e: IllegalArgumentException) {
+                println(true)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextDoubleRejectsNaNBounds",
+            expected:
+                """
                 true
                 true
                 """ + "\n"
