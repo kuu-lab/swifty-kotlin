@@ -29,6 +29,11 @@ FORCE_RUN_SKIPPED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
+# kotlinc -script bundles JVM startup + compilation + execution into a single
+# process, so it belongs on the COMPILE_TIMEOUT scale, not RUN_TIMEOUT (which
+# assumes a fast pre-compiled binary). Resolved after arg parsing so it can
+# default to the final COMPILE_TIMEOUT (post --compile-timeout override).
+SCRIPT_TIMEOUT="${DIFF_SCRIPT_TIMEOUT:-}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
 LLDB_BIN="${LLDB_BIN:-lldb}"
 
@@ -53,6 +58,10 @@ Options:
                      Per-compiler timeout (default: \$DIFF_COMPILE_TIMEOUT or 120)
   --run-timeout <seconds>
                      Per-program timeout (default: \$DIFF_RUN_TIMEOUT or 10)
+  --script-timeout <seconds>
+                     Timeout for script-style (script_*.kt) reference cases,
+                     which bundle kotlinc JVM startup + compile + run into one
+                     process (default: \$DIFF_SCRIPT_TIMEOUT, else --compile-timeout)
   --keep-temp        Keep per-test temporary directories
   --report <path>    Write TSV report (case, status, artifact_dir)
   --artifact-root <path>
@@ -165,6 +174,14 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       RUN_TIMEOUT="$1"
+      ;;
+    --script-timeout)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--script-timeout requires an argument" >&2
+        exit 1
+      fi
+      SCRIPT_TIMEOUT="$1"
       ;;
     --keep-temp)
       KEEP_TEMP=1
@@ -348,6 +365,15 @@ if ! [[ "$RUN_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+# Default to the (possibly --compile-timeout-overridden) COMPILE_TIMEOUT, since
+# script mode's dominant cost is JVM startup + compilation, not execution.
+SCRIPT_TIMEOUT="${SCRIPT_TIMEOUT:-$COMPILE_TIMEOUT}"
+
+if ! [[ "$SCRIPT_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "script timeout must be a positive integer: $SCRIPT_TIMEOUT" >&2
+  exit 1
+fi
+
 if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
@@ -421,6 +447,7 @@ if (( DIFF_SHARD_COUNT > 1 )); then
 fi
 echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
+echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
 echo "Target: $TARGET"
@@ -539,6 +566,7 @@ result: $result_label
 artifact_dir: $destination
 compile_timeout_seconds: $COMPILE_TIMEOUT
 run_timeout_seconds: $RUN_TIMEOUT
+script_timeout_seconds: $SCRIPT_TIMEOUT
 ref_compile_exit: $ref_compile_exit
 candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
@@ -668,10 +696,10 @@ run_case() {
     local script_exit=0
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
     else
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
     fi
     if [[ $script_exit -eq 124 ]]; then
       # Timeout in script mode is a runtime timeout, not a compile timeout
@@ -755,7 +783,11 @@ run_case() {
     fi
     if [[ $ref_run_exit -eq 124 ]]; then
       ok=0
-      echo "  ref run timed out after ${RUN_TIMEOUT}s"
+      if [[ $is_script -eq 1 ]]; then
+        echo "  ref script (compile+run) timed out after ${SCRIPT_TIMEOUT}s"
+      else
+        echo "  ref run timed out after ${RUN_TIMEOUT}s"
+      fi
     fi
     if [[ $cand_run_exit -eq 124 ]]; then
       ok=0
