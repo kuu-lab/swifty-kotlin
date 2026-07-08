@@ -95,7 +95,7 @@ extension KIRLoweringDriver {
                 guard let sym = sema.bindings.declSymbols[declID],
                       prop.delegateExpression != nil
                 else { return }
-                map[sym] = detectDelegateKind(
+                map[sym] = StdlibDelegateKind.detect(
                     delegateExpr: prop.delegateExpression,
                     ast: ast,
                     interner: interner
@@ -366,65 +366,6 @@ extension KIRLoweringDriver {
 }
 
 extension KIRLoweringDriver {
-    /// Detects the delegate kind from the delegate expression AST node.
-    func detectDelegateKind(
-        delegateExpr: ExprID?,
-        ast: ASTModule,
-        interner: StringInterner
-    ) -> StdlibDelegateKind {
-        guard let exprID = delegateExpr,
-              let expr = ast.arena.expr(exprID) else { return .custom }
-        let lazyID = interner.intern("lazy")
-        let observableID = interner.intern("observable")
-        let vetoableID = interner.intern("vetoable")
-        let notNullID = interner.intern("notNull")
-        switch expr {
-        case let .nameRef(name, _):
-            if name == lazyID { return .lazy }
-            return .custom
-        case let .call(callee, _, _, _):
-            if let calleeExpr = ast.arena.expr(callee) {
-                switch calleeExpr {
-                case let .nameRef(name, _):
-                    if name == observableID { return .observable }
-                    if name == vetoableID { return .vetoable }
-                    if name == notNullID { return .notNull }
-                    if name == lazyID { return .lazy }
-                default: break
-                }
-            }
-            return detectDelegateKindFromCallExpr(callee: callee, ast: ast, interner: interner)
-        case let .memberCall(_, callee, _, _, _):
-            if callee == observableID { return .observable }
-            if callee == vetoableID { return .vetoable }
-            if callee == notNullID { return .notNull }
-            return .custom
-        default:
-            return .custom
-        }
-    }
-
-    private func detectDelegateKindFromCallExpr(
-        callee: ExprID, ast: ASTModule, interner: StringInterner
-    ) -> StdlibDelegateKind {
-        guard let expr = ast.arena.expr(callee) else { return .custom }
-        let observableID = interner.intern("observable")
-        let vetoableID = interner.intern("vetoable")
-        let notNullID = interner.intern("notNull")
-        switch expr {
-        case let .memberCall(_, name, _, _, _):
-            if name == observableID { return .observable }
-            if name == vetoableID { return .vetoable }
-            if name == notNullID { return .notNull }
-        case let .nameRef(name, _):
-            if name == observableID { return .observable }
-            if name == vetoableID { return .vetoable }
-            if name == notNullID { return .notNull }
-        default: break
-        }
-        return .custom
-    }
-
     /// Creates a lambda function from the delegate body.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
