@@ -141,6 +141,46 @@ public func kk_unbox_long(_ obj: Int) -> Int {
     return obj
 }
 
+@_cdecl("kk_box_ulong")
+public func kk_box_ulong(_ value: Int) -> Int {
+    if value == runtimeNullSentinelInt { return value }
+    // If the value is already a registered runtime object, pass it through
+    // without double-boxing (mirrors kk_box_long).
+    if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: objPointer))
+        }
+        if isObjectPointer {
+            return value
+        }
+    }
+    let box = RuntimeULongBox(value)
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return Int(bitPattern: opaque)
+}
+
+@_cdecl("kk_unbox_ulong")
+public func kk_unbox_ulong(_ obj: Int) -> Int {
+    // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_long.
+    guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return 0 }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: objPointer))
+    }
+    // Passthrough: value is not a heap object — treat as raw int (implicit widening)
+    guard isObjectPointer else { return obj }
+    if let ulongBox = tryCast(objPointer, to: RuntimeULongBox.self) {
+        return ulongBox.value
+    }
+    // Object pointer that isn't a ULongBox — box/unbox type mismatch
+    #if DEBUG
+    print("KSwiftK warning [\(runtimePanicDiagnosticCode)]: kk_unbox_ulong called on non-ULongBox object (0x\(String(obj, radix: 16)))")
+    #endif
+    return obj
+}
+
 @_cdecl("kk_box_float")
 public func kk_box_float(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }

@@ -532,6 +532,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeLongBox.self) == nil ? 0 : 1
 
+    case RuntimeTypeTokenEncoding.ulongBase:
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
+            return 1
+        }
+        let isObjPtr = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if !isObjPtr { return 1 }
+        return tryCast(ptr, to: RuntimeULongBox.self) == nil ? 0 : 1
+
     case RuntimeTypeTokenEncoding.doubleBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
@@ -1595,6 +1605,10 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         Swift.print(longBox.value)
         return
     }
+    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
+        Swift.print(UInt(bitPattern: ulongBox.value))
+        return
+    }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         Swift.print("Throwable(\(throwable.renderedMessage))")
         return
@@ -1825,6 +1839,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let longBox = tryCast(raw, to: RuntimeLongBox.self) {
         return String(longBox.value)
+    }
+    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
+        return String(UInt(bitPattern: ulongBox.value))
     }
     if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
         if let scalar = UnicodeScalar(charBox.value) {

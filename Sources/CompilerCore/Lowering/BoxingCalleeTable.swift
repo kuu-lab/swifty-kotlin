@@ -20,8 +20,12 @@ struct BoxingCalleeTable {
             names: PrimitiveCalleeNames(box: "kk_box_int", unbox: "kk_unbox_int")
         ),
         PrimitiveCalleeRule(
-            primitives: [.long, .ulong],
+            primitives: [.long],
             names: PrimitiveCalleeNames(box: "kk_box_long", unbox: "kk_unbox_long")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.ulong],
+            names: PrimitiveCalleeNames(box: "kk_box_ulong", unbox: "kk_unbox_ulong")
         ),
         PrimitiveCalleeRule(
             primitives: [.boolean],

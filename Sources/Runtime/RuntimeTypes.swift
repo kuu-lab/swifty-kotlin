@@ -294,6 +294,18 @@ final class RuntimeLongBox {
     }
 }
 
+/// Boxed `ULong`. Distinct from `RuntimeLongBox` so that boxed-`Any` dispatch
+/// (toString/equals/hashCode/compareTo/`is`) can tell a ULong apart from a
+/// Long with the same 64-bit pattern — see docs on `kk_box_ulong`.
+final class RuntimeULongBox {
+    /// Raw 64-bit pattern; interpret via `UInt(bitPattern:)` for the true unsigned value.
+    let value: Int
+
+    init(_ value: Int) {
+        self.value = value
+    }
+}
+
 final class RuntimeFloatBox {
     let value: Float
 

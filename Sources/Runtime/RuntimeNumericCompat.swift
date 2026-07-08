@@ -170,6 +170,15 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         let longValue = Int64(longBox.value)
         return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
     }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        // ULong.hashCode() uses the same (this xor (this ushr 32)) formula as
+        // Long; the low-32-bit result of the XOR is identical whether the
+        // shift is arithmetic or logical (the sign/zero-extended high bits
+        // are discarded by truncatingIfNeeded below), so this reuses the
+        // signed-shift form above bit-for-bit.
+        let longValue = Int64(ulongBox.value)
+        return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
+    }
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
         return kk_float_to_bits(floatBox.value)
     }
@@ -237,6 +246,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     if tryCast(pointer, to: RuntimeInstantBox.self) != nil {
         return 9
+    }
+    if tryCast(pointer, to: RuntimeULongBox.self) != nil {
+        return 10
     }
     return 100
 }
