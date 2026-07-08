@@ -268,7 +268,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceFirstRangeRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceFirstSourceBackedAndEmitsFlatRangeRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
             val value = "abcabc"
@@ -292,20 +292,22 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
-                "kk_string_replaceFirst",
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
+
+            let flatNames = [
                 "kk_string_replaceRange",
                 "kk_string_removeRange",
                 "kk_string_removeRange_range",
             ]
-            for rawName in rawNames {
+            for rawName in flatNames {
                 XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String range call: \(rawName)")
                 XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String range call: \(rawName)_flat")
             }
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceCharIgnoreCaseRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceCharIgnoreCaseSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
             println("hello world".replace('l', 'r'))
@@ -327,14 +329,14 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            let sourceBackedNames = [
                 "kk_string_replace_char",
                 "kk_string_replace_ignoreCase",
                 "kk_string_replace_char_ignoreCase",
             ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String replace call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String replace call: \(rawName)_flat")
+            for rawName in sourceBackedNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw source-backed String replace call: \(rawName)")
+                XCTAssertFalse(ir.contains("@\(rawName)_flat"), "Unexpected flat source-backed String replace call: \(rawName)_flat")
             }
         }
     }

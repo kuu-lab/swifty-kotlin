@@ -128,7 +128,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "optionsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_flat",
@@ -340,7 +341,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "replacement", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-REGEX-097: Regex.groupNames
         RuntimeABIFunctionSpec(
