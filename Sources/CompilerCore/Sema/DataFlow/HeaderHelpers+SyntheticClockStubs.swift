@@ -1,14 +1,19 @@
-/// Synthetic stubs for kotlin.time.Instant and kotlin.time.Clock (STDLIB-TIME-083/086).
+/// Synthetic stubs for kotlin.time.Clock (STDLIB-TIME-086).
 ///
-/// Registers:
-/// - `kotlin.time.Instant` class with:
-///   - Companion factory methods: `now()`, `fromEpochMilliseconds(Long)`
-///   - Instance properties: `epochSeconds`, `nanoOfSecond`
-///   - Instance methods: `plus(Duration)`, `minus(Duration)`, `until(Instant)`, `elapsed()`
-///   - Comparison via `compareTo(Instant)`
-/// - `kotlin.time.Clock` interface with:
-///   - `Clock.System` singleton object with `now()` method
-///   - Instance method `now()` on the Clock interface
+/// Registers `kotlin.time.Clock` interface with:
+/// - `Clock.System` singleton object with `now()` method
+/// - Instance method `now()` on the Clock interface
+///
+/// Both `now()` overloads stay as direct native bridges (kk_clock_now /
+/// kk_clock_system_now): Clock is a user-implementable interface, so `now()`
+/// must remain a real class member for virtual dispatch to work, and
+/// Clock.System is a singleton whose factory-style member cannot be
+/// expressed as Kotlin-source extension (KSP-472).
+///
+/// kotlin.time.Instant itself is registered by
+/// HeaderHelpers+SyntheticInstantStubs.swift; this file only re-resolves the
+/// existing Instant symbol to use as the return type of Clock.now() /
+/// Clock.System.now().
 extension DataFlowSemaPhase {
     func registerSyntheticClockStubs(
         symbols: SymbolTable,
@@ -21,25 +26,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Locate Duration type (needed for method signatures) ---
-        let durationFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("time"),
-            interner.intern("Duration"),
-        ]
-        let durationSymbolOpt = symbols.lookup(fqName: durationFQName)
-        let durationType: TypeID
-        if let durationSym = durationSymbolOpt {
-            durationType = types.make(.classType(ClassType(
-                classSymbol: durationSym,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            durationType = types.anyType
-        }
-
-        // MARK: - Instant class
+        // MARK: - Instant class (registered by registerSyntheticInstantStubs)
 
         let instantSymbol = ensureClassSymbol(
             named: "Instant",
@@ -52,127 +39,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-
-        let longType = types.longType
-        let intType = types.intType
-
-        // --- Instant.Companion factory methods ---
-
-        let instantCompanionFQName = ensureClockCompanionSymbol(
-            named: "Companion",
-            ownerSymbol: instantSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Instant.now() -> Instant
-        registerClockCompanionMethod(
-            named: "now",
-            externalLinkName: "kk_instant_now",
-            returnType: instantType,
-            parameters: [],
-            companionFQName: instantCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Instant.fromEpochMilliseconds(Long) -> Instant
-        registerClockCompanionMethod(
-            named: "fromEpochMilliseconds",
-            externalLinkName: "kk_instant_from_epoch_millis",
-            returnType: instantType,
-            parameters: [(name: "epochMilliseconds", type: longType)],
-            companionFQName: instantCompanionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Instant instance properties ---
-
-        // epochSeconds: Long
-        registerClockMemberProperty(
-            named: "epochSeconds",
-            externalLinkName: "kk_instant_epoch_seconds",
-            ownerSymbol: instantSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // nanoOfSecond: Int
-        registerClockMemberProperty(
-            named: "nanoOfSecond",
-            externalLinkName: "kk_instant_nano_of_second",
-            ownerSymbol: instantSymbol,
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Instant instance methods ---
-
-        // plus(duration: Duration): Instant  [operator fun]
-        registerClockMemberFunction(
-            named: "plus",
-            externalLinkName: "kk_instant_plus_duration",
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: instantType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-
-        // minus(duration: Duration): Instant  [operator fun]
-        registerClockMemberFunction(
-            named: "minus",
-            externalLinkName: "kk_instant_minus_duration",
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            parameters: [(name: "duration", type: durationType)],
-            returnType: instantType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
-
-        // until(other: Instant): Duration
-        registerClockMemberFunction(
-            named: "until",
-            externalLinkName: "kk_instant_until",
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            parameters: [(name: "other", type: instantType)],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // elapsed(): Duration
-        registerClockMemberFunction(
-            named: "elapsed",
-            externalLinkName: "kk_instant_elapsed",
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            parameters: [],
-            returnType: durationType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // compareTo(other: Instant): Int  [operator fun]
-        registerClockMemberFunction(
-            named: "compareTo",
-            externalLinkName: "kk_instant_compare",
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            parameters: [(name: "other", type: instantType)],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner,
-            isOperator: true
-        )
 
         // MARK: - Clock interface
 
@@ -235,35 +101,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func ensureClockCompanionSymbol(
-        named companionName: String,
-        ownerSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
-           let companionInfo = symbols.symbol(existingCompanion)
-        {
-            return companionInfo.fqName
-        }
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return []
-        }
-        let interned = interner.intern(companionName)
-        let fqName = ownerInfo.fqName + [interned]
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: interned,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
-        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-        return fqName
-    }
-
     /// Creates a nested object (e.g. Clock.System) under an existing class symbol.
     /// Returns the FQ name of the newly created (or existing) object.
     private func ensureClockNestedObject(
@@ -290,66 +127,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: objectSymbol)
         return fqName
-    }
-
-    private func registerClockCompanionMethod(
-        named name: String,
-        externalLinkName: String,
-        returnType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        companionFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let memberName = interner.intern(name)
-        let memberFQName = companionFQName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameters.map(\.type) &&
-                existingSignature.returnType == returnType
-        }) == nil else {
-            return
-        }
-        guard let companionSymbol = symbols.lookup(fqName: companionFQName) else {
-            return
-        }
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(companionSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: memberSymbol
-        )
     }
 
     private func registerClockMemberFunction(
@@ -416,36 +193,5 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    private func registerClockMemberProperty(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        returnType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
     }
 }

@@ -37,11 +37,17 @@ struct ExperimentalBitwiseFunctionTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let userFileID = try #require(ast.files.first { file in
+            !ctx.sourceManager.path(of: file.fileID).hasPrefix("__bundled_")
+        }?.fileID)
         let bitwiseNames: Set<String> = ["and", "inv", "or", "xor"]
         var seenCalls: [String: Int] = [:]
 
         for index in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(exprID), range.start.file == userFileID else {
+                continue
+            }
             guard case let .memberCall(receiver, callee, _, args, _) = ast.arena.expr(exprID) else {
                 continue
             }

@@ -4,7 +4,7 @@
 /// Split out from `CollectionLiteralLoweringPass+CallRewrite.swift` to
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func primitiveBoxCalleeName(
         for type: TypeID,
         types: TypeSystem,

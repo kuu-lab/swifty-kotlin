@@ -2,7 +2,7 @@ import Dispatch
 @testable import Runtime
 import XCTest
 
-// MARK: - C stubs for kk_runCatching (no context capture allowed)
+// MARK: - C stubs for runtimeResultRunCatching (no context capture allowed)
 
 @_cdecl("coro_base_success_123_lambda")
 private func coro_base_success_123_lambda(
@@ -155,9 +155,9 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(successFn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(successFn, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 1)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1)
 
         let sem = DispatchSemaphore(value: 0)
         let resultValueBox = ValueBox<Int>(-1)
@@ -191,9 +191,9 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(failFn, exc, &thrown)
+        let resultRaw = runtimeResultRunCatching(failFn, exc, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1)
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
 
         let sem = DispatchSemaphore(value: 0)
         let thrownBox2 = ValueBox<Int>(0)
@@ -471,8 +471,8 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
 
         XCTAssertNotEqual(continuationFactoryCallbackResultRaw, 0)
         XCTAssertEqual(continuationFactoryCallbackThrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(continuationFactoryCallbackResultRaw), 1)
-        XCTAssertEqual(kk_result_getOrNull(continuationFactoryCallbackResultRaw), 321)
+        XCTAssertEqual(runtimeResultSuccessFlag(continuationFactoryCallbackResultRaw), 1)
+        XCTAssertEqual(runtimeResultValueOrNull(continuationFactoryCallbackResultRaw), 321)
     }
 
     func testContinuationFactoryResumeWithExceptionWrapsFailureResult() {
@@ -486,8 +486,8 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         kk_coroutine_continuation_resume_with_exception(cont, exceptionRaw)
 
         XCTAssertNotEqual(continuationFactoryCallbackResultRaw, 0)
-        XCTAssertEqual(kk_result_isFailure(continuationFactoryCallbackResultRaw), 1)
-        XCTAssertEqual(kk_result_exceptionOrNull(continuationFactoryCallbackResultRaw), exceptionRaw)
+        XCTAssertEqual(runtimeResultFailureFlag(continuationFactoryCallbackResultRaw), 1)
+        XCTAssertEqual(runtimeResultExceptionOrNull(continuationFactoryCallbackResultRaw), exceptionRaw)
     }
 
     // MARK: - Result round-trip
@@ -499,11 +499,11 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(successFn, 0, &thrown)
+        let resultRaw = runtimeResultRunCatching(successFn, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 1, "success Result must report isSuccess=true")
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 0, "success Result must report isFailure=false")
-        let value = kk_result_getOrNull(resultRaw)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1, "success Result must report isSuccess=true")
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 0, "success Result must report isFailure=false")
+        let value = runtimeResultValueOrNull(resultRaw)
         XCTAssertEqual(value, 123, "getOrNull should return the success value")
     }
 
@@ -515,12 +515,12 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
             to: Int.self
         )
         var thrown = 0
-        let resultRaw = kk_runCatching(failFn, exc, &thrown)
+        let resultRaw = runtimeResultRunCatching(failFn, exc, &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_result_isSuccess(resultRaw), 0, "failure Result must report isSuccess=false")
-        XCTAssertEqual(kk_result_isFailure(resultRaw), 1, "failure Result must report isFailure=true")
-        // kk_result_getOrNull returns runtimeNullSentinelInt (Int.min) for failure.
-        let value = kk_result_getOrNull(resultRaw)
+        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 0, "failure Result must report isSuccess=false")
+        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1, "failure Result must report isFailure=true")
+        // runtimeResultValueOrNull returns runtimeNullSentinelInt (Int.min) for failure.
+        let value = runtimeResultValueOrNull(resultRaw)
         XCTAssertEqual(value, Int.min, "getOrNull for failure should return the null sentinel (Int.min)")
     }
 }

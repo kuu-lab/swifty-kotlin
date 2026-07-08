@@ -1,6 +1,6 @@
 /// Higher-order collection call rewrites split out from
 /// `CollectionLiteralLoweringPass+CallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],

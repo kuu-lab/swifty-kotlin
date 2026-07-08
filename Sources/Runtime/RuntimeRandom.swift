@@ -118,8 +118,8 @@ private func secureRandomBox(from raw: Int) -> SecureRandomBox? {
 
 // MARK: - SecureRandom Constructor / Factory
 
-@_cdecl("kk_secure_random_get_instance")
-public func kk_secure_random_get_instance() -> Int {
+@_cdecl("__kk_secure_random_get_instance")
+public func __kk_secure_random_get_instance() -> Int {
     let box = SecureRandomBox()
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -128,8 +128,8 @@ public func kk_secure_random_get_instance() -> Int {
     return Int(bitPattern: ptr)
 }
 
-@_cdecl("kk_secure_random_set_seed")
-public func kk_secure_random_set_seed(_ receiver: Int, _ seed: Int) -> Int {
+@_cdecl("__kk_secure_random_set_seed")
+public func __kk_secure_random_set_seed(_ receiver: Int, _ seed: Int) -> Int {
     guard let box = secureRandomBox(from: receiver) else {
         return receiver
     }
@@ -137,8 +137,8 @@ public func kk_secure_random_set_seed(_ receiver: Int, _ seed: Int) -> Int {
     return receiver
 }
 
-@_cdecl("kk_secure_random_generate_seed")
-public func kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> Int {
+@_cdecl("__kk_secure_random_generate_seed")
+public func __kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> Int {
     guard let box = secureRandomBox(from: receiver), size > 0 else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -150,8 +150,8 @@ public func kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> Int 
     return registerRuntimeObject(RuntimeListBox(elements: bytes))
 }
 
-@_cdecl("kk_secure_random_next_bytes")
-public func kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
+@_cdecl("__kk_secure_random_next_bytes")
+public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let box = secureRandomBox(from: receiver),
           let list = runtimeListBox(from: arrayRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))

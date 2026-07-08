@@ -2,7 +2,7 @@
 /// `UIntRange` / `ULongRange` receivers (STDLIB-090/091/092/093).
 ///
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`.
-extension CollectionLiteralLoweringPass {
+extension CollectionVirtualCallRewriteLoweringPass {
     // MARK: - IntRange operations (STDLIB-090/091/092/093)
 
     func rewriteRangeVirtualCall(

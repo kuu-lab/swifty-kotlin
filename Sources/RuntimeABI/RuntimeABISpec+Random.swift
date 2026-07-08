@@ -61,14 +61,14 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_secure_random_get_instance",
+            name: "__kk_secure_random_get_instance",
             parameters: [],
             returnType: .intptr,
             section: "Random",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_secure_random_set_seed",
+            name: "__kk_secure_random_set_seed",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "seed", type: .intptr),
@@ -78,7 +78,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_secure_random_generate_seed",
+            name: "__kk_secure_random_generate_seed",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
@@ -88,7 +88,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_secure_random_next_bytes",
+            name: "__kk_secure_random_next_bytes",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "array", type: .intptr),

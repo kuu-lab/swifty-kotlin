@@ -7,7 +7,7 @@ enum CollectionLiteralTrackedStaticTypeKind {
     case string
 }
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralLoweringSupport {
     func trackedStaticTypeKind(
         of symbol: SemanticSymbol,
         interner: StringInterner
