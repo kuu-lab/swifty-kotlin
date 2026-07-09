@@ -336,26 +336,11 @@ extension KIRLoweringDriver {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let nullExpr = arena.appendExpr(.null, type: propType)
                 body.append(.constValue(result: nullExpr, value: .null))
-                if let receiverID = ctx.activeImplicitReceiverExprID(),
-                   let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
-                   let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
-                {
-                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
-                    body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-                    let unusedResult = arena.appendTemporary(type: sema.types.anyType)
-                    body.append(.call(
-                        symbol: nil,
-                        callee: compilationCtx.interner.intern("kk_array_set"),
-                        arguments: [receiverID, offsetExpr, nullExpr],
-                        result: unusedResult,
-                        canThrow: false,
-                        thrownResult: nil,
-                        isSuperCall: false
-                    ))
-                } else {
-                    let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: propType)
-                    body.append(.copy(from: nullExpr, to: fieldRef))
-                }
+                storeInstancePropertyInitialValue(
+                    targetSymbol: targetSymbol, ownerLookupSymbol: propSymbol,
+                    value: nullExpr, valueType: propType,
+                    shared: shared, compilationCtx: compilationCtx, body: &body
+                )
             }
             return
         }
