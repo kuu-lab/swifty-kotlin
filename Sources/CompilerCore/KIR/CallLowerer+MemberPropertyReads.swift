@@ -223,9 +223,16 @@ extension CallLowerer {
             return result
         }
 
-        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
-            sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        ] else {
+        // NominalLayout.fieldOffsets is only ever keyed by the property
+        // symbol itself — synthesizeLayoutForNominal never enumerates the
+        // separate `.backingField`-kind symbol some accessors materialize
+        // for `field` (see MemberHeaderCollection), so it never receives its
+        // own offset entry. Try it first for forward-compat, but always fall
+        // back to the property symbol's own (always-present) offset.
+        guard let layout = sema.symbols.nominalLayout(for: ownerSymbol),
+              let fieldOffset = layout.fieldOffsets[sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol]
+                  ?? layout.fieldOffsets[propertySymbol]
+        else {
             return nil
         }
 

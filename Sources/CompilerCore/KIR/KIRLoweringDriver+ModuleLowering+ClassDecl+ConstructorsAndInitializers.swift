@@ -359,8 +359,34 @@ extension KIRLoweringDriver {
             initExpr,
             shared: shared, emit: &body
         )
-        let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: propType)
-        body.append(.copy(from: initValue, to: fieldRef))
+        // Member properties initialize their per-instance field slot via
+        // kk_array_set at the property's layout offset — mirroring the
+        // lateinit branch above — rather than a `.copy` to a `.symbolRef`,
+        // which is only meaningful for top-level/object globals. Using
+        // `.copy` here for a class member left the initializer writing to a
+        // dead per-class slot instead of the per-instance heap field that
+        // reads (kk_array_get_inbounds) actually use.
+        if let receiverID = ctx.activeImplicitReceiverExprID(),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
+           let layout = sema.symbols.nominalLayout(for: ownerSymbol),
+           let fieldOffset = layout.fieldOffsets[targetSymbol] ?? layout.fieldOffsets[propSymbol]
+        {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: compilationCtx.interner.intern("kk_array_set"),
+                arguments: [receiverID, offsetExpr, initValue],
+                result: unusedResult,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+        } else {
+            let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: propType)
+            body.append(.copy(from: initValue, to: fieldRef))
+        }
     }
 
     // MARK: - Secondary constructor body emission
