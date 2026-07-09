@@ -663,6 +663,7 @@ struct CollectionLiteralLookupTables {
 
     // Sequence factory names (STDLIB-097)
     let sequenceOfName: InternedString
+    let sequenceOfFQName: [InternedString]
     let generateSequenceName: InternedString
 
     // println support
@@ -1466,6 +1467,7 @@ struct CollectionLiteralLookupTables {
         yieldAllName = interner.intern("yieldAll")
 
         sequenceOfName = interner.intern("sequenceOf")
+        sequenceOfFQName = [interner.intern("kotlin"), interner.intern("sequences")] + [sequenceOfName]
         generateSequenceName = interner.intern("generateSequence")
 
         printlnName = interner.intern("println")

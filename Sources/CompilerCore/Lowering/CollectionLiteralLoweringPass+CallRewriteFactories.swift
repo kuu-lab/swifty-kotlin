@@ -469,7 +469,8 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite sequenceOf → kk_sequence_of (STDLIB-097) ---
-        if callee == lookup.sequenceOfName {
+        if callee == lookup.sequenceOfName,
+           isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {
             let count = arguments.count
             if count == 0 {
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)

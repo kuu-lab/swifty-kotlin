@@ -80,6 +80,7 @@ extension CollectionLiteralConstructionLoweringPass {
             || fqName == lookup.mutableMapOfFQName
             || fqName == lookup.hashMapOfFQName
             || fqName == lookup.linkedMapOfFQName
+            || fqName == lookup.sequenceOfFQName
     }
 
     func isStdlibArrayFactoryCall(
