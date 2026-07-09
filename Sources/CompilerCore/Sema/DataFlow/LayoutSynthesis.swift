@@ -1,13 +1,13 @@
 
 extension DataFlowSemaPhase {
-    func synthesizeNominalLayouts(symbols: SymbolTable) {
+    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         guard !nominalIDs.isEmpty else { return }
         let topoOrder = buildTopoOrder(nominalIDs: nominalIDs, symbols: symbols)
         for nominalID in topoOrder {
-            synthesizeLayoutForNominal(nominalID, symbols: symbols)
+            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types)
         }
     }
 
@@ -35,7 +35,7 @@ extension DataFlowSemaPhase {
         return topoOrder
     }
 
-    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable) {
+    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem) {
         guard let nominalSymbol = symbols.symbol(nominalID) else { return }
         if nominalSymbol.flags.contains(.synthetic),
            symbols.nominalLayout(for: nominalID) != nil
@@ -94,7 +94,7 @@ extension DataFlowSemaPhase {
                let candidates = inheritedCandidatesByKey[key]
             {
                 let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
-                if let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates) {
+                if let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates, types: types) {
                     vtableSlots[method.id] = matchedSlot
                     continue
                 }
@@ -214,22 +214,43 @@ extension DataFlowSemaPhase {
     }
 
     /// Picks which same-(name, arity) candidate an `override` member actually
-    /// overrides. A single candidate is used as-is (this also covers generic
-    /// overrides, where the base's type-parameter types won't textually equal the
-    /// override's substituted concrete types). With multiple candidates — e.g. a
-    /// class declaring both `nextBytes(array: ByteArray)` and `nextBytes(size: Int)`
-    /// — require an exact parameter-type match so each overload keeps its own slot.
-    /// Returning `nil` here (no exact match among 2+ candidates) is deliberate: the
-    /// caller then allocates a fresh slot rather than guessing, since aliasing the
-    /// override onto an arbitrary candidate could silently corrupt an unrelated
-    /// overload's vtable entry.
+    /// overrides. A single candidate is used as-is. With multiple candidates —
+    /// e.g. a base class declaring both `nextBytes(array: ByteArray)` and
+    /// `nextBytes(size: Int)` — a candidate whose parameter type is a bare type
+    /// parameter (e.g. `fun foo(x: T)`) is treated as a wildcard, since a generic
+    /// override's substituted concrete type will never textually equal it; every
+    /// other position must match exactly. Returning `nil` when zero or 2+
+    /// candidates are compatible is deliberate: the caller then allocates a fresh
+    /// slot rather than guessing, since aliasing the override onto the wrong
+    /// candidate could silently corrupt an unrelated overload's vtable entry.
     private func resolveOverriddenSlot(
         parameterTypes: [TypeID],
-        candidates: [(parameterTypes: [TypeID], slot: Int)]
+        candidates: [(parameterTypes: [TypeID], slot: Int)],
+        types: TypeSystem
     ) -> Int? {
         if candidates.count == 1 {
             return candidates[0].slot
         }
-        return candidates.first(where: { $0.parameterTypes == parameterTypes })?.slot
+        let compatibleSlots = Set(candidates.filter {
+            isOverrideParameterMatch(candidateParameterTypes: $0.parameterTypes, overrideParameterTypes: parameterTypes, types: types)
+        }.map(\.slot))
+        return compatibleSlots.count == 1 ? compatibleSlots.first : nil
+    }
+
+    private func isOverrideParameterMatch(
+        candidateParameterTypes: [TypeID],
+        overrideParameterTypes: [TypeID],
+        types: TypeSystem
+    ) -> Bool {
+        guard candidateParameterTypes.count == overrideParameterTypes.count else { return false }
+        for (candidateType, overrideType) in zip(candidateParameterTypes, overrideParameterTypes) {
+            if case .typeParam = types.kind(of: candidateType) {
+                continue
+            }
+            if candidateType != overrideType {
+                return false
+            }
+        }
+        return true
     }
 }
