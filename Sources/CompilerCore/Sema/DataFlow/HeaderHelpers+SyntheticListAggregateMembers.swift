@@ -552,8 +552,13 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // firstOrNull / lastOrNull no-predicate (STDLIB-210)
-        registerSimpleMember(name: "firstOrNull", returnType: nullableElementType, externalLinkName: "kk_list_firstOrNull")
+        // firstOrNull is intentionally NOT registered as a synthetic member here.
+        // ListSearchHOF.kt already declares both the no-predicate and predicate
+        // overloads; a synthetic arity-0 entry at this FQ name makes
+        // collectMemberFunctionCandidates return a single arity-0 match and skip
+        // the extension-function scope lookup that would otherwise find both
+        // Kotlin-source overloads, permanently hiding the predicate overload.
+        // lastOrNull no-predicate (STDLIB-210)
         registerSimpleMember(name: "lastOrNull", returnType: nullableElementType, externalLinkName: "kk_list_lastOrNull")
         // single no-predicate (STDLIB-COL-FN-184)
         registerSimpleMember(name: "single", returnType: listTypeParamType, externalLinkName: "kk_list_single", canThrow: true)

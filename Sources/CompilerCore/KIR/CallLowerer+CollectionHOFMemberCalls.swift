@@ -11,7 +11,7 @@ extension CallLowerer {
             "any", "none", "all", "fold", "foldRight", "reduce", "reduceRight", "scan", "scanIndexed", "scanReduce",
             "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "groupBy", "groupingBy",
             "aggregate", "aggregateTo",
-            "sortedBy", "count", "first", "last", "find", "distinctBy",
+            "sortedBy", "count", "first", "last", "find", "firstOrNull", "distinctBy",
             "associateBy", "associateWith", "associate",
             "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed", "sumOf", "sumBy", "sumByDouble", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues",
             "getOrElse", "elementAtOrElse", "getOrPut",
