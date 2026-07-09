@@ -1,7 +1,7 @@
 package kotlin.time
 
 // KSP-472
-// Instant member accessors, arithmetic, comparison, and until()/elapsed().
+// Instant member accessors, arithmetic, comparison, and elapsed().
 // Migration source: Sources/Runtime/RuntimeInstant.swift
 //   kk_instant_epoch_seconds, kk_instant_nano_of_second,
 //   kk_instant_is_distant_past, kk_instant_is_distant_future,
@@ -20,7 +20,7 @@ package kotlin.time
 public val Instant.epochSeconds: Long
     get() = this.__kk_instant_epoch_seconds()
 
-public val Instant.nanoOfSecond: Int
+public val Instant.nanosecondsOfSecond: Int
     get() = this.__kk_instant_nano_of_second()
 
 public val Instant.isDistantPast: Boolean
@@ -38,8 +38,11 @@ public operator fun Instant.minus(duration: Duration): Instant =
 public operator fun Instant.compareTo(other: Instant): Int =
     this.__kk_instant_compare(other)
 
-public fun Instant.until(other: Instant): Duration =
-    this.__kk_instant_until(other)
+// Real kotlin.time.Instant has no until(); the duration between two instants
+// is obtained via this minus operator overload (t2 - t1), matching the real
+// stdlib's `operator fun minus(other: Instant): Duration`.
+public operator fun Instant.minus(other: Instant): Duration =
+    other.__kk_instant_until(this)
 
 public fun Instant.elapsed(): Duration =
     this.__kk_instant_until(Instant.now())

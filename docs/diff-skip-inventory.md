@@ -26,8 +26,9 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-002 | 7 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
-| DEBT-DIFF-005 | 16 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-005 | 14 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-007 | 1 | 他の gap に masking されていた kswiftc 単体の Sema gap（Int literal→Long widening 不足、`import ... as Alias` 型未解決） | 各 gap を個別 issue に分解して実装後、通常 diff へ戻す |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -120,7 +121,6 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | ByteArray helpers | `string_tobytearray.kt` | `joinToString` / `contentEquals` Sema gap | ByteArray extension stubs + runtime helpers の task に分割 |
 | File/use | `file_use_edge_cases.kt` | `Closeable.use` と `java.io.File` surface | `use` common helperと JVM file interop を分離 |
 | Duration/time | `duration_operations.kt`, `experimental_time_edge_cases.kt` | formatting / timing-sensitive output | `Duration.toString` parity と monotonic time test determinism を分離 |
-| Instant API surface | `instant_basic.kt` | kswiftc の synthetic Instant stub が `nanoOfSecond`/`until()` という実 API に無い名前を使っている（正しくは `nanosecondsOfSecond` / `Instant` 同士の `minus` 演算子）。加えて JVM kotlinc 側にも `import kotlin.time.*` + `Instant` 参照で `Duration.Companion.seconds` が unresolved になる別の compiler quirk がある（明示 import で回避可能） | `HeaderHelpers+SyntheticInstantStubs.swift` の名前を実 API に合わせて修正し、テストの import を明示化してから通常 diff へ戻す |
 | Math/comparator | `math_trig_functions.kt`, `comparator_composition_edge_cases.kt` | math function / comparator API gap | math runtime ABI、Comparator composition API に分ける |
 | ByteArray UUID bridge | `uuid_put_uuid.kt` | kswiftc の `ByteArray.putUuid`/`ByteArray.uuid`/`ByteArray.getUuid` は `HeaderHelpers+SyntheticUuidStubs.swift` の bridge-only synthetic 拡張。実 Kotlin stdlib には同名だが `java.nio.ByteBuffer` 版（JVM専用、Kotlin 2.4〜）しか無く、`ByteArray` レシーバ版も top-level の `uuid()` も存在しないため JVM kotlinc は receiver type mismatch / unresolved reference で compile error になる | `ByteArray` 版を kswiftc 独自 surface として残すなら candidate-only test へ移す。real API 互換を狙うなら `ByteBuffer` 受け口への設計変更が必要 |
 
@@ -163,6 +163,17 @@ stdout 比較ブロック（735行目以降）は `ref_compile_exit -eq 0 && can
 - トップレベル関数呼び出し（`log(x)`, `pow(x,y)` 等）を書く diff_cases は、拡張関数 vs トップレベル関数・引数個数を実際の Kotlin 言語仕様で事前に確認する。
 - 三角関数・双曲線関数・exp/log 系の生の `Double` 値を `println()` する設計は、JVM 側の実装詳細（intrinsic / fdlibm）依存の1 ULP差で偽陰性/偽陽性双方になり得る。`Scripts/diff_cases/float_precision.kt` の手法（`println(abs(actual - expected) < 1e-9)` のように真偽値/許容誤差判定を出力する）に倣うのが対処であり、kswiftc 側の exp/log 実装を JVM 互換に作り替える必要はない。
 - 両側失敗時の stderr 内容/個数比較を `run_case()` へ追加する改修は未着手。同種の「両側失敗 + exit code 一致」が他の `diff_cases` にも潜んでいる可能性があり、棚卸しも未着手。
+
+## DEBT-DIFF-007: masking 解消で露出した kswiftc 単体 gap
+
+`platform_time_conversion.kt` は元々 DEBT-DIFF-005 の Instant naming gap（reference 側が `nanoOfSecond` unresolved で失敗）と、以下 2 件の無関係な candidate 側 gap が両方失敗することで偶然 PASS 扱いになっていた。Instant naming を修正して reference 側が通るようになった結果、candidate 側だけが失敗する本来の不一致が露出した。
+
+| 領域 | cases | 判定 | 次アクション |
+| --- | --- | --- | --- |
+| Int literal → Long 引数の暗黙 widening 不足 | `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(1_234)` のような Int リテラル引数が期待される `Long` パラメータに widening されず `KSWIFTK-SEMA-0002: No viable overload found for call` になる | 数値リテラルの期待型 widening を overload resolution に追加する Sema task に分解する |
+| `import ... as Alias`（Java 型）が未解決 | `platform_time_conversion.kt` | `import java.time.Duration as JavaDuration` / `import java.time.Instant as JavaInstant` の型エイリアスが `KSWIFTK-SEMA-0025: Unresolved type` になる | import alias 解決を Sema の import 処理に追加する task に分解する |
+
+両 gap を解消し `--force-run-skipped` で candidate 側も pass したら、通常 diff へ戻す。
 
 ## 解除手順
 
