@@ -119,7 +119,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [],
+                    ) : [delegateHandleExprID],
                     result: resultExprID,
                     canThrow: notNullThrows,
                     thrownResult: thrownExprID
@@ -153,7 +153,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [valueExprID],
+                    ) : [delegateHandleExprID, valueExprID],
                     result: resultExprID,
                     canThrow: false,
                     thrownResult: nil
