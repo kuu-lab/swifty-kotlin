@@ -1424,6 +1424,42 @@ public func kk_coroutine_continuation_new(_ functionID: Int) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// STDLIB-CORO-BUG-01: runtime support for a suspend function calling another
+/// suspend function directly (not through launch/async/withContext). The
+/// callee runs on its own fresh continuation (childContinuation) via the
+/// standard entry loop; its completion is relayed into the caller's own
+/// continuation (callerContinuationRaw) instead of being dropped, so the
+/// caller's entry loop -- already about to suspend on this call -- gets
+/// woken up with the real result. Without this relay the callee's completion
+/// signal has nothing listening for it and the caller deadlocks forever.
+@_cdecl("kk_coroutine_call_direct_suspend")
+public func kk_coroutine_call_direct_suspend(
+    _ entryPointRaw: Int,
+    _ childContinuation: Int,
+    _ callerContinuationRaw: Int
+) -> Int {
+    guard let callerState = runtimeContinuationState(from: callerContinuationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_call_direct_suspend received invalid caller continuation handle")
+    }
+    if let childState = runtimeContinuationState(from: childContinuation) {
+        childState.scope = callerState.scope
+        childState.jobHandle = callerState.jobHandle
+    }
+    _ = runSuspendEntryLoopWithContinuation(
+        entryPointRaw: entryPointRaw,
+        continuation: childContinuation,
+        onCompletion: { result, thrown in
+            if thrown != 0 {
+                callerState.thrownException = thrown
+            } else {
+                callerState.completion = Int64(result)
+            }
+            callerState.signalResume()
+        }
+    )
+    return Int(bitPattern: kk_coroutine_suspended())
+}
+
 @_cdecl("kk_create_coroutine_unintercepted")
 public func kk_create_coroutine_unintercepted(_ entryPointRaw: Int, _ completionContinuation: Int) -> Int {
     let continuation = kk_coroutine_continuation_new(entryPointRaw)
@@ -1845,13 +1881,25 @@ public func kk_kxmini_async(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
+    // STDLIB-CORO-BUG-05: capture the continuation state so we can tell a
+    // thrown exception apart from a normal (possibly zero) result after the
+    // entry loop returns -- mirrors kk_kxmini_launch_with_exception_handler.
+    // Without this, `async { throw ... }` completed the task with `result`
+    // (which the loop forces to 0 on a throw, see runSuspendEntryLoopWithContinuation),
+    // so `await()` observed thrownException == 0 and silently resumed with 0
+    // instead of re-throwing.
+    let capturedContState = runtimeContinuationState(from: continuation)
 
     KxMiniRuntime.launch {
         task.markStarted()
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw, continuation: continuation
         )
-        task.complete(with: result)
+        if let thrown = capturedContState?.thrownException, thrown != 0 {
+            task.completeExceptionally(with: thrown)
+        } else {
+            task.complete(with: result)
+        }
     }
     return Int(bitPattern: taskPtr)
 }
@@ -2727,6 +2775,19 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
         return task.isActiveSnapshot() ? 1 : 0
     }
     return 0
+}
+
+/// Zero-arg ABI backing for the bare `isActive` reference inside a coroutine
+/// builder body (kotlinx.coroutines.isActive), which reads the currently
+/// running job rather than an explicit receiver. No enclosing job (e.g. at
+/// the outermost runBlocking root) is treated as active, matching the
+/// not-yet-cancelled default.
+@_cdecl("kk_coroutine_current_is_active")
+public func kk_coroutine_current_is_active() -> Int {
+    guard let job = RuntimeJobHandle.current else {
+        return 1
+    }
+    return job.isActiveSnapshot() ? 1 : 0
 }
 
 /// Returns 1 if the job has completed (either normally or by cancellation).

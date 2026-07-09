@@ -169,17 +169,32 @@ extension CoroutineLoweringPass {
                 )
                 lowered.append(.jump(continueLabel))
                 lowered.append(.label(throwLabel))
-                lowered.append(
-                    .call(
-                        symbol: nil,
-                        callee: exitCallee,
-                        arguments: [continuationExpr, thrownExceptionExpr],
-                        result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                if let thrownResultSlot = transition.suspendingInstructionCallInfo?.thrownResult {
+                    // STDLIB-CORO-BUG-03: this suspend call sits inside a
+                    // try/catch (or similar) region, which tracks in-flight
+                    // exceptions via a value in thrownResultSlot rather than a
+                    // native throw -- see the jumpIfNotNull checks generated
+                    // for the surrounding try elsewhere in this function.
+                    // Route the resumed exception through that same slot
+                    // instead of hard-rethrowing past it, otherwise the
+                    // surrounding catch never observes it. The function has
+                    // not finished (the exception may be caught locally), so
+                    // its continuation must stay alive -- kk_coroutine_state_exit
+                    // only runs once, at the function's real exit point.
+                    lowered.append(.copy(from: thrownExceptionExpr, to: thrownResultSlot))
+                } else {
+                    lowered.append(
+                        .call(
+                            symbol: nil,
+                            callee: exitCallee,
+                            arguments: [continuationExpr, thrownExceptionExpr],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        )
                     )
-                )
-                lowered.append(.rethrow(value: thrownExceptionExpr))
+                    lowered.append(.rethrow(value: thrownExceptionExpr))
+                }
                 lowered.append(.label(continueLabel))
             }
             let nextResumeLabel = stateBlocks.indices.contains(index + 1)

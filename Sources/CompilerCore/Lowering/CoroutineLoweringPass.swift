@@ -328,6 +328,7 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,
             continuationFactory: continuationFactory,
+            directSuspendCallCallee: ctx.interner.intern("kk_coroutine_call_direct_suspend"),
             launcherArgSetCallee: launcherArgSetCallee,
             runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,

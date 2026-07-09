@@ -2843,6 +2843,22 @@ final class CallTypeChecker {
             return returnType
         }
         if !candidates.isEmpty {
+            // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
+            // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
+            // rather than made generic over the block's return type, because a
+            // real type parameter there hangs the constraint solver. When the
+            // call site
+            // has a concrete expectedType (e.g. a declared function return
+            // type), Any fails the return-type-vs-expectedType compatibility
+            // check and every candidate is rejected ("no viable overload").
+            // Resolve with expectedType relaxed to nil instead -- the same path
+            // already picks the right overload correctly via argument matching
+            // when there is no expected type -- then restore expectedType as
+            // the call's result type below. The lambda body itself was already
+            // checked against expectedType via coroutineLauncherExpectedLambdaType
+            // / withContextExpectedLambdaType above.
+            let isCoroutineBuilderWithHardcodedAnyReturn = calleeName.map { interner.resolve($0) }
+                .map { $0 == "withContext" } ?? false
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2850,7 +2866,7 @@ final class CallTypeChecker {
                 range: range,
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
-                expectedType: expectedType,
+                expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: ctx.implicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -2887,7 +2903,7 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            let adjustedReturnType: TypeID = if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+            var adjustedReturnType: TypeID = if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
                 switch externalLinkName {
                 case "kk_emptyList":
                     if let expectedType, expectedType != sema.types.errorType,
@@ -2966,6 +2982,14 @@ final class CallTypeChecker {
                 }
             } else {
                 returnType
+            }
+            // STDLIB-CORO-BUG-02: restore the real expectedType as the result
+            // of withContext calls -- see the matching comment above
+            // resolveCallRespectingLambdaReturnType.
+            if isCoroutineBuilderWithHardcodedAnyReturn,
+               let expectedType, expectedType != sema.types.errorType
+            {
+                adjustedReturnType = expectedType
             }
             if args.count == 2,
                let externalLinkName = sema.symbols.externalLinkName(for: chosen),

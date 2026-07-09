@@ -23,6 +23,7 @@ extension CoroutineLoweringPass {
         let runtimeStartCoroutineUninterceptedOrReturnCallee: InternedString
         let runtimeContinuationResumeCallee: InternedString
         let continuationFactory: InternedString
+        let directSuspendCallCallee: InternedString
         let launcherArgSetCallee: InternedString
         let runtimeRunBlockingWithContCallee: InternedString
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString]
@@ -175,6 +176,15 @@ extension CoroutineLoweringPass {
             for: function,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
+        // STDLIB-CORO-BUG-01: a lowered suspend function's own continuation is
+        // always its last parameter (see CoroutineLoweringPass.run appending
+        // continuationParameterSymbol). rewriteDirectSuspendCall needs it to
+        // relay a nested suspend call's completion back to this function's
+        // own suspend point instead of orphaning it on a throwaway
+        // continuation. Functions that never originated as suspend functions
+        // (e.g. main()) have no such parameter and never match a direct
+        // suspend call anyway, so nil here is safe.
+        let callerContinuationSymbol = function.isSuspend ? nil : function.params.last?.symbol
         var loweredBody: [KIRInstruction] = []
         loweredBody.reserveCapacity(function.body.count)
 
@@ -276,6 +286,7 @@ extension CoroutineLoweringPass {
 
             if let directCallInstructions = rewriteDirectSuspendCall(
                 call: call,
+                callerContinuationSymbol: callerContinuationSymbol,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: directCallInstructions)
@@ -552,6 +563,7 @@ extension CoroutineLoweringPass {
 
     func rewriteDirectSuspendCall(
         call: CallRewriteInput,
+        callerContinuationSymbol: SymbolID?,
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard let loweredTarget = resolveLoweredTarget(
@@ -562,15 +574,23 @@ extension CoroutineLoweringPass {
         ) else {
             return nil
         }
+        // STDLIB-CORO-BUG-01: a direct call from one suspend function's body to
+        // another (e.g. `val x = step(41)` inside another suspend function) must
+        // relay the callee's completion back into *this* function's own suspend
+        // point -- see kk_coroutine_call_direct_suspend. Without the caller's own
+        // continuation there is nothing to relay into, so bail out to the
+        // original (broken but previously-existing) call shape rather than
+        // guessing.
+        guard let callerContinuationSymbol else {
+            return nil
+        }
 
         let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationTemp = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
+        let childContinuationTemp = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
-        var loweredArguments = call.arguments
-        loweredArguments.append(continuationTemp)
-        return [
+        var instructions: [KIRInstruction] = [
             .constValue(
                 result: continuationFunctionID,
                 value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
@@ -579,20 +599,66 @@ extension CoroutineLoweringPass {
                 symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [continuationFunctionID],
-                result: continuationTemp,
+                result: childContinuationTemp,
                 canThrow: false,
                 thrownResult: nil
             ),
+        ]
+
+        // A suspend function with parameters is invoked through its launcher
+        // thunk (the same adapter launch/async/runBlocking use), which reads
+        // the real arguments back out of the child continuation's launcher-arg
+        // storage. A 0-arg suspend function's lowered form already matches the
+        // (continuation) -> Int entry-point shape directly.
+        let entryPointSymbol: SymbolID
+        if call.arguments.isEmpty {
+            entryPointSymbol = loweredTarget.symbol
+        } else {
+            let originalSymbol = call.symbol ?? rewrite.originalByLoweredName[loweredTarget.name]?.original
+            guard let originalSymbol,
+                  let thunk = rewrite.launcherThunkByOriginalSymbol[originalSymbol]
+            else {
+                return nil
+            }
+            entryPointSymbol = thunk.symbol
+            for (index, argumentExpr) in call.arguments.enumerated() {
+                let slotExpr = rewrite.module.arena.appendExpr(
+                    .intLiteral(Int64(index)),
+                    type: rewrite.intType
+                )
+                instructions.append(
+                    .call(
+                        symbol: nil,
+                        callee: rewrite.launcherArgSetCallee,
+                        arguments: [childContinuationTemp, slotExpr, argumentExpr],
+                        result: nil,
+                        canThrow: false,
+                        thrownResult: nil
+                    )
+                )
+            }
+        }
+
+        let entryPointExpr = rewrite.module.arena.appendExpr(
+            .symbolRef(entryPointSymbol),
+            type: rewrite.intType
+        )
+        let callerContinuationExpr = rewrite.module.arena.appendExpr(
+            .symbolRef(callerContinuationSymbol),
+            type: rewrite.anyType
+        )
+        instructions.append(
             .call(
-                symbol: loweredTarget.symbol,
-                callee: loweredTarget.name,
-                arguments: loweredArguments,
+                symbol: nil,
+                callee: rewrite.directSuspendCallCallee,
+                arguments: [entryPointExpr, childContinuationTemp, callerContinuationExpr],
                 result: call.result,
-                canThrow: call.canThrow,
+                canThrow: false,
                 thrownResult: nil,
                 isSuperCall: call.isSuperCall
-            ),
-        ]
+            )
+        )
+        return instructions
     }
 
     func rewriteWithTimeoutCall(

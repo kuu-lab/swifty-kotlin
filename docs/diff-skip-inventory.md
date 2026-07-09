@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-08
+最終更新: 2026-07-09
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -24,7 +24,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 8 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
-| DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
+| DEBT-DIFF-003 | 12 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
 | DEBT-DIFF-005 | 15 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
@@ -67,11 +67,33 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | 領域 | cases | owner |
 | --- | --- | --- |
-| base suspend / withContext / exception | `coroutine_base_edge_cases.kt`, `coroutine_context_switching.kt`, `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
+| lazy/deferred coroutine start (cancel-before-first-run, `CoroutineStart.LAZY`) | `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
 | cancellation / lifecycle | `coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_scope_lifecycle.kt` | cancellation semantics を `STDLIB-CORO-001` の残課題として切る |
 | structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task |
 | Channel / produce / Flow backpressure | `channel_basic.kt`, `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
 | sync primitives | `coroutine_mutex_semaphore.kt` | Mutex / Semaphore API surface と scheduler interaction |
+
+`coroutine_base_edge_cases.kt`（direct suspend call のデッドロック、try/catch 内 suspend call の例外もみ消し）と
+`coroutine_context_switching.kt`（`withContext` の期待型ハンドリング）は 2026-07-09 に skip 解除済み。
+
+残る2件は当初 "advanced coroutine API 未実装" という一般的理由だったが、実際の root cause は次の通りに絞り込めた:
+
+- `coroutine_exception_handling.kt`: `async { throw ... }.await()` の例外もみ消しは `kk_kxmini_async` が完了時に continuation の
+  `thrownException` を確認せず `task.complete(with: result)` を無条件に呼んでいたバグで、これは修正済み
+  （`kk_kxmini_launch_with_exception_handler` と同じパターンを適用）。残る唯一の差分は、`launch{}` 直後に同期 `cancel()`
+  すると JVM 参照には出ない `"cancelled cleanly"` 行が余分に出力されること。原因は `launch{}` が本体を実 GCD キューへ
+  即座にディスパッチするため、cancel が本体の最初のサスペンションポイント到達より先に届くべきタイミングを再現できないこと
+  （kotlinx の `runBlocking` は協調的シングルスレッドイベントループで、親がサスペンドするまで子は一切実行されない）。
+- `coroutine_edge_cases.kt`: `launch(start = CoroutineStart.LAZY) { ... }` がそもそもコンパイルできない
+  （`CoroutineStart` 型・`launch(start:, block:)` オーバーロードを意図的に未登録のまま）。理由は
+  `rewriteLauncherCall` の dispatcher-aware path が 2 引数 `launch` の第一引数を無条件に `CoroutineDispatcher` として
+  `kk_kxmini_launch_with_dispatcher` に渡すため、`CoroutineStart` 値を渡すと実行時にクラッシュ（`kk_job_is_cancelled`
+  内で `EXC_BAD_ACCESS`）する。type-aware disambiguation なしで登録するのは危険なので見送った。
+
+両ケースとも、根っこは同じ「ジョブの genuine な "pending, not yet started" 状態が無い」という欠落に行き着く。
+`CoroutineStart.LAZY` を実装するにも、`launch{}` 直後の同期 cancel タイミングを JVM と揃えるにも、
+実際に本体を dispatch する前に "start()/最初の親 suspend まで待つ" フェーズを持つ RuntimeJobHandle 状態が要る。
+scheduler の分岐が広いため、単発の bug fix ではなく別 task として切り出すべき。
 
 解除順は、`runBlocking` + simple suspend、`withContext`、`async/await`、Channel、Flow、Supervisor / cancellation の順にする。
 
