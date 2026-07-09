@@ -291,6 +291,100 @@ extension LoweringABIAndPropertyRegressionTests {
     }
 
     @Test
+    func testPropertyLoweringForwardsReceiverForEnumClassOwnedProperty() throws {
+        // lowerAccessorBody adds a receiver parameter for a property's
+        // accessors whenever it has *any* owner symbol — not just
+        // class/interface/object — so an enum-class-owned property's setter
+        // accessor also takes (receiver, value). The rewrite must forward a
+        // receiver here too, mirroring the plain-class case above exactly.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let enumSym = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("Mode"),
+            fqName: [interner.intern("Mode")],
+            declSite: nil,
+            visibility: .public
+        )
+        let propertySym = symbols.define(
+            kind: .property,
+            name: interner.intern("counter"),
+            fqName: [interner.intern("Mode"), interner.intern("counter")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.mutable]
+        )
+        symbols.setParentSymbol(enumSym, for: propertySym)
+        let backingFieldSym = symbols.define(
+            kind: .backingField,
+            name: interner.intern("$backing_counter"),
+            fqName: [interner.intern("Mode"), interner.intern("$backing_counter")],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
+
+        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
+        let setterFn = KIRFunction(
+            symbol: expectedSetterSymbol,
+            name: interner.intern("set"),
+            params: [
+                KIRParameter(symbol: SymbolID(rawValue: 90), type: types.anyType),
+                KIRParameter(symbol: SymbolID(rawValue: 91), type: types.anyType),
+            ],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+        _ = arena.appendDecl(.function(setterFn))
+
+        let callerReceiverSym = SymbolID(rawValue: 101)
+        let callerSym = SymbolID(rawValue: 100)
+        let fromExpr = arena.appendExpr(.intLiteral(42), type: types.anyType)
+        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
+
+        let callerFn = KIRFunction(
+            symbol: callerSym,
+            name: interner.intern("bf_setter"),
+            params: [KIRParameter(symbol: callerReceiverSym, type: types.anyType)],
+            returnType: types.unitType,
+            body: [
+                .copy(from: fromExpr, to: toExpr),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let fnID = arena.appendDecl(.function(callerFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        _ = try runLowering(module: module, interner: interner, moduleName: "EnumBFSetter", sema: sema)
+
+        guard case let .function(lowered)? = module.arena.decl(fnID) else {
+            Issue.record("expected function")
+            return
+        }
+
+        let setterCalls = lowered.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(sym, _, arguments, _, _, _, _, _) = instruction, sym == expectedSetterSymbol else {
+                return nil
+            }
+            return arguments
+        }
+        #expect(setterCalls.count == 1,
+                      "Expected exactly one setter call for \(expectedSetterSymbol), got body: \(lowered.body)")
+        #expect(setterCalls.first?.count == 2,
+                      "Enum-owned setter accessor takes (receiver, value); expected 2 arguments, got: \(String(describing: setterCalls.first))")
+    }
+
+    @Test
     func testPropertyLoweringKeepsDirectCopyWhenNoSetterAccessorEmitted() throws {
         // A `var` whose only customized accessor is the getter (no explicit
         // `set(value) { ... }` block) never gets a setter accessor function
