@@ -60,5 +60,33 @@ struct BoxingIntegrationTests {
         // CodegenBackendIntegrationTests.testPrimitiveArgumentBoxedWhenAddedToMutableCollections.
         #expect(boxingCalls.count == 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
     }
+
+    @Test func testSequenceOfBoxesPrimitiveElements() throws {
+        let source = """
+        fun test() {
+            val seq = sequenceOf(1, 2, 3)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module: KIRModule = try #require(ctx.kir)
+        let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
+
+        let boxingCalls = testFunc.body.filter { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_box_int"
+            }
+            return false
+        }
+
+        // sequenceOf(...) copies its elements verbatim into the same erased-to-Any
+        // backing array as listOf(...)/setOf(...) (kk_sequence_of in
+        // RuntimeSequence.swift stores RuntimeArrayBox.elements as-is into
+        // RuntimeSequenceBox). Each primitive element must therefore be boxed so it
+        // carries its concrete type at runtime, exactly like listOf/setOf already do.
+        #expect(boxingCalls.count == 3, "sequenceOf should box each primitive element. Found \(boxingCalls.count)")
+    }
 }
 #endif

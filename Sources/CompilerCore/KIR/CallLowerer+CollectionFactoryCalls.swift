@@ -168,6 +168,29 @@ extension CallLowerer {
                 instructions: &instructions
             )
 
+        case "sequenceOf":
+            // sequenceOf(...) shares the same erased-to-Any backing array as
+            // listOf/setOf (kk_sequence_of just wraps the packed array verbatim
+            // into a RuntimeSequenceBox), so its elements need the same
+            // primitive boxing before they're stored.
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_sequence_of"),
+                arguments: [packed.array],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
         default:
             return nil
         }
@@ -183,6 +206,7 @@ extension CallLowerer {
             "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
             "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
             "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
+            "sequenceOf",
         ].contains(name),
             let chosenCallee,
             let symbol = sema.symbols.symbol(chosenCallee),
@@ -192,8 +216,13 @@ extension CallLowerer {
         else {
             return false
         }
-        return interner.resolve(symbol.fqName[0]) == "kotlin"
-            && interner.resolve(symbol.fqName[1]) == "collections"
+        guard interner.resolve(symbol.fqName[0]) == "kotlin" else {
+            return false
+        }
+        let packageSegment = interner.resolve(symbol.fqName[1])
+        // sequenceOf lives in kotlin.sequences; every other factory here lives
+        // in kotlin.collections.
+        return name == "sequenceOf" ? packageSegment == "sequences" : packageSegment == "collections"
     }
 
     private func emitPackedCollectionFactoryArguments(
