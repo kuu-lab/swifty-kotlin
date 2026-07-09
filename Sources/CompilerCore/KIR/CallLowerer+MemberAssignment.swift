@@ -131,13 +131,18 @@ extension CallLowerer {
 
     /// Lowers `receiver.field op= value` (and the desugared form of
     /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
-    /// evaluating `receiver` exactly once. The load and store sides mirror
-    /// `lowerMemberAssignExpr`'s two safe, well-defined storage strategies —
-    /// a synthetic runtime accessor (`_load`/`_store` link-name pair) or a
-    /// direct field offset — falling back to a best-effort setter/getter
-    /// name for anything else, the same fallback (and the same pre-existing
-    /// limitations for custom accessors reached through an explicit
-    /// receiver) that plain member assignment already relies on.
+    /// evaluating `receiver` exactly once. A custom getter/setter body must be
+    /// called (not bypassed by reading/writing the backing field directly) so
+    /// its logic actually runs on each side independently — e.g. a
+    /// clamping `set(v) { field = v.coerceIn(0, 100) }` with a default
+    /// getter still needs the load side to read the plain field but the
+    /// store side to go through the setter. Absent a custom accessor on a
+    /// given side, load/store fall back to `lowerMemberAssignExpr`'s other
+    /// two safe, well-defined storage strategies — a synthetic runtime
+    /// accessor (`_load`/`_store` link-name pair) or a direct field offset —
+    /// or, for anything else (e.g. a delegated property's setter), the same
+    /// best-effort setter/getter name fallback that plain member assignment
+    /// already relies on.
     func lowerMemberCompoundAssignExpr(
         _ exprID: ExprID,
         op: CompoundAssignOp,
@@ -169,6 +174,24 @@ extension CallLowerer {
             ?? sema.bindings.exprTypes[exprID]
             ?? sema.types.anyType
 
+        let ownerIsNominal: Bool = {
+            guard let propertySymbol,
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            else {
+                return false
+            }
+            return ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+        }()
+        // Mirrors the read side's tryLowerMemberPropertyAccessorRead / the
+        // setter branch lowerMemberAssignExpr added for plain assignment —
+        // both must be checked independently of each other and of the
+        // field-offset/synthetic-link strategies below.
+        let usesCustomGetter = ownerIsNominal
+            && (propertySymbol.map { memberPropertyUsesAccessor($0, ast: ast, sema: sema) } ?? false)
+        let usesCustomSetter = ownerIsNominal
+            && (propertySymbol.map { memberPropertyHasCustomSetterBody($0, ast: ast, sema: sema) } ?? false)
+
         // Synthetic runtime accessor (e.g. AtomicBoolean.value -> kk_atomic_bool_load/_store).
         let syntheticLinks: (load: String, store: String)? = {
             guard let propertySymbol,
@@ -199,7 +222,20 @@ extension CallLowerer {
 
         // ── Load ─────────────────────────────────────────────────────────
         let currentValue: KIRExprID
-        if let syntheticLinks {
+        if usesCustomGetter, let propertySymbol {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: propType)
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            currentValue = result
+        } else if let syntheticLinks {
             let result = arena.appendTemporary(type: propType)
             instructions.append(.call(
                 symbol: nil,
@@ -326,7 +362,19 @@ extension CallLowerer {
 
         // ── Store ────────────────────────────────────────────────────────
         if let newValue {
-            if let syntheticLinks {
+            if usesCustomSetter, let propertySymbol {
+                let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+                let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.call(
+                    symbol: setterSymbol,
+                    callee: interner.intern("set"),
+                    arguments: [receiverID, newValue],
+                    result: setterResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else if let syntheticLinks {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(syntheticLinks.store),
