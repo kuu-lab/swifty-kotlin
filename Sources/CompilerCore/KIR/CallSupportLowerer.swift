@@ -293,6 +293,17 @@ final class CallSupportLowerer {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let argIndices = argIndicesByParameter[0] ?? []
+            // arrayOf<T>() shares this "kk_array_of" external link with the
+            // specialized primitive factories (intArrayOf, charArrayOf, ...).
+            // Only the generic arrayOf backs a boxed Array<T> (its element
+            // parameter type is an unresolved type parameter); the primitive
+            // factories declare a concrete primitive element type and must keep
+            // storing raw values in their backing array.
+            let elementIsGenericTypeParameter: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[0]) {
+                true
+            } else {
+                false
+            }
             let packedArray: KIRExprID
             if argIndices.isEmpty {
                 packedArray = emitArrayNew(
@@ -309,6 +320,7 @@ final class CallSupportLowerer {
                     providedArguments: providedArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
+                    boxPrimitiveElementsUsing: elementIsGenericTypeParameter ? sema.types : nil,
                     arena: arena,
                     interner: interner,
                     intType: intType,
@@ -393,6 +405,7 @@ final class CallSupportLowerer {
         providedArguments: [KIRExprID],
         spreadFlags: [Bool],
         listifyResult: Bool = true,
+        boxPrimitiveElementsUsing types: TypeSystem? = nil,
         arena: KIRArena,
         interner: StringInterner,
         intType: TypeID,
@@ -494,10 +507,30 @@ final class CallSupportLowerer {
         for (slotIndex, argIndex) in argIndices.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(slotIndex)), type: intType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(slotIndex))))
+            let rawValue = providedArguments[argIndex]
+            let storedValue: KIRExprID
+            if let types,
+               let argType = arena.exprType(rawValue),
+               let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                   for: argType,
+                   types: types,
+                   requireNonNull: false
+               )
+            {
+                storedValue = emitNonThrowingCall(
+                    callee: boxCallee,
+                    arg: rawValue,
+                    resultType: anyType,
+                    arena: arena,
+                    into: &instructions
+                )
+            } else {
+                storedValue = rawValue
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
-                arguments: [arrayID, indexExpr, providedArguments[argIndex]],
+                arguments: [arrayID, indexExpr, storedValue],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil
