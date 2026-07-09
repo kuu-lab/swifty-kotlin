@@ -988,7 +988,9 @@ struct ListSyntheticMemberLinkTests {
         fun probe(values: List<Int>) {
             values.first()
             values.firstOrNull()
+            values.firstOrNull { it > 1 }
             values.lastOrNull()
+            values.lastOrNull { it < 3 }
         }
         """
 
@@ -999,28 +1001,40 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let nullableIntType = sema.types.makeNullable(sema.types.intType)
-            let expectedMembers: [(memberName: String, externalLinkName: String?, expectedType: TypeID)] = [
-                ("first", nil, sema.types.intType),
-                ("firstOrNull", "kk_list_firstOrNull", nullableIntType),
-                ("lastOrNull", "kk_list_lastOrNull", nullableIntType),
+            let expectedTerminalCalls: [(memberName: String, expectedType: TypeID)] = [
+                ("first", sema.types.intType),
+                ("firstOrNull", nullableIntType),
+                ("lastOrNull", nullableIntType),
             ]
 
-            for (memberName, externalLinkName, expectedType) in expectedMembers {
+            for (memberName, expectedType) in expectedTerminalCalls {
                 // Use lastExprID rather than firstExprID: bundled stdlib sources
                 // (injected before the fixture's own source) may already contain
                 // calls to the same member name, which would otherwise shadow the
                 // fixture's own call site.
                 let callExpr = try #require(lastExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.isEmpty
                 })
-                if let externalLinkName {
-                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
-                }
                 #expect(sema.bindings.exprTypes[callExpr] == expectedType, "Expected \(memberName) to return the expected element type")
                 #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to avoid collection-expression marking")
+            }
+
+            for memberName in ["firstOrNull", "lastOrNull"] {
+                let predicateCall = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.count == 1
+                })
+                guard case let .memberCall(_, _, _, args, _) = ast.arena.expr(predicateCall),
+                      let predicateArg = args.first?.expr
+                else {
+                    Issue.record("Expected \(memberName)(predicate) call to keep its lambda argument")
+                    continue
+                }
+                #expect(sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be marked for HOF lowering")
+                #expect(sema.bindings.exprTypes[predicateCall] == nullableIntType, "Expected \(memberName)(predicate) to return nullable element type")
+                #expect(!(sema.bindings.isCollectionExpr(predicateCall)), "Expected \(memberName)(predicate) result to avoid collection-expression marking")
             }
         }
     }
