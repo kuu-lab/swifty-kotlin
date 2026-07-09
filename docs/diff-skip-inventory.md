@@ -22,11 +22,11 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-001 | 20 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 7 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
-| DEBT-DIFF-005 | 16 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-005 | 19 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -111,6 +111,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Sequence common API | `flatten_sequence_edge_cases.kt` | `Sequence.flatten` 実装 gap | `Stdlib/kotlin/sequences` / runtime sequence bridge の実装後に通常 diff へ |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
 | KSwiftK synthetic Random/SecureRandom surface | `random_nextfloat_ranged_synthetic.kt`, `secure_random.kt` | `Random.nextFloat(until/from,until)` と `SecureRandom.getInstance()` (無引数) は JVM kotlinc に無い surface（STDLIB-655 / STDLIB-RANDOM-101）。`ArrayName(size)` no-init-lambda コンストラクタの link bug 修正（PR #4621）前は candidate 側も別理由でコンパイル失敗しており、たまたま exit code が一致して見えていた | public surface として残す理由を再確認し、残すなら candidate-only test（Runtime unit test 等）へ移す |
+| Random.nextBytes hang (KSP-466 regression) | `random_nextbytes_hang_workaround.kt` | `Random(seed).nextBytes(array)` が実 CPU を消費するハングを起こす（`kotlin.random.Random` を Kotlin ソース化した #4630 の回帰、別タスクとして修正予定）。`random_extended.kt` / `random_overload_edge_cases.kt` から nextBytes 使用箇所のみ抽出（PR #4621 で発覚・対応） | バグ修正後、内容を `random_extended.kt`/`random_overload_edge_cases.kt` へ戻すか本ファイルの SKIP-DIFF を解除する |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
 | Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |
