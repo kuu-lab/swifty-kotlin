@@ -24,6 +24,15 @@ struct MemberRuntimeDispatchTests {
             (.longProgression, "step", 0, "kk_long_range_step"),
             (.uintProgression, "step", 2, "kk_uint_step"),
             (.ulongProgression, "contains", 1, "kk_ulong_range_contains"),
+            // step(n) as a dot call (arity 1) must resolve to the progression-
+            // constructing runtime function, not the step-property getter
+            // (KSWIFTK-RUNTIME-0001: (1L..10L).step(2L) used to alias the getter
+            // and hand back a raw step value instead of a new range handle).
+            (.intRange, "step", 1, "kk_op_step"),
+            (.longRange, "step", 1, "kk_op_step"),
+            (.longProgression, "step", 1, "kk_op_step"),
+            (.uintRange, "step", 1, "kk_uint_step"),
+            (.ulongRange, "step", 1, "kk_ulong_step"),
         ]
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
