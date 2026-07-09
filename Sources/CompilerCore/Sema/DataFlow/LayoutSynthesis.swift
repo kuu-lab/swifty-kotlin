@@ -84,20 +84,33 @@ extension DataFlowSemaPhase {
             .compactMap { symbols.symbol($0) }
         for method in ownMethods {
             let key = methodDispatchKey(for: method, symbols: symbols)
+            let candidates = inheritedCandidatesByKey[key]
+            let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
             // Only a genuine `override` may reuse an inherited slot: a
             // freshly-declared (non-override) method can share (name, arity) with
             // an unrelated inherited overload without ever being in an override
             // relationship with it (Kotlin disallows two identical-signature
             // siblings, so any same-key sibling is necessarily a distinct overload
             // needing its own slot).
-            if method.flags.contains(.overrideMember),
-               let candidates = inheritedCandidatesByKey[key]
-            {
-                let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+            if method.flags.contains(.overrideMember), let candidates {
                 if let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates, types: types) {
                     vtableSlots[method.id] = matchedSlot
                     continue
                 }
+            }
+            if let candidates,
+               let matchedSlot = resolveImplicitImportedOverrideSlot(
+                   method: method,
+                   owner: nominalSymbol,
+                   declaredVtableSize: layoutHint?.declaredVtableSize,
+                   nextVtableSlot: nextVtableSlot,
+                   parameterTypes: parameterTypes,
+                   candidates: candidates,
+                   types: types
+               )
+            {
+                vtableSlots[method.id] = matchedSlot
+                continue
             }
             vtableSlots[method.id] = nextVtableSlot
             nextVtableSlot += 1
@@ -230,6 +243,32 @@ extension DataFlowSemaPhase {
     ) -> Int? {
         if candidates.count == 1 {
             return candidates[0].slot
+        }
+        let compatibleSlots = Set(candidates.filter {
+            isOverrideParameterMatch(candidateParameterTypes: $0.parameterTypes, overrideParameterTypes: parameterTypes, types: types)
+        }.map(\.slot))
+        return compatibleSlots.count == 1 ? compatibleSlots.first : nil
+    }
+
+    /// Legacy imported metadata can provide only the final vtable size without
+    /// per-method slot entries or override flags. If allocating a fresh slot
+    /// would exceed that imported size, preserve the metadata layout by reusing
+    /// the one compatible inherited slot.
+    private func resolveImplicitImportedOverrideSlot(
+        method: SemanticSymbol,
+        owner: SemanticSymbol,
+        declaredVtableSize: Int?,
+        nextVtableSlot: Int,
+        parameterTypes: [TypeID],
+        candidates: [(parameterTypes: [TypeID], slot: Int)],
+        types: TypeSystem
+    ) -> Int? {
+        guard method.flags.contains(.importedLibrary),
+              owner.flags.contains(.importedLibrary),
+              let declaredVtableSize,
+              nextVtableSlot + 1 > declaredVtableSize
+        else {
+            return nil
         }
         let compatibleSlots = Set(candidates.filter {
             isOverrideParameterMatch(candidateParameterTypes: $0.parameterTypes, overrideParameterTypes: parameterTypes, types: types)
