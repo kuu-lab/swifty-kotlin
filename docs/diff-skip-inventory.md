@@ -22,7 +22,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-001 | 23 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 8 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
@@ -49,6 +49,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | `kotlin.io.path` | `path_basic.kt` | JVM-specific path API / import surface の扱いが曖昧 | JVM interop 対象として維持するなら reference classpath/import を修正、target 外なら別 backlog へ移す |
 | serialization | `custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt` | `kotlinx-serialization` jar / plugin が無い | dependency injection だけで動く範囲と compiler plugin 必須範囲を分ける |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | `org.slf4j` jar / runtime-only logger が無い | `slf4j-api` + binding 注入で戻せる basic と runtime-only advanced を分ける |
+| kotlin.test | `test_framework_basic.kt` | `kotlin.test` annotation / assertion imports require `kotlin-test.jar` in the JVM reference classpath; KSwiftK covers the candidate side with synthetic stubs and runtime helpers | `kotlin-test.jar` を harness dependency injection に追加してから通常 diff へ戻す |
 | compiler plugin API | `compiler_plugin_api.kt` | `--force-run-skipped` で再判定済み。object/class 自身のメソッドから自プロパティの `MutableMap` へ implicit `this` 経由で `[]` アクセスする型推論バグ(`KSWIFTK-TYPE-0001`、旧 DEBT-DIFF-006 該当)は修正済みで解消を確認した。残り: (1) interface の abstract `val` が primary constructor の `override val` パラメータで実装されていても `KSWIFTK-SEMA-ABSTRACT` の誤診断が出る、(2) `Map.plus` 演算子の戻り値を data class `copy()` の named argument に渡すと `KSWIFTK-SEMA-0002` になる、の2件が別要因として残っており通常 diff は未 pass | (1)(2) をそれぞれ Sema の override 収集ロジック / overload resolution の別課題として修正した後に `--force-run-skipped` で再判定し、通常 diff へ戻す |
 
 ## DEBT-DIFF-002: script-style cases
