@@ -312,14 +312,20 @@ extension KIRLoweringDriver {
                 explicitField.initializer,
                 shared: shared, emit: &body
             )
-            let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: backingFieldType)
-            body.append(.copy(from: initValue, to: fieldRef))
+            storeInstancePropertyInitialValue(
+                targetSymbol: targetSymbol, ownerLookupSymbol: propSymbol,
+                value: initValue, valueType: backingFieldType,
+                shared: shared, compilationCtx: compilationCtx, body: &body
+            )
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
-                let propRef = arena.appendExpr(.symbolRef(propSymbol), type: propType)
-                body.append(.copy(from: propInitValue, to: propRef))
+                storeInstancePropertyInitialValue(
+                    targetSymbol: propSymbol, ownerLookupSymbol: propSymbol,
+                    value: propInitValue, valueType: propType,
+                    shared: shared, compilationCtx: compilationCtx, body: &body
+                )
             }
             return
         }
@@ -359,8 +365,59 @@ extension KIRLoweringDriver {
             initExpr,
             shared: shared, emit: &body
         )
-        let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: propType)
-        body.append(.copy(from: initValue, to: fieldRef))
+        storeInstancePropertyInitialValue(
+            targetSymbol: targetSymbol, ownerLookupSymbol: propSymbol,
+            value: initValue, valueType: propType,
+            shared: shared, compilationCtx: compilationCtx, body: &body
+        )
+    }
+
+    /// Stores a property's initial value into its backing storage.
+    ///
+    /// `class`/`interface` instances may have multiple independent objects,
+    /// so their stored properties live at a `this`-relative offset inside
+    /// the heap-allocated instance and must be written with `kk_array_set`
+    /// against the active implicit receiver — the same mechanism
+    /// `kk_array_set`-based member assignment (`ExprLowerer`'s `.localAssign`,
+    /// `lowerMemberAssignExpr`) already uses for writes after construction.
+    /// `object` singletons have exactly one instance, so their properties are
+    /// modeled as global storage instead; a plain copy into the symbol's slot
+    /// is correct there (and for top-level properties, which never reach
+    /// this function with an owner at all).
+    private func storeInstancePropertyInitialValue(
+        targetSymbol: SymbolID,
+        ownerLookupSymbol: SymbolID,
+        value: KIRExprID,
+        valueType: TypeID,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let ownerSymbol = sema.symbols.parentSymbol(for: ownerLookupSymbol)
+        let ownerKind = ownerSymbol.flatMap { sema.symbols.symbol($0) }?.kind
+        if let receiverID = ctx.activeImplicitReceiverExprID(),
+           ownerKind == .class || ownerKind == .interface,
+           let ownerSymbol,
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
+        {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: compilationCtx.interner.intern("kk_array_set"),
+                arguments: [receiverID, offsetExpr, value],
+                result: unusedResult,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+        } else {
+            let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: valueType)
+            body.append(.copy(from: value, to: fieldRef))
+        }
     }
 
     // MARK: - Secondary constructor body emission
