@@ -1664,15 +1664,6 @@ public func kk_list_flatMapIndexedTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: In
 
 // MARK: - List *Indexed collection extensions
 
-@_cdecl("kk_list_filterIndexed")
-public func kk_list_filterIndexed(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    var thrown = 0
-    let filtered = applyFilterIndexedStep(list.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    return registerRuntimeObject(RuntimeListBox(elements: filtered))
-}
-
 @_cdecl("kk_list_foldIndexed")
 public func kk_list_foldIndexed(_ listRaw: Int, _ initial: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: listRaw) else {
