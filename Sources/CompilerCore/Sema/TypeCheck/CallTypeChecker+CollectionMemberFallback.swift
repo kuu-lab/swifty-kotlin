@@ -1551,9 +1551,18 @@ extension CallTypeChecker {
                     interner.intern("collections"),
                     interner.intern("Map"),
                 ]) {
+                    // Map.Entry<out K, out V> declares K covariantly, but the enclosing
+                    // Map<K, V> declares K invariant. Reusing keyArg's `.out` projection
+                    // as-is here would make this reconstructed type a strict supertype of
+                    // Map<K, V>, which callers expecting the exact type (e.g. a data class
+                    // copy() parameter) would then reject. Project K back to `.invariant`.
+                    let keyType: TypeID = switch keyArg {
+                    case let .invariant(t), let .out(t), let .in(t): t
+                    case .star: sema.types.anyType
+                    }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: mapSymbol,
-                        args: [keyArg, valueArg],
+                        args: [.invariant(keyType), valueArg],
                         nullability: .nonNull
                     )))
                 }
