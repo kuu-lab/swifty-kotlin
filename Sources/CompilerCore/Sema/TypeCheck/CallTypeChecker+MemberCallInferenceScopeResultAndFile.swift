@@ -71,7 +71,7 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
@@ -100,7 +100,7 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
@@ -241,7 +241,7 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
@@ -279,7 +279,7 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
