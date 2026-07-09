@@ -209,7 +209,11 @@ extension DataFlowSemaPhase {
     /// overrides, where the base's type-parameter types won't textually equal the
     /// override's substituted concrete types). With multiple candidates — e.g. a
     /// class declaring both `nextBytes(array: ByteArray)` and `nextBytes(size: Int)`
-    /// — prefer an exact parameter-type match so each overload keeps its own slot.
+    /// — require an exact parameter-type match so each overload keeps its own slot.
+    /// Returning `nil` here (no exact match among 2+ candidates) is deliberate: the
+    /// caller then allocates a fresh slot rather than guessing, since aliasing the
+    /// override onto an arbitrary candidate could silently corrupt an unrelated
+    /// overload's vtable entry.
     private func resolveOverriddenSlot(
         parameterTypes: [TypeID],
         candidates: [(parameterTypes: [TypeID], slot: Int)]
@@ -217,9 +221,6 @@ extension DataFlowSemaPhase {
         if candidates.count == 1 {
             return candidates[0].slot
         }
-        if let exactMatch = candidates.first(where: { $0.parameterTypes == parameterTypes }) {
-            return exactMatch.slot
-        }
-        return candidates.first?.slot
+        return candidates.first(where: { $0.parameterTypes == parameterTypes })?.slot
     }
 }
