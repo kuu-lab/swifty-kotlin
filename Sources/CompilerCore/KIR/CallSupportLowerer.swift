@@ -461,10 +461,34 @@ final class CallSupportLowerer {
                 ))
                 let valueIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2 + 1)), type: intType)
                 instructions.append(.constValue(result: valueIdxExpr, value: .intLiteral(Int64(pairIdx * 2 + 1))))
+                // Spread elements are already array handles (unboxed by definition);
+                // only non-spread elements may need boxing to match the boxed
+                // representation kk_vararg_spread_concat/Array<T> expect.
+                let rawValue = providedArguments[idx]
+                let storedValue: KIRExprID
+                if !isSpread,
+                   let types,
+                   let argType = arena.exprType(rawValue),
+                   let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                       for: argType,
+                       types: types,
+                       requireNonNull: false
+                   )
+                {
+                    storedValue = emitNonThrowingCall(
+                        callee: boxCallee,
+                        arg: rawValue,
+                        resultType: anyType,
+                        arena: arena,
+                        into: &instructions
+                    )
+                } else {
+                    storedValue = rawValue
+                }
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [pairsArray, valueIdxExpr, providedArguments[idx]],
+                    arguments: [pairsArray, valueIdxExpr, storedValue],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil

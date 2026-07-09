@@ -1086,8 +1086,7 @@ extension CallLowerer {
             instructions: &instructions
         )
         // Derive element type from the receiver's array type.
-        // Mirrors TypeCheckHelpers.arrayElementType logic but also checks
-        // the value expression type as a heuristic for non-IntArray receivers.
+        // Mirrors TypeCheckHelpers.arrayElementType logic.
         let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
         // Array<T>'s backing store holds boxed elements for primitive T (mirroring
         // lowerIndexedAccessExpr / lowerIndexedAssignExpr); IntArray/CharArray/...
@@ -1097,7 +1096,14 @@ extension CallLowerer {
         // raw value, breaking every later boxed-aware read of that element.
         let compoundReceiverIsGenericArray = isGenericArrayReceiverType(receiverBoundType, sema: sema, interner: interner)
         let boxingTable = BoxingCalleeTable(interner: interner)
-        let compoundPrimitiveElementType: TypeID? = compoundReceiverIsGenericArray ? arena.exprType(valueID) : nil
+        // Prefer the receiver's own type argument (Array<T>'s T) over the RHS
+        // value's type: the RHS may be a narrower type that gets implicitly
+        // widened (e.g. an Int literal assigned into an Array<Long> slot), and
+        // boxing/unboxing must use the slot's actual element type, not the
+        // operand's.
+        let compoundPrimitiveElementType: TypeID? = compoundReceiverIsGenericArray
+            ? (genericArrayElementType(of: receiverBoundType, sema: sema) ?? arena.exprType(valueID))
+            : nil
 
         let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
@@ -1136,24 +1142,7 @@ extension CallLowerer {
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
-        let isStringElement: Bool = {
-            guard let recvType = receiverBoundType,
-                  case let .classType(classType) = sema.types.kind(of: recvType)
-            else {
-                return false
-            }
-            // Prefer the explicit element type from type arguments, if present.
-            if let firstArg = classType.args.first {
-                let elementType: TypeID? = switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: nil
-                }
-                if let elementType {
-                    return elementType == stringType
-                }
-            }
-            return false
-        }()
+        let isStringElement = genericArrayElementType(of: receiverBoundType, sema: sema) == stringType
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
         } else {
@@ -1216,5 +1205,21 @@ extension CallLowerer {
             return false
         }
         return interner.resolve(symbol.name) == "Array"
+    }
+
+    /// Extracts `T` from a `classType`'s first (invariant/out/in) type
+    /// argument, e.g. `Array<T>` or `MutableList<T>`. Returns nil for a star
+    /// projection or a non-generic/non-class receiver type.
+    func genericArrayElementType(of receiverType: TypeID?, sema: SemaModule) -> TypeID? {
+        guard let receiverType,
+              case let .classType(classType) = sema.types.kind(of: receiverType),
+              let firstArg = classType.args.first
+        else {
+            return nil
+        }
+        switch firstArg {
+        case let .invariant(t), let .out(t), let .in(t): return t
+        case .star: return nil
+        }
     }
 }

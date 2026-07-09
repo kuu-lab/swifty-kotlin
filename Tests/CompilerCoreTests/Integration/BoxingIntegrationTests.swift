@@ -193,5 +193,73 @@ struct BoxingIntegrationTests {
 
         #expect(boxingCalls.isEmpty, "arr[0] = 9 on an IntArray must not box the assigned value. Found \(boxingCalls.count)")
     }
+
+    @Test func testArrayOfBoxesNonSpreadElementsWhenMixedWithSpread() throws {
+        let source = """
+        fun test() {
+            val other = arrayOf(10, 20)
+            val arr = arrayOf(1, *other, 3)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module: KIRModule = try #require(ctx.kir)
+        let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
+
+        let boxingCalls = testFunc.body.filter { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_box_int"
+            }
+            return false
+        }
+
+        // Building `other` boxes its two literal elements (2 calls). Building `arr`
+        // goes through the pairs-array/kk_vararg_spread_concat path because it mixes
+        // a spread with plain elements; only the two non-spread literals (1, 3) must
+        // be boxed there — the spread element is already an array handle and must
+        // not be boxed again.
+        #expect(
+            boxingCalls.count == 4,
+            "arrayOf(1, *other, 3) should box only its two non-spread literals (plus 2 for `other`). Found \(boxingCalls.count)"
+        )
+    }
+
+    @Test func testCompoundAssignOnGenericArrayBoxesAndUnboxesUsingReceiverElementType() throws {
+        let source = """
+        fun test() {
+            val arr = arrayOf(1L, 2L, 3L)
+            arr[0] += 5L
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module: KIRModule = try #require(ctx.kir)
+        let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
+
+        let boxLongCalls = testFunc.body.filter { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_box_long"
+            }
+            return false
+        }
+        let unboxLongCalls = testFunc.body.filter { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                return ctx.interner.resolve(callee) == "kk_unbox_long"
+            }
+            return false
+        }
+
+        // arr[0] += 5L on an Array<Long> must unbox the read element and box the
+        // stored result using the receiver's own element type (Long), derived from
+        // Array<Long>'s type argument rather than heuristically re-derived from the
+        // RHS expression — the two happen to agree here, but only the former stays
+        // correct if the RHS were ever a different (compiler-permitted) numeric type.
+        #expect(!boxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should box the result as Long. Found \(boxLongCalls.count)")
+        #expect(!unboxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should unbox the read element as Long. Found \(unboxLongCalls.count)")
+    }
 }
 #endif
