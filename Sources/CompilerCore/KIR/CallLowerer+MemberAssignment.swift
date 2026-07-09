@@ -365,7 +365,7 @@ extension CallLowerer {
             if let setter = propertyDecl.setter {
                 return setter.body != .unit
             }
-            return false
+            return propertyDecl.delegateExpression != nil
         }
         return false
     }

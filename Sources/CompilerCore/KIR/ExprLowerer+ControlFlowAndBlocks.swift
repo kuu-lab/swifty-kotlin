@@ -438,7 +438,8 @@ extension ExprLowerer {
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
                     if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
-                        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                         let result = arena.appendTemporary(type: resultType)
                         instructions.append(.call(
                             symbol: getterSymbol,
@@ -1018,7 +1019,7 @@ extension ExprLowerer {
                           symInfo.kind == .property || symInfo.kind == .field,
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                          ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface
                 {
                     // No direct field offset (the property has a distinct
                     // backing field because it declares a custom accessor):
@@ -1032,8 +1033,12 @@ extension ExprLowerer {
                     // the same backing-field global that MemberLowerer+
                     // DelegatedAndAccessorLowering.swift's lowerAccessorBody
                     // seeds `field` references to inside accessor bodies.
+                    // (`.object` is deliberately excluded: the branch above
+                    // already routes every object-member property through
+                    // global-copy storage before reaching here.)
                     if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
-                        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                        let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
                         instructions.append(.call(
                             symbol: setterSymbol,
                             callee: interner.intern("set"),
