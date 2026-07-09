@@ -74,5 +74,6 @@ Cases:
 - `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
+- `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、getter 本体内での `field = ...` 書き込み（lazy caching パターン）、および getter+setter 両方をカスタムするプロパティの通常初期化子（setter をバイパスして直接 backing storage に書き込まれる）が実インスタンスストレージに反映される parity
 
 The set intentionally includes both successful programs and compile-error cases.

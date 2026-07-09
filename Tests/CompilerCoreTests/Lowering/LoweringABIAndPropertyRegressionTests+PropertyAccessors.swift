@@ -185,6 +185,13 @@ extension LoweringABIAndPropertyRegressionTests {
         let types = TypeSystem()
         let symbols = SymbolTable()
 
+        let classSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Foo"),
+            fqName: [interner.intern("Foo")],
+            declSite: nil,
+            visibility: .public
+        )
         let propertySym = symbols.define(
             kind: .property,
             name: interner.intern("myProp"),
@@ -193,6 +200,7 @@ extension LoweringABIAndPropertyRegressionTests {
             visibility: .public,
             flags: [.mutable]
         )
+        symbols.setParentSymbol(classSym, for: propertySym)
         let backingFieldSym = symbols.define(
             kind: .backingField,
             name: interner.intern("$backing_myProp"),
@@ -203,6 +211,35 @@ extension LoweringABIAndPropertyRegressionTests {
         )
         symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
 
+        // PropertyLoweringPass must not rewrite a backing-field copy into a
+        // call targeting a setter symbol unless a real setter accessor
+        // function was actually emitted for it — otherwise codegen is left
+        // with a call to a function that doesn't exist. So the rewrite target
+        // needs a genuine (receiver, value) -> Unit setter accessor present
+        // in the module, matching the shape lowerAccessorBody synthesizes.
+        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
+        let setterReceiverSym = SymbolID(rawValue: 90)
+        let setterValueSym = SymbolID(rawValue: 91)
+        let setterFn = KIRFunction(
+            symbol: expectedSetterSymbol,
+            name: interner.intern("set"),
+            params: [
+                KIRParameter(symbol: setterReceiverSym, type: types.anyType),
+                KIRParameter(symbol: setterValueSym, type: types.anyType),
+            ],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+        _ = arena.appendDecl(.function(setterFn))
+
+        // The caller simulates constructor-side field-initializer wiring: a
+        // function with its own receiver parameter (the instance under
+        // construction) that writes directly to the backing field. The
+        // rewrite must forward this receiver alongside the value — a setter
+        // accessor takes (receiver, value), not just the value.
+        let callerReceiverSym = SymbolID(rawValue: 101)
         let callerSym = SymbolID(rawValue: 100)
         let fromExpr = arena.appendExpr(.intLiteral(42), type: types.anyType)
         let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
@@ -210,7 +247,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let callerFn = KIRFunction(
             symbol: callerSym,
             name: interner.intern("bf_setter"),
-            params: [],
+            params: [KIRParameter(symbol: callerReceiverSym, type: types.anyType)],
             returnType: types.unitType,
             body: [
                 .copy(from: fromExpr, to: toExpr),
@@ -231,13 +268,16 @@ extension LoweringABIAndPropertyRegressionTests {
             return
         }
 
-        let expectedSetterSymbol = SymbolID(rawValue: -13000 - propertySym.rawValue)
-        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
-            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
-            return sym
+        let setterCalls = lowered.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(sym, _, arguments, _, _, _, _, _) = instruction, sym == expectedSetterSymbol else {
+                return nil
+            }
+            return arguments
         }
-        #expect(callSymbols.contains(expectedSetterSymbol),
-                      "Expected setter symbol \(expectedSetterSymbol) for backing field copy, got: \(callSymbols)")
+        #expect(setterCalls.count == 1,
+                      "Expected exactly one setter call for \(expectedSetterSymbol), got body: \(lowered.body)")
+        #expect(setterCalls.first?.count == 2,
+                      "Setter accessor takes (receiver, value); expected 2 arguments, got: \(String(describing: setterCalls.first))")
 
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(callees.contains("set"))
@@ -248,6 +288,301 @@ extension LoweringABIAndPropertyRegressionTests {
             return false
         }
         #expect(!hasCopy, "Backing field copy should have been rewritten to a setter call")
+    }
+
+    @Test
+    func testPropertyLoweringKeepsDirectCopyWhenNoSetterAccessorEmitted() throws {
+        // A `var` whose only customized accessor is the getter (no explicit
+        // `set(value) { ... }` block) never gets a setter accessor function
+        // synthesized (see KIRLoweringDriver+ModuleLowering+PropertyDecl.swift).
+        // Rewriting a backing-field copy into a call to that non-existent
+        // setter symbol would leave codegen with an unresolvable callee, so
+        // the rewrite must keep the direct copy instead — regardless of the
+        // property's mutability.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let classSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Foo"),
+            fqName: [interner.intern("Foo")],
+            declSite: nil,
+            visibility: .public
+        )
+        let propertySym = symbols.define(
+            kind: .property,
+            name: interner.intern("cache"),
+            fqName: [interner.intern("Foo"), interner.intern("cache")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.mutable]
+        )
+        symbols.setParentSymbol(classSym, for: propertySym)
+        let backingFieldSym = symbols.define(
+            kind: .backingField,
+            name: interner.intern("$backing_cache"),
+            fqName: [interner.intern("Foo"), interner.intern("$backing_cache")],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
+
+        // No setter accessor function is registered anywhere in this module —
+        // only the getter (`function.symbol` below), matching a getter-only
+        // customized property. `field = ...` inside that getter must remain a
+        // direct write; it must never be routed through a setter accessor.
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
+        let receiverSym = SymbolID(rawValue: 90)
+        let fromExpr = arena.appendExpr(.intLiteral(42), type: types.anyType)
+        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
+
+        let getterFn = KIRFunction(
+            symbol: getterSymbol,
+            name: interner.intern("get"),
+            params: [KIRParameter(symbol: receiverSym, type: types.anyType)],
+            returnType: types.anyType,
+            body: [
+                .copy(from: fromExpr, to: toExpr),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let fnID = arena.appendDecl(.function(getterFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        _ = try runLowering(module: module, interner: interner, moduleName: "NoSetterAccessor", sema: sema)
+
+        guard case let .function(lowered)? = module.arena.decl(fnID) else {
+            Issue.record("expected function")
+            return
+        }
+
+        // No function in this module has `expectedSetterSymbol` (or any
+        // symbol at all — the only calls that legitimately appear here are
+        // ABILoweringPass's later, unrelated `Any`-boxing conversions, which
+        // always carry `symbol: nil`). If PropertyLoweringPass had
+        // (incorrectly) rewritten the copy into a setter call, `symbol`
+        // would be non-nil and `callee` would resolve to "set".
+        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
+            return sym
+        }
+        #expect(callSymbols.isEmpty,
+                      "No setter accessor exists for this property; expected no symbol-bound calls, got: \(callSymbols)")
+
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(!callees.contains("set"),
+                      "Backing field write should not be routed through a setter accessor that was never emitted")
+    }
+
+    @Test
+    func testPropertyLoweringKeepsDirectCopyForFieldWriteInsideOwnGetter() throws {
+        // Kotlin's `field` keyword always writes directly to backing storage,
+        // even from within the property's own getter (e.g. a lazy-caching
+        // getter that does `field = compute()`) — it must never invoke the
+        // setter, even when the property DOES have a real custom setter.
+        // Rewriting it into a setter call would apply the setter's own
+        // transformation logic a second time on every read.
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let classSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Foo"),
+            fqName: [interner.intern("Foo")],
+            declSite: nil,
+            visibility: .public
+        )
+        let propertySym = symbols.define(
+            kind: .property,
+            name: interner.intern("v"),
+            fqName: [interner.intern("Foo"), interner.intern("v")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.mutable]
+        )
+        symbols.setParentSymbol(classSym, for: propertySym)
+        let backingFieldSym = symbols.define(
+            kind: .backingField,
+            name: interner.intern("$backing_v"),
+            fqName: [interner.intern("Foo"), interner.intern("$backing_v")],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
+
+        // A real setter accessor DOES exist for this property (unlike the
+        // no-setter-accessor test above) — the getter-exclusion must still
+        // keep the write direct even so.
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
+        let setterFn = KIRFunction(
+            symbol: setterSymbol,
+            name: interner.intern("set"),
+            params: [
+                KIRParameter(symbol: SymbolID(rawValue: 90), type: types.anyType),
+                KIRParameter(symbol: SymbolID(rawValue: 91), type: types.anyType),
+            ],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+        _ = arena.appendDecl(.function(setterFn))
+
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
+        let receiverSym = SymbolID(rawValue: 92)
+        let fromExpr = arena.appendExpr(.intLiteral(42), type: types.anyType)
+        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
+
+        let getterFn = KIRFunction(
+            symbol: getterSymbol,
+            name: interner.intern("get"),
+            params: [KIRParameter(symbol: receiverSym, type: types.anyType)],
+            returnType: types.anyType,
+            body: [
+                .copy(from: fromExpr, to: toExpr),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let fnID = arena.appendDecl(.function(getterFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        _ = try runLowering(module: module, interner: interner, moduleName: "GetterFieldWrite", sema: sema)
+
+        guard case let .function(lowered)? = module.arena.decl(fnID) else {
+            Issue.record("expected function")
+            return
+        }
+
+        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
+            return sym
+        }
+        #expect(!callSymbols.contains(setterSymbol),
+                      "field = ... inside the getter must not call the setter, got calls: \(callSymbols)")
+
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(!callees.contains("set"),
+                      "field = ... inside the getter must not be routed through the setter accessor")
+    }
+
+    @Test
+    func testPropertyLoweringKeepsDirectCopyInsideConstructor() throws {
+        // A property initializer (`var y: Int = 2`) writes the backing field
+        // directly, bypassing any custom setter — Kotlin's `field` keyword is
+        // not reachable from outside an accessor body, so a backing-field
+        // copy found inside a constructor is always initializer wiring
+        // (emitPropertyInitializer), never a user assignment that should
+        // route through the setter. A real setter accessor DOES exist for
+        // this property (like the getter-exclusion test above), so this
+        // case only passes if the rewrite explicitly checks for the
+        // constructor, not merely "no setter accessor was emitted".
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let classSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Foo"),
+            fqName: [interner.intern("Foo")],
+            declSite: nil,
+            visibility: .public
+        )
+        let propertySym = symbols.define(
+            kind: .property,
+            name: interner.intern("y"),
+            fqName: [interner.intern("Foo"), interner.intern("y")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.mutable]
+        )
+        symbols.setParentSymbol(classSym, for: propertySym)
+        let backingFieldSym = symbols.define(
+            kind: .backingField,
+            name: interner.intern("$backing_y"),
+            fqName: [interner.intern("Foo"), interner.intern("$backing_y")],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setBackingFieldSymbol(backingFieldSym, for: propertySym)
+
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
+        let setterFn = KIRFunction(
+            symbol: setterSymbol,
+            name: interner.intern("set"),
+            params: [
+                KIRParameter(symbol: SymbolID(rawValue: 90), type: types.anyType),
+                KIRParameter(symbol: SymbolID(rawValue: 91), type: types.anyType),
+            ],
+            returnType: types.unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+        _ = arena.appendDecl(.function(setterFn))
+
+        // The constructor symbol must have `kind == .constructor` for the
+        // rewrite to recognise it — this is the crux of the test.
+        let ctorSym = symbols.define(
+            kind: .constructor,
+            name: interner.intern("<init>"),
+            fqName: [interner.intern("Foo"), interner.intern("<init>")],
+            declSite: nil,
+            visibility: .public
+        )
+        let ctorReceiverSym = SymbolID(rawValue: 101)
+        let initValueExpr = arena.appendExpr(.intLiteral(2), type: types.anyType)
+        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
+
+        let ctorFn = KIRFunction(
+            symbol: ctorSym,
+            name: interner.intern("Foo"),
+            params: [KIRParameter(symbol: ctorReceiverSym, type: types.anyType)],
+            returnType: types.anyType,
+            body: [
+                .copy(from: initValueExpr, to: toExpr),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let fnID = arena.appendDecl(.function(ctorFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        _ = try runLowering(module: module, interner: interner, moduleName: "CtorFieldInit", sema: sema)
+
+        guard case let .function(lowered)? = module.arena.decl(fnID) else {
+            Issue.record("expected function")
+            return
+        }
+
+        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
+            return sym
+        }
+        #expect(!callSymbols.contains(setterSymbol),
+                      "Constructor field-initializer write must not call the setter, got calls: \(callSymbols)")
+
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(!callees.contains("set"),
+                      "Constructor field-initializer write must not be routed through the setter accessor")
     }
 
     @Test
