@@ -54,12 +54,18 @@ extension DataFlowSemaPhase {
         let inheritedVtable = superClass.flatMap { symbols.nominalLayout(for: $0)?.vtableSlots } ?? [:]
         let inheritedVtableSize = superClass.flatMap { symbols.nominalLayout(for: $0)?.vtableSize } ?? 0
         var vtableSlots = inheritedVtable
-        var vtableSlotByKey: [MethodDispatchKey: Int] = [:]
+        // Bucketed by the coarse (name, arity, isSuspend) key: two sibling overloads
+        // that merely share arity (e.g. `nextBytes(array: ByteArray)` and
+        // `nextBytes(size: Int)`) must not be conflated into one vtable slot, so each
+        // key can hold multiple candidates disambiguated by parameter types below.
+        var vtableCandidatesByKey: [MethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] = [:]
         for methodID in inheritedVtable.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let methodSymbol = symbols.symbol(methodID),
                   let slot = inheritedVtable[methodID]
             else { continue }
-            vtableSlotByKey[methodDispatchKey(for: methodSymbol, symbols: symbols)] = slot
+            let key = methodDispatchKey(for: methodSymbol, symbols: symbols)
+            let parameterTypes = symbols.functionSignature(for: methodID)?.parameterTypes ?? []
+            vtableCandidatesByKey[key, default: []].append((parameterTypes, slot))
         }
 
         var nextVtableSlot = max(inheritedVtableSize, (vtableSlots.values.max() ?? -1) + 1)
@@ -69,12 +75,22 @@ extension DataFlowSemaPhase {
             .compactMap { symbols.symbol($0) }
         for method in ownMethods {
             let key = methodDispatchKey(for: method, symbols: symbols)
-            if let inheritedSlot = vtableSlotByKey[key] {
-                vtableSlots[method.id] = inheritedSlot
+            let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+            // Only a genuine `override` may reuse an inherited/sibling slot: a
+            // freshly-declared (non-override) method can share (name, arity) with
+            // an unrelated overload without ever being in an override relationship
+            // with it (Kotlin disallows two identical-signature siblings, so any
+            // same-key sibling is necessarily a distinct overload needing its own slot).
+            if method.flags.contains(.overrideMember),
+               let candidates = vtableCandidatesByKey[key],
+               let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates)
+            {
+                vtableSlots[method.id] = matchedSlot
+                vtableCandidatesByKey[key, default: []].append((parameterTypes, matchedSlot))
                 continue
             }
             vtableSlots[method.id] = nextVtableSlot
-            vtableSlotByKey[key] = nextVtableSlot
+            vtableCandidatesByKey[key, default: []].append((parameterTypes, nextVtableSlot))
             nextVtableSlot += 1
         }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
@@ -186,5 +202,24 @@ extension DataFlowSemaPhase {
             arity: signature?.parameterTypes.count ?? 0,
             isSuspend: signature?.isSuspend ?? false
         )
+    }
+
+    /// Picks which same-(name, arity) candidate an `override` member actually
+    /// overrides. A single candidate is used as-is (this also covers generic
+    /// overrides, where the base's type-parameter types won't textually equal the
+    /// override's substituted concrete types). With multiple candidates — e.g. a
+    /// class declaring both `nextBytes(array: ByteArray)` and `nextBytes(size: Int)`
+    /// — prefer an exact parameter-type match so each overload keeps its own slot.
+    private func resolveOverriddenSlot(
+        parameterTypes: [TypeID],
+        candidates: [(parameterTypes: [TypeID], slot: Int)]
+    ) -> Int? {
+        if candidates.count == 1 {
+            return candidates[0].slot
+        }
+        if let exactMatch = candidates.first(where: { $0.parameterTypes == parameterTypes }) {
+            return exactMatch.slot
+        }
+        return candidates.first?.slot
     }
 }
