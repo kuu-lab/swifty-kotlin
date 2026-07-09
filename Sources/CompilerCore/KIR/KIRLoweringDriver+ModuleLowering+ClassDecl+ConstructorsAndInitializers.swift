@@ -359,9 +359,10 @@ extension KIRLoweringDriver {
 
     /// Stores a property's initial value into its backing storage.
     ///
-    /// `class`/`interface` instances may have multiple independent objects,
-    /// so their stored properties live at a `this`-relative offset inside
-    /// the heap-allocated instance and must be written with `kk_array_set`
+    /// `class`/`interface`/`enum class` instances may have multiple
+    /// independent objects (an enum class has one per entry), so their
+    /// stored properties live at a `this`-relative offset inside the
+    /// heap-allocated instance and must be written with `kk_array_set`
     /// against the active implicit receiver — the same mechanism
     /// `kk_array_set`-based member assignment (`ExprLowerer`'s `.localAssign`,
     /// `lowerMemberAssignExpr`) already uses for writes after construction.
@@ -383,7 +384,7 @@ extension KIRLoweringDriver {
         let ownerSymbol = sema.symbols.parentSymbol(for: ownerLookupSymbol)
         let ownerKind = ownerSymbol.flatMap { sema.symbols.symbol($0) }?.kind
         if let receiverID = ctx.activeImplicitReceiverExprID(),
-           ownerKind == .class || ownerKind == .interface,
+           ownerKind == .class || ownerKind == .interface || ownerKind == .enumClass,
            let ownerSymbol,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
         {
