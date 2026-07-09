@@ -373,13 +373,19 @@ extension DataFlowSemaPhase {
             // need a backing field because they have no storage — the getter
             // body is evaluated on every access.
             // STDLIB-CLASS-010: Abstract properties cannot have backing fields.
+            // Interfaces never need a backing field either — properties in an
+            // interface have no instance state of their own (KIR lowering
+            // suppresses storage emission for them; keep the symbol table
+            // consistent so `field` bindings aren't wired up to a nonexistent
+            // field for interface accessor bodies).
             let isAbstractProperty = propertyFlags.contains(.abstractType)
+            let isInterfaceOwner = symbols.symbol(ownerSymbol)?.kind == .interface
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
                 && !hasExplicitBackingField
-            let needsBackingField = !isAbstractProperty && (
+            let needsBackingField = !isAbstractProperty && !isInterfaceOwner && (
                 hasExplicitBackingField
                 || (!isGetterOnlyComputed
                     && (propertyDecl.getter != nil || propertyDecl.setter != nil))
