@@ -304,9 +304,28 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
+                // arrayOf<T>() erases T to Any, so primitives must be boxed to preserve type
+                // identity for `is`/filterIsInstance; concrete-element factories (intArrayOf,
+                // etc.) share this externalLinkName but have a non-type-param element type.
+                let elementTypeIsErased: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[0]) {
+                    true
+                } else {
+                    false
+                }
+                let effectiveArguments = elementTypeIsErased
+                    ? boxPrimitiveVarargArguments(
+                        providedArguments,
+                        argIndices: argIndices,
+                        spreadFlags: spreadFlags,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    : providedArguments
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
-                    providedArguments: providedArguments,
+                    providedArguments: effectiveArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
                     arena: arena,

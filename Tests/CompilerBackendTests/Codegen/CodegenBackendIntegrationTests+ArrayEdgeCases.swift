@@ -170,5 +170,38 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
+
+    func testArrayOfBoxesPrimitiveElementsForIsChecks() throws {
+        let source = """
+        fun main() {
+            val mixed: Array<Any> = arrayOf(1.5, "x", 2.5, 7L, true)
+            var i = 0
+            while (i < mixed.size) {
+                val item = mixed[i]
+                when (item) {
+                    is Double -> println("Double: " + item)
+                    is Long -> println("Long: " + item)
+                    is String -> println("String: " + item)
+                    is Boolean -> println("Boolean: " + item)
+                    else -> println("other: " + item)
+                }
+                i = i + 1
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayOfBoxesPrimitives",
+            expected:
+                """
+                Double: 1.5
+                String: x
+                Double: 2.5
+                Long: 7
+                Boolean: true
+                """ + "\n"
+        )
+    }
 }
 
