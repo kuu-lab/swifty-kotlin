@@ -97,7 +97,7 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
 | [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
 | [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md) | LoC / jscpd / stdlib 注入コストのベースライン（リファクタゲートの比較基準） |
-| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜006） |
+| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜008） |
 | [`Scripts/README.md`](Scripts/README.md) | swift_test.sh の環境変数・補助スクリプト一覧 |
 | [`AGENTS.md`](AGENTS.md) | Linux（Cursor Cloud）環境のセットアップ・環境変数 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
