@@ -220,5 +220,60 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
+
+    // Regression test: nesting a for-in loop over an array element that is
+    // itself iterated (e.g. `for (row in nested) { for (v in row) { ... } }`)
+    // used to skip the inner loop body entirely, even after the outer
+    // single-level array iteration above was fixed. The outer loop variable's
+    // runtime value is still a valid RuntimeArrayBox, so this exercises that
+    // nested arrays and mixed Array/List nesting both iterate correctly.
+    func testCodegenNestedArrayForLoopIteratesAllElements() throws {
+        let source = """
+        fun main() {
+            val nested = arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))
+            for (row in nested) {
+                for (v in row) {
+                    print("$v ")
+                }
+            }
+            println()
+
+            val cube = arrayOf(arrayOf(intArrayOf(1, 2), intArrayOf(3, 4)), arrayOf(intArrayOf(5, 6), intArrayOf(7, 8)))
+            for (plane in cube) {
+                for (row in plane) {
+                    for (v in row) {
+                        print("$v ")
+                    }
+                }
+            }
+            println()
+
+            val listOfArrays = listOf(intArrayOf(9, 10), intArrayOf(11, 12))
+            for (row in listOfArrays) {
+                for (v in row) {
+                    print("$v ")
+                }
+            }
+            println()
+
+            val arrayOfLists = arrayOf(listOf(13, 14), listOf(15, 16))
+            for (row in arrayOfLists) {
+                for (v in row) {
+                    print("$v ")
+                }
+            }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedArrayForLoopIteration",
+            expected: "1 2 3 4 \n"
+                + "1 2 3 4 5 6 7 8 \n"
+                + "9 10 11 12 \n"
+                + "13 14 15 16 \n"
+        )
+    }
 }
 
