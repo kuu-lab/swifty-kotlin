@@ -282,10 +282,19 @@ extension DataFlowSemaPhase {
             }
 
             // Kotlin: interface properties without getter/setter body are implicitly abstract.
-            // Properties with custom accessors (getter/setter) or initializer are concrete.
+            // Properties with custom accessors (getter/setter) are concrete; interfaces
+            // cannot hold per-instance state, so initializers are rejected outright
+            // (matches kotlinc's "property initializers in interfaces are prohibited").
             if symbols.symbol(ownerSymbol)?.kind == .interface {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
+                if hasInitializer {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0303",
+                        "Property initializers in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
                 if !hasCustomAccessor && !hasInitializer {
                     propertyFlags.insert(.abstractType)
                 }
