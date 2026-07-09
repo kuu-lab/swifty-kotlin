@@ -1317,8 +1317,19 @@ extension CallTypeChecker {
         }
 
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        // `Deferred.await()` resolves here as a normal candidate (the synthetic
+        // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
+        // signature hardcodes `Any` since `Deferred` has no class-level type
+        // parameter. Narrow it using the element type tracked by
+        // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
+        // produced this receiver.
+        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
+            deferredAwaitResultType(receiverID: receiverID, fallback: returnType, ast: ast, sema: sema)
+        } else {
+            returnType
+        }
         if isSuperCall { sema.bindings.markSuperCall(id) }
-        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        let finalType = safeCall ? sema.types.makeNullable(adjustedReturnType) : adjustedReturnType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
     }

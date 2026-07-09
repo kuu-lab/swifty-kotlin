@@ -68,6 +68,7 @@ extension CallTypeChecker {
         }
 
         // Provide contextual function type for range HOF lambda inference.
+        var mappedElementType: TypeID?
         if let expectation = rangeMemberLambdaExpectation(
             memberName: memberName,
             argCount: args.count,
@@ -89,6 +90,15 @@ extension CallTypeChecker {
                 locals: &locals,
                 expectedType: expectation.expectedType
             )
+            // STDLIB-090: `map`'s declared expected type is `Any` (a permissive
+            // upper bound for lambda inference), but the lambda body still infers
+            // its own tightest type. Read that back so `(1..n).map { ... }` reports
+            // `List<R>` instead of always widening to `List<Any>`.
+            if memberName == "map",
+               case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(lambdaArgExpr)
+            {
+                mappedElementType = sema.bindings.exprType(for: bodyExpr)
+            }
         }
 
         if memberName == "random",
@@ -129,7 +139,8 @@ extension CallTypeChecker {
             isCharRange: isCharRange,
             isLongRange: isLongRange,
             isUIntRange: isUIntRange,
-            isULongRange: isULongRange
+            isULongRange: isULongRange,
+            mappedElementType: mappedElementType
         )
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
@@ -219,7 +230,8 @@ extension CallTypeChecker {
         isCharRange: Bool = false,
         isLongRange: Bool = false,
         isUIntRange: Bool = false,
-        isULongRange: Bool = false
+        isULongRange: Bool = false,
+        mappedElementType: TypeID? = nil
     ) -> TypeID {
         let elementType = rangeMemberElementType(
             sema: sema,
@@ -257,7 +269,9 @@ extension CallTypeChecker {
             return rangeMemberULongArrayType(sema: sema, interner: interner)
         case "filter", "filterIndexed", "filterNot":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "map", "mapIndexed", "mapNotNull":
+        case "map":
+            return rangeMemberListType(elementType: mappedElementType ?? sema.types.anyType, sema: sema, interner: interner)
+        case "mapIndexed", "mapNotNull":
             return rangeMemberListType(elementType: sema.types.anyType, sema: sema, interner: interner)
         case "reduce", "reduceIndexed":
             return elementType

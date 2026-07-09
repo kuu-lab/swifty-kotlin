@@ -1118,6 +1118,14 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    /// Tracks the real element type produced by an `async { ... }` call, keyed by
+    /// expr and (once assigned to a `val`/`var`) by symbol. `Deferred` is
+    /// registered with no class-level type parameter, so this side-channel
+    /// mirrors the Flow element-type tracking above rather than relying on
+    /// `ClassType.args` (which would create an arity mismatch against the
+    /// zero-type-parameter `Deferred` symbol).
+    public private(set) var deferredElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var deferredElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var objectLiteralPropertySymbolIDs: Set<SymbolID> = []
     /// Maps `T::class` callable-ref expression IDs to the resolved type that
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
@@ -1353,6 +1361,22 @@ public final class BindingTable {
 
     public func flowElementType(forSymbol symbol: SymbolID) -> TypeID? {
         flowElementTypesBySymbol[symbol]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forExpr expr: ExprID) {
+        deferredElementTypesByExpr[expr] = type
+    }
+
+    public func deferredElementType(forExpr expr: ExprID) -> TypeID? {
+        deferredElementTypesByExpr[expr]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        deferredElementTypesBySymbol[symbol] = type
+    }
+
+    public func deferredElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        deferredElementTypesBySymbol[symbol]
     }
 
     public func bindClassRefTargetType(_ expr: ExprID, type: TypeID) {

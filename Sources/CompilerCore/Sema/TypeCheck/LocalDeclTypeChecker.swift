@@ -122,6 +122,10 @@ final class LocalDeclTypeChecker {
                 sema.bindings.bindFlowElementType(flowElementType, forSymbol: localSymbol)
             }
         }
+        if let initializer, let deferredElementType = sema.bindings.deferredElementType(forExpr: initializer) {
+            sema.bindings.bindDeferredElementType(deferredElementType, forExpr: id)
+            sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: localSymbol)
+        }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
     }

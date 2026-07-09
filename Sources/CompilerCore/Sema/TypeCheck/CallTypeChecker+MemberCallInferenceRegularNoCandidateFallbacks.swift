@@ -1800,7 +1800,7 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             case "await":
-                let resultType = sema.types.nullableAnyType
+                let resultType = deferredAwaitResultType(receiverID: receiverID, fallback: sema.types.nullableAnyType, ast: ast, sema: sema)
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
