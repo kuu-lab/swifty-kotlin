@@ -1967,10 +1967,19 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
         // Propagate scope to GCD thread so nested launch/async discover the parent.
         RuntimeCoroutineScope.current = callerScope
         RuntimeJobHandle.current = callerJob
-        let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
+        // See kk_kxmini_launch: forward outThrown so an exception escaping the body
+        // completes the job exceptionally instead of being discarded as a normal result.
+        var thrown = 0
+        let result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &thrown
+        )
         RuntimeCoroutineScope.current = nil
         RuntimeJobHandle.current = nil
-        _ = job.complete(with: result)
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
     }
     return Int(bitPattern: jobPtr)
 }
@@ -2089,13 +2098,21 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
         }
         RuntimeCoroutineScope.current = callerScope
         RuntimeJobHandle.current = callerJob
+        // See kk_kxmini_launch: forward outThrown so an exception escaping the body
+        // completes the job exceptionally instead of being discarded as a normal result.
+        var thrown = 0
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
         RuntimeCoroutineScope.current = nil
         RuntimeJobHandle.current = nil
-        _ = job.complete(with: result)
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
     }
     return Int(bitPattern: jobPtr)
 }
@@ -2139,13 +2156,21 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
         }
         RuntimeCoroutineScope.current = callerScope
         RuntimeJobHandle.current = callerJob
+        // See kk_kxmini_launch: forward outThrown so an exception escaping the body
+        // completes the job exceptionally instead of being discarded as a normal result.
+        var thrown = 0
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
         RuntimeCoroutineScope.current = nil
         RuntimeJobHandle.current = nil
-        _ = job.complete(with: result)
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
     }
     return Int(bitPattern: jobPtr)
 }
@@ -3008,7 +3033,17 @@ private let runtimeNonCancellableJob: RuntimeJobHandle = {
 
 @_cdecl("kk_non_cancellable_instance")
 public func kk_non_cancellable_instance() -> Int {
-    runtimeRegisterObject(runtimeNonCancellableJob)
+    // Unlike `runtimeRegisterObject` (which does `passRetained`, appropriate for a
+    // freshly-created object), this must not take a new retain on every call: the
+    // module-level `let` above already keeps `runtimeNonCancellableJob` alive for the
+    // process lifetime, so repeatedly retaining it here would leak one reference per
+    // `withContext(NonCancellable)` call. `passUnretained` registers the same pointer
+    // (the `objectPointers` insert is idempotent) without incrementing the refcount.
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeNonCancellableJob).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
 }
 
 // MARK: - Suspend Entry Loop
