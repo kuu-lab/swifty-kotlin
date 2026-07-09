@@ -51,11 +51,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // `object` member properties are stored as flat global slots keyed by
+        // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
+        // reads via `loadGlobal` and bare-name assignment inside the object body
+        // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
+        // via `kk_object_new` (for interface/vtable dispatch) never holds the
+        // object's own stored properties, so it must not be treated as
+        // field-offset storage here.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface
-           || ownerInfo.kind == .object,
+           ownerInfo.kind == .object
+        {
+            let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+            instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+            instructions.append(.copy(from: valueID, to: globalRef))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
            ]
@@ -104,9 +123,10 @@ extension CallLowerer {
     /// Lowers `receiver.field op= value` (and the desugared form of
     /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
     /// evaluating `receiver` exactly once. The load and store sides mirror
-    /// `lowerMemberAssignExpr`'s two safe, well-defined storage strategies —
-    /// a synthetic runtime accessor (`_load`/`_store` link-name pair) or a
-    /// direct field offset — falling back to a best-effort setter/getter
+    /// `lowerMemberAssignExpr`'s safe, well-defined storage strategies —
+    /// a synthetic runtime accessor (`_load`/`_store` link-name pair), an
+    /// `object` member's global slot, or a direct field offset on a
+    /// class/interface instance — falling back to a best-effort setter/getter
     /// name for anything else, the same fallback (and the same pre-existing
     /// limitations for custom accessors reached through an explicit
     /// receiver) that plain member assignment already relies on.
@@ -154,13 +174,29 @@ extension CallLowerer {
             return (getterLink, String(getterLink.dropLast("_load".count)) + "_store")
         }()
 
-        // Direct field-offset storage for ordinary stored properties.
-        let fieldOffset: Int? = {
+        // `object` member properties are stored as flat global slots keyed by
+        // the property's own symbol (see `lowerMemberAssignExpr` for the full
+        // rationale), not as per-instance field-offset storage.
+        let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            else {
+                return false
+            }
+            return ownerInfo.kind == .object
+        }()
+
+        // Direct field-offset storage for ordinary stored properties on
+        // class/interface instances.
+        let fieldOffset: Int? = {
+            guard syntheticLinks == nil,
+                  !isObjectOwned,
+                  let propertySymbol,
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                  ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+                  ownerInfo.kind == .class || ownerInfo.kind == .interface
             else {
                 return nil
             }
@@ -182,6 +218,13 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             currentValue = result
+        } else if isObjectOwned, let propertySymbol {
+            let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+            instructions.append(.loadGlobal(result: result, symbol: propertySymbol))
+            currentValue = wrapLateinitReadIfNeeded(
+                result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            )
         } else if let fieldOffset {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -307,6 +350,10 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if isObjectOwned, let propertySymbol {
+                let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+                instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+                instructions.append(.copy(from: newValue, to: globalRef))
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
