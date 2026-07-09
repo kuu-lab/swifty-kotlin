@@ -196,6 +196,122 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testVarargCharArgumentsAreBoxed() throws {
+        let source = """
+        fun bar(vararg cs: Char): Int = 0
+        fun main() = bar('a', 'b', 'c')
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected Char vararg call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let boxCharCount = callNames.filter { $0 == "kk_box_char" }.count
+            #expect(boxCharCount == 3, "Expected each Char vararg element to be boxed via kk_box_char, got: \(callNames)")
+        }
+    }
+
+    @Test func testVarargBooleanArgumentsAreBoxed() throws {
+        let source = """
+        fun flag(vararg bs: Boolean): Int = 0
+        fun main() = flag(true, false, true)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected Boolean vararg call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let boxBoolCount = callNames.filter { $0 == "kk_box_bool" }.count
+            #expect(boxBoolCount == 3, "Expected each Boolean vararg element to be boxed via kk_box_bool, got: \(callNames)")
+        }
+    }
+
+    @Test func testVarargDoubleArgumentsAreBoxed() throws {
+        let source = """
+        fun nums(vararg ds: Double): Int = 0
+        fun main() = nums(1.5, 2.5, 3.5)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected Double vararg call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let boxDoubleCount = callNames.filter { $0 == "kk_box_double" }.count
+            #expect(boxDoubleCount == 3, "Expected each Double vararg element to be boxed via kk_box_double, got: \(callNames)")
+        }
+    }
+
+    @Test func testVarargLongArgumentsAreBoxed() throws {
+        let source = """
+        fun nums(vararg ls: Long): Int = 0
+        fun main() = nums(1L, 2L, 3L)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected Long vararg call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let boxLongCount = callNames.filter { $0 == "kk_box_long" }.count
+            #expect(boxLongCount == 3, "Expected each Long vararg element to be boxed via kk_box_long, got: \(callNames)")
+        }
+    }
+
+    @Test func testGenericArrayOfElementsAreBoxed() throws {
+        // arrayOf<T>(vararg elements: T): Array<T> erases T to Any, so
+        // primitive elements must be boxed to survive the generic container.
+        let source = """
+        fun main() = arrayOf(1.5, 2.5)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected arrayOf(Double...) call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            let boxDoubleCount = callNames.filter { $0 == "kk_box_double" }.count
+            #expect(boxDoubleCount == 2, "Expected arrayOf's erased Double elements to be boxed via kk_box_double, got: \(callNames)")
+        }
+    }
+
+    @Test func testPrimitiveArrayFactoryElementsAreNotBoxed() throws {
+        // doubleArrayOf(vararg elements: Double): DoubleArray stores raw,
+        // unboxed bit patterns. Boxing an element here would corrupt it, since
+        // reading the array back reinterprets the slot as a raw Double.
+        let source = """
+        fun main() = doubleArrayOf(1.5, 2.5)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected doubleArrayOf call to compile without errors.")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            #expect(!callNames.contains("kk_box_double"), "Expected doubleArrayOf's raw Double elements NOT to be boxed, got: \(callNames)")
+        }
+    }
+
     func topLevelExpressionBodyExprID(
         named functionName: String,
         ast: ASTModule,

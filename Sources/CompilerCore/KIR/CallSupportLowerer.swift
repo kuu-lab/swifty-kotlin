@@ -308,12 +308,9 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
-                // `arrayOf<T>` erases T to Any at runtime, so primitive elements must
-                // be boxed before storage. intArrayOf/longArrayOf/etc. share this same
-                // "kk_array_of" external link name but declare a concrete primitive
-                // element type (native storage); boxNonSpreadVarargArguments only boxes
-                // when the element type is a boxing boundary (Any/classType/typeParam),
-                // so those are left as raw storage.
+                // `kk_array_of` backs both generic arrayOf<T> and primitive array
+                // factories. Preserve erased-type boxing and skip boxing for concrete
+                // primitive storage.
                 boxNonSpreadVarargArguments(
                     argIndices,
                     in: &boxedArguments,
@@ -324,15 +321,21 @@ final class CallSupportLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
+                let boxElements = varargElementBoxingNeeded(
+                    paramType: signature.parameterTypes[0],
+                    types: sema.types
+                )
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
                     providedArguments: boxedArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
+                    boxPrimitiveElements: boxElements,
                     arena: arena,
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
+                    types: sema.types,
                     instructions: &instructions
                 )
             }
@@ -376,15 +379,30 @@ final class CallSupportLowerer {
                         interner: interner,
                         instructions: &instructions
                     )
+                    // Only the raw-array-producing factories (preserveArrayVarargs)
+                    // can legitimately skip boxing, and only when their element type
+                    // is a concrete primitive (see varargElementBoxingNeeded). Every
+                    // other vararg parameter is packed into a List<T>, which always
+                    // needs boxed elements regardless of whether the parameter's own
+                    // declared type happens to be a concrete primitive (e.g. a plain
+                    // `vararg cs: Char` still targets List<Char>, not a raw CharArray).
+                    let boxElements = preserveArrayVarargs
+                        ? varargElementBoxingNeeded(
+                            paramType: signature.parameterTypes[paramIndex],
+                            types: sema.types
+                        )
+                        : true
                     let packed = packVarargArguments(
                         argIndices: argIndices,
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
+                        boxPrimitiveElements: boxElements,
                         arena: arena,
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.anyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                     normalized.append(packed)
@@ -500,15 +518,26 @@ final class CallSupportLowerer {
         }
     }
 
+    // A concrete primitive vararg parameter used by a raw array factory must
+    // stay unboxed, while generic or erased element types require boxing.
+    func varargElementBoxingNeeded(paramType: TypeID, types: TypeSystem) -> Bool {
+        if case .primitive = types.kind(of: paramType) {
+            return false
+        }
+        return true
+    }
+
     func packVarargArguments(
         argIndices: [Int],
         providedArguments: [KIRExprID],
         spreadFlags: [Bool],
         listifyResult: Bool = true,
+        boxPrimitiveElements: Bool = true,
         arena: KIRArena,
         interner: StringInterner,
         intType: TypeID,
         anyType: TypeID,
+        types: TypeSystem,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let hasAnySpread = argIndices.contains { idx in
@@ -560,10 +589,20 @@ final class CallSupportLowerer {
                 ))
                 let valueIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2 + 1)), type: intType)
                 instructions.append(.constValue(result: valueIdxExpr, value: .intLiteral(Int64(pairIdx * 2 + 1))))
+                let elementValue = (isSpread || !boxPrimitiveElements)
+                    ? providedArguments[idx]
+                    : boxVarargElementIfNeeded(
+                        providedArguments[idx],
+                        types: types,
+                        arena: arena,
+                        interner: interner,
+                        anyType: anyType,
+                        instructions: &instructions
+                    )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [pairsArray, valueIdxExpr, providedArguments[idx]],
+                    arguments: [pairsArray, valueIdxExpr, elementValue],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -606,10 +645,20 @@ final class CallSupportLowerer {
         for (slotIndex, argIndex) in argIndices.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(slotIndex)), type: intType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(slotIndex))))
+            let elementValue = boxPrimitiveElements
+                ? boxVarargElementIfNeeded(
+                    providedArguments[argIndex],
+                    types: types,
+                    arena: arena,
+                    interner: interner,
+                    anyType: anyType,
+                    instructions: &instructions
+                )
+                : providedArguments[argIndex]
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
-                arguments: [arrayID, indexExpr, providedArguments[argIndex]],
+                arguments: [arrayID, indexExpr, elementValue],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil
@@ -627,6 +676,38 @@ final class CallSupportLowerer {
             )
         }
         return arrayID
+    }
+
+    // Vararg element type parameters are erased to the array's Any-typed slots,
+    // so a primitive argument must be boxed to carry its concrete type — otherwise
+    // e.g. a Char is stored as a bare code point and later misread as an Int. Skips
+    // spread arguments (already-boxed array/list references, not scalars) and any
+    // argument whose current type isn't a known primitive, so callers that already
+    // box their elements (listOf/setOf/format) are not double-boxed.
+    private func boxVarargElementIfNeeded(
+        _ argID: KIRExprID,
+        types: TypeSystem,
+        arena: KIRArena,
+        interner: StringInterner,
+        anyType: TypeID,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let argType = arena.exprType(argID),
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: argType,
+                  types: types,
+                  requireNonNull: false
+              )
+        else {
+            return argID
+        }
+        return emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argID,
+            resultType: anyType,
+            arena: arena,
+            into: &instructions
+        )
     }
 
     private func emitArrayToList(
