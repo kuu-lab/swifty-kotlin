@@ -721,6 +721,20 @@ package struct KnownCompilerNames {
         "HashSet", "LinkedHashSet",
     ]
 
+    /// The subset of `stdlibCollectionFactoryNames` that produce `Array`/primitive-array
+    /// literals rather than `List`/`Set`/`Map`/`Sequence` ones. Excluded from
+    /// `markCollectionExpr` call sites: an `Array` receiver's runtime representation
+    /// (RuntimeArrayBox) is not interchangeable with the List/Sequence-shaped box that
+    /// collection member-call fallback resolution assumes, so flagging arrays as
+    /// "collection expr" causes List/Sequence-only extension functions (e.g.
+    /// `filterIsInstance`, `sortedBy`) to be resolved and lowered against the wrong
+    /// runtime representation, corrupting memory or crashing.
+    static let arrayFactoryFunctionNames: Set<String> = [
+        "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
+        "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
+        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+    ]
+
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == list || symbol.name == mutableList
             || symbolMatches(symbol, fqName: kotlinCollectionsListFQName)

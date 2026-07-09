@@ -170,5 +170,31 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
+
+    // Regression test: calling filterIsInstance() directly on an Array receiver used to
+    // crash at runtime ("kk_list_filterIsInstance received invalid list handle") because
+    // Array literals were incorrectly flagged as collection-expr, causing the List-only
+    // fallback resolver to bind the call against Array's RuntimeArrayBox representation.
+    func testCodegenArrayFilterIsInstanceMatchesKotlinc() throws {
+        let source = """
+        fun main() {
+            val values: Array<Any> = arrayOf(1, "two", 3)
+            println(values.filterIsInstance<Int>().toList())
+            println(values.filterIsInstance<String>())
+            println(arrayOf(1, 2, 3).filterIsInstance<String>())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayFilterIsInstance",
+            expected:
+                """
+                [1, 3]
+                [two]
+                []
+                """ + "\n"
+        )
+    }
 }
 
