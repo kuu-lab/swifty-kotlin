@@ -300,6 +300,7 @@ KIRModule (lowered)
 | ジョブ | 内容 |
 |---|---|
 | `jscpd-check` | コード重複検出 (閾値 5%) |
+| `refactoring-metrics` | `Scripts/loc_report.sh` を実行し、RF/GOV 用 TSV を step summary と Artifact (`refactoring-metrics-${run_id}`) に保存 |
 | `smoke-tests` | `SmokeTests` フィルタでスモークテスト実行（`SWIFT_TEST_PARALLEL=0` で順序安定） |
 | `full-swift-tests` | `CompilerCoreTests` / `CompilerBackendTests` / `RuntimeTests` 等をマトリクスで全テスト実行 |
 | `diff-regression-shards` | `Scripts/diff_kotlinc.sh` で kotlinc との出力一致検証（シャード分割で並列実行。失敗時は TSV と `.artifacts` 相当を Artifact に保存、`DIFF_LOG_PASS=0` で PASS 行省略） |

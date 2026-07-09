@@ -79,7 +79,7 @@
 
 ### Phase RF8: 継続ガバナンス（ラチェット運用）
 - [ ] RF-GOV-001: jscpd 閾値を重複削減の進行に合わせて段階的に引き下げる（現状 5.6%。ignore 3 ファイルの解消とセット）
-- [ ] RF-GOV-002: `loc_report.sh` を CI artifact 化し、フェーズ別削減目標（例: Sema/DataFlow 104k → 30k、TypeCheck 特例 104 → 0、`CallLowerer+Legacy*` 4,055 行 → 0）の推移を追跡する
+- [x] RF-GOV-002: `loc_report.sh` を CI artifact 化し、フェーズ別削減目標（例: Sema/DataFlow 104k → 30k、TypeCheck 特例 104 → 0、`CallLowerer+Legacy*` 4,055 行 → 0）の推移を追跡する。2026-07-10 完了: CI `refactoring-metrics` job を追加し、TSV artifact / step summary と phase target metric を出力。
 - [ ] RF-GOV-003: 各 RF フェーズの最終タスクとして `docs/ARCHITECTURE.md` の数値・ファイルリスト更新を必須化する
 - [ ] RF-GOV-004: fiction audit / dead-code audit を四半期定期タスク化する（stdlib fiction 再監査の運用継続）
 
