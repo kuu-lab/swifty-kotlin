@@ -121,7 +121,11 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
     private let lock = NSLock()
     private let maxPermits: Int
     private var permits: Int
-    private var waiters: [Int] = []
+    private enum Waiter {
+        case blocking(DispatchSemaphore)
+        case coroutine(Int)
+    }
+    private var waiters: [Waiter] = []
 
     init(permits: Int) {
         precondition(permits >= 0, "Semaphore permits must be non-negative")
@@ -146,7 +150,12 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         return false
     }
 
-    /// Acquire a permit.  If none are available, suspend the caller.
+    /// Acquire a permit synchronously (non-suspend path).
+    /// If a permit is free, acquires immediately and returns 0.
+    /// If none are available and `continuation != 0`, enqueues the coroutine
+    /// waiter and returns the coroutine suspended sentinel.
+    /// If none are available and `continuation == 0`, the caller is treated as
+    /// a blocking waiter and sleeps until a permit transfers to it.
     func acquireSync(continuation: Int) -> Int {
         lock.lock()
         if permits > 0 {
@@ -154,23 +163,39 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
             lock.unlock()
             return 0
         }
-        waiters.append(continuation)
+        if continuation == 0 {
+            let sema = DispatchSemaphore(value: 0)
+            waiters.append(.blocking(sema))
+            lock.unlock()
+            sema.wait()
+            return 0
+        }
+        waiters.append(.coroutine(continuation))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
-    /// Release a permit.  If waiters are pending, resume the first one.
+    /// Release a permit.  If waiters are pending, the first one is resumed
+    /// (or unblocked) and the permit transfers directly to it.
     func release() {
         lock.lock()
-        while let continuation = waiters.first {
-            waiters.removeFirst()
-            if runtimeSyncContinuationIsCancelled(continuation) {
-                continue
+        while !waiters.isEmpty {
+            let waiter = waiters.removeFirst()
+            switch waiter {
+            case let .blocking(sema):
+                // Permit transfers directly to the blocking waiter.
+                lock.unlock()
+                sema.signal()
+                return
+            case let .coroutine(continuation):
+                if runtimeSyncContinuationIsCancelled(continuation) {
+                    continue
+                }
+                // Permit transfers directly to the resumed waiter.
+                lock.unlock()
+                runtimeSyncResume(continuation)
+                return
             }
-            // Permit is consumed immediately by the resumed waiter.
-            lock.unlock()
-            runtimeSyncResume(continuation)
-            return
         }
         guard permits < maxPermits else {
             lock.unlock()
