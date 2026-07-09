@@ -117,7 +117,12 @@ final class MemberLowerer {
             // Lower delegated property: emit delegate storage global and
             // synthesise getter (and setter for var) that call getValue/setValue
             // on the delegate instance.
-            if propertyDecl.delegateExpression != nil {
+            // Delegated properties in interfaces are rejected in Sema
+            // (KSWIFTK-SEMA-0304); isInterfaceContext guards this as defense in
+            // depth so an interface property never gets delegate storage or
+            // synthesized accessors, matching the storage/backing-field
+            // suppression above.
+            if !isInterfaceContext, propertyDecl.delegateExpression != nil {
                 let delegateKind = StdlibDelegateKind.detect(
                     delegateExpr: propertyDecl.delegateExpression,
                     ast: ast,

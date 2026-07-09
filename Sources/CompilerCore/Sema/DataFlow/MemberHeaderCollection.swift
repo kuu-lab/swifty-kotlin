@@ -283,11 +283,14 @@ extension DataFlowSemaPhase {
 
             // Kotlin: interface properties without getter/setter body are implicitly abstract.
             // Properties with custom accessors (getter/setter) are concrete; interfaces
-            // cannot hold per-instance state, so initializers are rejected outright
-            // (matches kotlinc's "property initializers in interfaces are prohibited").
+            // cannot hold per-instance state, so initializers and delegate expressions
+            // are rejected outright (matches kotlinc's "property initializers in
+            // interfaces are prohibited" / "delegated properties in interfaces are
+            // prohibited").
             if symbols.symbol(ownerSymbol)?.kind == .interface {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
+                let hasDelegate = propertyDecl.delegateExpression != nil
                 if hasInitializer {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0303",
@@ -295,7 +298,18 @@ extension DataFlowSemaPhase {
                         range: propertyDecl.range
                     )
                 }
-                if !hasCustomAccessor && !hasInitializer {
+                if hasDelegate {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0304",
+                        "Delegated properties in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
+                // A rejected initializer/delegate still provides no real accessor
+                // body, so keep treating the property as abstract for override
+                // checking (`collectInheritedAbstractMembers` in Inheritance.swift)
+                // instead of silently letting implementing classes skip overriding it.
+                if !hasCustomAccessor {
                     propertyFlags.insert(.abstractType)
                 }
             }
