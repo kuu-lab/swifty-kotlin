@@ -2857,8 +2857,21 @@ final class CallTypeChecker {
             // the call's result type below. The lambda body itself was already
             // checked against expectedType via coroutineLauncherExpectedLambdaType
             // / withContextExpectedLambdaType above.
-            let isCoroutineBuilderWithHardcodedAnyReturn = calleeName.map { interner.resolve($0) }
-                .map { $0 == "withContext" } ?? false
+            //
+            // Matched by FQName + the synthetic flag (not just the short name)
+            // so a user-defined function that happens to also be named
+            // "withContext" doesn't get its return type silently overridden --
+            // registerSyntheticCoroutineTopLevelFunction doesn't set an
+            // externalLinkName for withContext (the runtime callee swap happens
+            // later, in CoroutineLoweringPass, purely by name), so externalLinkName
+            // isn't available here to disambiguate instead.
+            let coroutinesWithContextFQName = [
+                interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("withContext"),
+            ]
+            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
+            }
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
