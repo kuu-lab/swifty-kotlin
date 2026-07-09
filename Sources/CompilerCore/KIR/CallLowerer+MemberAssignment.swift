@@ -56,6 +56,34 @@ extension CallLowerer {
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface
            || ownerInfo.kind == .object,
+           memberPropertyHasCustomSetterBody(propertySymbol, ast: ast, sema: sema)
+        {
+            // Must call the setter (not write the backing field directly) so its
+            // body actually runs. Dispatched directly via the synthetic accessor
+            // symbol scheme — the same reliable mechanism the read side already
+            // uses for custom getters — rather than the chosenCallee-based
+            // fallback below, which resolves plain stored-property assignment
+            // and is not set up to name this accessor correctly.
+            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            instructions.append(.call(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                arguments: [receiverID, valueID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface
+           || ownerInfo.kind == .object,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
            ]

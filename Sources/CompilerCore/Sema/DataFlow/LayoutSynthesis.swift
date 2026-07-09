@@ -94,9 +94,24 @@ extension DataFlowSemaPhase {
             []
         } else {
             symbols.children(ofFQName: nominalSymbol.fqName)
-                .filter { id in
-                    guard let kind = symbols.symbol(id)?.kind else { return false }
-                    return kind == .field || kind == .property
+                .compactMap { id -> SymbolID? in
+                    guard let kind = symbols.symbol(id)?.kind else { return nil }
+                    switch kind {
+                    case .field:
+                        return id
+                    case .property:
+                        // Properties with a dedicated backing field (custom
+                        // getter/setter bodies referencing `field`, or Kotlin 2.0
+                        // explicit backing fields) store their value in that
+                        // symbol's slot, not the property symbol's own — the
+                        // property itself has no storage in that case. This must
+                        // match the `backingFieldSymbol(for:) ?? propertySymbol`
+                        // lookup convention used throughout KIR lowering (reads,
+                        // writes, lateinit checks, synthesized toString/equals).
+                        return symbols.backingFieldSymbol(for: id) ?? id
+                    default:
+                        return nil
+                    }
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
                 .compactMap { symbols.symbol($0) }
