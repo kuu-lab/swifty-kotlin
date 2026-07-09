@@ -58,14 +58,23 @@ extension DataFlowSemaPhase {
         // that merely share arity (e.g. `nextBytes(array: ByteArray)` and
         // `nextBytes(size: Int)`) must not be conflated into one vtable slot, so each
         // key can hold multiple candidates disambiguated by parameter types below.
-        var vtableCandidatesByKey: [MethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] = [:]
+        // Built once from genuine inheritance and never mutated afterwards, so that:
+        // (1) a multi-level generic override chain doesn't see spurious "multiple
+        // candidates" just because each ancestor level stored its own distinct
+        // type-parameter symbols for what is really the same slot — deduped by slot
+        // number below; (2) a same-class non-override sibling can never leak into
+        // the candidate set that a later override in this same class consults.
+        var inheritedCandidatesByKey: [MethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] = [:]
         for methodID in inheritedVtable.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let methodSymbol = symbols.symbol(methodID),
                   let slot = inheritedVtable[methodID]
             else { continue }
             let key = methodDispatchKey(for: methodSymbol, symbols: symbols)
+            if inheritedCandidatesByKey[key]?.contains(where: { $0.slot == slot }) == true {
+                continue
+            }
             let parameterTypes = symbols.functionSignature(for: methodID)?.parameterTypes ?? []
-            vtableCandidatesByKey[key, default: []].append((parameterTypes, slot))
+            inheritedCandidatesByKey[key, default: []].append((parameterTypes, slot))
         }
 
         var nextVtableSlot = max(inheritedVtableSize, (vtableSlots.values.max() ?? -1) + 1)
@@ -75,22 +84,22 @@ extension DataFlowSemaPhase {
             .compactMap { symbols.symbol($0) }
         for method in ownMethods {
             let key = methodDispatchKey(for: method, symbols: symbols)
-            let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
-            // Only a genuine `override` may reuse an inherited/sibling slot: a
+            // Only a genuine `override` may reuse an inherited slot: a
             // freshly-declared (non-override) method can share (name, arity) with
-            // an unrelated overload without ever being in an override relationship
-            // with it (Kotlin disallows two identical-signature siblings, so any
-            // same-key sibling is necessarily a distinct overload needing its own slot).
+            // an unrelated inherited overload without ever being in an override
+            // relationship with it (Kotlin disallows two identical-signature
+            // siblings, so any same-key sibling is necessarily a distinct overload
+            // needing its own slot).
             if method.flags.contains(.overrideMember),
-               let candidates = vtableCandidatesByKey[key],
-               let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates)
+               let candidates = inheritedCandidatesByKey[key]
             {
-                vtableSlots[method.id] = matchedSlot
-                vtableCandidatesByKey[key, default: []].append((parameterTypes, matchedSlot))
-                continue
+                let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+                if let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates) {
+                    vtableSlots[method.id] = matchedSlot
+                    continue
+                }
             }
             vtableSlots[method.id] = nextVtableSlot
-            vtableCandidatesByKey[key, default: []].append((parameterTypes, nextVtableSlot))
             nextVtableSlot += 1
         }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
