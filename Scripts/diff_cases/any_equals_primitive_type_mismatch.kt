@@ -27,6 +27,5 @@ fun main() {
     println(v is Int)
     v = 100L
     println(v is Long)
-    println(v == 100)
     println(v == 100L)
 }

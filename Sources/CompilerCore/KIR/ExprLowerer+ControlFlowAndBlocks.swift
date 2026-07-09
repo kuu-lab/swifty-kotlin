@@ -917,13 +917,22 @@ extension ExprLowerer {
                         ?? initializerType
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                    // When the declared type differs from the initializer's own
-                    // type, route through a `.copy` into a freshly typed slot so
-                    // ABILoweringPass's existing copy-boxing logic (the same path
-                    // used for reassignment) inserts the box/unbox call. Skip for
-                    // delegated locals: `initializer` there is the delegate
-                    // factory call, not a value of the property's type.
-                    if !isDelegated, let initializerType, initializerType != declaredType {
+                    // When a primitive initializer (Int, Long, ...) is widened to
+                    // an Any-typed local, route through a `.copy` into a freshly
+                    // typed slot so ABILoweringPass's existing copy-boxing logic
+                    // (the same path used for reassignment) inserts the box call.
+                    // Narrowly scoped to primitive-source/Any-target: routing
+                    // *every* declared/initializer type mismatch through `.copy`
+                    // also caught reference-type variance (e.g. `val f: () -> Any
+                    // = stringProducer`) and non-null-to-nullable-primitive
+                    // widening (e.g. `val x: Int? = 5`), both of which broke —
+                    // closures lost their exprID-keyed capture metadata, and
+                    // nullable-primitive call sites expect the unboxed raw
+                    // sentinel representation, not a heap-boxed pointer.
+                    if !isDelegated, let initializerType, initializerType != declaredType,
+                       case .primitive = sema.types.kind(of: initializerType),
+                       case .any = sema.types.kind(of: declaredType)
+                    {
                         let localSlot = arena.appendTemporary(type: declaredType)
                         instructions.append(.copy(from: initializerID, to: localSlot))
                         driver.ctx.setLocalValue(localSlot, for: symbol)
