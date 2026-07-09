@@ -343,4 +343,30 @@ extension CallLowerer {
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
+
+    /// Mirrors `memberPropertyUsesAccessor` (the read-side/getter check in
+    /// `CallLowerer+MemberPropertyReads.swift`) but for the setter half: true
+    /// when the property has a real, user-written `set(...) { ... }` body, in
+    /// which case assignment must dispatch to the setter accessor instead of
+    /// writing storage directly.
+    func memberPropertyUsesSetterAccessor(
+        _ propertySymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        for rawDecl in ast.arena.decls.indices {
+            let declID = DeclID(rawValue: Int32(rawDecl))
+            guard sema.bindings.declSymbols[declID] == propertySymbol,
+                  let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if let setter = propertyDecl.setter {
+                return setter.body != .unit
+            }
+            return false
+        }
+        return false
+    }
 }
