@@ -163,11 +163,28 @@ struct TypeInferenceContext: CustomStringConvertible {
     }
 
     /// Performs a scope lookup, using the sema cache when available.
+    ///
+    /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
+    /// scope (KSwiftK has no separate common/platform module compilation), so a
+    /// linked `expect` declaration is filtered out here once its `actual` is
+    /// known. Without this, every expression-level reference to the pair would
+    /// see two candidates with an identical shape: call resolution reports a
+    /// false ambiguous-overload, and name resolution binds arbitrarily to
+    /// whichever declaration happens to come first.
     func cachedScopeLookup(_ name: InternedString) -> [SymbolID] {
-        if let cache = semaCacheContext {
-            return cache.lookupInScope(name, scope: scope)
+        let results: [SymbolID] = if let cache = semaCacheContext {
+            cache.lookupInScope(name, scope: scope)
+        } else {
+            scope.lookup(name)
         }
-        return scope.lookup(name)
+        return results.filter { !isExpectDeclarationSupersededByActual($0) }
+    }
+
+    private func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(id), symbol.flags.contains(.expectDeclaration) else {
+            return false
+        }
+        return sema.symbols.actualSymbol(for: id) != nil
     }
 
     /// Collects the FQ names of all @DslMarker meta-annotations that apply to
