@@ -22,7 +22,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-001 | 23 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 8 | script 起動 timeout（3件）／ script 実行能力の欠如（4件、2026-07-09 に timeout 無関係と確定）／ 非決定性出力（1件） | timeout-only suspect 3件は timeout 分離後に再判定。top-level 4件は kswiftc 側の script 実行能力（トップレベル `fun` と文の混在）実装待ち |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
@@ -41,6 +41,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Kotlin/JS | `js_annotations.kt`, `js_api.kt` | `kotlin.js.*` / JS external declarations は JVM reference で解決不能 | JS/Wasm stub cleanup の target-out backlog と接続する |
 | Runtime-only system API | `system_process_start_nanos.kt` | `System.processStartNanos()` は KSwiftK runtime 独自 API | Runtime unit test または candidate-only smoke に移す |
 | custom JDBC runtime | `jdbc_basic.kt`, `prepared_statement_complete.kt`, `resultset_complete.kt`, `connection_validation.kt`, `transaction_management.kt` | `jdbc:kswiftk:memory` driver は kotlinc/JVM 側に無い | SQLite/JDBC reference driver を注入するか、Runtime JDBC suite へ移す |
+| KSwiftK UUID API surface | `uuid_basic.kt` | ファイル自身の SKIP-DIFF コメントは「KSwiftK UUID API は JVM kotlinc reference に無い」とする（2026-07-08 の #4575 で追加、当時の本棚卸しには未反映） | 理由の妥当性を再検証する（`kotlin.uuid.Uuid` 自体は Kotlin 2.0.20+ の標準 stdlib `@ExperimentalUuidApi` でもあるため） |
 
 ### runner / dependency injection で戻せる候補
 
