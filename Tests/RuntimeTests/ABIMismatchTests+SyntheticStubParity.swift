@@ -37,7 +37,6 @@ extension ABIMismatchTests {
         "kk_sequence_generate",
         "kk_sequence_of",
         "kk_string_chunked_sequence_transform_flat",
-        "kk_string_hexToUInt_flat",
         "kk_test_assertEquals",
         "kk_test_assertEquals_message",
         "kk_test_assertNull",
@@ -121,12 +120,6 @@ extension ABIMismatchTests {
     // MARK: String radix conversion
     private static let stringRadixStubLinkNames: Set<String> = [
         "kk_string_case_insensitive_order",
-        "kk_string_hexToShort_flat",
-        "kk_string_hexToUByte_flat",
-        "kk_string_hexToUByteArray_flat",
-        "kk_string_hexToUInt_flat",
-        "kk_string_hexToULong_flat",
-        "kk_string_hexToUShort_flat",
         "kk_string_toIntOrNull_radix_flat",
         "kk_string_toUByteOrNull_radix_flat",
         "kk_string_toUIntOrNull_radix_flat",
@@ -156,16 +149,12 @@ extension ABIMismatchTests {
     ]
 
     // MARK: UUID (kotlin.uuid)
-    private static let uuidStubLinkNames: Set<String> = [
-        "__kk_uuid_fromLongs",
-        "__kk_uuid_lexicalOrder",
-        "__kk_uuid_nameUUIDFromBytes",
-        "__kk_uuid_random",
-        "kk_byteArray_putUuid",
-        "kk_byteArray_uuid",
-        "kk_uuid_getUuid",
-        "kk_uuid_toKotlinUuid",
-    ]
+    // KSP-476: Uuid's remaining native bridges (__kk_uuid_random,
+    // __kk_uuid_fromLongs, __kk_uuid_nameUUIDFromBytes,
+    // __kk_uuid_lexicalOrder, __kk_uuid_toKotlinUuid) are declared via
+    // @KsSymbolName inside Stdlib/kotlin/uuid/Uuid.kt, not as synthetic Sema
+    // stubs, so none of them belong in this list anymore. ByteArray.getUuid/
+    // uuid/putUuid are pure Kotlin with no backing bridge at all.
 
     // MARK: Instant / Clock / time conversions
     private static let instantStubLinkNames: Set<String> = [
@@ -459,7 +448,6 @@ extension ABIMismatchTests {
         result.formUnion(stringRadixStubLinkNames)
         result.formUnion(charRadixStubLinkNames)
         result.formUnion(systemStubLinkNames)
-        result.formUnion(uuidStubLinkNames)
         result.formUnion(instantStubLinkNames)
         result.formUnion(durationStubLinkNames)
         result.formUnion(lazyStubLinkNames)

@@ -82,6 +82,9 @@ struct UuidAPISurfaceInventoryTests {
             ["kotlin", "uuid", "Uuid", "toLongs"],
             ["kotlin", "uuid", "Uuid", "toByteArray"],
             ["kotlin", "uuid", "Uuid", "compareTo"],
+            ["kotlin", "uuid", "getUuid"],
+            ["kotlin", "uuid", "uuid"],
+            ["kotlin", "uuid", "putUuid"],
         ]
 
         for path in publicApiPaths {
@@ -104,6 +107,7 @@ struct UuidAPISurfaceInventoryTests {
             (["kotlin", "uuid", "__kk_uuid_random"], "__kk_uuid_random"),
             (["kotlin", "uuid", "__kk_uuid_lexicalOrder"], "__kk_uuid_lexicalOrder"),
             (["kotlin", "uuid", "__kk_uuid_fromLongs"], "__kk_uuid_fromLongs"),
+            (["kotlin", "uuid", "__kk_uuid_toKotlinUuid"], "__kk_uuid_toKotlinUuid"),
         ]
 
         for bridge in bridges {
@@ -114,22 +118,26 @@ struct UuidAPISurfaceInventoryTests {
         }
     }
 
+    /// KSP-476: java.util.UUID.toKotlinUuid() is a regular Kotlin function now
+    /// (source-backed, no external link of its own) whose body delegates to the
+    /// __kk_uuid_toKotlinUuid bridge verified above — it is the only remaining
+    /// kotlin.uuid extension that needs native support (java UUID interop).
+    /// ByteArray.getUuid/uuid/putUuid are pure Kotlin (covered by
+    /// testUuidPublicClassApisAreSourceBackedWithoutPureRuntimeLinks above).
     @Test
-    func testUuidExtensionBridgesRemainNativeBacked() throws {
-        let (_, sema, interner) = try makeSemaWithContext()
-        let bridges: [(path: [String], link: String)] = [
-            (["kotlin", "uuid", "toKotlinUuid"], "kk_uuid_toKotlinUuid"),
-            (["kotlin", "uuid", "putUuid"], "kk_byteArray_putUuid"),
-            (["kotlin", "uuid", "uuid"], "kk_byteArray_uuid"),
-            (["kotlin", "uuid", "getUuid"], "kk_uuid_getUuid"),
-        ]
+    func testUuidJavaInteropExtensionIsSourceBackedDelegatingToRenamedBridge() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let uuidSourceFileID = try #require(ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt"))
+        let path = ["kotlin", "uuid", "toKotlinUuid"]
 
-        for bridge in bridges {
-            #expect(
-                allExternalLinks(fqPath: bridge.path, sema: sema, interner: interner).contains(bridge.link),
-                "\(bridge.path.joined(separator: ".")) must link to \(bridge.link)"
-            )
-        }
+        let symbol = try #require(symbols(fqPath: path, sema: sema, interner: interner).first)
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(!info.flags.contains(.synthetic), "toKotlinUuid must be source-backed")
+        #expect(sema.symbols.sourceFileID(for: symbol) == uuidSourceFileID)
+        #expect(
+            allExternalLinks(fqPath: path, sema: sema, interner: interner).isEmpty,
+            "toKotlinUuid itself must not carry an external link; it delegates to __kk_uuid_toKotlinUuid in its body"
+        )
     }
 
     @Test

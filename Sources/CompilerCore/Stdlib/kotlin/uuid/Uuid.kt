@@ -172,11 +172,11 @@ public class Uuid private constructor(
         val lsb = leastSignificantBits
         var i = 0
         while (i < 8) {
-            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toInt()
+            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toByte()
             i += 1
         }
         while (i < 16) {
-            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
+            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toByte()
             i += 1
         }
         return bytes
@@ -210,3 +210,60 @@ private external fun __kk_uuid_fromLongs(mostSignificantBits: Long, leastSignifi
 
 @KsSymbolName("__kk_uuid_lexicalOrder")
 private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
+
+// java.util.UUID interop needs a native bridge to read a foreign UUID
+// representation; every other kotlin.uuid extension below is pure Kotlin
+// built on top of Uuid's own mostSignificantBits/leastSignificantBits/fromLongs.
+@KsSymbolName("__kk_uuid_toKotlinUuid")
+private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
+
+private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
+    if (offset < 0 || offset + 16 > array.size) {
+        throw IndexOutOfBoundsException(
+            "offset $offset is out of bounds for array of size ${array.size}"
+        )
+    }
+    var msb = 0L
+    var i = 0
+    while (i < 8) {
+        msb = (msb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        i += 1
+    }
+    var lsb = 0L
+    i = 8
+    while (i < 16) {
+        lsb = (lsb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        i += 1
+    }
+    return Uuid.fromLongs(msb, lsb)
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.getUuid(offset: Int): Uuid = readUuidFromBytes(this, offset)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.uuid(at: Int): Uuid = readUuidFromBytes(this, at)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.putUuid(at: Int, uuid: Uuid) {
+    if (at < 0 || at + 16 > this.size) {
+        throw IndexOutOfBoundsException(
+            "at $at is out of bounds for array of size ${this.size}"
+        )
+    }
+    val msb = uuid.mostSignificantBits
+    val lsb = uuid.leastSignificantBits
+    var i = 0
+    while (i < 8) {
+        this[at + i] = ((msb ushr (56 - i * 8)) and 0xFFL).toByte()
+        i += 1
+    }
+    i = 0
+    while (i < 8) {
+        this[at + 8 + i] = ((lsb ushr (56 - i * 8)) and 0xFFL).toByte()
+        i += 1
+    }
+}

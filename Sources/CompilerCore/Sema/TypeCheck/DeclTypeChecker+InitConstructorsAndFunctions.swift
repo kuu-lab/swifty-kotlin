@@ -153,6 +153,9 @@ extension DeclTypeChecker {
                 if let diagnostic = resolved.diagnostic {
                     sema.diagnostics.emit(diagnostic)
                 }
+                if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
+                    sema.bindings.bindConstructorDelegationTarget(currentCtorSymbolID, target: chosenCallee)
+                }
             }
         } else if ownerSymbol != nil {
             emitUnresolvedDelegation(delegation: delegation, sema: sema)

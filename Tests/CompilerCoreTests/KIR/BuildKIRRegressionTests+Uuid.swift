@@ -91,6 +91,53 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// KSP-476: java.util.UUID.toKotlinUuid() and the ByteArray.getUuid/uuid/putUuid
+    /// extensions are the last pieces of the kotlin.uuid surface. toKotlinUuid still
+    /// needs a native bridge (java.util.UUID interop); the ByteArray extensions are
+    /// pure Kotlin now, built on Uuid.fromLongs and the real
+    /// mostSignificantBits/leastSignificantBits stored properties.
+    @Test func testUuidByteArrayExtensionsAndJavaInteropLowerThroughKotlinSource() throws {
+        let source = """
+        @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
+        import kotlin.uuid.Uuid
+        import kotlin.uuid.getUuid
+        import kotlin.uuid.putUuid
+        import kotlin.uuid.uuid
+
+        fun main(bytes: ByteArray, javaUuid: java.util.UUID) {
+            val fromJava = javaUuid.toKotlinUuid()
+            val viaGetUuid = bytes.getUuid(0)
+            val viaUuid = bytes.uuid(0)
+            bytes.putUuid(0, fromJava)
+            fromJava.toString()
+            viaGetUuid.toString()
+            viaUuid.toString()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+            for callee in ["toKotlinUuid", "getUuid", "uuid", "putUuid"] {
+                #expect(callees.contains(callee), "kotlin.uuid.\(callee) should remain Kotlin source-backed")
+            }
+
+            #expect(callees.isDisjoint(with: [
+                "kk_byteArray_putUuid",
+                "kk_byteArray_uuid",
+                "kk_uuid_getUuid",
+                "kk_uuid_toKotlinUuid",
+                "__kk_uuid_toKotlinUuid",
+            ]))
+        }
+    }
+
     @Test func testUuidSizeConstantsLowerToImmediateConstants() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
@@ -134,7 +181,7 @@ extension BuildKIRRegressionTests {
             "__kk_uuid_nameUUIDFromBytes",
             "__kk_uuid_lexicalOrder",
             "__kk_uuid_fromLongs",
-            "kk_uuid_toKotlinUuid",
+            "__kk_uuid_toKotlinUuid",
         ] {
             #expect(
                 callees.contains(interner.intern(callee)),
@@ -142,7 +189,16 @@ extension BuildKIRRegressionTests {
             )
         }
 
-        for removed in ["kk_uuid_random", "kk_uuid_parse", "kk_uuid_toString", "kk_uuid_fromLongs"] {
+        for removed in [
+            "kk_uuid_random",
+            "kk_uuid_parse",
+            "kk_uuid_toString",
+            "kk_uuid_fromLongs",
+            "kk_uuid_toKotlinUuid",
+            "kk_byteArray_putUuid",
+            "kk_byteArray_uuid",
+            "kk_uuid_getUuid",
+        ] {
             #expect(!(callees.contains(interner.intern(removed))), "\(removed) should not remain in UUID ABI")
         }
     }
