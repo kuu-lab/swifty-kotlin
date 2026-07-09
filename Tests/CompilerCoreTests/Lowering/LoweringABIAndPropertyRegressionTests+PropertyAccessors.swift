@@ -655,8 +655,14 @@ extension LoweringABIAndPropertyRegressionTests {
                        "constValue(.symbolRef) for computed property should have been rewritten to a getter call")
     }
 
+    /// A property having a backing field is not, on its own, sufficient to
+    /// trigger the computed-property symbolRef→getter-call rewrite — that
+    /// requires an actual getter accessor function to have been emitted
+    /// (see testPropertyLoweringRewritesComputedPropertySymbolRefToGetterCall
+    /// for the case where one has). This property has a backing field but no
+    /// getter is ever emitted for it, so its symbolRef must be left alone.
     @Test
-    func testPropertyLoweringPreservesBackedPropertySymbolRef() throws {
+    func testPropertyLoweringPreservesSymbolRefWhenNoGetterAccessorEmitted() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -717,7 +723,7 @@ extension LoweringABIAndPropertyRegressionTests {
             return false
         }
         #expect(hasSymbolRef,
-                      "constValue(.symbolRef) for backed property should NOT be rewritten")
+                      "constValue(.symbolRef) for a backed property with no emitted getter should NOT be rewritten")
     }
 
     @Test
