@@ -2409,6 +2409,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // Semaphore.withPermit(action: () -> T): T
+        // Suspend-style helper that acquires a permit, runs action, then releases it.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: semaphoreSymbol,
+            ownerType: semaphoreType,
+            name: "withPermit",
+            externalLinkName: "kk_semaphore_withPermit",
+            returnType: types.anyType,
+            parameters: [(
+                name: "action",
+                type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+            )],
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticCoroutineExtensionFunction(
             named: "cancel",
             packageFQName: kotlinCoroutinesCancellationPkg,

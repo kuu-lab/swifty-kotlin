@@ -459,6 +459,47 @@ public func kk_mutex_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr:
     return result
 }
 
+// MARK: - Semaphore.withPermit { } (kotlinx.coroutines.sync.Semaphore.withPermit)
+
+/// Runtime backing for `Semaphore.withPermit { }`.
+///
+/// Attempts to acquire a permit, invokes `action`, releases the permit, and
+/// returns the action result.  Mirrors `kk_mutex_withLock`'s continuation
+/// handling: a zero continuation placeholder means contended calls block on
+/// a regular semaphore, while a real continuation lets the FIFO waiter queue
+/// suspend and resume the caller.
+/// The action is passed as a Swift function pointer (`actionFnPtr`) and an
+/// opaque environment pointer (`actionEnvPtr`) following the standard closure-
+/// conversion ABI used throughout KSwiftK.
+@_cdecl("kk_semaphore_withPermit")
+public func kk_semaphore_withPermit(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int, _ continuation: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_withPermit received invalid semaphore handle")
+    }
+    let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
+
+    // Attempt to acquire a permit via the coroutine suspension mechanism.
+    // If contended, acquireSync enqueues the continuation and returns COROUTINE_SUSPENDED.
+    let acquireResult = semaphore.acquireSync(continuation: continuation)
+    if acquireResult != 0 {
+        // Semaphore is contended — caller will be resumed once a permit is available.
+        return acquireResult
+    }
+    defer { semaphore.release() }
+
+    // Invoke the action closure: fn(envPtr) -> intptr_t.
+    var result: Int = 0
+    if actionFnPtr != 0,
+       let fnRaw = UnsafeRawPointer(bitPattern: actionFnPtr)
+    {
+        typealias ActionFn = @convention(c) (Int) -> Int
+        let fn = unsafeBitCast(fnRaw, to: ActionFn.self)
+        result = fn(actionEnvPtr)
+    }
+
+    return result
+}
+
 // MARK: - Lock.withLock { } (kotlin.concurrent.Lock.withLock)
 
 /// Runtime backing for `kotlin.concurrent.Lock.withLock { }`.
