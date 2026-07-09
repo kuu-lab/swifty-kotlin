@@ -2004,6 +2004,13 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
+    // STDLIB-CORO-BUG-05: same fix as kk_kxmini_async -- this is the launcher-thunk
+    // (argument-bearing) counterpart, taken whenever the async {} block captures
+    // anything from the enclosing scope, so it needs the same thrownException
+    // check before completing the task, or `async { ...; throw ... }.await()`
+    // silently resumes with 0 instead of re-throwing whenever the block closes
+    // over an outer variable.
+    let capturedContState = runtimeContinuationState(from: continuation)
 
     KxMiniRuntime.launch {
         task.markStarted()
@@ -2011,7 +2018,11 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
         RuntimeCoroutineScope.current = nil
-        task.complete(with: result)
+        if let thrown = capturedContState?.thrownException, thrown != 0 {
+            task.completeExceptionally(with: thrown)
+        } else {
+            task.complete(with: result)
+        }
     }
     return Int(bitPattern: taskPtr)
 }
