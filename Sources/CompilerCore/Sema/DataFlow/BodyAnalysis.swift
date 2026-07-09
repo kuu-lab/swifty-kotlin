@@ -56,8 +56,17 @@ extension DataFlowSemaPhase {
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        recursionDepth: Int = 0
     ) -> TypeID? {
+        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-TYPE-DEPTH",
+                "Type nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                range: nil
+            )
+            return types.errorType
+        }
         let builtinNames = BuiltinTypeNames(interner: interner)
         guard let typeRefID, let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
@@ -135,7 +144,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth
                 )
                 if resolved.kind == .typeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
@@ -144,6 +154,7 @@ extension DataFlowSemaPhase {
                         types: types,
                         typeArgs: resolvedArgs,
                         visited: [],
+                        recursionDepth: recursionDepth,
                         diagnostics: diagnostics
                     ) {
                         if nullability == .nullable {
@@ -178,7 +189,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 ) else {
                     return nil
                 }
@@ -195,7 +207,8 @@ extension DataFlowSemaPhase {
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 )
             }
             var paramTypes: [TypeID] = []
@@ -210,7 +223,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 ) else {
                     return nil
                 }
@@ -226,7 +240,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
@@ -248,7 +263,8 @@ extension DataFlowSemaPhase {
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -265,7 +281,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
             ) else {
                 return nil
             }
@@ -393,7 +410,8 @@ extension DataFlowSemaPhase {
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        recursionDepth: Int = 0
     ) -> [TypeArg] {
         var result: [TypeArg] = []
         result.reserveCapacity(argRefs.count)
@@ -410,7 +428,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 ) ?? types.errorType
                 result.append(.invariant(resolved))
             case let .out(innerRef):
@@ -424,7 +443,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 ) ?? types.errorType
                 result.append(.out(resolved))
             case let .in(innerRef):
@@ -438,7 +458,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    recursionDepth: recursionDepth + 1
                 ) ?? types.errorType
                 result.append(.in(resolved))
             case .star:
@@ -476,6 +497,11 @@ extension DataFlowSemaPhase {
     /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     private static let maxAliasExpansionDepth = 32
 
+    /// Maximum structural recursion depth for type resolution and substitution.
+    /// Mirrors `ExpressionParser.maxRecursionDepth` to prevent stack-overflow DoS
+    /// on deeply nested generic / function types.
+    private static let maxStructuralRecursionDepth = 512
+
     private func resolveTypeAliasUnderlying(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
@@ -483,6 +509,7 @@ extension DataFlowSemaPhase {
         typeArgs: [TypeArg] = [],
         visited: Set<SymbolID>,
         depth: Int = 0,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID? {
         // Cycle detection
@@ -512,6 +539,7 @@ extension DataFlowSemaPhase {
             typeArgs: typeArgs,
             symbols: symbols,
             types: types,
+            recursionDepth: recursionDepth,
             diagnostics: diagnostics
         )
         if case let .classType(classType) = types.kind(of: expanded),
@@ -528,6 +556,7 @@ extension DataFlowSemaPhase {
                 typeArgs: chainArgs,
                 visited: newVisited,
                 depth: depth + 1,
+                recursionDepth: recursionDepth,
                 diagnostics: diagnostics
             ) {
                 if classType.nullability == .nullable {
@@ -546,6 +575,7 @@ extension DataFlowSemaPhase {
         typeArgs: [TypeArg],
         symbols: SymbolTable,
         types: TypeSystem,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
         let typeParamSymbols = symbols.typeAliasTypeParameters(for: aliasSymbol)
@@ -576,6 +606,7 @@ extension DataFlowSemaPhase {
             argSubstitution: argSubstitution,
             types: types,
             symbols: symbols,
+            recursionDepth: recursionDepth,
             diagnostics: diagnostics
         )
     }
@@ -585,8 +616,17 @@ extension DataFlowSemaPhase {
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
         symbols: SymbolTable,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
+        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-TYPE-DEPTH",
+                "Type substitution nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                range: nil
+            )
+            return types.errorType
+        }
         switch types.kind(of: typeID) {
         case let .typeParam(tp):
             if let replacement = argSubstitution[tp.symbol] {
@@ -612,25 +652,27 @@ extension DataFlowSemaPhase {
                     argSubstitution: argSubstitution,
                     types: types,
                     symbols: symbols,
+                    recursionDepth: recursionDepth + 1,
                     diagnostics: diagnostics
                 )
             }
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: newArgs, nullability: ct.nullability)))
         case let .functionType(ft):
             let newContextReceivers = ft.contextReceivers.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReceiver = ft.receiver.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newParams = ft.params.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReturn = applySubstitution(
                 ft.returnType,
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             )
             return types.make(.functionType(FunctionType(contextReceivers: newContextReceivers, receiver: newReceiver, params: newParams, returnType: newReturn, isSuspend: ft.isSuspend, nullability: ft.nullability)))
@@ -640,6 +682,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             )
             if newArg == kc.argument { return typeID }
@@ -648,7 +691,7 @@ extension DataFlowSemaPhase {
             return typeID
         case let .intersection(parts):
             let newParts = parts.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             return types.make(.intersection(newParts))
         }
@@ -665,6 +708,7 @@ extension DataFlowSemaPhase {
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
         symbols: SymbolTable,
+        recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeArg {
         switch arg {
@@ -684,6 +728,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case let .out(inner):
@@ -701,6 +746,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case let .in(inner):
@@ -717,6 +763,7 @@ extension DataFlowSemaPhase {
                 argSubstitution: argSubstitution,
                 types: types,
                 symbols: symbols,
+                recursionDepth: recursionDepth + 1,
                 diagnostics: diagnostics
             ))
         case .star:
