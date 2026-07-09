@@ -1111,6 +1111,7 @@ extension ABIMismatchTests {
         "kk_system_getTimeNanos",
         "kk_system_nanoTime",
         "kk_system_process_start_nanos",
+        "kk_tag_value_class_box",
         "kk_test_time_source_mark_now",
         "kk_test_time_source_new",
         "kk_test_time_source_plus_assign",

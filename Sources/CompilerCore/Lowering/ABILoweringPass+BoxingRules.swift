@@ -1,3 +1,33 @@
+/// Resolves a value class's `TypeKind` to the `TypeKind` of its underlying
+/// primitive, so the caller's boxing-callee lookup treats a value class like
+/// its underlying representation (value classes are unboxed everywhere
+/// except at reference-type boundaries — ValueClassUnboxingPass). Non-value-
+/// class kinds, and nullable value classes, pass through unchanged.
+///
+/// Shared as a free function (rather than an `ABILoweringPass` method) so
+/// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
+/// which must stay in sync with ABILoweringPass's typeParam boxing boundary,
+/// per `typeParamBoxingBoundaryCallees` below — can resolve value classes the
+/// same way.
+func resolveValueClassKind(
+    _ kind: TypeKind,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> TypeKind {
+    guard let symbols else { return kind }
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull
+    else {
+        return kind
+    }
+    guard let sym = symbols.symbol(classType.classSymbol),
+          sym.flags.contains(.valueType),
+          let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
+    else {
+        return kind
+    }
+    return types.kind(of: underlyingType)
+}
 
 extension ABILoweringPass {
     /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
@@ -19,26 +49,6 @@ extension ABILoweringPass {
         "kk_mutable_map_getOrPut",
         "kk_mutable_map_plusAssign_pair",
     ]
-
-    func resolveValueClassKind(
-        _ kind: TypeKind,
-        types: TypeSystem,
-        symbols: SymbolTable?
-    ) -> TypeKind {
-        guard let symbols else { return kind }
-        guard case let .classType(classType) = kind,
-              classType.nullability == .nonNull
-        else {
-            return kind
-        }
-        guard let sym = symbols.symbol(classType.classSymbol),
-              sym.flags.contains(.valueType),
-              let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
-        else {
-            return kind
-        }
-        return types.kind(of: underlyingType)
-    }
 
     func boxingCallee(
         argType: TypeID,
