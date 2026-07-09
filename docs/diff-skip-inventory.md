@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-08
+最終更新: 2026-07-09
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -23,11 +23,13 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
-| DEBT-DIFF-002 | 8 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
+| DEBT-DIFF-002 | 8 | script 起動 timeout（3件）／ script 実行能力の欠如（4件、2026-07-09 に timeout 無関係と確定）／ 非決定性出力（1件） | timeout-only suspect 3件は timeout 分離後に再判定。top-level 4件は kswiftc 側の script 実行能力（トップレベル `fun` と文の混在）実装待ち |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
 | DEBT-DIFF-005 | 15 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-007 | 1 | `firstOrNull { predicate }` の trailing-lambda 呼び出しが無引数オーバーロードに誤解決 | overload resolution（Sema）の呼び出し側解決ロジックを調査 |
+| DEBT-DIFF-008 | 1 | `vararg items: Any` 経由で取り出した `Boolean` の `toString()` が boxing 境界で壊れる | Runtime ABI / boxing boundary（`ABILoweringPass` 周辺）を調査 |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -55,11 +57,34 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | グループ | cases | blocker | 次アクション |
 | --- | --- | --- | --- |
-| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | script mode は `kotlinc -script` の compile + run を `RUN_TIMEOUT` で縛っている | script 専用 timeout を `COMPILE_TIMEOUT` 系へ分離し、再実行して pass なら skip を外す |
-| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | KSwiftK 側の top-level script execution と kotlinc script mode の一致未確認 | timeout 分離後に `--force-run-skipped` で実測し、失敗が Sema / lowering 起因なら通常 `.kt` parity case へ分割 |
+| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | script mode は `kotlinc -script` の compile + run を `RUN_TIMEOUT` で縛っている | script 専用 timeout を `COMPILE_TIMEOUT` 系へ分離し、再実行して pass なら skip を外す（本節の対象外。未着手） |
+| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | 2026-07-09 実測済み。timeout ではなく kswiftc 側の script 実行能力そのものの欠如（詳細は下） | 解決済み分類。skip は維持するが理由コメントと検証手段を確定した |
 | stdlib import + nondeterminism | `script_import_stdlib.kt` | `shuffled()` が出力非決定になり得る | deterministic input に直すか、script runner ではなく API 個別 diff に分解 |
 
 既に skip されていない `script_*.kt` が複数あるため、script 全体ではなく上記 8 件だけを再判定する。
+
+2026-07-09 追記: 本タスクの検証中、マシン全体が高負荷（他 worktree の並行ビルド/テストで `uptime` の load average が 700 超）だった際に、`script_toplevel_vars.kt` を含む未 skip の `script_*.kt` ケースが `--run-timeout 60`（既定の6倍）でも reference 側（`kotlinc -script` の JVM 起動 + compile）だけで timeout する事象を観測した。同条件で candidate（kswiftc）側は高速かつ正しい出力を返しており、kswiftc 側の regression ではない。timeout-only suspect 3件に限らず、script モード全体が高負荷環境での `RUN_TIMEOUT` に弱いことを示す傍証だが、通常負荷（CI 等の専有環境）での再現性は未確認であり、本タスクの対象外として着手していない。
+
+### top-level functions / custom declarations: 2026-07-09 実測結果
+
+`bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped Scripts/diff_cases/<case>.kt` を4ケースそれぞれに実行した結果、いずれも timeout（`COMPILE_TIMEOUT=120s` / `RUN_TIMEOUT=10s`）に達する前、10秒未満で次のリンクエラーにより即座に失敗することを確認した。timeout 分離は本グループには無関係であり、実施していない。
+
+```
+error KSWIFTK-LINK-0002: No entry point 'main' function found for executable emission.
+```
+
+原因は `Sources/CompilerCore/Parser/KotlinParser.swift` の `parseFile()`（`sawTopLevelStatement` / `sawNonPropertyDecl` の判定、L15-101）にある。kswiftc がトップレベル文から暗黙 `main` を合成する（`SyntaxKind.script` として扱う）のは、「トップレベル文が1つ以上あり、かつ `val`/`var` 以外のトップレベル宣言が1つも無い」場合のみ（L87-91）。`fun` 宣言が1つでもあると通常の `.kotlinFile` 扱いになり、`Sources/CompilerCore/Driver/FrontendPhases.swift` の `buildFileAST()`（L452-454）がトップレベル文を **診断なしに黙って破棄**する。結果、`main` がどこにも存在しないまま link phase まで進み、`KSWIFTK-LINK-0002` として顕在化する。kotlinc の実際の `.kts` script mode（Kotlin 公式文法の `script` 生成規則、`docs/spec.md:368-369,405` 参照）にはこの制限が無く、トップレベル関数宣言と文が自由に混在できる。`Tests/CompilerCoreTests/Integration/ScriptModeTests.swift` の既存テストは常に明示 `fun main()` と組み合わせており、まさにこの未対応パターン（トップレベル `fun` + トップレベル文、`main` 無し）を回避している。
+
+4ケースのうち3ケースは、`println` 呼び出しだけを `fun main() { ... }` に移し、それ以外の宣言はトップレベルのまま残した通常 `.kt` 双子ケースを作成し、force 無しの通常 diff で green になることを確認した（=ロジック自体は kotlinc と完全に一致し、blocker は script 実行能力の欠如のみ）。残り1ケース（`script_function_advanced.kt`）は双子ケース作成中に stdlib 呼び出し自体の独立した実装バグが2件見つかったため、それぞれ最小再現ケースへ分離して DEBT-DIFF-007 / DEBT-DIFF-008 として新規に起票した。
+
+| script ケース | 判定 | 対応 |
+| --- | --- | --- |
+| `script_function_basic.kt` | script 実行能力の欠如のみ。ロジック（関数呼び出し・文字列補間）は正しい | `top_level_function_basic.kt`（通常 diff、green）で証明。skip は維持、理由コメントのみ更新 |
+| `script_toplevel_functions.kt` | script 実行能力の欠如のみ。再帰関数（`factorial`）を含めロジックは正しい | `top_level_function_recursion.kt`（通常 diff、green）で証明。skip は維持、理由コメントのみ更新 |
+| `script_import_custom.kt` | script 実行能力の欠如のみ。拡張関数・`data class`・トップレベル `val` 初期化子・文字列テンプレート内メソッド呼び出しは正しい | `top_level_extension_data_class.kt`（通常 diff、green）で証明。skip は維持、理由コメントのみ更新 |
+| `script_function_advanced.kt` | script 実行能力の欠如 **に加えて** stdlib 呼び出し自体に2つの独立したバグ | `firstornull_trailing_lambda.kt`（DEBT-DIFF-007）と `vararg_any_boolean_element.kt`（DEBT-DIFF-008）に最小分離。skip は維持 |
+
+**注意**: script 実行能力そのもの（トップレベル `fun` と文の混在サポート）を実装しない限り、この4ケースを `SKIP-DIFF` から外すことはできない。将来実装する際、`script_function_advanced.kt` だけは DEBT-DIFF-007 / 008 も同時に解決していないと通らない。
 
 ## DEBT-DIFF-003: advanced coroutine / channel / Flow
 
@@ -117,6 +142,22 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | `error_type_inference.kt` | compile-error expectation case | diff harness は現状 stderr parity を厳密比較しないため、diagnostic golden か error-code regression へ移す |
 | `variance_generics.kt` | Sema variance checking gap | variance type checker の実装後に通常 diff へ戻す。実装前は Sema golden / diagnostic case として固定 |
 | `math_rounding_functions.kt` | math API ではなく boxed `Double` iteration lowering bug | List<Double> iteration unboxing の最小再現を別 case 化し、math 関数 case から分離 |
+
+## DEBT-DIFF-007: firstOrNull trailing-lambda overload resolution
+
+| cases | 判定 | 次アクション |
+| --- | --- | --- |
+| `firstornull_trailing_lambda.kt` | `listOf(1, 2, 3).firstOrNull { it > 2 }` が `3` ではなく `1`（先頭要素）を返す | `firstOrNull { predicate }` の trailing-lambda 呼び出しが、述語ありオーバーロードではなく無引数の `firstOrNull()` に誤解決されている疑い。呼び出し側の overload resolution（Sema）を調査し、述語オーバーロードへ正しくディスパッチさせる |
+
+2026-07-09、DEBT-DIFF-002 の `script_function_advanced.kt` 検証中に発見。`filter { it > 2 }` / `find { it > 2 }` / `any { it > 2 }` / `count { it > 2 }` / ラムダの直接呼び出し（`val pred: (Int) -> Boolean = { it > 2 }; pred(3)`）はすべて正しい結果を返すため、ラムダ実行そのものや比較演算子は壊れていない。ユーザー定義の `List<T>.firstOrNull` 拡張関数を伴わない、stdlib 単体の呼び出しでも再現するため、拡張関数の shadowing とは無関係。Kotlin stdlib で `find` は `firstOrNull` に委譲する定義だが、`find` は正しく動作し `firstOrNull` だけが誤動作する非対称性から、`firstOrNull` という名前・シグネチャ固有の解決経路（無引数オーバーロードとの混同）を疑う。
+
+## DEBT-DIFF-008: vararg Any 経由の Boolean boxing
+
+| cases | 判定 | 次アクション |
+| --- | --- | --- |
+| `vararg_any_boolean_element.kt` | `vararg items: Any` に渡した `Boolean`（`true`）を `items.forEach { println(it) }` で取り出すと `"true"` ではなく `"1"` と表示される | `Any` 型 vararg 配列に boxing された `Boolean` が `toString()` 経由で正しい型タグを保持していない。Runtime ABI / boxing boundary（`ABILoweringPass` 周辺）を調査する |
+
+2026-07-09、DEBT-DIFF-002 の `script_function_advanced.kt` 検証中に発見。同じ vararg 配列内の `"Hello"`（String）と `42`（Int）は正しく表示されるため、`Any` vararg 自体や String/Int の boxing は壊れていない。Boolean 固有の boxing/toString 経路の問題であり、Char/Bool/Double のようなプリミティブが `Any` 境界を越える際に toString が壊れる既知のパターン（`MutableList.add` 等での類似事例）と根が近い可能性がある。
 
 ## 解除手順
 
