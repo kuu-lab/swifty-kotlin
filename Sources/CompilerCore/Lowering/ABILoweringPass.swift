@@ -113,6 +113,19 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
 
+        // kk_op_rangeUntil backs the `until` infix function (registered in
+        // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
+        // Int/Long return type, matching the isRangeExpr duck-typing convention
+        // used for range operators) but always returns a boxed RuntimeRangeBox
+        // reference at runtime (see kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
+        // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
+        // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
+        // on the range object itself.
+        let boxedReturnRangeCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_rangeUntil"),
+        ]
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
@@ -168,7 +181,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         types: types,
                         symbols: symbols,
-                        boxingCalleeTable: boxingCalleeTable
+                        boxingCalleeTable: boxingCalleeTable,
+                        boxedReturnCallees: boxedReturnRangeCallees
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
                         let tempResult = module.arena.appendTemporary(type: vcReturnType
@@ -399,7 +413,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     module: module,
                     types: types,
                     symbols: symbols,
-                    boxingCalleeTable: boxingCalleeTable
+                    boxingCalleeTable: boxingCalleeTable,
+                    boxedReturnCallees: boxedReturnRangeCallees
                 )
 
                 // Fallback: collection element accessors may return a boxed primitive.

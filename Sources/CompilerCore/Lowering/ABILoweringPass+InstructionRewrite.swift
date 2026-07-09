@@ -58,8 +58,10 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        boxedReturnCallees: Set<InternedString> = []
     ) -> (InternedString, TypeID)? {
+        guard !boxedReturnCallees.contains(callee) else { return nil }
         guard let types, let result else { return nil }
         var returnType: TypeID?
         if let callSymbol {
