@@ -200,6 +200,19 @@ extension KIRLoweringDriver {
         let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
         initInstructions.append(.copy(from: initValue, to: globalRef))
+        // When the property also has a backing field (a custom getter and/or
+        // setter forced one to be materialized), `field` references inside
+        // those accessors read/write the backing field's own global — a
+        // separate storage location from the property symbol's global above.
+        // Seed it with the same initial value so the first `field` read
+        // inside a custom getter observes the declared initializer rather
+        // than the backing field global's zero-initialized default.
+        if let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
+            let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
+            let backingFieldRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
+            initInstructions.append(.constValue(result: backingFieldRef, value: .symbolRef(backingFieldSymbol)))
+            initInstructions.append(.copy(from: initValue, to: backingFieldRef))
+        }
         allTopLevelInitInstructions.append(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }

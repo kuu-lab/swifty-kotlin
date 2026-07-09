@@ -312,6 +312,8 @@ extension MemberLowerer {
 
         let returnType: TypeID
         let accessorName: InternedString
+        var backingFieldPrimeExprID: KIRExprID?
+        var backingFieldPrimeSymbol: SymbolID?
         switch accessorKind {
         case .getter:
             returnType = propertyType
@@ -321,6 +323,8 @@ extension MemberLowerer {
             if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
                 let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
                 driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
+                backingFieldPrimeExprID = bfExprID
+                backingFieldPrimeSymbol = backingFieldSym
             }
         case .setter:
             returnType = sema.types.unitType
@@ -339,12 +343,29 @@ extension MemberLowerer {
             if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
                 let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
                 driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
+                backingFieldPrimeExprID = bfExprID
+                backingFieldPrimeSymbol = backingFieldSym
             }
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
+        }
+        // Prime the backing field's exprID with an explicit initial read before
+        // the accessor body runs. Every lexical `field` reference within this
+        // accessor shares this single exprID (see setLocalValue above); without
+        // an explicit instruction establishing its first value here, codegen
+        // only allocates a real memory slot (surviving conditional branches)
+        // for exprIDs assigned more than once (NativeEmitter+FunctionEmission's
+        // shouldSpillID). A `field = ...` write reachable through just one
+        // conditional branch — the common lazy-caching idiom
+        // `get() { if (field == null) field = compute(); return field }` —
+        // would otherwise be the *only* assignment to this exprID, so it
+        // stays a bare SSA value that does not dominate the post-branch read,
+        // silently producing stale or garbage values instead of the write.
+        if let bfExprID = backingFieldPrimeExprID, let backingFieldSym = backingFieldPrimeSymbol {
+            body.append(.constValue(result: bfExprID, value: .symbolRef(backingFieldSym)))
         }
 
         switch accessorBody {
