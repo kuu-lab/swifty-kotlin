@@ -372,6 +372,58 @@ struct ArraySyntheticMemberLinkTests {
         }
     }
 
+    @Test func testPrimitiveArrayJoinToStringOverloadsUseRuntimeExternalLinks() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let expectedLinks = [
+                "IntArray": "kk_intArray_joinToString",
+                "LongArray": "kk_longArray_joinToString",
+                "ByteArray": "kk_byteArray_joinToString",
+                "ShortArray": "kk_shortArray_joinToString",
+                "UIntArray": "kk_uIntArray_joinToString",
+                "ULongArray": "kk_uLongArray_joinToString",
+                "DoubleArray": "kk_doubleArray_joinToString",
+                "FloatArray": "kk_floatArray_joinToString",
+                "BooleanArray": "kk_booleanArray_joinToString",
+                "CharArray": "kk_charArray_joinToString",
+                "UByteArray": "kk_uByteArray_joinToString",
+                "UShortArray": "kk_uShortArray_joinToString",
+            ]
+
+            for (arrayName, externalLink) in expectedLinks {
+                let symbolID = try #require(
+                    sema.symbols.lookup(
+                        fqName: [
+                            ctx.interner.intern("kotlin"),
+                            ctx.interner.intern(arrayName),
+                            ctx.interner.intern("joinToString"),
+                        ]
+                    ),
+                    "Expected \(arrayName).joinToString to be registered"
+                )
+                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLink)
+
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                #expect(signature.parameterTypes == [sema.types.stringType, sema.types.stringType, sema.types.stringType])
+                #expect(signature.valueParameterHasDefaultValues == [true, true, true])
+                #expect(signature.returnType == sema.types.stringType)
+
+                guard let receiverType = signature.receiverType,
+                      case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+                      let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
+                else {
+                    Issue.record("Expected \(arrayName) receiver type")
+                    return
+                }
+                #expect(ctx.interner.resolve(receiverSymbol.name) == arrayName)
+                #expect(receiverClass.args.count == 0)
+            }
+        }
+    }
+
     @Test func testPrimitiveArrayReversedArrayOverloadsUseRuntimeExternalLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

@@ -719,6 +719,55 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testArrayJoinToStringOverloads() throws {
+        let source = """
+        @OptIn(ExperimentalUnsignedTypes::class)
+        fun main() {
+            val boxed = arrayOf<Any>(1, "two", 3)
+            println(boxed.joinToString(","))
+            println(intArrayOf(1, -2, 3).joinToString(","))
+            println(byteArrayOf(1, (-1).toByte()).joinToString(","))
+            println(shortArrayOf(2, (-3).toShort()).joinToString(","))
+            println(longArrayOf(1L, 4000000000L).joinToString(","))
+            println(floatArrayOf(1.5f, -2.0f).joinToString(","))
+            println(doubleArrayOf(2.25, -0.5).joinToString(","))
+            println(booleanArrayOf(true, false).joinToString(","))
+            println(charArrayOf('a', 'Z').joinToString(","))
+            println(ubyteArrayOf(1.toUByte(), 255.toUByte()).joinToString(","))
+            println(ushortArrayOf(1.toUShort(), 65535.toUShort()).joinToString(","))
+            println(uintArrayOf(1u, 4000000000u).joinToString(","))
+            println(ulongArrayOf(1uL, 4000000000uL).joinToString(","))
+            println(doubleArrayOf(1.5, 2.5).joinToString())
+            println(booleanArrayOf(true, false, true).joinToString(prefix = "[", postfix = "]"))
+            println(charArrayOf('a', 'b', 'c').joinToString(""))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayJoinToStringOverloads",
+            expected:
+                """
+                1,two,3
+                1,-2,3
+                1,-1
+                2,-3
+                1,4000000000
+                1.5,-2.0
+                2.25,-0.5
+                true,false
+                a,Z
+                1,255
+                1,65535
+                1,4000000000
+                1,4000000000
+                1.5, 2.5
+                [true, false, true]
+                abc
+                """
+                + "\n"
+        )
+    }
+
     func testArrayContentDeepHashCode() throws {
         let source = """
         fun main() {

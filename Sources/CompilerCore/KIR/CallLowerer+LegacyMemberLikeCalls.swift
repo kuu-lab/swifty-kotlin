@@ -2543,9 +2543,12 @@ extension CallLowerer {
                         joinArgs.append(exprID)
                     }
                 }
+                let joinToStringCallee = isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                    ? arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
+                    : interner.intern("kk_sequence_joinToString")
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_sequence_joinToString"),
+                    callee: joinToStringCallee,
                     arguments: [loweredReceiverID] + joinArgs,
                     result: result,
                     canThrow: false,
