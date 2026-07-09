@@ -3347,7 +3347,9 @@ extension CallLowerer {
             // StringBuilder member calls with 1 arg (STDLIB-255/256/257)
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.append {
+                // A spread single argument (`sb.append(*array)`) must fall through to the
+                // vararg-specific lowering below instead of being treated as one Any? value.
+                let runtimeCallee: String? = if calleeName == sbNames.append, args.first?.isSpread != true {
                     // Dispatch append(value) to the typed overload based on the argument type.
                     {
                         let argType = normalizedArgIDs.first.flatMap { arena.exprType($0) }
@@ -3938,13 +3940,28 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let intType = sema.types.make(.primitive(.int, .nonNull))
+                // Unboxed primitive elements (Boolean/Char/Float/Double/Int/Long/...) must be
+                // boxed to Any? before being stored in the packed vararg array — otherwise their
+                // raw bit patterns are misread by the runtime's generic element-to-string logic.
+                let boxedArgIDs = loweredArgIDs.enumerated().map { index, argID in
+                    if index < args.count, args[index].isSpread {
+                        return argID
+                    }
+                    return boxCollectionFactoryElementIfNeeded(
+                        argID,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
                 let packedArgs: KIRExprID
-                if loweredArgIDs.count == 1, args.first?.isSpread == true {
-                    packedArgs = loweredArgIDs[0]
+                if boxedArgIDs.count == 1, args.first?.isSpread == true {
+                    packedArgs = boxedArgIDs[0]
                 } else {
                     packedArgs = driver.callSupportLowerer.packVarargArguments(
-                        argIndices: Array(loweredArgIDs.indices),
-                        providedArguments: loweredArgIDs,
+                        argIndices: Array(boxedArgIDs.indices),
+                        providedArguments: boxedArgIDs,
                         spreadFlags: args.map(\.isSpread),
                         arena: arena,
                         interner: interner,
