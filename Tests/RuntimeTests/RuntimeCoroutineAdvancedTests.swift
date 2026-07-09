@@ -337,9 +337,11 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
     }
 
-    // MARK: - Test 10: withTimeoutOrNull returns null (0) when block exceeds timeout
+    // MARK: - Test 10: withTimeoutOrNull returns null when block exceeds timeout
 
-    /// kk_with_timeout_or_null must return 0 when the block takes longer than the deadline.
+    /// kk_with_timeout_or_null must return the shared null-sentinel value (not raw 0, which
+    /// is a legitimate unboxed Int result and indistinguishable from a real value once
+    /// printed/compared) when the block takes longer than the deadline.
     func testWithTimeoutOrNullReturnsNullOnTimeout() {
         let entryRaw = unsafeBitCast(
             advcoro_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -348,7 +350,7 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         let continuation = kk_coroutine_continuation_new(advCoroDelayFunctionID)
         // Use a 0 ms timeout: the block should not complete in time.
         let result = kk_with_timeout_or_null(0, entryRaw, continuation)
-        XCTAssertEqual(result, 0, "withTimeoutOrNull should return 0 (null) when block exceeds timeout")
+        XCTAssertEqual(result, runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
     }
 
     // MARK: - Test 11: withTimeoutOrNull returns block value when block completes in time
