@@ -181,10 +181,17 @@ extension CoroutineLoweringPass {
         // continuationParameterSymbol). rewriteDirectSuspendCall needs it to
         // relay a nested suspend call's completion back to this function's
         // own suspend point instead of orphaning it on a throwaway
-        // continuation. Functions that never originated as suspend functions
-        // (e.g. main()) have no such parameter and never match a direct
-        // suspend call anyway, so nil here is safe.
-        let callerContinuationSymbol = function.isSuspend ? nil : function.params.last?.symbol
+        // continuation. `isSuspend` alone can't distinguish a lowered suspend
+        // function from an ordinary non-suspend function with parameters (both
+        // have isSuspend == false), and resolveLoweredTarget's name/arity
+        // fallback means a same-named/arity non-suspend function can still
+        // match a suspend target -- so positively check that `function` is
+        // itself a lowered suspend body (present as a key in
+        // continuationTypeByLoweredSymbol) rather than inferring it from
+        // isSuspend being false.
+        let callerContinuationSymbol = rewrite.continuationTypeByLoweredSymbol[function.symbol] != nil
+            ? function.params.last?.symbol
+            : nil
         var loweredBody: [KIRInstruction] = []
         loweredBody.reserveCapacity(function.body.count)
 
