@@ -39,7 +39,11 @@ extension CollectionLiteralConstructionLoweringPass {
             // handler below, which correctly rewrites it to kk_list_count.
             // Entering this generic list-HOF path for countName would emit a call with
             // the un-rewritten "count" callee and mark the call handled, skipping that handler.
-            if state.listExprIDs.contains(receiverID.rawValue) && callee != lookup.countName {
+            if state.listExprIDs.contains(receiverID.rawValue)
+                && callee != lookup.countName
+                && callee != lookup.filterName
+                && callee != lookup.filterNotName
+            {
                 let closureRawID: KIRExprID
                 if arguments.count == 3 {
                     closureRawID = arguments[2]
@@ -53,8 +57,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     || callee == lookup.mapNotNullName
                     || callee == lookup.flatMapName
                     || callee == lookup.flatMapIndexedName
-                    || callee == lookup.filterName
-                    || callee == lookup.filterNotName
                     || callee == lookup.onEachName
                 let hofResult = module.arena.appendTemporary(type: nil
                 )

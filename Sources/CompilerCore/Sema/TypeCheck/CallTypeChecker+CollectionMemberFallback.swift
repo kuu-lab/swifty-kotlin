@@ -492,10 +492,15 @@ extension CallTypeChecker {
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
-        guard let root = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types) else {
+        let roots = driver.helpers.allNominalSymbols(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard !roots.isEmpty else {
             return nil
         }
-        var queue: [SymbolID] = [root]
+        var queue: [SymbolID] = roots
         var visited: Set<SymbolID> = []
         while !queue.isEmpty {
             let owner = queue.removeFirst()
@@ -917,6 +922,7 @@ extension CallTypeChecker {
         if mutableCollectionMembers.contains(memberName) {
             return isMutableListReceiver
                 || isMutableSetReceiver
+                || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                 || (
                     memberName == interner.intern("addAll")
                         && isMutableCollectionReceiver
@@ -1076,6 +1082,7 @@ extension CallTypeChecker {
             return (
                 isMutableListReceiver
                     || isMutableSetReceiver
+                    || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                     || (
                         memberName == interner.intern("addAll")
                             && isMutableCollectionReceiver
@@ -2670,11 +2677,46 @@ extension CallTypeChecker {
         return nil
     }
 
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule,
+        visitedTypeParams: inout Set<SymbolID>
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        let nonNullType = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNullType) {
+        case let .classType(classType):
+            guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                return []
+            }
+            return [(classType, symbol)]
+        case let .intersection(parts):
+            return parts.flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        case let .typeParam(typeParam):
+            guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                return []
+            }
+            return sema.symbols.typeParameterUpperBounds(for: typeParam.symbol).flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        default:
+            return []
+        }
+    }
+
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        var visitedTypeParams: Set<SymbolID> = []
+        return collectionFallbackClassTypes(type, sema: sema, visitedTypeParams: &visitedTypeParams)
+    }
+
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-        else {
+        guard let (classType, symbol) = collectionFallbackClassTypes(receiverType, sema: sema).first else {
             return sema.types.anyType
         }
         if knownNames.isMapLikeSymbol(symbol),

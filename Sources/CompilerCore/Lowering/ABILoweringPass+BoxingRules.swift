@@ -10,6 +10,7 @@ extension ABILoweringPass {
     static let typeParamBoxingBoundaryCallees: Set<String> = [
         "kk_pair_new",
         "kk_triple_new",
+        "kk_mutable_collection_add",
         "kk_mutable_list_add",
         "kk_mutable_list_add_at",
         "kk_mutable_list_set",
