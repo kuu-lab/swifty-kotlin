@@ -17,6 +17,13 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         expectedType: TypeID? = nil,
+        // Only set by call sites reached when ordinary symbol lookup already
+        // found zero candidates (see CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift).
+        // Call sites reached while real overload candidates exist (e.g.
+        // Iterable.reduceRightIndexed, which is a registered symbol) must NOT
+        // set this, or this fallback would short-circuit ahead of the normal
+        // overload resolver for members it does not model precisely.
+        admitNominalIterableReceiver: Bool = false,
         locals: inout LocalBindings
     ) -> TypeID? {
         let sema = ctx.sema
@@ -79,12 +86,25 @@ extension CallTypeChecker {
             && receiverClassification.isIterableReceiver
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
+        // A receiver whose static type is nominally `Iterable<T>` (e.g. a local
+        // variable explicitly typed `Iterable<T>`, or a function parameter typed
+        // `Iterable<T>`) but isn't otherwise recognized as collection/sequence-like
+        // must still be admitted when ordinary symbol lookup found no candidates at
+        // all (isCollectionReceiver/isSequenceReceiver rely on either a concrete
+        // List/Set/Map/Sequence type or the isCollectionExpr propagation heuristic,
+        // which only fires for a fixed set of collection-factory call forms like
+        // listOf(...), not arbitrary functions returning List<T>). Restricted to the
+        // no-candidates case so members already resolved as real Iterable-owned
+        // symbols (e.g. Iterable.reduceRightIndexed) keep going through the normal
+        // overload resolver instead of this fallback's approximate typing.
+        let admitIterableReceiver = admitNominalIterableReceiver && receiverClassification.isIterableReceiver
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionReceiver
                 || isSequenceReceiver
+                || admitIterableReceiver
                 || isIterableWindowedTransformCall
                 || isIterableChunkedTransformCall
                 || isIterableFirstNotNullOfCall
@@ -786,7 +806,6 @@ extension CallTypeChecker {
         let collectionMembers: Set = [
             knownNames.size,
             knownNames.isEmpty,
-            interner.intern("get"),
             interner.intern("contains"),
             interner.intern("containsAll"),
             interner.intern("first"),
@@ -874,6 +893,7 @@ extension CallTypeChecker {
             interner.intern("minusElement"),
         ]
         let listOnlyMembers: Set = [
+            interner.intern("get"),
             interner.intern("subList"),
             interner.intern("slice"),
             interner.intern("getOrNull"),

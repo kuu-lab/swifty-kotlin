@@ -2180,6 +2180,66 @@ struct ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
+    func testIterableLocalVariableFromNonFactoryFunctionResolvesFilterAndCount() throws {
+        // Regression test: assigning the result of an ordinary (non collection-factory)
+        // function call to an explicitly `Iterable<T>`-typed local used to leave that
+        // local's receiver classification without isCollectionExpr/isCollectionType/
+        // isSequenceReceiver, so tryCollectionMemberFallback's guard rejected members
+        // like filter/count even though the static receiver type is nominally Iterable.
+        let source = """
+        fun getStrings(): List<String> = listOf("a", "bb", "ccc")
+
+        fun checksum(): Int {
+            val parts = getStrings()
+            val iter: Iterable<String> = parts
+            val filtered = iter.filter { it.length > 1 }
+            return iter.count() + filtered.size
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable<T> local from a non-factory function call to resolve filter/count cleanly, got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let filterExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "filter"
+            })
+            #expect(sema.bindings.callBinding(for: filterExpr)?.chosenCallee != nil, "Expected filter call on the Iterable-typed local to bind to a callee")
+
+            let countExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "count" && args.isEmpty
+            })
+            #expect(sema.bindings.exprType(for: countExpr) == sema.types.intType)
+        }
+    }
+
+    @Test
+    func testIterableParameterFromNonListLiteralArgumentResolvesFilterAndCount() throws {
+        // Companion regression coverage: the same static-type gap also affected
+        // Iterable<T>-typed function parameters (not just locals), since parameters
+        // never carry the isCollectionExpr propagation mark either.
+        let source = """
+        fun checksum(values: Iterable<Int>): Int {
+            return values.filter { it > 1 }.count()
+        }
+
+        fun caller(): Int = checksum(listOf(1, 2, 3))
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable<T> parameter to resolve filter/count cleanly, got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
+        }
+    }
+
 }
 
 struct SyntheticMemberCallCase {
