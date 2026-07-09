@@ -1,3 +1,9 @@
+// SKIP-DIFF (DEBT-DIFF-005): kswiftc's synthetic kotlin.uuid stubs expose ByteArray.putUuid(at, uuid) /
+// ByteArray.uuid(at) / ByteArray.getUuid(offset) (kk_byteArray_putUuid / kk_byteArray_uuid / kk_uuid_getUuid
+// bridge-only externs in HeaderHelpers+SyntheticUuidStubs.swift). Real Kotlin stdlib only has
+// java.nio.ByteBuffer.putUuid/getUuid (JVM-only, since Kotlin 2.4) — there is no ByteArray-receiver
+// version and no top-level ByteArray.uuid() at all, so JVM kotlinc fails with "receiver type mismatch"
+// / "unresolved reference 'uuid'".
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
 import kotlin.uuid.Uuid
