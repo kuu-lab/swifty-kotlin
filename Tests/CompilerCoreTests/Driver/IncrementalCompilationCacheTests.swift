@@ -326,8 +326,8 @@ struct IncrementalCompilationCacheTests {
     func testRestoreCachedOutputRejectsPathTraversal() throws {
         let cacheRoot = tempDir + "/cache"
         let outsideFile = tempDir + "/secret.txt"
-        try "outside".write(toFile: outsideFile, atomically: true, encoding: .utf8)
         try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        try "outside".write(toFile: outsideFile, atomically: true, encoding: .utf8)
 
         let options = makeRestoreOptions(outputPath: tempDir + "/out")
         let cache = IncrementalCompilationCache(cachePath: cacheRoot)
