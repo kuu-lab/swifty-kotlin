@@ -373,9 +373,16 @@ final class PropertyLoweringPass: LoweringPass {
     /// Builds the argument list for a rewritten setter-accessor call.
     ///
     /// Member property setter accessors are synthesized with signature
-    /// `(receiver, value) -> Unit` (see `lowerAccessorBody`). Top-level
-    /// properties have no receiver parameter, so their setter accessors take
-    /// only the value.
+    /// `(receiver, value) -> Unit` whenever the property has an owner symbol
+    /// — see `lowerAccessorBody`'s `else if let ownerSymbol, let ownerSym =
+    /// sema.symbols.symbol(ownerSymbol)` branch, which adds a receiver for
+    /// *any* owner kind (class, interface, object, enum class, annotation
+    /// class, ...) without filtering by kind. This check mirrors that exact
+    /// condition rather than enumerating owner kinds, so it can't drift out
+    /// of sync with it the way a hardcoded kind list did (a property owned
+    /// by an enum class was previously — incorrectly — treated as receiver-less).
+    /// Top-level properties have no owner symbol at all, so their setter
+    /// accessors take only the value.
     private func setterCallArguments(
         from: KIRExprID,
         propertySymbol: SymbolID,
@@ -384,8 +391,8 @@ final class PropertyLoweringPass: LoweringPass {
         arena: KIRArena,
         loweredBody: inout [KIRInstruction]
     ) -> [KIRExprID] {
-        let ownerKind = sema.symbols.parentSymbol(for: propertySymbol).flatMap { sema.symbols.symbol($0)?.kind }
-        guard ownerKind == .class || ownerKind == .interface || ownerKind == .object,
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol) != nil,
               let receiverParam = function.params.first
         else {
             return [from]
