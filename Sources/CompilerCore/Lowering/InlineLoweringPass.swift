@@ -640,7 +640,9 @@ final class InlineLoweringPass: LoweringPass {
                 }
 
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    localExprMap[expr] = cloned
+                    return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
@@ -659,7 +661,9 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
+                    localExprMap[expr] = cloned
+                    return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
@@ -1013,7 +1017,9 @@ final class InlineLoweringPass: LoweringPass {
                     }
                 }
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
@@ -1032,7 +1038,9 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
@@ -1296,13 +1304,29 @@ final class InlineLoweringPass: LoweringPass {
 
     /// Clones `source` into a fresh caller-scoped expression the first time it is
     /// encountered within a single inline expansion, and returns that same clone
-    /// for every later occurrence of `source`. This is required for expressions
-    /// such as a try/catch's shared exception slot, which the callee's own KIR
-    /// intentionally reuses as the `result`/`thrownResult` of multiple
-    /// instructions (see ControlFlowLowerer.appendThrowAwareInstructions) --
-    /// cloning it independently on each occurrence would fragment one physical
-    /// slot into several disconnected registers, losing track of writes made
-    /// through earlier clones.
+    /// for every later occurrence of `source`. Used only for a call's
+    /// `thrownResult`, because that is the sole field where the callee's own KIR
+    /// intentionally reuses one physical expression -- a try/catch's shared
+    /// exception slot -- as the `thrownResult` of every protected call inside the
+    /// same try body (see ControlFlowLowerer.appendThrowAwareInstructions, which
+    /// rewrites each protected call's `thrownResult` to the same pre-allocated
+    /// `exceptionSlot`, while leaving `result` untouched). Cloning that slot
+    /// independently on each occurrence would fragment one physical register into
+    /// several disconnected ones, losing track of writes made through earlier
+    /// clones.
+    ///
+    /// `result` is deliberately NOT routed through this helper: it is always
+    /// cloned unconditionally (matching pre-existing behavior), because a call's
+    /// `result` is a freshly allocated, unique KIRExprID under the standard
+    /// ExprLowerer/CallLowerer/ControlFlowLowerer pipeline that produces every
+    /// inline-function and lambda body this pass expands -- the only other KIR
+    /// producers that intentionally share a `result` id across multiple calls
+    /// (e.g. the synthesized data-class `toString()` StringBuilder accumulator,
+    /// interface-delegation forwarding methods) always mark their function
+    /// `isInline: false` and are never lambda closures, so they are unreachable
+    /// from both `expandInlineCall` (gated on `isInline`) and `expandLambdaBody`
+    /// (reachable only through `resolveLambdaFunction`, which only resolves
+    /// genuine lambda closures).
     private func cloneOrReuseExpr(
         _ source: KIRExprID,
         localExprMap: inout [KIRExprID: KIRExprID],
