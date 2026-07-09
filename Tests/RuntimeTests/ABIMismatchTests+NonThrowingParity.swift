@@ -16,6 +16,7 @@ extension ABIMismatchTests {
     /// Frozen snapshot of the pre-DEBT-KIR-003 handwritten non-throwing set.
     /// Guards against drift while `isThrowing` metadata is migrated into `RuntimeABISpec`.
     private static let legacyNonThrowingCalleeNames: Set<String> = [
+        "__kk_random_seed_entropy",
         "kk_abort_unreachable",
         "kk_any_equals",
         "kk_any_hashCode",
@@ -815,17 +816,6 @@ extension ABIMismatchTests {
         "kk_println_newline",
         "kk_println_string_flat",
         "kk_println_ulong",
-        "__kk_random_create_seeded",
-        "__kk_random_default",
-        "kk_random_nextBoolean",
-        "kk_random_nextBytes",
-        "kk_random_nextDouble",
-        "kk_random_nextFloat",
-        "kk_random_nextInt",
-        "kk_random_nextLong",
-        "kk_random_nextUBytes",
-        "kk_random_nextUInt",
-        "kk_random_nextULong",
         "kk_range_average",
         "kk_range_count",
         "kk_range_drop",
