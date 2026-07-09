@@ -321,16 +321,12 @@ final class CallSupportLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
-                let boxElements = varargElementBoxingNeeded(
-                    paramType: signature.parameterTypes[0],
-                    types: sema.types
-                )
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
                     providedArguments: boxedArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
-                    boxPrimitiveElements: boxElements,
+                    boxPrimitiveElements: false,
                     arena: arena,
                     interner: interner,
                     intType: intType,
@@ -379,25 +375,12 @@ final class CallSupportLowerer {
                         interner: interner,
                         instructions: &instructions
                     )
-                    // Only the raw-array-producing factories (preserveArrayVarargs)
-                    // can legitimately skip boxing, and only when their element type
-                    // is a concrete primitive (see varargElementBoxingNeeded). Every
-                    // other vararg parameter is packed into a List<T>, which always
-                    // needs boxed elements regardless of whether the parameter's own
-                    // declared type happens to be a concrete primitive (e.g. a plain
-                    // `vararg cs: Char` still targets List<Char>, not a raw CharArray).
-                    let boxElements = preserveArrayVarargs
-                        ? varargElementBoxingNeeded(
-                            paramType: signature.parameterTypes[paramIndex],
-                            types: sema.types
-                        )
-                        : true
                     let packed = packVarargArguments(
                         argIndices: argIndices,
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: boxElements,
+                        boxPrimitiveElements: !preserveArrayVarargs,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -516,15 +499,6 @@ final class CallSupportLowerer {
         default:
             return false
         }
-    }
-
-    // A concrete primitive vararg parameter used by a raw array factory must
-    // stay unboxed, while generic or erased element types require boxing.
-    func varargElementBoxingNeeded(paramType: TypeID, types: TypeSystem) -> Bool {
-        if case .primitive = types.kind(of: paramType) {
-            return false
-        }
-        return true
     }
 
     func packVarargArguments(

@@ -272,43 +272,28 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testGenericArrayOfElementsAreBoxed() throws {
-        // arrayOf<T>(vararg elements: T): Array<T> erases T to Any, so
-        // primitive elements must be boxed to survive the generic container.
-        let source = """
-        fun main() = arrayOf(1.5, 2.5)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            #expect(!(ctx.diagnostics.hasError), "Expected arrayOf(Double...) call to compile without errors.")
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            let boxDoubleCount = callNames.filter { $0 == "kk_box_double" }.count
-            #expect(boxDoubleCount == 2, "Expected arrayOf's erased Double elements to be boxed via kk_box_double, got: \(callNames)")
-        }
-    }
-
     @Test func testPrimitiveArrayFactoryElementsAreNotBoxed() throws {
-        // doubleArrayOf(vararg elements: Double): DoubleArray stores raw,
-        // unboxed bit patterns. Boxing an element here would corrupt it, since
-        // reading the array back reinterprets the slot as a raw Double.
+        // doubleArrayOf(vararg elements: Double): DoubleArray and arrayOf(vararg
+        // elements: T): Array<T> both share the "kk_array_of" backend, and neither
+        // reads its array back through a boxing-aware path (unlike List<T>, whose
+        // kk_list_* consumers unbox automatically). Boxing here would corrupt
+        // indexed reads like arrayOf(1.5, 2.5)[0], so both stay unboxed.
         let source = """
-        fun main() = doubleArrayOf(1.5, 2.5)
+        fun main() {
+            doubleArrayOf(1.5, 2.5)
+            arrayOf(1.5, 2.5)
+        }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            #expect(!(ctx.diagnostics.hasError), "Expected doubleArrayOf call to compile without errors.")
+            #expect(!(ctx.diagnostics.hasError), "Expected doubleArrayOf/arrayOf calls to compile without errors.")
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callNames.contains("kk_box_double"), "Expected doubleArrayOf's raw Double elements NOT to be boxed, got: \(callNames)")
+            #expect(!callNames.contains("kk_box_double"), "Expected doubleArrayOf/arrayOf's raw Double elements NOT to be boxed, got: \(callNames)")
         }
     }
 
