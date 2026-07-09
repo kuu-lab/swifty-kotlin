@@ -51,9 +51,13 @@ extension CallTypeChecker {
                 switch scopeKind {
                 case .scopeLet:
                     // let: lambda receives `it` parameter typed as T, returns R
+                    // R's implicit upper bound is Any? (unconstrained), so when no
+                    // outer expectedType narrows it, the placeholder must be nullable —
+                    // otherwise a nullable lambda body wrongly fails the return-type
+                    // constraint (e.g. `x.let { it.takeUnless { ... } }` returning T?).
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [nonNullReceiverType],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let lambdaType = driver.inferExpr(
                         args[0].expr, ctx: ctx, locals: &locals,
@@ -75,12 +79,14 @@ extension CallTypeChecker {
                     return finalType
 
                 case .scopeRun:
-                    // run: lambda has receiver T as `this`, returns R
+                    // run: lambda has receiver T as `this`, returns R (R's implicit
+                    // upper bound is Any?; see .scopeLet for why the placeholder
+                    // must be nullable when there is no outer expectedType).
                     let receiverCtx = ctx.with(implicitReceiverType: nonNullReceiverType)
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         receiver: nonNullReceiverType,
                         params: [],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let lambdaType = driver.inferExpr(
                         args[0].expr, ctx: receiverCtx, locals: &locals,
@@ -158,7 +164,7 @@ extension CallTypeChecker {
                     // but differ in lowering (use emits try-finally with close()).
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [nonNullReceiverType],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let lambdaType = driver.inferExpr(
                         args[0].expr, ctx: ctx, locals: &locals,
@@ -172,17 +178,18 @@ extension CallTypeChecker {
                                 return fnType.returnType
                             }
                             return nil
-                        } ?? sema.types.anyType
+                        } ?? sema.types.nullableAnyType
                     }
                     // Refine the call result type using the lambda body's concrete type,
-                    // but ONLY when no expected type was provided (i.e. expected was anyType).
+                    // but ONLY when no expected type was provided (i.e. expected was
+                    // nullableAnyType, the placeholder for "unconstrained").
                     // This lets downstream sema resolve member accesses on the result:
                     //   val lines = bufferedReader().use { reader -> reader.readLines() }
                     //   lines.size  ← resolves because lines is List<String>, not Any
                     // We skip Nothing-typed bodies (always-throw lambdas) to avoid
                     // disrupting the KIR try-finally exception propagation for use{}.
                     let refinedReturnType: TypeID = {
-                        guard returnType == sema.types.anyType else { return returnType }
+                        guard returnType == sema.types.nullableAnyType else { return returnType }
                         guard let lambdaExpr = ast.arena.expr(args[0].expr),
                               case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
                               let bodyType = sema.bindings.exprTypes[bodyExprID],
@@ -220,7 +227,7 @@ extension CallTypeChecker {
                     )))
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [pinnedOfReceiverType],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let lambdaType = driver.inferExpr(
                         args[0].expr, ctx: ctx, locals: &locals,
@@ -257,7 +264,7 @@ extension CallTypeChecker {
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         receiver: contentType,
                         params: [],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     let receiverCtx = ctx.with(implicitReceiverType: contentType)
                     let lambdaType = driver.inferExpr(
