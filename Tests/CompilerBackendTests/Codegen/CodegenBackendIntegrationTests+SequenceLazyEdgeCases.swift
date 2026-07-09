@@ -648,4 +648,28 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "SequenceFilterNotToRuntime", expected: "[99, 1, 3, 5]\n[99, 1, 3, 5]\n")
     }
+
+    func testSequenceOfBoxesPrimitiveElementsForFilterIsInstance() throws {
+        let source = """
+        fun main() {
+            val mixed: Sequence<Any> = sequenceOf(1.5, "x", 2.5, 7L, true)
+            println(mixed.filterIsInstance<Double>().toList())
+            println(mixed.filterIsInstance<Long>().toList())
+            println(mixed.filterIsInstance<Boolean>().toList())
+            println(mixed.filterIsInstance<String>().toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOfBoxesPrimitives",
+            expected:
+                """
+                [1.5, 2.5]
+                [7]
+                [true]
+                [x]
+                """ + "\n"
+        )
+    }
 }

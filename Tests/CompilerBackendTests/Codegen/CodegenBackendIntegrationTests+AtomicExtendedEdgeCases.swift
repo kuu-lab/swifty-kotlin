@@ -1247,5 +1247,32 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBStore", expected: "caught\n")
     }
+
+    func testCodegenAtomicArrayOfBoxesPrimitiveElementsForIsChecks() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.atomicArrayOf
+
+        fun main() {
+            val mixed = atomicArrayOf<Any>(1.5, "x", 2.5, 7L, true)
+            for (i in 0 until mixed.size) {
+                val v = mixed.loadAt(i)
+                println("${v is Double} ${v is Long} ${v is Boolean} ${v is String}")
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "AtomicArrayOfBoxesPrimitives",
+            expected:
+                """
+                true false false false
+                false false false true
+                true false false false
+                false true false false
+                false false true false
+                """ + "\n"
+        )
+    }
 }
 
