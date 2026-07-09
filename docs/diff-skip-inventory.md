@@ -22,7 +22,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-001 | 21 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 7 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
@@ -48,6 +48,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | KMP expect/actual | `kmp_common.kt` | kotlinc に multiplatform flags を渡していない | case-specific `KOTLINC_FLAGS` で再現できるか検証し、不可なら KMP runner へ分離 |
 | serialization | `custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt` | `kotlinx-serialization` jar / plugin が無い | dependency injection だけで動く範囲と compiler plugin 必須範囲を分ける |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | `org.slf4j` jar / runtime-only logger が無い | `slf4j-api` + binding 注入で戻せる basic と runtime-only advanced を分ける |
+| kotlin.test | `test_framework_basic.kt` | `kotlin.test` annotation / assertion imports require `kotlin-test.jar` in the JVM reference classpath; KSwiftK covers the candidate side with synthetic stubs and runtime helpers | `kotlin-test.jar` を harness dependency injection に追加してから通常 diff へ戻す |
 | compiler plugin API | `compiler_plugin_api.kt` | case 自体は self-contained に見えるが skip 理由が generic | `--force-run-skipped` で再判定し、reference 阻害が無ければ DEBT-DIFF-006 か通常 diff へ移す |
 | `kotlin.uuid` | `uuid_basic.kt` | skip 理由は「KSwiftK UUID APIs」としているが実体は標準 `kotlin.uuid.Uuid`（`@OptIn(ExperimentalUuidApi)` 必要）。`version()` / `variant()` / `nameUUIDFromBytes()` / `toLongs()`（Pair 返し）/ 非推奨化されていない `LEXICAL_ORDER` など、実 API との一致が未検証のメンバーを使用している | 実 API(kotlinc 同梱 `kotlin-stdlib-sources.jar` で照合)に合わせてテストを絞り込むか、`Stdlib/kotlin/uuid/Uuid.kt` 実装側を直すかを判断してから通常 diff へ戻す |
 
