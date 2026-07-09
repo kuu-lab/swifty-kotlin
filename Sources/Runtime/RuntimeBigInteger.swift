@@ -905,8 +905,8 @@ public func kk_biginteger_modInverse(_ selfRaw: Int, _ modulusRaw: Int, _ outThr
         let result = try selfBox.value.modInverse(modulusBox.value)
         return registerRuntimeObject(RuntimeBigIntegerBox(value: result))
     } catch let error as NSError {
-        let errorMessage = error.userInfo[NSLocalizedDescriptionKey] as? String ?? "ArithmeticException: BigInteger has no modular inverse"
-        outThrown?.pointee = runtimeAllocateThrowable(message: errorMessage)
+        let errorMessage = error.userInfo[NSLocalizedDescriptionKey] as? String ?? "BigInteger has no modular inverse"
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: errorMessage)
         return 0
     } catch {
         outThrown?.pointee = runtimeAllocateArithmeticException(message: "BigInteger has no modular inverse")
@@ -934,7 +934,7 @@ public func kk_biginteger_modPow(_ selfRaw: Int, _ exponentRaw: Int, _ modulusRa
         let result = try selfBox.value.modPow(exponentBox.value, modulusBox.value)
         return registerRuntimeObject(RuntimeBigIntegerBox(value: result))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: error.localizedDescription)
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: error.localizedDescription)
         return 0
     }
 }
