@@ -1054,6 +1054,10 @@ extension ExprLowerer {
                         // Mutable local already has storage: emit a copy so the C variable
                         // is updated in place, preserving the value across loop iterations.
                         instructions.append(.copy(from: valueID, to: storageID))
+                        // Reassigning a callable-typed local to a different lambda/function
+                        // reference must overwrite storageID's callableValueInfo too, or a
+                        // later call through this local would still invoke the previous value.
+                        propagateCallableValueInfoIfNeeded(from: valueID, to: storageID)
                     } else {
                         driver.ctx.setLocalValue(valueID, for: symbol)
                     }
