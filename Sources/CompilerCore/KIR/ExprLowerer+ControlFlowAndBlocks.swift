@@ -1054,6 +1054,15 @@ extension ExprLowerer {
                         // call, which would misfire here since no setter
                         // accessor function was emitted for this property.
                         instructions.append(.storeGlobal(value: valueID, symbol: backingFieldSym))
+                    } else if let storageID = driver.ctx.localValue(for: symbol) {
+                        // Neither a real setter nor a backing field exists (e.g. an
+                        // abstract property with no accessor of its own): fall back
+                        // to the same treatment as the outer `else` below rather than
+                        // silently dropping the write, since this `else if` already
+                        // claimed the assignment and nothing after it will run.
+                        instructions.append(.copy(from: valueID, to: storageID))
+                    } else {
+                        driver.ctx.setLocalValue(valueID, for: symbol)
                     }
                 } else {
                     if let storageID = driver.ctx.localValue(for: symbol) {
