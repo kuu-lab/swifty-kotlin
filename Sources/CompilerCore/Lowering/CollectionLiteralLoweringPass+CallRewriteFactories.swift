@@ -508,12 +508,32 @@ extension CollectionLiteralConstructionLoweringPass {
                 for (i, arg) in arguments.enumerated() {
                     let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                     loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
+                    let storedArg: KIRExprID
+                    if let types = ctx.sema?.types,
+                       let argType = module.arena.exprType(arg),
+                       let boxCallee = primitiveBoxCalleeName(
+                           for: argType,
+                           types: types,
+                           interner: ctx.interner
+                       )
+                    {
+                        let boxedArg = emitNonThrowingCall(
+                            callee: boxCallee,
+                            arg: arg,
+                            resultType: types.anyType,
+                            arena: module.arena,
+                            into: &loweredBody
+                        )
+                        storedArg = boxedArg
+                    } else {
+                        storedArg = arg
+                    }
                     let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkArraySetName,
-                        arguments: [arrayExpr, idxExpr, arg],
+                        arguments: [arrayExpr, idxExpr, storedArg],
                         result: setResult,
                         canThrow: false,
                         thrownResult: nil

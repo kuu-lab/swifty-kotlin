@@ -48,3 +48,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 - `kswiftc` でリンクする際、Swift リンカ（`swiftc`）が PATH に必要。
 - Linux で `kswiftc` 実行時に `libswiftCore` 向けの linker warning が出ることがあるが、`hello.kt` のような最小ケースでは実行は成功する。
 - ゴールデン更新は `UPDATE_GOLDEN=1` と `-Xswiftc -swift-version -Xswiftc 6` を CI に合わせて使う（[`CLAUDE.md`](CLAUDE.md)）。
+
+## 言語設定
+- 回答や指示への応答は、常に日本語で行ってください。
+

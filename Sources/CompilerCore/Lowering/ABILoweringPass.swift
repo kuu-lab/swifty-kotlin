@@ -102,6 +102,24 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_fge"),
         ]
 
+        // Type-check intrinsics: `value` is a bare Int that the runtime can only
+        // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
+        // boxed pointer's Swift type — unlike Boolean/Unit, none of these share a
+        // sound unboxed-value heuristic (they all reinterpret the same 64-bit
+        // word). Box `value` whenever its intrinsic type is a concrete primitive,
+        // even if the checked expression's own declared type is already a
+        // concrete primitive (e.g. `x is Long` where `x: Int`): KIR local
+        // declarations alias a variable directly to its initializer expression
+        // (see ExprLowerer+ControlFlowAndBlocks.localDecl), so an unboxed literal
+        // or primitive-typed value can flow into a type check unmodified.
+        // These callees have no FunctionSignature, so the normal argument-boxing
+        // path above leaves them untouched.
+        let typeCheckValueCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_is"),
+            ctx.interner.intern("kk_op_cast"),
+            ctx.interner.intern("kk_op_safe_cast"),
+        ]
+
         // Callees that retrieve an element from a generic collection. After
         // 75507ca0d, kk_mutable_list_add boxes primitives for type erasure, so
         // these accessors may return a boxed pointer even when the KIR result
@@ -111,6 +129,19 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let collectionElementAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
+        ]
+
+        // kk_op_rangeUntil backs the `until` infix function (registered in
+        // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
+        // Int/Long return type, matching the isRangeExpr duck-typing convention
+        // used for range operators) but always returns a boxed RuntimeRangeBox
+        // reference at runtime (see kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
+        // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
+        // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
+        // on the range object itself.
+        let boxedReturnRangeCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_rangeUntil"),
         ]
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
@@ -168,7 +199,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         types: types,
                         symbols: symbols,
-                        boxingCalleeTable: boxingCalleeTable
+                        boxingCalleeTable: boxingCalleeTable,
+                        boxedReturnCallees: boxedReturnRangeCallees
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
                         let tempResult = module.arena.appendTemporary(type: vcReturnType
@@ -390,6 +422,28 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         )
                     }
                 }
+                // Box the "value" operand of kk_op_is/kk_op_cast/kk_op_safe_cast
+                // whenever it is a concrete primitive. See typeCheckValueCallees above.
+                if signature == nil, let types,
+                   typeCheckValueCallees.contains(effectiveCallee),
+                   let firstArg = boxedArguments.first
+                {
+                    let argType = intrinsicArgType(firstArg, arena: module.arena, types: types)
+                    let argKind = argType.map {
+                        resolveValueClassKind(types.kind(of: $0), types: types, symbols: symbols)
+                    }
+                    if let argKind,
+                       let boxCallee = boxCalleeForPrimitive(argKind, boxingCalleeTable: boxingCalleeTable)
+                    {
+                        boxedArguments[0] = emitNonThrowingCall(
+                            callee: boxCallee,
+                            arg: firstArg,
+                            resultType: types.anyType,
+                            arena: module.arena,
+                            into: &newBody
+                        )
+                    }
+                }
 
                 let resolvedUnbox = resolveUnboxForCall(
                     callSymbol: effectiveCallSymbol,
@@ -399,7 +453,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     module: module,
                     types: types,
                     symbols: symbols,
-                    boxingCalleeTable: boxingCalleeTable
+                    boxingCalleeTable: boxingCalleeTable,
+                    boxedReturnCallees: boxedReturnRangeCallees
                 )
 
                 // Fallback: collection element accessors may return a boxed primitive.

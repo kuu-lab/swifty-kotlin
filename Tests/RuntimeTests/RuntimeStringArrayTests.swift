@@ -2620,6 +2620,28 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) }, "[1, 2]")
     }
 
+    func testThrowableStringConversionMatchesPrintln() {
+        // Regression test: runtimeElementToString (used by kk_any_to_string, which
+        // string template interpolation and the `+` concatenation operator lower to)
+        // used to be missing a RuntimeThrowableBox case and fell through to printing
+        // the raw pointer bit pattern instead of "Throwable(ExceptionName: message)".
+        let throwableRaw = runtimeAllocateIllegalStateException(message: "boom")
+        let expected = "Throwable(IllegalStateException: boom)"
+
+        XCTAssertEqual(runtimeElementToString(throwableRaw), expected)
+        XCTAssertEqual(runtimeRenderAnyForPrint(throwableRaw), expected)
+        XCTAssertEqual(
+            capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: throwableRaw)) },
+            expected
+        )
+
+        // anyFallbackTag() emits tag 1 ("default"/object) for class-typed operands
+        // of `+`/string templates, so this exercises the exact ABI path the compiler
+        // lowers `"$e"` and `"foo: " + e` to.
+        let converted = kk_any_to_string(throwableRaw, 1)
+        XCTAssertEqual(extractString(from: converted) ?? "", expected)
+    }
+
     func testStringTakeDropFunctions() {
         XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_take_flat), "")
         XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_take_flat), "ab")
