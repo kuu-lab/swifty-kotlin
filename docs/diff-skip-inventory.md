@@ -78,9 +78,13 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | cancellation / lifecycle | `coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_scope_lifecycle.kt` | cancellation semantics を `STDLIB-CORO-001` の残課題として切る |
 | structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task |
 | Channel / produce / Flow backpressure | `channel_basic.kt`, `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
-| sync primitives | `coroutine_mutex_semaphore.kt` | Mutex / Semaphore API surface と scheduler interaction |
+| sync primitives | `coroutine_mutex_semaphore.kt` | Sema: `launch { }` 直下の `Mutex.withLock` / `Semaphore.withPermit` 呼び出しが overload 解決に失敗する既存バグ |
 
 解除順は、`runBlocking` + simple suspend、`withContext`、`async/await`、Channel、Flow、Supervisor / cancellation の順にする。
+
+### `coroutine_mutex_semaphore.kt` 個別メモ (2026-07-09)
+
+`Semaphore.withPermit` の Sema 登録・KIR lowering (`kk_semaphore_withPermit` の引数分割)・Runtime 実装、および `java.util.concurrent.atomic.AtomicInteger` の直接構築対応は実装済み（このコミットで追加）。それでも本ケースが `--force-run-skipped` で FAIL するのは別原因: `mutex.withLock { ... }` / `semaphore.withPermit { ... }` を `launch { }` の trailing lambda 直下に置くと `KSWIFTK-SEMA-0002 No viable overload found for call` になる。`runBlocking { }` 直下では同じ呼び出しが解決できる（`mutex.withLock` は変更していない既存コードだが同様に失敗する＝今回追加した2機能のバグではない）。加えて `Mutex.withLock` を suspend でない `fun main()` 直下・コルーチンビルダー外から呼ぶとコンパイラがハングする再現ケースも確認した（`repro8` 相当、120秒 timeout）。原因調査は `launch` の trailing lambda 本体に対する suspend コンテキスト伝播 / overload 解決まわりと推測されるが、未特定。次のアクションは Sema の `CallTypeChecker.swift` 側で `launch` の lambda 引数を suspend context として正しく伝播できているか調査すること。
 
 ## DEBT-DIFF-004: value class parity
 
@@ -107,7 +111,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Sequence common API | `flatten_sequence_edge_cases.kt` | `Sequence.flatten` 実装 gap | `Stdlib/kotlin/sequences` / runtime sequence bridge の実装後に通常 diff へ |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
-| Property delegates | `property_delegate_edge_cases.kt` | `lazy`, `Delegates.observable/vetoable` gap | delegate lowering と stdlib delegate API のどちらが blocker か分離 |
+| Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |
 | ByteArray helpers | `string_tobytearray.kt` | `joinToString` / `contentEquals` Sema gap | ByteArray extension stubs + runtime helpers の task に分割 |
 | File/use | `file_use_edge_cases.kt` | `Closeable.use` と `java.io.File` surface | `use` common helperと JVM file interop を分離 |
@@ -117,6 +121,15 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | ByteArray UUID bridge | `uuid_put_uuid.kt` | kswiftc の `ByteArray.putUuid`/`ByteArray.uuid`/`ByteArray.getUuid` は `HeaderHelpers+SyntheticUuidStubs.swift` の bridge-only synthetic 拡張。実 Kotlin stdlib には同名だが `java.nio.ByteBuffer` 版（JVM専用、Kotlin 2.4〜）しか無く、`ByteArray` レシーバ版も top-level の `uuid()` も存在しないため JVM kotlinc は receiver type mismatch / unresolved reference で compile error になる | `ByteArray` 版を kswiftc 独自 surface として残すなら candidate-only test へ移す。real API 互換を狙うなら `ByteBuffer` 受け口への設計変更が必要 |
 
 `experimental_time_edge_cases.kt` は実行速度差で stdout が揺れるため、固定 clock / larger duration / unit test のどれかへ寄せてから diff に戻す。
+
+`property_delegate_edge_cases.kt` の詳細（2026-07-09 調査）: クラスメンバの `val/var x by lazy {...} / Delegates.observable(...)/vetoable(...)` は、トップレベルプロパティ用の実装（`KIRLoweringDriver+ModuleLowering+PropertyDecl.swift`）とは別系統の実装（`MemberLowerer` / `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift`）で lowering されており、そちらは `StdlibDelegateKind`（`lazy`/`observable`/`vetoable`/`notNull`）を想定していなかった。以下4件のバグを確認し、(1)(2) はワークツリーに修正を適用済み（未コミット）:
+
+1. **[修正済み]** `MemberLowerer+DelegatedAndAccessorLowering.swift` の `lowerDelegateAccessor`: `.custom` 以外（`lazy`/`observable`/`vetoable`/`notNull`）の getter/setter が `kk_lazy_get_value`/`kk_observable_set_value` 等を呼ぶ際、delegate ハンドル（`$delegate_x` の値）を引数に含めていなかった（`arguments: []` / `arguments: [valueExprID]` のみ）。ランタイム ABI（`kk_lazy_get_value(handle)`, `kk_observable_set_value(handle, newValue)` 等、`RuntimeABISpec+Delegate.swift`）は handle 必須のため、実引数0/1個で宣言された LLVM 外部関数型と実体（Swift `@_cdecl` 関数）のシグネチャが食い違い、`handle` が不定値になり `null`/`0` を返し続けていた。
+2. **[修正済み]** `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` の `emitDelegatePropertyInitializer`: メンバプロパティの delegate 初期化はコンストラクタ内で `propertyDecl.delegateExpression` のみを評価しており、トレーリングラムダ `propertyDecl.delegateBody`（`lazy` の初期化ブロック、`observable`/`vetoable` のコールバック）を一切参照していなかった。`lazy` は `kk_lazy_create` 呼び出し自体が欠落（生のクロージャ参照を直接フィールドへ copy）、`observable`/`vetoable` は `kk_*_create` の初期値のみ渡りコールバック引数が欠落していた。トップレベル実装が持つ `emitLazyDelegateInit`/`emitCallbackDelegateInit`（`lowerDelegateInitialValue`/`lowerDelegateLambdaBody` を使用）と同等のロジックを `StdlibDelegateKind` 判定つきで追加した。
+3. **[未修正・delegate 固有]** パラメータ付きトレーリングラムダ（`Delegates.observable(1) { _, old, new -> println(...) }` のような `_, old, new ->` prefix 付き）の `delegateBody` 抽出（`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` → `blockExpressions`）が、文単位区切りを前提にした汎用パーサーのため、パラメータリスト+アロー構文を正しく扱えず、コールバック本文が `unit` として消えている（`println`/比較式が一切実行されない）。`lazy` のようにパラメータなしの trailing block は正しく抽出できる。
+4. **[未修正・delegate と無関係の一般バグ]** bare-name（暗黙 `this`）の compound assign / inc-dec（`count += 1`, `count++`）がクラスメンバフィールドに対して書き込みを永続化しない。`ExprLowerer+ControlFlowAndBlocks.swift` の `.compoundAssign` 処理は top-level/object-member（親 kind が nil/`.package`/`.object`）と mutable-capture-boxed のケースのみ扱い、`.class`/`.interface` 所有のフィールドは「ephemeral local」フォールバックに落ちて `ctx` 上でのみ更新され実フィールドへの `kk_array_set` を発行しない。`this.count += 1`（明示レシーバ、PR #4633 で修正済みの経路）は正しく動く。`property_delegate_edge_cases.kt` の `lazy { initCount += 1; "ready" }` はこれに該当し、`token` の値自体は (1)(2) 修正で "ready" に直ったが `initCount` は 0 のまま。最小再現: `class C { var n = 0; fun f() { n += 1 } }` で `f()` 後も `n` が 0。
+
+3, 4 はどちらも本ケースの完全な pass に必要だが、4 は property delegate と無関係の独立した一般correctness bugであり、3 も AST パーサー層の変更を要するため、本 SKIP-DIFF 解除作業のスコープ外として別タスクに切り出した。
 
 ## DEBT-DIFF-006: inference / variance / boxed numeric lowering
 
