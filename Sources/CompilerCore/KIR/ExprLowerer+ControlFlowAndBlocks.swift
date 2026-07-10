@@ -1798,6 +1798,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: result,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -1845,6 +1846,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: containsResult,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -1939,12 +1941,16 @@ extension ExprLowerer {
         elementID: KIRExprID,
         containerID: KIRExprID,
         resultID: KIRExprID,
+        forceRuntimeFallback: Bool = false,
         sema: SemaModule,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // If sema resolved a user-defined operator fun contains, dispatch to it (STDLIB-OP-032)
-        if let callBinding = sema.bindings.callBindings[exprID],
+        // Range membership remains on the dedicated runtime path while explicit
+        // range.contains(...) calls migrate to bundled Kotlin source.
+        // Otherwise, dispatch to a user-defined operator fun contains (STDLIB-OP-032).
+        if !forceRuntimeFallback,
+           let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
