@@ -1484,6 +1484,64 @@ extension ExprLowerer {
                             instructions: &instructions
                         )
                     }
+                } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                              sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+                          ]
+                {
+                    // Instance field accessed via implicit `this` receiver: must load/store
+                    // through the object's field storage, mirroring the `.localAssign` write
+                    // path and the `nameRef` read path. Falling through to the plain-local
+                    // branch below would only update the compiler's local-value cache
+                    // (used for real locals/params), never the field itself, so the write
+                    // was silently dropped.
+                    let fieldType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+                    instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let rawLoadedValue = arena.appendTemporary(type: fieldType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_get_inbounds"),
+                        arguments: [receiverExprID, offsetExpr],
+                        result: rawLoadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    let loadedValue = wrapLateinitReadIfNeeded(
+                        rawLoadedValue,
+                        symbol: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    func storeField(_ value: KIRExprID) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_array_set"),
+                            arguments: [receiverExprID, offsetExpr, value],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeField(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: fieldType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeField(resultID)
+                    }
                 } else {
                     if let storageID = driver.ctx.localValue(for: symbol) {
                         // Compute lhs op rhs and update storage in place so the value
