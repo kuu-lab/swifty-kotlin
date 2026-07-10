@@ -489,18 +489,6 @@ enum MemberRuntimeDispatch {
                 argumentMode: .normalized,
                 thrownResultMode: .nullableAny
             )
-        case ("ifBlank", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_ifBlank_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("ifEmpty", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_ifEmpty_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
         case ("chunkedSequence", 1):
