@@ -335,7 +335,7 @@ enum MemberRuntimeDispatch {
         case "reversed":
             return rangeRuntimeName(kind: kind, member: "reversed", longMember: "reversed")
         case "step":
-            if key.arity <= 1 {
+            if key.arity == 0 {
                 return rangeRuntimeName(
                     kind: kind,
                     member: "step",
