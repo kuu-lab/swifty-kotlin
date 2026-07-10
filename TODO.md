@@ -120,7 +120,7 @@
 - [x] DEBT-DOC-001: `README.md` / `CLAUDE.md` の Swift toolchain 表記を実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）へ同期する
 - [x] DEBT-DOC-002: `docs/ARCHITECTURE.md` §4 の KIR テーブルへ未記載の実在ファイルを追記する（`CallSupportLowerer` / `ObjectLiteralLowerer` / `KIRLoweringContext` / `ConstantCollector` / `LateinitReadWrapping` / `KClassAnnotationRegistrationLowering` / `MutableCaptureCellHelpers` / `RuntimeTypeCheckToken` 等。architecture sync 済み範囲はモジュール構成・CI 表のみでファイルテーブルは未カバー）
 - [x] DEBT-DOC-003: `docs/ARCHITECTURE.md` §10 の Lowering パス実行順序へ未記載の実在パスを実行順付きで追記する（`EnumEntriesLoweringPass` / `EnumNameAccessLoweringPass` / `FlowLoweringPass` / `IntegerNarrowingPass` / `JvmOverloadsLoweringPass` / `JvmStaticLoweringPass` / `TailrecLoweringPass` / `ValueClassUnboxingPass`）
-- [ ] DEBT-DOC-004: `docs/ARCHITECTURE.md` の「CoroutineLoweringPass (+分割3ファイル)」を実態（`+Analysis` / `+CallRewriting` / `+Flow` / `+FlowInstructionRewrite` / `+LauncherSupport` / `+StateMachine` / `+Synthesis` の 7 分割・計 8 ファイル）へ修正する
+- [x] DEBT-DOC-004: `docs/ARCHITECTURE.md` の「CoroutineLoweringPass (+分割3ファイル)」を実態（`+Analysis` / `+CallRewriting` / `+Flow` / `+FlowInstructionRewrite` / `+LauncherSupport` / `+StateMachine` / `+Synthesis` の 7 分割・計 8 ファイル）へ修正する。2026-07-10 完了: §9 に `CoroutineLoweringPass.swift` 本体 + 7 extension ファイルの構成を明記。
 ## Dead Code 削除タスク（DEADCODE: 2026-06-12 監査）
 
 > 監査方法: (1) 識別子の「宣言数 = 全出現数」（参照ゼロ）による Swift シンボル抽出、(2) Runtime の全 `@_cdecl` 2,839 件について CompilerCore の文字列リテラル / 補間・連結による動的生成（`"\(prefix)_suffix"` 型を含む）/ `StdlibSurfaceSpec` テーブル経由、の全 emit 経路を検証。dead-code audit 第 1 回に相当。

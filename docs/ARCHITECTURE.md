@@ -291,6 +291,9 @@ KIRModule (lowered)
 19. ABILoweringPass              -- outThrown チャネル設定
 ```
 
+`CoroutineLoweringPass` は `CoroutineLoweringPass.swift` 本体と、責務別に分割された 7 個の extension ファイル
+(`+Analysis`, `+CallRewriting`, `+Flow`, `+FlowInstructionRewrite`, `+LauncherSupport`, `+StateMachine`, `+Synthesis`) で構成される。
+
 ---
 
 ## 10. CI ジョブ構成
