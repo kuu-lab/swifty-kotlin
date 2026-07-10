@@ -72,6 +72,64 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    /// KSP-481: HexFormat customization (byteSeparator/prefix/suffix/removeLeadingZeros)
+    /// is only reachable through the ordinary named-argument constructor here, not the
+    /// `HexFormat { }` builder lambda real kotlinc supports -- see the constraints
+    /// documented at the top of Stdlib/kotlin/io/encoding/HexFormat.kt. That gap keeps
+    /// this scenario out of Scripts/diff_cases (which requires kotlinc parity), so it is
+    /// pinned here against a hardcoded expected output instead.
+    func testCodegenCompilesHexFormatCustomization() throws {
+        let source = """
+        @OptIn(ExperimentalStdlibApi::class)
+        fun main() {
+            val fmt = HexFormat(upperCase = true, byteSeparator = ":", prefix = "0x", suffix = "h", removeLeadingZeros = true)
+            println(byteArrayOf(0xDE.toByte(), 0xAD.toByte(), 0xBE.toByte()).toHexString(fmt))
+            val encodedInt = 255.toHexString(fmt)
+            println(encodedInt)
+            println(encodedInt.hexToInt(fmt))
+            val encodedLong = 4096L.toHexString(fmt)
+            println(encodedLong)
+            println(encodedLong.hexToLong(fmt))
+            println(0.toHexString(HexFormat(removeLeadingZeros = true)))
+            try {
+                "ff".hexToInt(HexFormat(prefix = "0x"))
+            } catch (e: NumberFormatException) {
+                println("missing-prefix")
+            }
+            try {
+                "abc".hexToByteArray()
+            } catch (e: NumberFormatException) {
+                println("odd-length")
+            }
+            println(HexFormat.Default.upperCase)
+            println(HexFormat(byteSeparator = "-").bytes.byteSeparator)
+            val custom = HexFormat()
+            custom.number.prefix = "0x"
+            println(255.toHexString(custom))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "HexFormatCustomization",
+            expected:
+                """
+                DE:AD:BE
+                0xFFh
+                255
+                0x1000h
+                4096
+                0
+                missing-prefix
+                odd-length
+                false
+                -
+                0x000000ff
+                """
+                + "\n"
+        )
+    }
+
     func testCodegenCompilesDecodeToStringRangeEdgeCases() throws {
         let source = """
         fun main() {

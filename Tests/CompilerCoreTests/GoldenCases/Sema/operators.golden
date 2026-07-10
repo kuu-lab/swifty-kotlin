@@ -1,3 +1,5 @@
+symbol fq=Counter kind=class vis=public flags=_
+symbol fq=Counter.count kind=property vis=public flags=mutable type=Int
 symbol fq=__local_0.a kind=local vis=private flags=mutable type=Int
 symbol fq=__local_1.b kind=local vis=private flags=mutable type=Int
 symbol fq=__local_2.c kind=local vis=private flags=mutable type=Int
@@ -18,18 +20,24 @@ symbol fq=compoundSub.$4.x kind=valueParameter vis=private flags=_
 symbol fq=elvisOp kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=String
 symbol fq=elvisOp.$5.v kind=valueParameter vis=private flags=_
 symbol fq=kotlin.IntArray kind=class vis=public flags=synthetic
+symbol fq=memberCompoundAdd kind=function vis=public flags=_ sig=recv=_ params=[Counter] ret=Int
+symbol fq=memberCompoundAdd.$6.c kind=valueParameter vis=private flags=_
+symbol fq=memberCompoundDec kind=function vis=public flags=_ sig=recv=_ params=[Counter] ret=Int
+symbol fq=memberCompoundDec.$7.c kind=valueParameter vis=private flags=_
+symbol fq=memberCompoundInc kind=function vis=public flags=_ sig=recv=_ params=[Counter] ret=Int
+symbol fq=memberCompoundInc.$8.c kind=valueParameter vis=private flags=_
 symbol fq=negatedTypeCheck kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
-symbol fq=negatedTypeCheck.$6.v kind=valueParameter vis=private flags=_
+symbol fq=negatedTypeCheck.$9.v kind=valueParameter vis=private flags=_
 symbol fq=nullAssertOp kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=String
-symbol fq=nullAssertOp.$7.v kind=valueParameter vis=private flags=_
+symbol fq=nullAssertOp.$10.v kind=valueParameter vis=private flags=_
 symbol fq=safeCallExample kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=Int?
-symbol fq=safeCallExample.$8.s kind=valueParameter vis=private flags=_
+symbol fq=safeCallExample.$11.s kind=valueParameter vis=private flags=_
 symbol fq=safeCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String?
-symbol fq=safeCast.$9.v kind=valueParameter vis=private flags=_
+symbol fq=safeCast.$12.v kind=valueParameter vis=private flags=_
 symbol fq=typeCheck kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
-symbol fq=typeCheck.$10.v kind=valueParameter vis=private flags=_
+symbol fq=typeCheck.$13.v kind=valueParameter vis=private flags=_
 symbol fq=unsafeCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
-symbol fq=unsafeCast.$11.v kind=valueParameter vis=private flags=_
+symbol fq=unsafeCast.$14.v kind=valueParameter vis=private flags=_
 file f0 package=_
   decl typeCheck fun typeCheck sym=typeCheck
   decl negatedTypeCheck fun negatedTypeCheck sym=negatedTypeCheck
@@ -44,18 +52,22 @@ file f0 package=_
   decl compoundMod fun compoundMod sym=compoundMod
   decl safeCallExample fun safeCallExample sym=safeCallExample
   decl arrayAssignExample fun arrayAssignExample sym=arrayAssignExample
-expr e@1:34 name(v) type=Any ref=typeCheck.$10.v
+  decl Counter class Counter sym=Counter
+  decl memberCompoundAdd fun memberCompoundAdd sym=memberCompoundAdd
+  decl memberCompoundInc fun memberCompoundInc sym=memberCompoundInc
+  decl memberCompoundDec fun memberCompoundDec sym=memberCompoundDec
+expr e@1:34 name(v) type=Any ref=typeCheck.$13.v
 expr e@1:34#1 isCheck expr=e@1:34 type=String type=Boolean
-expr e@3:41 name(v) type=Any ref=negatedTypeCheck.$6.v
+expr e@3:41 name(v) type=Any ref=negatedTypeCheck.$9.v
 expr e@3:41#1 isCheck! expr=e@3:41 type=Int type=Boolean
-expr e@5:34 name(v) type=Any ref=unsafeCast.$11.v
+expr e@5:34 name(v) type=Any ref=unsafeCast.$14.v
 expr e@5:34#1 asCast expr=e@5:34 type=String type=String
-expr e@7:33 name(v) type=Any ref=safeCast.$9.v
+expr e@7:33 name(v) type=Any ref=safeCast.$12.v
 expr e@7:33#1 asCast? expr=e@7:33 type=String type=String?
 expr e@9:35 name(v) type=String? ref=elvisOp.$5.v
 expr e@9:40 string(default) type=String
 expr e@9:35#1 binary(elvis) lhs=e@9:35 rhs=e@9:40 type=String
-expr e@11:40 name(v) type=String? ref=nullAssertOp.$7.v
+expr e@11:40 name(v) type=String? ref=nullAssertOp.$10.v
 expr e@11:40#1 nullAssert expr=e@11:40 type=String
 expr e@14:13 name(x) type=Int ref=compoundAdd.$0.x
 expr e@14:5 localDecl a mutable=1 type=_ init=e@14:13 type=Unit ref=__local_0.a
@@ -87,7 +99,7 @@ expr e@39:10 int(4) type=Int
 expr e@39:5 compoundAssign(modAssign) name=e value=e@39:10 type=Unit ref=__local_4.e
 expr e@40:12 name(e) type=Int ref=__local_4.e
 expr e@40:5 return value=e@40:12 type=Nothing
-expr e@43:41 name(s) type=String? ref=safeCallExample.$8.s
+expr e@43:41 name(s) type=String? ref=safeCallExample.$11.s
 expr e@43:41#1 safeMemberCall recv=e@43:41 callee=hashCode args=[] type=<error>
 expr e@46:24 int(3) type=Int
 expr e@46:15 call callee=e@46:15#1 args=[_:e@46:24] type=kotlin.IntArray
@@ -100,3 +112,21 @@ expr e@48:12 name(arr) type=kotlin.IntArray ref=__local_5.arr
 expr e@48:16 int(0) type=Int
 expr e@48:12#1 indexedAccess receiver=e@48:12 indices=[e@48:16] type=Int
 expr e@48:5 return value=e@48:12#1 type=Nothing
+expr e@54:5 name(c) type=Counter ref=memberCompoundAdd.$6.c
+expr e@54:16 int(10) type=Int
+expr e@54:5#1 memberCompoundAssign(plusAssign) recv=e@54:5 callee=count value=e@54:16 type=Unit ref=Counter.count
+expr e@55:12 name(c) type=Counter ref=memberCompoundAdd.$6.c
+expr e@55:12#1 memberCall recv=e@55:12 callee=count args=[] type=Int ref=Counter.count
+expr e@55:5 return value=e@55:12#1 type=Nothing
+expr e@59:5 name(c) type=Counter ref=memberCompoundInc.$8.c
+expr e@59:12 int(1) type=Int
+expr e@59:5#1 memberCompoundAssign(plusAssign) recv=e@59:5 callee=count value=e@59:12 type=Unit ref=Counter.count
+expr e@60:12 name(c) type=Counter ref=memberCompoundInc.$8.c
+expr e@60:12#1 memberCall recv=e@60:12 callee=count args=[] type=Int ref=Counter.count
+expr e@60:5 return value=e@60:12#1 type=Nothing
+expr e@64:5 name(c) type=Counter ref=memberCompoundDec.$7.c
+expr e@64:12 int(1) type=Int
+expr e@64:5#1 memberCompoundAssign(minusAssign) recv=e@64:5 callee=count value=e@64:12 type=Unit ref=Counter.count
+expr e@65:12 name(c) type=Counter ref=memberCompoundDec.$7.c
+expr e@65:12#1 memberCall recv=e@65:12 callee=count args=[] type=Int ref=Counter.count
+expr e@65:5 return value=e@65:12#1 type=Nothing

@@ -1,10 +1,10 @@
 /// Sema coverage for STDLIB-RANDOM-FN-002:
 /// `fun java.util.Random.asKotlinRandom(): Random` extension function.
 ///
-/// The function is registered as a synthetic top-level extension in the
-/// `kotlin.random` package with `java.util.Random` as its receiver and
-/// `kotlin.random.Random` as its return type. It is linked to the runtime
-/// entry `kk_random_asKotlinRandom`.
+/// The function is a top-level extension in the `kotlin.random` package with
+/// `java.util.Random` as its receiver and `kotlin.random.Random` as its return
+/// type (Sources/CompilerCore/Stdlib/kotlin/random/JavaRandomInterop.kt). KSP-466:
+/// real Kotlin source (`this.delegate`), not a native bridge.
 
 #if canImport(Testing)
 @testable import CompilerCore
@@ -35,8 +35,10 @@ struct RandomAsKotlinRandomFunctionTests {
                 "asKotlinRandom must be registered as a top-level extension in kotlin.random")
     }
 
-    /// The registered overload accepts no value parameters and links to
-    /// `kk_random_asKotlinRandom`.
+    /// The registered overload accepts no value parameters. KSP-466: asKotlinRandom
+    /// is real Kotlin source now (JavaRandomInterop.kt: `this.delegate`), not a
+    /// native bridge — a raw pointer passthrough stopped being safe once
+    /// kotlin.random.Random became a genuine compiled object.
     @Test func testAsKotlinRandomLinksToRuntimeStub() throws {
         let (sema, interner) = try makeSema()
 
@@ -48,8 +50,8 @@ struct RandomAsKotlinRandomFunctionTests {
         }
         let candidateSym = try #require(arity0,
                                         "asKotlinRandom must expose an arity-0 (value parameters) overload")
-        #expect(sema.symbols.externalLinkName(for: candidateSym) == "kk_random_asKotlinRandom",
-                "asKotlinRandom must link to kk_random_asKotlinRandom")
+        #expect(sema.symbols.externalLinkName(for: candidateSym) == nil,
+                "asKotlinRandom is real Kotlin, not a native bridge")
     }
 
     /// The receiver type must be `java.util.Random` so that

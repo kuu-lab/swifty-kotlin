@@ -35,7 +35,14 @@ runs:
         done
     - name: Install LLVM
       shell: bash
-      run: sudo apt-get update && sudo apt-get install -y llvm-dev
+      run: |
+        # Runner images preinstall unrelated third-party apt sources (e.g. packages.microsoft.com
+        # for azure-cli/dotnet) that this job never uses. Their signing occasionally breaks
+        # ("Clearsigned file isn't valid") and would otherwise fail `apt-get update` entirely,
+        # even though we only need packages from the standard Ubuntu archive. Disable them first
+        # so a third-party outage can't block installing llvm-dev.
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
+        sudo apt-get update && sudo apt-get install -y llvm-dev
     - name: Configure LLVM paths
       shell: bash
       run: |

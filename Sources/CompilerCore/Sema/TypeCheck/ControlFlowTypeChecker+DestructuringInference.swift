@@ -113,13 +113,23 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
 
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // `until` desugars to a memberCall (infix function), not a `.binary` range op,
+        // so the AST-shape check alone misses it; fall back to the semantic flag that
+        // markRangeCallBindings sets when resolving such calls.
         let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+            || sema.bindings.isRangeExpr(iterableExpr)
         let elementType: TypeID = bindLoopIterationOperators(
             exprID: id,
             iterableType: iterableType,
             range: range,
             ctx: ctx
-        ) ?? driver.helpers.iterableElementType(for: iterableType, isRangeExpr: isRangeExpr, sema: sema, interner: interner) ?? {
+        ) ?? driver.helpers.iterableElementType(
+            for: iterableType,
+            isRangeExpr: isRangeExpr,
+            isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
+            sema: sema,
+            interner: interner
+        ) ?? {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0087",
                 "Cannot determine element type for destructuring in for-loop.",

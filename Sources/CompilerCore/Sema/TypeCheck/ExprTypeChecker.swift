@@ -389,6 +389,9 @@ final class ExprTypeChecker {
         case let .indexedCompoundAssign(op, receiverExpr, indices, valueExpr, range):
             return driver.localDeclChecker.inferIndexedCompoundAssignExpr(id, op: op, receiverExpr: receiverExpr, indices: indices, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
 
+        case let .memberCompoundAssign(op, receiverExpr, calleeName, valueExpr, range):
+            return inferMemberCompoundAssignExpr(id, op: op, receiverExpr: receiverExpr, calleeName: calleeName, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
+
         case let .whenExpr(subjectID, branches, elseExpr, range):
             return driver.controlFlowChecker.inferWhenExpr(id, subjectID: subjectID, branches: branches, elseExpr: elseExpr, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 

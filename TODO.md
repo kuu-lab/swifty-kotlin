@@ -270,9 +270,10 @@
 - [ ] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
   - 注意: **同一 PR で** `BundledKotlinStdlib.kotlinTextSource` 内の同名 5 関数を削除（二重定義になるため）。runtime `__string_trimIndent` 系 / `kk_string_trimIndent` 系（`RuntimeStringFormat.swift`）は Kotlin 版が完全なら削除、不足なら `__kk_` 降格
   - 手順: T / diff: `string_indent.kt`（既存）
-- [ ] KSP-303: StringSearchReplace を配線する（`replace`×3, `replaceFirst`×3, split(regex) 等）
+- [x] KSP-303: StringSearchReplace を配線する（`replace`×3, `replaceFirst`×3, split(regex) 等）
   - 削除: `kk_string_replace`, `kk_string_replace_char`, `kk_string_replace_ignoreCase`, `kk_string_replace_char_ignoreCase`, `kk_string_replaceFirst`, `kk_string_replaceFirst_ignoreCase`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）+ `HeaderHelpers+SyntheticStringStubs.swift` / `CallLowerer+StringStdlibMemberCalls.swift` の該当 case
   - 手順: T
+  - 完了(2026-07-07): `StringSearchReplace.kt` を除外解除し、`replace`/`replaceFirst`/`split(regex)` を source-backed 化。削除対象 raw export / synthetic public link / KIR direct case は 0 件。`StringSyntheticMemberLinkTests`、`RegexAPISurfaceInventoryTests`、`StringSplitFunctionTests`、`RegexSemaLoweringTests.testStringSplitWithRegexUsesSourceBackedWrapper`、関連 codegen/ABI tests、`GoldenSemaGoldenTests.matchesGolden` 通過。
 - [ ] KSP-304: Result を配線する（クラス本体 + `runCatching` ほか全 16 API）
   - 注意: スタブがヘッダ収集前に Result クラスを登録して二重定義になる既知問題 → KSP-002 の優先規則がクラス宣言にも効くことを先に確認
   - 削除: `HeaderHelpers+SyntheticResultStubs.swift` 全体 / `RuntimeResult.swift` の `kk_result_*` 15 関数 + `kk_runCatching` / `CallLowerer+MemberCalls.swift` の Result 特例
@@ -298,7 +299,7 @@
   - 対象: `compareBy`×2, `compareByDescending`×2, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`
   - 削除: `RuntimeComparator.swift` の対応 `kk_comparator_*`（trampoline 含む）/ `HeaderHelpers+SyntheticComparatorStubs.swift` の同登録 / `CallLowerer+StdlibComparisons.swift` の同 case
   - 注意: Comparator SAM ディスパッチ対応が前提（未対応ならブロッカーとして報告）/ diff: `comparisons_edge_cases.kt`（既存）
-- [ ] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）
+- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）— KSP-476 で完遂
   - ブリッジ残留: `kk_uuid_random`（エントロピー）と `kk_uuid_nameUUIDFromBytes`（MD5）は `__kk_` 降格。パース/整形/ビット抽出は Kotlin 化
   - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存）
   - 手順: T
@@ -317,8 +318,8 @@
 - [ ] KSP-401: empty/blank/lines 系を Kotlin 化（`isEmpty`, `isNotEmpty`, `isBlank`, `isNotBlank`, `isNullOrEmpty`, `isNullOrBlank`, `ifEmpty`, `ifBlank`, `orEmpty`, `lines`, `lineSequence`）
   - 削除 kk_*: `kk_string_isEmpty`, `kk_string_isNotEmpty`, `kk_string_isBlank`, `kk_string_isNotBlank`, `kk_string_ifBlank`, `kk_string_ifEmpty`, `kk_string_orEmpty`, `kk_string_isNullOrEmpty`, `kk_string_isNullOrBlank`, `kk_string_lines`, `kk_string_lineSequence`（`RuntimeStringQuery.swift`）
   - 完了: `rg '"kk_string_is|"kk_string_if|"kk_string_orEmpty|"kk_string_lines' Sources/CompilerCore` 0 件 + G
-- [ ] KSP-402: first/last/single 系を Kotlin 化（`first`, `last`, `single`, `firstOrNull`, `lastOrNull`, `singleOrNull`, `getOrNull` + predicate 版）
-  - 削除 kk_*: `kk_string_first`, `kk_string_last`, `kk_string_single`, `kk_string_firstOrNull`, `kk_string_lastOrNull`, `kk_string_singleOrNull`, `kk_string_getOrNull`, `kk_string_singleOrNull_predicate`（`RuntimeStringQuery.swift`）
+- [x] KSP-402: first/last/single 系を Kotlin 化（`first`, `last`, `single`, `firstOrNull`, `lastOrNull`, `singleOrNull`, `getOrNull` + predicate 版）
+  - 削除 kk_*: `kk_string_first`, `kk_string_last`, `kk_string_single`, `kk_string_firstOrNull`, `kk_string_lastOrNull`, `kk_string_singleOrNull`, `kk_string_getOrNull`, `kk_string_singleOrNull_predicate`（`RuntimeStringQuery.swift` / `RuntimeStringHOF.swift`）
 - [ ] KSP-403: trim 系を Kotlin 化（`trim`, `trimStart`, `trimEnd` + predicate 版）
   - 削除 kk_*: `kk_string_trim`, `kk_string_trim_predicate`, `kk_string_trimStart`, `kk_string_trimStart_predicate`, `kk_string_trimEnd`, `kk_string_trimEnd_predicate` / diff: `string_trimstart_trimend.kt`（既存）+ predicate 版追加
 - [ ] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`）
@@ -430,40 +431,58 @@
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-466: Random を Kotlin 化する（本家同様 XorWow 相当の決定的アルゴリズムを Kotlin 実装）
-  - ブリッジ残留: 初期シード用エントロピー取得 `__kk_random_seed_entropy`（新設）のみ。`kk_random_nextInt/Long/UInt/ULong/Float/Double/Boolean/Bits/Bytes/UBytes` 系 30+ 関数（`RuntimeRandom.swift`）を Kotlin 実装で置換・削除
-  - 注意: 乱数出力列が現行実装と変わる。`rg -l 'random' Scripts/diff_cases` のケースがシード固定の期待値に依存していないか先に確認し、依存があればケースを期待値非依存形へ修正
-- [ ] KSP-467: SecureRandom / asJavaRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数, `kk_random_asKotlinRandom`, `kk_random_asJavaRandom`, `kk_random_create_seeded`, `kk_random_default`）
+- [x] KSP-466: Random を Kotlin 化する（本家同様 XorWow 相当の決定的アルゴリズムを Kotlin 実装）
+  - `Sources/CompilerCore/Stdlib/kotlin/random/{Random,URandom,JavaUtilRandom,JavaRandomInterop}.kt` に実装。`kotlinc` と全12値で bit-exact 一致を確認済み（`Random(42/0/-1/123456789L)` の nextInt/nextLong/nextBits/nextDouble/nextBoolean/nextInt(range)）。`rg -l 'random' Scripts/diff_cases` の14ケース全て `diff_kotlinc.sh` green（シード固定の期待値依存なし）
+  - 設計変更: 本家は `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` の3分割だが、KSwiftK は「class と同名のトップレベル関数が共存できない」制約があるため `Random` 1クラスに統合し、`Random(seed)` は public セカンダリコンストラクタとして実装（挙動は同一）
+  - ブリッジ残留: `__kk_random_seed_entropy`（新設）のみ。`kk_random_nextInt/Long/UInt/ULong/Float/Double/Boolean/Bits/Bytes/UBytes` 系28関数を削除。`kk_random_nextInt/nextLong_rangeObject`・`kk_random_nextUInt_uintRange`/`kk_random_nextULong_ulongRange`（KSP-457、member 登録で到達可能性を確保）のみ保持。`asKotlinRandom`/`asJavaRandom`/`java.util.Random` 自体も実 Kotlin ソース化（`kk_random_create_seeded`/`kk_random_asKotlinRandom`/`kk_random_asJavaRandom` は削除）— `kotlin.random.Random` が実オブジェクトになったことで両者のハンドル表現が乖離し、生ポインタ受け渡しが安全でなくなったため、`java.util.Random` は `delegate: kotlin.random.Random` を保持する薄いラッパークラスに再設計
+  - 残課題: `Sequence.shuffled(random)`/`List.shuffled(random)`/`String.random(random)`/`Range.random(random)` の4箇所は、`Random(seed)` が実 Kotlin オブジェクトになったことで旧 `SeededRandomBox` 前提のメモリ安全性が失われるため、vtable 経由でのディスパッチを試みたが（`kk_vtable_lookup` のスロット番号が本ファイルの編集のたびに 3→6→8 とズレる上、修正後も原因不明の不整合が残ったため）安全側に倒し、これら4箇所は当面システムエントロピーにフォールバックする（`Random(seed)` を渡してもシード決定性が効かない）。決定性の回復は各機能自体の Kotlin 化タスクで対応する
+  - 実装中に修正したコンパイラ本体バグ: `nextInt(IntRange)`/`nextLong(LongRange)` が range 引数を Int/Long 版へ誤解決されるケースで、KIR 側は callee 名を正しく `kk_random_*_rangeObject` へ補正していたが `.call` 命令の `symbol` フィールドが古い（誤った）解決先シンボルのまま残り、コード生成が `symbol` の内部関数を `callee` 名より優先して呼ぶため補正が無視されていた（`CallLowerer+MemberCallEmission.swift`）。`symbol` も併せて nil にリセットするよう修正
+  - 副次的に発見した既存バグ（Random 本体とは無関係、いずれも要フォローアップ・spawn_task で別途起票済み）: (1) インスタンスフィールドへの `+=`/`++` が反映されない、(2) 初期化ラムダなしの `ByteArray(size)` がリンクエラーになる、(3) `ByteArray(negativeSize) { init }` が例外を投げず空配列を返す、(4) `SecureRandom.generateSeed`/`nextBytes` の返り値に `.size` が無い、(5) `IntRange.random(Random)` が無限にハングする、(6) 同名エイリアスインポートを介したセカンダリコンストラクタ委譲 (`this(...)`) が無限再帰する、(7) メンバ関数内のラムダが3個以上の変数をキャプチャすると値が壊れる/クラッシュする、(8) ULong/UInt の最上位ビットが立った値の比較・toString が符号付きとして誤解釈される
+  - 検証: Sema/Codegen 関連テスト全 green、Golden 再生成済み（意味論的差分のみ、機械的な ID シフト確認済み）、ABIMismatchTests green。フルの `diff_kotlinc.sh Scripts/diff_cases`（669ケース）も完走を確認済み（`total=669 failed=1 passed=668 skipped=67`。唯一の失敗 `coroutine_delay_basic.kt` は Random と無関係な既存タイミング依存テストで、実行環境の高負荷時のみ200msしきい値を超えるフレークと単体再実行で確認済み）。`random_xorwow_parity.kt`（seed 導出式含む XorWow 全体のビット完全一致を固定する回帰テスト）もこの完走に含まれ green
+- [ ] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）
 
 #### kotlin.time [M8 実行体]
 
-- [ ] KSP-471: Duration を Kotlin 化する（構築 21+、`inWhole*` 7、述語 4、算術 6、`compareTo`、`absoluteValue`、`toString`/`toIsoString`/`parse*` 6、`toComponents` 4）
-  - 注意: 死蔵 `Stdlib/kotlin/time/Duration.kt` を下敷きに `Sources/CompilerCore/Stdlib/kotlin/time/Duration.kt` として移設。インライン `kotlinTimeSource`（数値拡張プロパティ 21 個含む）を**同一 PR で**削除（KSP-503 と統合可）
-  - 削除 kk_*: `RuntimeDuration.swift` の該当関数（rg で列挙、`kk_measureTime*`/`kk_timedvalue_*` を除く）/ diff: `duration_*.kt` 5 ケース（既存）
-- [ ] KSP-472: Instant/Clock/measureTime のブリッジを確定する
-  - ブリッジ残留（`__kk_` 降格）: `kk_instant_now`, `kk_clock_system_now`, `kk_clock_now`, `kk_measureTime`, `kk_measureTimedValue`（時刻源）
-  - Kotlin 化: `kk_instant_epoch_seconds`, `kk_instant_nano_of_second`, `kk_instant_is_distant_past/future`, `kk_instant_plus/minus_duration`, `kk_instant_compare`, `kk_instant_until`, `kk_instant_elapsed`（now ブリッジ経由）, `kk_instant_from_epoch_millis`, `kk_timedvalue_*` 3 関数
+- [x] KSP-471: Duration を Kotlin 化する（構築 21+、`inWhole*` 7、述語 4、算術 6、`compareTo`、`absoluteValue`、`toString`/`toIsoString`/`parse*` 6、`toComponents` 4）
+  - 完了: `Sources/CompilerCore/Stdlib/kotlin/time/Duration.kt` に統合済み。インライン `kotlinTimeSource` は削除済み（`BundledKotlinStdlib.swift`/`FrontendPhases.swift` 両方から除去。`kotlinSequencesSource` は KSP-503 の残タスクとして継続）
+  - コンパイラ本体に2件のコア機能バグを発見・修正（Duration 化の前提として必須だった）: (1) `Box.Companion` のようなネスト型参照が同一パッケージ内で解決できなかった（`resolveNominalCandidates` in `BodyAnalysis.swift`）→ 既存 golden `companion_object_private_access` の `<error>` 型が正しい型に修正される副作用あり (2) 拡張プロパティのオーバーロード（`Int.seconds`/`Long.seconds`/`Double.seconds` 等レシーバ型違い）が `SymbolTable.define`/`canCoexistAsOverload` で後勝ち上書きされ実質2つ消えていた → `isExtensionProperty` 引数を追加して修正 (3) `Duration.ZERO` 等 Companion 省略形の呼び出しに Companion 拡張プロパティ/関数へのフォールバックが無かった → `CallTypeChecker+MemberCallInferenceRegularResolution.swift` に追加
+  - 削除 kk_*: `RuntimeDuration.swift` から 32 関数削除（`kk_duration_from_*` 20個・`inWhole{Milliseconds,Seconds,Minutes,Microseconds,Hours,Days}` 6個・`toIsoString`・`toComponents_*` 4個・`isFinite`）。`kk_duration_from_nanoseconds` のみ残置（`CallLowerer+StdlibLoops.swift` の measureTime エピローグが直接呼ぶため削除不可と判明）。`RuntimeABISpec+Duration.swift`/`RuntimeABISpec+BridgeCoverage.swift`/`ABIMismatchTests+SyntheticStubParity.swift` も追随
+  - 検証: RuntimeDurationTests 93件・ABIMismatchTests 144件・DurationSyntheticStubTests 6件（要更新）・CodegenBackendIntegrationTests の `testDurationStable*` 25件、全て green。golden 差分は意図した変更のみ（Companion 直結→Kotlin source 経由）。diff: `duration_*.kt` 4/4 PASS + `duration_operations.kt` 1 SKIP（既存 SKIP-DIFF）
+- [~] KSP-472: Instant/Clock/measureTime のブリッジを確定する（2026-07-08、一部配線）
+  - Kotlin 化済み: `kk_instant_epoch_seconds`, `kk_instant_nano_of_second`, `kk_instant_is_distant_past/future`, `kk_instant_plus/minus_duration`, `kk_instant_compare`, `kk_instant_until` を `__kk_instant_*` bridge（`HeaderHelpers+SyntheticInstantStubs.swift`）へ降格し、`Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt` の拡張プロパティ/演算子/関数から呼ぶ形に配線。`elapsed()` はブリッジなしで `this.until(Instant.now())` として実装。`kk_timedvalue_value`/`kk_timedvalue_duration` も同様に `__kk_timedvalue_*` bridge 化し `Sources/CompilerCore/Stdlib/kotlin/time/TimedValue.kt` へ配線（`HeaderHelpers+SyntheticDurationStubs.swift`）
+  - 副次修正: `HeaderHelpers+SyntheticClockStubs.swift` が `HeaderHelpers+SyntheticInstantStubs.swift` と同じ Instant companion/property/method を重複登録していたバグを解消（Clock 関連の登録のみに縮小、Instant symbol/type の再取得のみ残す）
+  - 未達（記録時点の技術的制約、direct stub のまま変更なし）: `kk_instant_now`, `kk_instant_from_epoch_millis`, `kk_clock_system_now` は companion/nested-object のファクトリメソッドで、このコンパイラの拡張関数宣言はレシーバ型としてネストした `Foo.Companion`/`Foo.Bar` を解決できない（`fun Foo.Companion.f(): Foo` は "Unresolved type 'Companion'" になる。単純ネストクラスの `fun Outer.Inner.f()` でも同様に再現する一般的な制約）ため Kotlin source の拡張として書けない、とされていた。**KSP-471 で `resolveNominalCandidates`（`BodyAnalysis.swift`）に同一パッケージ内のネスト型解決を実装済みのため、この制約は解消されている可能性が高い** — 次回 KSP-472 に着手する際は `fun Instant.Companion.now(): Instant` 等が実際に解決できるか再検証してから未達判定を見直すこと。`kk_clock_now` は `Clock` がユーザー実装可能な interface であり `now()` の member dispatch が必須（この制約とは無関係、引き続き残置）。`kk_measureTime`/`kk_measureTimedValue` は `CallLowerer+StdlibLoops.swift` の KIR 特殊インライン展開が `stdlibSpecialCallKind`（関数名ベース）でディスパッチしており、direct stub 名を変更すると壊れるため対象外。`kk_timedvalue_new` は `measureTimedValue` の KIR lowering からのみ呼ばれる内部コンストラクタで、Kotlin source から到達しないため対象外
+  - フォローアップ候補: 上記の再検証で実際に配線可能と分かった場合、`kk_instant_now`/`kk_instant_from_epoch_millis`/`kk_clock_system_now` の Kotlin 化を追加タスク化する
 
 #### kotlin.uuid [M12 実行体]
 
-- [ ] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
+- [x] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
+  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
+    残存ブリッジは `random`/`fromLongs`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の5個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
+    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop）も同様にブリッジ維持（renamed）。
+    本タスクはコアクラス部分（KSP-310 相当）を並行実装した #4575 とのマージで完遂 — 実コンストラクタ設計は #4575 を採用し、`ByteArray` 拡張3関数 + `toKotlinUuid` 改名を本 PR の差分として上乗せした。
 
 #### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
 
-- [ ] KSP-481: HexFormat を Kotlin 化する（全 16 関数が純ロジック）
+- [x] KSP-481: HexFormat を Kotlin 化する（全 16 関数が純ロジック）
   - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/HexFormat.kt`（拡張関数のみ。HexFormat クラス本体は新規実装）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt`
   - 削除 kk_*: `kk_hexformat_default`, `kk_hexformat_create`, `kk_hexformat_upperCase`, `kk_hexformat_bytes`, `kk_int_toHexString`, `kk_long_toHexString`, `kk_bytearray_toHexString`, `kk_string_hexToInt`, `kk_string_hexToShort`, `kk_string_hexToLong`, `kk_string_hexToUByte`, `kk_string_hexToUShort`, `kk_string_hexToUInt`, `kk_string_hexToULong`, `kk_string_hexToByteArray`, `kk_string_hexToUByteArray`（`RuntimeHexFormat.swift`）/ `HeaderHelpers+SyntheticHexFormatStubs.swift` の該当登録
-  - 手順: T / diff: `hexformat_basic.kt`（既存）/ 完了: `rg '"kk_hexformat_|"kk_string_hexTo' Sources/CompilerCore` 0 件 + G
+  - 手順: T / diff: `hexformat_basic.kt`（既存）+ `hexformat_padding_and_arrays.kt`（新規、`Long.toHexString` の桁パディング等）/ 完了: `rg '"kk_hexformat_|"kk_string_hexTo' Sources/CompilerCore` 0 件 + G
+  - 2026-07-08 完了。HexFormat は単一フラットクラス（`NumberHexFormat`/`BytesHexFormat` 分離なし、`bytes`/`number` は `this` を返すエイリアス）として実装。`STDLIB-HEX-001`（`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`）は実配線後は到達不能と確認しdelete。旧 kk_* 実装のバグ（`Long.toHexString` が正の値でゼロパディングされない）を発見・修正（`Scripts/diff_cases/hexformat_padding_and_arrays.kt` で固定）。
+  - 既知の制約（本タスクでは対処せず、影響範囲を確認しコード内コメントで明記のみ）: (1) 実 Kotlin の `HexFormat { }` ビルダー DSL 構文が使えない — トップレベル関数とクラスの同名宣言が `KSWIFTK-SEMA-0001` で拒否される件、およびコンストラクタ本体からその関数型パラメータを参照するとコード生成が未定義シンボルを吐く件、の2つの独立したコンパイラ制約による。回避策としてカスタム format は通常の名前付き引数コンストラクタ（`HexFormat(prefix = "0x", ...)`）経由でのみ構築可能にした（この経路は `diff_kotlinc` 非対応のため `CodegenBackendIntegrationTests+EncodingEdgeCases.swift` の `testCodegenCompilesHexFormatCustomization` で個別に固定）。(2) `Int/Long.toUInt()` 系の符号なし変換は、変換元が符号あり型へのナローイングを経て負値になるケースで壊れる（`hexToUInt`/`hexToUShort`/`hexToUByte` は Long アキュムレータから直接 `.toUInt()` 等を呼ぶことで回避）。(3) `StringBuilder(capacity: Int)` （容量指定コンストラクタ）呼び出しがクラッシュする（無引数 `StringBuilder()` で回避）。
 - [ ] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
   - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/Base64.kt`（クラス + variant 実装あり）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`
   - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
   - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
   - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
-- [ ] KSP-483: File のパス純ロジック層を Kotlin 化する
+- [x] KSP-483: File のパス純ロジック層を Kotlin 化する
   - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
-  - 削除 kk_*: `kk_file_name`, `kk_file_path`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
-  - 下敷き: 死蔵 `Stdlib/kotlin/io/FileIO.kt` → `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt` / diff: `file_props.kt`（既存）/ 手順: T
+  - 削除 kk_*: `kk_file_name`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
+  - `kk_file_path` は削除せず維持: `path` は `RuntimeFileBox` の内部状態への唯一のアクセス経路であり、`kotlin.io` パッケージの拡張プロパティとして宣言すると `kotlin.io.path`（Path 関連 API のサブパッケージ）と FQName が衝突し `KSWIFTK-SEMA-0001` になるため、`java.io.File` の直接合成メンバーのまま残した。他 12 関数は Kotlin ソース側でこの `path` から計算する
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt`（新規）/ diff: `file_props.kt`（既存、対象13関数のケースを追加）
+  - 付随修正: bundled stdlib 全体を無条件スキャンしていた既存テスト6件（`FileStartsWithFunctionTests` 等）が Files.kt 内の標準関数呼び出し（`String.startsWith`/`lastIndexOf`/`replace`/`addAll`/`last`/`joinToString`/if 式カウント）を誤検出していたため bundled 除外条件を追加、`FileNormalizeFunctionTests` の名前衝突を解消
+  - 副産物: `&&`/`||` が短絡評価されない既存の重大バグを発見（別タスクとして報告済み、Files.kt 側は非短絡評価前提の書き方で回避）
 - [ ] KSP-484: File I/O の syscall 層を `__kk_` 降格する
   - 対象（ブリッジ残留・改名のみ）: 構築 `kk_file_new(_parent_child)`, 読み書き `kk_file_readText/readBytes/readLines/writeText/appendText/writeBytes/appendBytes`, 存在判定 `kk_file_exists/isFile/isDirectory/canRead/canWrite/canExecute/length/lastModified`, FS 操作 `kk_file_delete/mkdirs/createNewFile/listFiles`, 走査 `kk_file_walk(TopDown/BottomUp)`, `kk_file_tree_walk_sortedBy`, ストリーム/リソース/temp 系（`rg -o '@_cdecl\("kk_(file|files|io|classloader|resource|input_stream|output_stream)[a-zA-Z_]*"\)' Sources/Runtime/RuntimeFileIO.swift` で全列挙）
   - 公開 API 層（`forEachLine`/`useLines`/`readLines` のイテレーション・例外規約・デフォルト引数分岐）は Kotlin 化し、ブロック単位 I/O のみブリッジに残す
@@ -488,9 +507,10 @@
   - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
   - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
   - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
-- [ ] KSP-492: custom delegate / KProperty メタデータ経路を整理する
+- [x] KSP-492: custom delegate / KProperty メタデータ経路を整理する
   - 前提: KSP-491。対象: `kk_custom_delegate_create/get_value/set_value`, `kk_delegate_get_value/set_value`, `kk_kproperty_stub_*` 系
   - custom delegate（ユーザー定義 getValue/setValue）が operator 規約の通常解決で動くなら特例削除、`KProperty` メタデータ生成は `__kk_` 降格 / diff: `delegate_custom_basic.kt`, `delegate_provide.kt`, `property_delegate_edge_cases.kt`（既存）
+  - 2026-07-08 完了: KSP-491（未着手）とは独立に完了。`StdlibDelegateLoweringPass.swift` の `.custom` ケースは lazy/observable/vetoable/notNull 特例と別ブロックのため依存なし。実測（`--emit llvm` で生成コード確認）で custom delegate の getValue/setValue は既に Sema 解決済みシンボルへの直接呼び出しで動作しており `kk_custom_delegate_create/get_value/set_value` と `kk_delegate_get_value/set_value` はデッドコードと判明したため削除。`kk_kproperty_stub_*` は生きたブリッジのため `__kk_kproperty_stub_*` へ改名
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 
@@ -503,14 +523,27 @@
 
 #### kotlin.coroutines / Flow / Channel [(c)/(b) 分類確定 + (b) 群のみ移行]（棚卸し 2026-07-01: スタブ 23 ファイル 10,849 行 / Runtime 7 ファイル 279 @_cdecl）
 
-- [ ] KSP-498: coroutines 系の (c)/(b) 分類を確定し `docs/stdlib-pipeline.md` §9 へ記載する
+- [x] KSP-498: coroutines 系の (c)/(b) 分類を確定し `docs/stdlib-pipeline.md` §9 へ記載する
   - (c) 残留（`__kk_` 降格のみ）: suspend 機構・continuation（`kk_suspend_coroutine`, `kk_coroutine_continuation_*`）、builder（`kk_kxmini_launch/async`, `kk_job_join`）、Channel（`kk_channel_send/receive`）、timing（`kk_delay`, `kk_withTimeout`, `kk_yield`）、同期プリミティブ（`kk_mutex_*`, `kk_semaphore_*`）、context（`kk_context_plus/cancel`）
   - (b) 候補（KSP-499 以降で移行）: Flow terminal（`kk_flow_to_list/fold/first`）、Flow 合成（`kk_flow_merge/zip/combine`）、Flow per-element（map/filter/take/debounce）、`coroutineScope`/`supervisorScope`、Atomic CAS ループ（`RuntimeAtomic.swift` 91 関数。既存 `concurrent/AtomicMigration.kt` の委譲パターンを踏襲）
   - 成果物: 対象 7 Runtime ファイル・23 スタブファイルの分類表を §9 に追記（コード変更なし）
 - [ ] KSP-499: Flow オペレータ (b) 群を Kotlin 化する
   - 前提: KSP-498 + suspend fun を含む bundled Kotlin ソースのコンパイル対応を確認（未対応なら**ブロッカーとして報告し中断**）
+  - **既知のブロッカー（2026-07-08 コード確認済み）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift` の
+    `lowerFlowExpressions` が `map`/`filter`/`take`/`toList`/`first`/`merge`/`zip`/`combine`/`flatMapConcat/Merge/Latest`/
+    `debounce` 等を、Sema が解決した callee symbol を無視して「レシーバの flow provenance + 呼び出し名の文字列一致」だけで
+    `kk_flow_*` へ構造的に書き換える（`FlowLoweringNames` 初期化コード参照）。bundled Kotlin 側にこれらの名前で実装を
+    追加しても Lowering 段階で無条件に上書きされ呼ばれない。着手前に、このパスを対象外にする変更（同一 PR 必須）と
+    ダミー実装差し替えテストでの再検証が必要。詳細: `docs/stdlib-pipeline.md` §9 KSP-498 セクション「Flow (b) 移行の前提条件」
   - 対象: `kk_flow_to_list`, `kk_flow_fold`, `kk_flow_first`, `kk_flow_merge`, `kk_flow_zip`, `kk_flow_combine` + per-element オペレータ（`RuntimeCoroutineFlow.swift` の 34 関数から (b) 分を rg で列挙）。`kk_flow_create/emit/collect` は (c) ブリッジ経由
   - diff: `flow_basic.kt`, `flow_builders.kt`, `flow_advanced_operators.kt` ほか既存 6 ケース / 手順: T
+  - 🟡 **前提解決の根本修正を実施中（2026-07-08）**: 当初「着手不可」と判断したブロッカーのうち、以下の基盤修正が完了・実機検証済み。KSP-499 本体（実際の (b) 群 Kotlin 実装 + stub/cdecl/ABI 削除）はこれから着手。
+    1. **Lowering が解決済みシンボルを無視して呼び出し名で書き換える問題 → 🟢 修正済み**: `FlowLoweringPass.swift` と `CoroutineLoweringPass+FlowInstructionRewrite.swift`（`rewriteFlowInstructions`）に、Sema が実宣言（`SemaModule.bundledIndex`、bundled Kotlin ソース由来）へ解決した呼び出しは構造的書き換えをスキップするガードを追加。加えて `CallTypeChecker+MemberCallInferenceCollectionFlow.swift`（`tryBuiltinFlowMemberCall` 呼び出し前）と `CallLowerer+MemberCalls.swift`（KIR 層の `transform`/`single` 特例）にも同様のガードを追加し、Sema・KIR・Lowering の3層すべてで「bundled/ユーザーの実宣言が解決済みシンボルとして存在するなら、ハードコードされた Flow intrinsic 特例より優先する」を実現。前提として `Flow`/`SharedFlow`/`StateFlow`/`MutableSharedFlow`/`MutableStateFlow` に実ジェネリクス型引数（`HeaderHelpers+SyntheticIterableRegistry.swift` の `Iterable<E>` と同パターン）を導入済み（従来は `ClassType.args: []` で要素型は side-table 管理のみだった）。実機再検証: 同じ実証手順（`suspend fun <T> Flow<T>.toList(): List<T> = listOf()` を **bundled** Stdlib 側（`BundledDeclarationIndex` はユーザーファイルでなく bundled ファイルのみを対象とするため要注意）に置いて `flowOf(1, 2, 3).toList()` を実行）で `RESULT=[]`・`MARKER_HIT=true` を確認 — ダミー実装が正しく優先されるようになった。副次発見: `.call`（トップレベル関数形式）は元々各分岐で `symbol == nil` を要求済みだったが、`.virtualCall`（`someFlow.map { }` という実際に最も使われるメンバー呼び出し構文）にはこのチェックが存在せず、新規追加が必要だった。検証: フル `swift_test.sh`（4385テスト、既知フレーキー1件除き green）・Golden 全件（295 Sema ケース含めゼロ diff）で確認。`diff_kotlinc.sh` 669 ケースは Stage 1（Bug A 単体）時点で green 確認済みだが、Stage 3（本ゲート追加後）の全件再確認は複数の並行セッションによるマシン競合のため未完了 — 次回セッションで低負荷時に再実行すること。
+    2. **`kk_flow_fold`/`kk_flow_reduce`/`kk_flow_count` はコンパイラ側から到達不能**: Runtime の `@_cdecl` 実装・`RuntimeABISpec` エントリ・`Tests/RuntimeTests/RuntimeFlowTests.swift` の直接呼び出しテストは存在するが、Sema/KIR/Lowering のどこにもこれらを emit するコードが無い（`rg 'kk_flow_fold|kk_flow_reduce|kk_flow_count' Sources/CompilerCore` が 0 件）。つまり現状 `Flow<T>.fold(...)` は `.kt` から呼び出す経路が存在せず、「既存ネイティブ挙動を Kotlin に置き換える」という前提自体が `fold` には当てはまらない。既存 diff 6 ケースもこれらを使用していない。
+    3. **ジェネリック高階関数のラムダ内演算子/メンバ解決バグ（suspend 有無に関係なく再現）** — 🟢 **演算子部分は修正済み（2026-07-08）**: 根本原因は `CallTypeChecker+LambdaReturnTypeOverload.swift` の `lambdaLiteralExpectedType()` がラムダ引数の期待型を計算する際、呼び出し先の非ラムダ引数から既に推論済みの型引数代入（例 `f(41) { ... }` の `T=Int`）を適用せず、未代入の `TypeParamType` をそのままラムダ引数の型にしていたこと。対処: `Resolution.swift` に `OverloadResolver.probeArgumentTypeSubstitution(...)`（非ラムダ引数だけから型変数代入を導出する軽量プローブ、`decomposeSubtypeConstraint`/`ConstraintSolver` を流用）を追加し、`CallTypeChecker+LambdaReturnTypeOverload.swift` に `applyInferredArgumentTypeArgs()`（`applyExplicitTypeArgs`/`applyReceiverClassTypeArgs` に続く第3の代入パス）を追加して配線。`f(41) { v: Int -> v + 1 }` は修正済みで動作を確認。AST 側のラムダ引数明示型注釈の保持（`skipTypeAnnotationIfPresent` が捨てている）は見送り — 本修正で repro は解決するため不要と判断。
+       - 🟡 **残存する別問題（未修正、意図的に見送り）**: メンバー関数呼び出し（`.uppercase()`, `.length`, ユーザー定義クラスの任意メソッド等 — Int/Long 等プリミティブの特例ディスパッチ経路を通らないもの）は、ジェネリック HOF のラムダ本体内では `KSWIFTK-SEMA-0002: No viable overload found for call.` で依然失敗する。根本原因を特定済み: `Resolution.swift` の `evaluateCandidate` が、ラムダ本体の呼び出しに対して「外側の未束縛な型パラメータ（例 `R`）」を `expectedType` としてそのまま渡し、`signature.returnType <: R` を通常の（フリーではない）制約として追加するため、`describe(): String` のような具体型を返す候補が「`String` は `R` の部分型ではない」として誤って `.rejected` される。`inferLambdaLiteralExpr`（`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`）には既に同種の「期待戻り値型が無制約の型パラメータなら制約を課さない」ガードが存在するが、`evaluateCandidate` 側には無い。**一度この同じガードを `evaluateCandidate` に追加して検証したが、`Int.plus(1)` のような別の正常ケースを壊し（誤って文字列関連の codegen 経路に迷い込み無限に近い遅延を起こす）、安全に一般化できないことを確認済みのため revert 済み**。真の修正には「`expectedType` の無制約型パラメータが REALLY 無関係な外側スコープのものか」をもっと正確に判定する必要があり、本タスクの想定規模を超える別問題として切り出す。KSP-499 の Kotlin 実装（Stage 4-6）では、アキュムレータ関数は `operation(acc, v)` のような関数値呼び出し（この問題の対象外）で書き、生成コード内でジェネリック型 T 自体のメンバー関数呼び出しは極力避ける設計とする。
+    4. **bundled Stdlib に `suspend` の前例が無い** — 🟢 **検証済み（2026-07-08）**: `Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/` に一時ファイルを置いて実機確認。bundled ソースでの `suspend fun`（ジェネリック含む）は正常にコンパイル・実行できる（`suspend fun <T, R> f(v: T, g: suspend (T) -> R): R` 相当が動作）。前例が無かっただけで、経路自体に問題は無い。
+    - 対応が必要な前段作業（いずれも本タスクの想定規模を超える別タスク相当・進行中）: (a) 上記 Lowering 2 パスを「bundled/実体宣言優先」に改修 — 未着手 (b) ジェネリック高階関数のラムダ内演算子/メンバ解決バグの修正 — 演算子部分は修正済み、メンバー呼び出し部分は既知の限界として残存 (c) KSP-498 の正式な分類表作成 — 未着手。
 
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 

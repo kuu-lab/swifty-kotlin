@@ -37,7 +37,6 @@ extension ABIMismatchTests {
         "kk_sequence_generate",
         "kk_sequence_of",
         "kk_string_chunked_sequence_transform_flat",
-        "kk_string_hexToUInt_flat",
         "kk_test_assertEquals",
         "kk_test_assertEquals_message",
         "kk_test_assertNull",
@@ -114,12 +113,6 @@ extension ABIMismatchTests {
     // MARK: String radix conversion
     private static let stringRadixStubLinkNames: Set<String> = [
         "kk_string_case_insensitive_order",
-        "kk_string_hexToShort_flat",
-        "kk_string_hexToUByte_flat",
-        "kk_string_hexToUByteArray_flat",
-        "kk_string_hexToUInt_flat",
-        "kk_string_hexToULong_flat",
-        "kk_string_hexToUShort_flat",
         "kk_string_toIntOrNull_radix_flat",
         "kk_string_toUByteOrNull_radix_flat",
         "kk_string_toUIntOrNull_radix_flat",
@@ -149,21 +142,16 @@ extension ABIMismatchTests {
     ]
 
     // MARK: UUID (kotlin.uuid)
-    private static let uuidStubLinkNames: Set<String> = [
-        "__kk_uuid_fromLongs",
-        "__kk_uuid_lexicalOrder",
-        "__kk_uuid_nameUUIDFromBytes",
-        "__kk_uuid_random",
-        "kk_byteArray_putUuid",
-        "kk_byteArray_uuid",
-        "kk_uuid_getUuid",
-        "kk_uuid_toKotlinUuid",
-    ]
+    // KSP-476: Uuid's remaining native bridges (__kk_uuid_random,
+    // __kk_uuid_fromLongs, __kk_uuid_nameUUIDFromBytes,
+    // __kk_uuid_lexicalOrder, __kk_uuid_toKotlinUuid) are declared via
+    // @KsSymbolName inside Stdlib/kotlin/uuid/Uuid.kt, not as synthetic Sema
+    // stubs, so none of them belong in this list anymore. ByteArray.getUuid/
+    // uuid/putUuid are pure Kotlin with no backing bridge at all.
 
     // MARK: Instant / Clock / time conversions
     private static let instantStubLinkNames: Set<String> = [
         "kk_instant_compare",
-        "kk_instant_elapsed",
         "kk_instant_epoch_seconds",
         "kk_instant_from_epoch_millis",
         "kk_instant_is_distant_future",
@@ -177,29 +165,20 @@ extension ABIMismatchTests {
     ]
 
     // MARK: Duration (kotlin.time)
+    // KSP-471: from_*/inWhole*/toComponents_*/toIsoString entries removed —
+    // those externalLinkNames are no longer referenced by any Sema stub
+    // (construction now goes through toDuration_*, and inWhole*/toIsoString/
+    // toComponents are Kotlin source in Stdlib/kotlin/time/Duration.kt).
     private static let durationStubLinkNames: Set<String> = [
         "kk_duration_div_duration",
-        "kk_duration_from_days_double",
-        "kk_duration_from_hours_double",
-        "kk_duration_from_microseconds_double",
-        "kk_duration_from_milliseconds_double",
-        "kk_duration_from_minutes_double",
-        "kk_duration_from_nanoseconds_double",
-        "kk_duration_from_seconds_double",
-        "kk_duration_inWholeDays",
         "kk_duration_infinite",
         "kk_duration_parse",
         "kk_duration_parseIsoString",
         "kk_duration_parseIsoStringOrNull",
         "kk_duration_parseOrNull",
-        "kk_duration_toComponents_days",
-        "kk_duration_toComponents_hours",
-        "kk_duration_toComponents_minutes",
-        "kk_duration_toComponents_seconds",
         "kk_duration_toDuration_double",
         "kk_duration_toDuration_int",
         "kk_duration_toDuration_long",
-        "kk_duration_toIsoString",
         "kk_duration_zero",
     ]
 
@@ -453,7 +432,6 @@ extension ABIMismatchTests {
         result.formUnion(stringRadixStubLinkNames)
         result.formUnion(charRadixStubLinkNames)
         result.formUnion(systemStubLinkNames)
-        result.formUnion(uuidStubLinkNames)
         result.formUnion(instantStubLinkNames)
         result.formUnion(durationStubLinkNames)
         result.formUnion(lazyStubLinkNames)

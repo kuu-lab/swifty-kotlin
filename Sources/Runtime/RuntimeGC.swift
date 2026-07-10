@@ -52,7 +52,6 @@ struct ThreadLocalState {
 }
 
 struct DelegateState {
-    var customDelegateBoxes: [UInt: RuntimeCustomDelegateBox] = [:]
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
 }
 
@@ -368,7 +367,6 @@ func kk_runtime_reset_thread_local() {
 
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
-        state.customDelegateBoxes.removeAll(keepingCapacity: false)
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
     }
 }

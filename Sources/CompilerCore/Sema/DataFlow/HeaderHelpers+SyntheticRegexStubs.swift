@@ -396,22 +396,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-REGEX-094: String.replaceFirst(regex: Regex, replacement: String) -> String ---
-        // Registered as a kotlin.text package-level extension function with String receiver.
-        registerRegexStringExtensionFunction(
-            named: "replaceFirst",
-            externalLinkName: "kk_string_replaceFirst_regex",
-            packageFQName: kotlinTextPkg,
-            receiverType: stringType,
-            parameters: [
-                ("regex", regexType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-REGEX-094: Regex.Companion.fromLiteral(literal: String): Regex ---
         let regexCompanionFQName = ensureRegexCompanionSymbol(
             ownerSymbol: regexSymbol,

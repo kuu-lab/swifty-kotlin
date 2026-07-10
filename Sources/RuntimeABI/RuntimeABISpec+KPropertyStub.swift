@@ -4,7 +4,7 @@ public extension RuntimeABISpec {
     /// KProperty stub functions used by the provideDelegate operator and KProperty reflection.
     static let kPropertyStubFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_create",
+            name: "__kk_kproperty_stub_create",
             parameters: [
                 RuntimeABIParameter(name: "nameStr", type: .intptr),
                 RuntimeABIParameter(name: "returnTypeStr", type: .intptr),
@@ -15,7 +15,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-REFLECT-062: full create with visibility/isLateinit/isConst
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_create_full",
+            name: "__kk_kproperty_stub_create_full",
             parameters: [
                 RuntimeABIParameter(name: "nameStr", type: .intptr),
                 RuntimeABIParameter(name: "returnTypeStr", type: .intptr),
@@ -27,7 +27,7 @@ public extension RuntimeABISpec {
             section: "Delegate"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_name",
+            name: "__kk_kproperty_stub_name",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -36,7 +36,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_return_type",
+            name: "__kk_kproperty_stub_return_type",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -46,7 +46,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-REFLECT-062: visibility, isLateinit, isConst
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_visibility",
+            name: "__kk_kproperty_stub_visibility",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -54,7 +54,7 @@ public extension RuntimeABISpec {
             section: "Delegate"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_is_lateinit",
+            name: "__kk_kproperty_stub_is_lateinit",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -62,7 +62,7 @@ public extension RuntimeABISpec {
             section: "Delegate"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kproperty_stub_is_const",
+            name: "__kk_kproperty_stub_is_const",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],

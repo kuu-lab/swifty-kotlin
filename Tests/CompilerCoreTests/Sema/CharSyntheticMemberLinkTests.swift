@@ -349,9 +349,12 @@ struct CharSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedFunctionLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr,
+                          ctx.interner.resolve(callee) == memberName,
+                          let range = ast.arena.exprRange(exprID)
+                    else { return false }
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 }, "Expected member call to \(memberName) in AST")
                 #expect(sema.bindings.exprTypes[callExpr] != sema.types.errorType)
                 if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee
@@ -362,9 +365,13 @@ struct CharSyntheticMemberLinkTests {
             }
 
             for (memberName, externalLinkName) in expectedPropertyLinks {
-                let propertyExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName && args.isEmpty
+                let propertyExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr,
+                          ctx.interner.resolve(callee) == memberName,
+                          args.isEmpty,
+                          let range = ast.arena.exprRange(exprID)
+                    else { return false }
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 }, "Expected property access to \(memberName) in AST")
                 #expect(sema.bindings.exprTypes[propertyExpr] != sema.types.errorType)
                 if let chosenSymbol = sema.bindings.identifierSymbol(for: propertyExpr) {
