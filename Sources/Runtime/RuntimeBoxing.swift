@@ -236,3 +236,20 @@ public func kk_unbox_char(_ obj: Int) -> Int {
     #endif
     return obj
 }
+
+/// Tags a primitive box (produced by kk_box_int/kk_box_long/kk_box_bool/
+/// kk_box_float/kk_box_double/kk_box_char) with the stable nominal type ID of
+/// the value class it represents. Value classes are unboxed to their
+/// underlying primitive everywhere except at reference-type boundaries
+/// (Any, generics, interfaces), where ABILoweringPass emits this call right
+/// after the primitive box call. Without this tag the boxed pointer is
+/// indistinguishable from a plain boxed primitive, so `is`/`as`/
+/// `KClass.isInstance` against the value class name would incorrectly fail
+/// (and against the underlying primitive name would incorrectly succeed) —
+/// see kk_op_is's nominalBase and primitive-base cases.
+@_cdecl("kk_tag_value_class_box")
+public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
+    guard boxedRaw != runtimeNullSentinelInt else { return boxedRaw }
+    runtimeRegisterObjectType(rawValue: boxedRaw, classID: Int64(classID))
+    return boxedRaw
+}

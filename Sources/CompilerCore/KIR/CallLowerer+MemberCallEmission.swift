@@ -1144,7 +1144,6 @@ extension CallLowerer {
             interner.intern("kk_list_runningFold"),
             interner.intern("kk_list_runningReduce"),
             interner.intern("kk_list_scanReduce"),
-            interner.intern("kk_list_filterIndexed"),
             interner.intern("kk_list_foldIndexed"),
             interner.intern("kk_list_foldRightIndexed"),
             interner.intern("kk_list_reduceIndexed"),

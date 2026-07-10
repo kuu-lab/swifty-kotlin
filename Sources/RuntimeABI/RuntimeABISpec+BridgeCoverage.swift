@@ -42,8 +42,6 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
 
 private let listClosureBridgeNames = [
     "kk_list_distinctBy",
-    "kk_list_filterIndexed",
-    "kk_list_filterNot",
     "kk_list_maxOf",
     "kk_list_maxWith",
     "kk_list_maxWithOrNull",

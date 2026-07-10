@@ -218,64 +218,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_find",
             returnTypeOverride: types.makeNullable(listTypeParamType)
         )
-        registerMemberOverload(
-            memberName: interner.intern("filterNot"),
-            memberFQName: listFQName + [interner.intern("filterNot")],
-            parameterTypes: [listPredicateType],
-            externalLinkName: "kk_list_filterNot"
-        )
-
-        let destinationCollectionType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterTo"),
-            memberFQName: listFQName + [interner.intern("filterTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotTo"),
-            memberFQName: listFQName + [interner.intern("filterNotTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterNotTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        let indexedPredicateType = types.make(.functionType(FunctionType(
-            params: [types.intType, listTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIndexedTo"),
-            memberFQName: listFQName + [interner.intern("filterIndexedTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                indexedPredicateType,
-            ],
-            externalLinkName: "kk_list_filterIndexedTo",
-            returnTypeOverride: destinationCollectionType
-        )
 
         let mapToTypeParamName = interner.intern("R")
         let mapToTypeParamSymbol = symbols.define(
