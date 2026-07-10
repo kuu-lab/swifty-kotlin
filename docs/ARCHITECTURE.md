@@ -187,6 +187,12 @@ Tests/
  +-- LSPServerTests/          # LSP サーバテスト
 ```
 
+### Synthetic member link tests
+
+`Tests/CompilerCoreTests/Sema/*SyntheticMemberLinkTests*.swift` は、合成 stdlib surface がまだ存在する間の link-surface sentinel として扱う。
+対応する stdlib API を Kotlin source へ移行して合成スタブを削除する PR では、同じ PR で該当 synthetic member link test も削除または source-backed assertion へ置換する。
+この群は migration progress を測るための一時的な安全網なので、単独の大規模リファクタ・分割・命名整理の対象にしない。
+
 ### テスト実行コマンド
 
 ```bash

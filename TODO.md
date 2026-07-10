@@ -72,7 +72,7 @@
 ### Phase RF7: テスト資産再編
 - [ ] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）
 - [ ] RF-TEST-002: fixture 化を領域単位で展開し、「新規 Codegen 実行テストは fixture 必須」のガイドラインを `docs/ARCHITECTURE.md` に追記する
-- [ ] RF-TEST-003: `*SyntheticMemberLinkTests` 群（List 2,140 行 / Sequence 2,552 行 / String 1,696 行）は対応スタブの削除と同一 PR で削除するルールにする（リファクタ対象にしない）
+- [x] RF-TEST-003: `*SyntheticMemberLinkTests` 群（List 2,284 行 / Sequence 2,739 行 / String 2,057 行）は対応スタブの削除と同一 PR で削除するルールにする（リファクタ対象にしない）。2026-07-10 完了: 実在行数を再計測し、`docs/ARCHITECTURE.md` §5 に synthetic member link tests の扱いを明文化。
 - [ ] RF-TEST-004: `SemanticsAndUtilitiesRegressionTests.swift`（3,520 行）を責務別に分割する
 - [ ] RF-TEST-005: GoldenCases/Sema 244 ケースのうち同型ケース（minof_* / maxof_* 等）をパラメタライズ統合する
 - [x] RF-TEST-006: XCTest / Swift Testing の使い分けポリシーを決定し `docs/ARCHITECTURE.md` に明記する。2026-07-10 完了: `import Testing` は 571 ファイル、`import XCTest` は 451 ファイルの混在状態として再確認し、§5 に新規テストの選択基準を明記。
