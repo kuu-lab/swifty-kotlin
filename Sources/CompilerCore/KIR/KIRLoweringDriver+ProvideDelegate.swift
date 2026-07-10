@@ -24,7 +24,7 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Emits a `kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
+    /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
     func emitKPropertyStubCreate(
         propertyName: InternedString,
         propertyType: TypeID,
@@ -50,7 +50,7 @@ extension KIRLoweringDriver {
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_kproperty_stub_create"),
+                callee: interner.intern("__kk_kproperty_stub_create"),
                 arguments: [propertyNameExprID, returnTypeExprID],
                 result: kPropertyExprID,
                 canThrow: false,
@@ -61,7 +61,8 @@ extension KIRLoweringDriver {
     }
 
     /// Emits the full provideDelegate flow for top-level properties: store raw delegate,
-    /// build thisRef + KProperty stub, call provideDelegate, wrap result in kk_custom_delegate_create.
+    /// build thisRef + KProperty stub, call provideDelegate, and store its result as the
+    /// actual delegate (getValue/setValue resolve directly against that value).
     func emitProvideDelegateInit(
         delegateObjExpr: KIRExprID,
         symbol: SymbolID,
@@ -116,7 +117,8 @@ extension KIRLoweringDriver {
         initInstructions.append(.storeGlobal(value: provideDelegateResult, symbol: delegateStorageSymbol))
     }
 
-    /// Emits the simple delegate init: just wrap in kk_custom_delegate_create.
+    /// Emits the simple delegate init: stores the raw delegate object directly
+    /// (getValue/setValue resolve directly against that value).
     func emitSimpleDelegateInit(
         delegateObjExpr: KIRExprID,
         delegateStorageSymbol: SymbolID,

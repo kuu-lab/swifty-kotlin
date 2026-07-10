@@ -741,13 +741,6 @@ struct CollectionLiteralLookupTables {
     let kkFileIsFileName: InternedString
     let isDirectoryName: InternedString
     let kkFileIsDirectoryName: InternedString
-    let namePropertyName: InternedString
-    let kkFileNameName: InternedString
-    // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-    let nameWithoutExtensionName: InternedString
-    let kkFileNameWithoutExtensionName: InternedString
-    let pathPropertyName: InternedString
-    let kkFilePathName: InternedString
     let forEachLineName: InternedString
     let kkFileForEachLineName: InternedString
     let kkBufferedReaderForEachLineName: InternedString
@@ -807,8 +800,6 @@ struct CollectionLiteralLookupTables {
     let kkFileAbsolutePathName: InternedString
     let canonicalPathName: InternedString
     let kkFileCanonicalPathName: InternedString
-    let parentName: InternedString
-    let kkFileParentName: InternedString
     // Note: lengthName is shared with StringBuilder section (defined above)
     let kkFileLengthName: InternedString
     let lastModifiedName: InternedString
@@ -1548,13 +1539,6 @@ struct CollectionLiteralLookupTables {
         kkFileIsFileName = interner.intern("kk_file_isFile")
         isDirectoryName = interner.intern("isDirectory")
         kkFileIsDirectoryName = interner.intern("kk_file_isDirectory")
-        namePropertyName = interner.intern("name")
-        kkFileNameName = interner.intern("kk_file_name")
-        // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-        nameWithoutExtensionName = interner.intern("nameWithoutExtension")
-        kkFileNameWithoutExtensionName = interner.intern("kk_file_nameWithoutExtension")
-        pathPropertyName = interner.intern("path")
-        kkFilePathName = interner.intern("kk_file_path")
         forEachLineName = interner.intern("forEachLine")
         kkFileForEachLineName = interner.intern("kk_file_forEachLine")
         kkBufferedReaderForEachLineName = interner.intern("kk_buffered_reader_forEachLine")
@@ -1614,8 +1598,6 @@ struct CollectionLiteralLookupTables {
         kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
         canonicalPathName = interner.intern("canonicalPath")
         kkFileCanonicalPathName = interner.intern("kk_file_canonicalPath")
-        parentName = interner.intern("parent")
-        kkFileParentName = interner.intern("kk_file_parent")
         // lengthName already initialized in StringBuilder section above
         kkFileLengthName = interner.intern("kk_file_length")
         lastModifiedName = interner.intern("lastModified")

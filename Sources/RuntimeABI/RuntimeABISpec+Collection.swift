@@ -1815,6 +1815,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_indexed_value_new",
+            parameters: [
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_pair_first",
             parameters: [
                 RuntimeABIParameter(name: "pairRaw", type: .intptr),

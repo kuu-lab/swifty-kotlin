@@ -152,6 +152,9 @@ struct RuntimeABIExternalLinkValidationTests {
         let arity: Int
         let functionTypedParameterCount: Int
         let hasReceiver: Bool
+        let receiverType: String?
+        let valueParameterTypes: [String]
+        let returnType: String?
         let relativePath: String
     }
 
@@ -198,7 +201,7 @@ struct RuntimeABIExternalLinkValidationTests {
             }
             guard !pendingLinkNames.isEmpty,
                   let functionHeader = functionHeader(startingAt: index, in: lines),
-                  let stats = functionParameterStats(in: functionHeader)
+                  let signature = functionSignatureInfo(in: functionHeader)
             else {
                 braceDepth += braceDelta(in: line)
                 continue
@@ -208,9 +211,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
                         linkName: linkName,
-                        arity: stats.arity,
-                        functionTypedParameterCount: stats.functionTypedParameterCount,
+                        arity: signature.valueParameterTypes.count,
+                        functionTypedParameterCount: signature.functionTypedParameterCount,
                         hasReceiver: hasReceiver,
+                        receiverType: signature.receiverType,
+                        valueParameterTypes: signature.valueParameterTypes,
+                        returnType: signature.returnType,
                         relativePath: relativePath
                     )
                 )
@@ -249,18 +255,27 @@ struct RuntimeABIExternalLinkValidationTests {
             : nil
     }
 
-    private struct FunctionParameterStats {
-        let arity: Int
-        let functionTypedParameterCount: Int
+    private struct FunctionSignatureInfo {
+        let receiverType: String?
+        let valueParameterTypes: [String]
+        let returnType: String?
+
+        var functionTypedParameterCount: Int {
+            valueParameterTypes.filter { $0.contains("->") }.count
+        }
     }
 
-    private func functionParameterStats(in header: String) -> FunctionParameterStats? {
+    private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
         guard let funRange = header.range(of: "fun ") else {
             return nil
         }
         let suffix = header[funRange.upperBound...]
         guard let openParen = suffix.firstIndex(of: "(") else {
             return nil
+        }
+        let namePrefix = suffix[..<openParen].trimmingCharacters(in: .whitespacesAndNewlines)
+        let receiverType = namePrefix.lastIndex(of: ".").map {
+            String(namePrefix[..<$0]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         var parenDepth = 0
@@ -285,14 +300,26 @@ struct RuntimeABIExternalLinkValidationTests {
 
         let parameters = suffix[suffix.index(after: openParen)..<closeParen]
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !parameters.isEmpty else {
-            return FunctionParameterStats(arity: 0, functionTypedParameterCount: 0)
+        let valueParameterTypes = splitTopLevelCommaSeparated(parameters).compactMap { parameter -> String? in
+            guard let colon = parameter.firstIndex(of: ":") else {
+                return nil
+            }
+            let suffix = parameter[parameter.index(after: colon)...]
+            let typePart = suffix.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+            return String(typePart).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        let parameterChunks = splitTopLevelCommaSeparated(parameters)
-        return FunctionParameterStats(
-            arity: parameterChunks.count,
-            functionTypedParameterCount: parameterChunks.filter { $0.contains("->") }.count
+        let remainder = suffix[suffix.index(after: closeParen)...]
+        var returnType: String?
+        if let colon = remainder.firstIndex(of: ":") {
+            returnType = String(remainder[remainder.index(after: colon)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return FunctionSignatureInfo(
+            receiverType: receiverType,
+            valueParameterTypes: valueParameterTypes,
+            returnType: returnType
         )
     }
 
@@ -348,7 +375,28 @@ struct RuntimeABIExternalLinkValidationTests {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
+        if declaration.linkName.hasSuffix("_flat") {
+            var flatCount = flatABIParameterCount(for: declaration.receiverType)
+            flatCount += declaration.valueParameterTypes.reduce(0) { partialResult, type in
+                partialResult + flatABIParameterCount(for: type)
+            }
+            if normalizedKotlinType(declaration.returnType) == "String" {
+                flatCount += 3
+            }
+            candidates.insert(flatCount)
+        }
         return candidates
+    }
+
+    private func flatABIParameterCount(for type: String?) -> Int {
+        normalizedKotlinType(type) == "String" ? 4 : (type == nil ? 0 : 1)
+    }
+
+    private func normalizedKotlinType(_ type: String?) -> String {
+        guard let type else { return "" }
+        return type
+            .replacingOccurrences(of: "?", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func braceDelta(in line: String) -> Int {
