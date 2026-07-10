@@ -316,5 +316,49 @@ struct ExceptionSyntheticStubTests {
         fun message(message: String?): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException(message)
         """)
     }
+
+    @Test func testNegativeArraySizeExceptionSurfaceIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let exceptionFQName = ["kotlin", "NegativeArraySizeException"].map { interner.intern($0) }
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
+
+        let runtimeExceptionFQName = ["kotlin", "RuntimeException"].map { interner.intern($0) }
+        let runtimeExceptionSymbol = try #require(sema.symbols.lookup(fqName: runtimeExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(runtimeExceptionSymbol)
+        #expect(supertypesContains)
+
+        let exceptionType = sema.types.make(.classType(ClassType(
+            classSymbol: exceptionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
+
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        let constructorFQName = exceptionFQName + [interner.intern("<init>")]
+        let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
+            sema.symbols.symbol($0)?.kind == .constructor
+        }
+        let expected: [([TypeID], String)] = [
+            ([], "kk_negative_array_size_exception_new"),
+            ([nullableStringType], "kk_negative_array_size_exception_new_message"),
+        ]
+        for (parameterTypes, externalLinkName) in expected {
+            let constructor = try #require(constructors.first {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
+            })
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
+        }
+    }
+
+    @Test func testNegativeArraySizeExceptionResolvesInSource() throws {
+        _ = try makeSema(source: """
+        fun noArg(): RuntimeException = NegativeArraySizeException()
+        fun message(message: String?): RuntimeException = NegativeArraySizeException(message)
+        """)
+    }
 }
 #endif

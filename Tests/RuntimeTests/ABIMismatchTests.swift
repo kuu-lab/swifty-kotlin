@@ -106,7 +106,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 300)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 301)
     }
 
     func testRegexFunctionCount() {
@@ -253,7 +253,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.sequenceFunctions,
             RuntimeABISpec.regexFunctions,
             RuntimeABISpec.base64Functions,
-            RuntimeABISpec.hexFormatFunctions,
             RuntimeABISpec.comparatorFunctions,
             RuntimeABISpec.resultFunctions,
             RuntimeABISpec.kotlinVersionFunctions,

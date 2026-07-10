@@ -584,7 +584,8 @@ public final class SymbolTable {
                 // extension properties sharing a short name may coexist as
                 // separate symbols. A non-extension property at the same FQ
                 // name is still a genuine clash: it has no receiver to
-                // disambiguate by.
+                // disambiguate by. Mirrors the diagnostic-level check in
+                // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
                         || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
@@ -1087,6 +1088,13 @@ public final class BindingTable {
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
+    /// Maps a secondary constructor's own symbol to the constructor symbol chosen
+    /// by overload resolution for its `this(...)` / `super(...)` delegation call.
+    /// `ConstructorDelegationCall` has no `ExprID` of its own, so this is keyed by
+    /// the enclosing constructor's `SymbolID` instead. KIR lowering must consult
+    /// this rather than re-deriving the target via FQ-name lookup, which cannot
+    /// distinguish sibling overloads or exclude the constructor being lowered.
+    public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
@@ -1173,6 +1181,10 @@ public final class BindingTable {
 
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
         callableTargets[expr] = target
+    }
+
+    public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
+        constructorDelegationTargets[ctorSymbol] = target
     }
 
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
@@ -1363,6 +1375,10 @@ public final class BindingTable {
         callableTargets[expr]
     }
 
+    public func constructorDelegationTarget(for ctorSymbol: SymbolID) -> SymbolID? {
+        constructorDelegationTargets[ctorSymbol]
+    }
+
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {
         callableValueCalls[expr]
     }
@@ -1523,6 +1539,16 @@ public final class SemaModule {
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
     public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// KSP-499 Stage 3: the bundled/user declaration index built once per
+    /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
+    /// in the transient `BundledSyntheticStubRegistration` thread-local, which
+    /// is cleared once header registration finishes — so later phases (body
+    /// type-checking, KIR lowering) can still ask "does a real declaration
+    /// exist for this (owner, name, arity)?" before applying a hard-coded
+    /// compiler intrinsic special-case (e.g. the Flow operator dispatch in
+    /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
+    /// CallLowerer+MemberCalls.swift).
+    var bundledIndex: BundledDeclarationIndex
 
     public init(
         symbols: SymbolTable,
@@ -1536,5 +1562,27 @@ public final class SemaModule {
         self.bindings = bindings
         self.diagnostics = diagnostics
         self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = .empty
+    }
+
+    /// Module-internal overload that also accepts the bundled declaration
+    /// index at construction time (see `bundledIndex` above). Not `public`
+    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
+    /// callers outside the module get the public initializer above, which
+    /// defaults `bundledIndex` to `.empty`.
+    init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = bundledIndex
     }
 }

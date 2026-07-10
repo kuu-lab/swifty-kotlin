@@ -115,8 +115,6 @@ extension ABIMismatchTests {
             "kk_flow_on_error_return",
             "kk_flow_retry",
             "kk_flow_retry_when",
-            "kk_hexformat_prefix",
-            "kk_hexformat_suffix",
             "kk_math_e",
             "kk_math_pi",
             "kk_mem_scope_alloc",
