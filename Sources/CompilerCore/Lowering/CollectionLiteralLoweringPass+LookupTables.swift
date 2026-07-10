@@ -84,17 +84,10 @@ struct CollectionLiteralLookupTables {
 
     // Higher-order collection function ABI names (FUNC-003)
     let kkListMapName: InternedString
-    let kkListFilterName: InternedString
-    let kkListFilterNotName: InternedString
     let kkListMapNotNullName: InternedString
-    let kkListFilterNotNullName: InternedString
-    let kkListFilterToName: InternedString
-    let kkListFilterNotToName: InternedString
     let kkListMapToName: InternedString
     let kkListFlatMapToName: InternedString
     let kkListMapNotNullToName: InternedString
-    let kkListFilterNotNullToName: InternedString
-    let kkListFilterIndexedToName: InternedString
     let kkListMapIndexedToName: InternedString
     let kkListMapIndexedNotNullToName: InternedString
     let kkListFlatMapIndexedToName: InternedString
@@ -148,7 +141,6 @@ struct CollectionLiteralLookupTables {
     let kkListOnEachIndexedName: InternedString
     let kkListMapIndexedName: InternedString
     let kkListMapIndexedNotNullName: InternedString
-    let kkListFilterIndexedName: InternedString
     let kkListFoldIndexedName: InternedString
     let kkListFoldRightIndexedName: InternedString
     let kkListReduceIndexedName: InternedString
@@ -492,6 +484,7 @@ struct CollectionLiteralLookupTables {
     let filterNotName: InternedString
     let mapNotNullName: InternedString
     let filterNotNullName: InternedString
+    let filterIsInstanceName: InternedString
     let filterToName: InternedString
     let filterNotToName: InternedString
     let mapToName: InternedString
@@ -741,13 +734,6 @@ struct CollectionLiteralLookupTables {
     let kkFileIsFileName: InternedString
     let isDirectoryName: InternedString
     let kkFileIsDirectoryName: InternedString
-    let namePropertyName: InternedString
-    let kkFileNameName: InternedString
-    // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-    let nameWithoutExtensionName: InternedString
-    let kkFileNameWithoutExtensionName: InternedString
-    let pathPropertyName: InternedString
-    let kkFilePathName: InternedString
     let forEachLineName: InternedString
     let kkFileForEachLineName: InternedString
     let kkBufferedReaderForEachLineName: InternedString
@@ -807,8 +793,6 @@ struct CollectionLiteralLookupTables {
     let kkFileAbsolutePathName: InternedString
     let canonicalPathName: InternedString
     let kkFileCanonicalPathName: InternedString
-    let parentName: InternedString
-    let kkFileParentName: InternedString
     // Note: lengthName is shared with StringBuilder section (defined above)
     let kkFileLengthName: InternedString
     let lastModifiedName: InternedString
@@ -914,17 +898,10 @@ struct CollectionLiteralLookupTables {
         kkStringNoneName = interner.intern("kk_string_none")
 
         kkListMapName = interner.intern("kk_list_map")
-        kkListFilterName = interner.intern("kk_list_filter")
-        kkListFilterNotName = interner.intern("kk_list_filterNot")
         kkListMapNotNullName = interner.intern("kk_list_mapNotNull")
-        kkListFilterNotNullName = interner.intern("kk_list_filterNotNull")
-        kkListFilterToName = interner.intern("kk_list_filterTo")
-        kkListFilterNotToName = interner.intern("kk_list_filterNotTo")
         kkListMapToName = interner.intern("kk_list_mapTo")
         kkListFlatMapToName = interner.intern("kk_list_flatMapTo")
         kkListMapNotNullToName = interner.intern("kk_list_mapNotNullTo")
-        kkListFilterNotNullToName = interner.intern("kk_list_filterNotNullTo")
-        kkListFilterIndexedToName = interner.intern("kk_list_filterIndexedTo")
         kkListMapIndexedToName = interner.intern("kk_list_mapIndexedTo")
         kkListMapIndexedNotNullToName = interner.intern("kk_list_mapIndexedNotNullTo")
         kkListFlatMapIndexedToName = interner.intern("kk_list_flatMapIndexedTo")
@@ -977,7 +954,6 @@ struct CollectionLiteralLookupTables {
         kkListOnEachIndexedName = interner.intern("kk_list_onEachIndexed")
         kkListMapIndexedName = interner.intern("kk_list_mapIndexed")
         kkListMapIndexedNotNullName = interner.intern("kk_list_mapIndexedNotNull")
-        kkListFilterIndexedName = interner.intern("kk_list_filterIndexed")
         kkListFoldIndexedName = interner.intern("kk_list_foldIndexed")
         kkListFoldRightIndexedName = interner.intern("kk_list_foldRightIndexed")
         kkListReduceIndexedName = interner.intern("kk_list_reduceIndexed")
@@ -1309,6 +1285,7 @@ struct CollectionLiteralLookupTables {
         filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
         filterNotNullName = interner.intern("filterNotNull")
+        filterIsInstanceName = interner.intern("filterIsInstance")
         filterToName = interner.intern("filterTo")
         filterNotToName = interner.intern("filterNotTo")
         mapToName = interner.intern("mapTo")
@@ -1548,13 +1525,6 @@ struct CollectionLiteralLookupTables {
         kkFileIsFileName = interner.intern("kk_file_isFile")
         isDirectoryName = interner.intern("isDirectory")
         kkFileIsDirectoryName = interner.intern("kk_file_isDirectory")
-        namePropertyName = interner.intern("name")
-        kkFileNameName = interner.intern("kk_file_name")
-        // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-        nameWithoutExtensionName = interner.intern("nameWithoutExtension")
-        kkFileNameWithoutExtensionName = interner.intern("kk_file_nameWithoutExtension")
-        pathPropertyName = interner.intern("path")
-        kkFilePathName = interner.intern("kk_file_path")
         forEachLineName = interner.intern("forEachLine")
         kkFileForEachLineName = interner.intern("kk_file_forEachLine")
         kkBufferedReaderForEachLineName = interner.intern("kk_buffered_reader_forEachLine")
@@ -1614,8 +1584,6 @@ struct CollectionLiteralLookupTables {
         kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
         canonicalPathName = interner.intern("canonicalPath")
         kkFileCanonicalPathName = interner.intern("kk_file_canonicalPath")
-        parentName = interner.intern("parent")
-        kkFileParentName = interner.intern("kk_file_parent")
         // lengthName already initialized in StringBuilder section above
         kkFileLengthName = interner.intern("kk_file_length")
         lastModifiedName = interner.intern("lastModified")

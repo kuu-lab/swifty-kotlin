@@ -22,12 +22,21 @@ struct RangeUntilSyntheticMemberLinkTests {
         ])
     }
 
-    private func untilCallExprIDs(in ast: ASTModule, interner: StringInterner) -> [ExprID] {
+    private func untilCallExprIDs(
+        in ast: ASTModule,
+        interner: StringInterner,
+        sourceManager: SourceManager
+    ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == "until"
+                  interner.resolve(callee) == "until",
+                  // Exclude bundled stdlib source (e.g. kotlin.random.Random's own
+                  // `until` usage) so this only counts calls from the test's own
+                  // fixture, regardless of how the stdlib itself uses `until`.
+                  let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
             }
@@ -81,7 +90,7 @@ struct RangeUntilSyntheticMemberLinkTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let untilCalls = untilCallExprIDs(in: ast, interner: ctx.interner)
+        let untilCalls = untilCallExprIDs(in: ast, interner: ctx.interner, sourceManager: ctx.sourceManager)
 
         #expect(untilCalls.count == 6)
 

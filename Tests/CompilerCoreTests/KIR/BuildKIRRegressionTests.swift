@@ -162,7 +162,7 @@ struct BuildKIRRegressionTests {
         }
     }
 
-    @Test func testBuildKIRLowersComparisonAndLogicalOperatorsToRuntimeCalls() throws {
+    @Test func testBuildKIRLowersComparisonOperatorsToRuntimeCalls() throws {
         let source = """
         fun main(): Int {
             val x = 3
@@ -171,9 +171,7 @@ struct BuildKIRRegressionTests {
             val c = x <= 3
             val d = x > 1
             val e = x >= 3
-            val f = true && false
-            val g = false || true
-            if (a && b && c && d && e && !f && g) return 1
+            if (a && b && c && d && e) return 1
             return 0
         }
         """
@@ -190,8 +188,36 @@ struct BuildKIRRegressionTests {
             #expect(callees.contains("kk_op_le"))
             #expect(callees.contains("kk_op_gt"))
             #expect(callees.contains("kk_op_ge"))
-            #expect(callees.contains("kk_op_and"))
-            #expect(callees.contains("kk_op_or"))
+        }
+    }
+
+    // `&&`/`||` must short-circuit, so they lower to conditional branches
+    // (jumpIfEqual/label) rather than a runtime call that would evaluate both
+    // operands unconditionally.
+    @Test func testBuildKIRLowersLogicalOperatorsToShortCircuitBranches() throws {
+        let source = """
+        fun main() {
+            val f = true && false
+            val g = false || true
+            println(f)
+            println(g)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+            #expect(!callees.contains("kk_op_and"))
+            #expect(!callees.contains("kk_op_or"))
+            let jumpIfEqualCount = body.count { instruction in
+                if case .jumpIfEqual = instruction { return true }
+                return false
+            }
+            #expect(jumpIfEqualCount >= 2)
         }
     }
 
@@ -419,6 +445,81 @@ struct BuildKIRRegressionTests {
                 }
                 return op == .subtract
             }))
+        }
+    }
+
+    // `val x: Any = 42L` must box the literal so its runtime representation
+    // carries Long type info. Before the fix, a local decl's "declared type"
+    // was taken from the initializer's own arena type (Long) instead of the
+    // symbol's Sema-recorded declared type (Any), so the local aliased the
+    // raw unboxed literal register and no box call was ever emitted.
+    @Test func testLocalDeclBoxesLiteralWhenWidenedToAny() throws {
+        let source = """
+        fun main() {
+            val x: Any = 42L
+            println(x)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+            #expect(callees.contains("kk_box_long"))
+        }
+    }
+
+    // Companion to the above: an unannotated local (`val x = 42L`) must NOT
+    // gain a spurious box/copy — the declared and initializer types coincide,
+    // so the direct-alias fast path should still apply.
+    @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
+        let source = """
+        fun main() {
+            val x = 42L
+            println(x)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+            #expect(!callees.contains("kk_box_long"))
+        }
+    }
+
+    // The same widening gap affected reassignment of a widened local: since
+    // the *first* declaration never established an Any-typed storage slot,
+    // later `v = <primitive>` copies inherited the initializer's narrow type
+    // and skipped boxing too. Verify both the initial box and the
+    // reassignment's box are now emitted.
+    @Test func testLocalDeclWideningFixAlsoBoxesLaterReassignment() throws {
+        let source = """
+        fun main() {
+            var v: Any = 42
+            v = 100L
+            println(v)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("kk_box_int"))
+            #expect(callees.contains("kk_box_long"))
         }
     }
 

@@ -1,6 +1,7 @@
 package kotlin.text
 
 import kswiftk.internal.*
+import kotlin.internal.KsSymbolName
 
 // String search and replace functions migrated from Swift Runtime
 // MIGRATION-TEXT-002
@@ -14,26 +15,29 @@ import kswiftk.internal.*
  * @param ignoreCase `true` to ignore character case when matching [oldValue]. Default is `false`.
  */
 public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
-    if (__string_struct_get_length(oldValue) == 0) {
+    val oldLength = __string_struct_get_length(oldValue)
+    if (oldLength == 0) {
         val sb = StringBuilder()
         sb.append(newValue)
-        for (i in 0 until length) {
+        var i = 0
+        while (i < length) {
             sb.append(this[i])
             sb.append(newValue)
+            i++
         }
         return sb.toString()
     }
     val sb = StringBuilder()
     var start = 0
     while (true) {
-        val idx = indexOf(oldValue, start, ignoreCase)
+        val idx = this.indexOf(oldValue, start, ignoreCase)
         if (idx == -1) {
-            sb.append(substring(start))
+            __kk_appendStringRange(sb, this, start, length)
             break
         }
-        sb.append(substring(start, idx))
+        __kk_appendStringRange(sb, this, start, idx)
         sb.append(newValue)
-        start = idx + __string_struct_get_length(oldValue)
+        start = idx + oldLength
     }
     return sb.toString()
 }
@@ -48,16 +52,25 @@ public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolea
  */
 public fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = false): String {
     val sb = StringBuilder()
-    for (i in 0 until length) {
+    var i = 0
+    while (i < length) {
         val c = this[i]
         if (c == oldChar || (ignoreCase && c.lowercaseChar() == oldChar.lowercaseChar())) {
             sb.append(newChar)
         } else {
             sb.append(c)
         }
+        i++
     }
     return sb.toString()
 }
+
+/**
+ * Returns a new string obtained by replacing each occurrence of [regex]
+ * with the specified [replacement] string.
+ */
+public fun String.replace(regex: Regex, replacement: String): String =
+    this.__kk_replace_regex(regex, replacement)
 
 /**
  * Returns a new string with the first occurrence of [oldValue] replaced with [newValue].
@@ -67,109 +80,66 @@ public fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = fa
  * @param ignoreCase `true` to ignore character case when finding [oldValue]. Default is `false`.
  */
 public fun String.replaceFirst(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
-    val idx = indexOf(oldValue, 0, ignoreCase)
+    val oldLength = __string_struct_get_length(oldValue)
+    val idx = this.indexOf(oldValue, 0, ignoreCase)
     if (idx == -1) return this
-    return substring(0, idx) + newValue + substring(idx + __string_struct_get_length(oldValue))
+    val sb = StringBuilder()
+    __kk_appendStringRange(sb, this, 0, idx)
+    sb.append(newValue)
+    __kk_appendStringRange(sb, this, idx + oldLength, length)
+    return sb.toString()
 }
 
 /**
- * Returns a new string with the characters between [startIndex] (inclusive) and [endIndex] (exclusive)
- * replaced by [replacement].
+ * Returns a new string with the first occurrence of [oldChar] replaced with [newChar].
  *
- * @param startIndex The beginning (inclusive) of the replaced range.
- * @param endIndex The end (exclusive) of the replaced range.
- * @param replacement The char sequence to replace the range with.
- * @throws IndexOutOfBoundsException if [startIndex] or [endIndex] is out of range, or [startIndex] > [endIndex].
+ * @param oldChar The character to replace.
+ * @param newChar The replacement character.
+ * @param ignoreCase `true` to ignore character case. Default is `false`.
  */
-public fun String.replaceRange(startIndex: Int, endIndex: Int, replacement: CharSequence): String {
-    if (endIndex < startIndex) {
-        throw IndexOutOfBoundsException("End ($endIndex) is less than start ($startIndex)")
+public fun String.replaceFirst(oldChar: Char, newChar: Char, ignoreCase: Boolean = false): String {
+    val sb = StringBuilder()
+    var replaced = false
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (!replaced && (c == oldChar || (ignoreCase && c.lowercaseChar() == oldChar.lowercaseChar()))) {
+            sb.append(newChar)
+            replaced = true
+        } else {
+            sb.append(c)
+        }
+        i++
     }
-    if (startIndex < 0 || endIndex > length) {
-        throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, length: $length")
+    if (!replaced) return this
+    return sb.toString()
+}
+
+/**
+ * Returns a new string with the first occurrence of [regex] replaced by [replacement].
+ */
+public fun String.replaceFirst(regex: Regex, replacement: String): String =
+    this.__kk_replaceFirst_regex(regex, replacement)
+
+/**
+ * Splits this string around matches of [regex].
+ */
+public fun String.split(regex: Regex): List<String> =
+    this.__kk_split_regex(regex)
+
+@KsSymbolName("kk_string_replace_regex")
+private external fun String.__kk_replace_regex(regex: Regex, replacement: String): String
+
+@KsSymbolName("kk_string_replaceFirst_regex")
+private external fun String.__kk_replaceFirst_regex(regex: Regex, replacement: String): String
+
+@KsSymbolName("kk_string_split_regex_flat")
+private external fun String.__kk_split_regex(regex: Regex): List<String>
+
+private fun __kk_appendStringRange(sb: StringBuilder, value: String, startIndex: Int, endIndex: Int) {
+    var i = startIndex
+    while (i < endIndex) {
+        sb.append(value[i])
+        i++
     }
-    return substring(0, startIndex) + replacement.toString() + substring(endIndex)
 }
-
-/**
- * Returns a new string with the characters in the given [range] replaced by [replacement].
- *
- * @param range The range of characters to replace.
- * @param replacement The char sequence to replace the range with.
- */
-public fun String.replaceRange(range: IntRange, replacement: CharSequence): String =
-    replaceRange(range.first, range.last + 1, replacement)
-
-/**
- * Returns a new string with the characters between [startIndex] (inclusive) and [endIndex] (exclusive) removed.
- *
- * @param startIndex The beginning (inclusive) of the removed range.
- * @param endIndex The end (exclusive) of the removed range.
- * @throws IndexOutOfBoundsException if [startIndex] or [endIndex] is out of range, or [startIndex] > [endIndex].
- */
-public fun String.removeRange(startIndex: Int, endIndex: Int): String {
-    if (endIndex < startIndex) {
-        throw IndexOutOfBoundsException("End ($endIndex) is less than start ($startIndex)")
-    }
-    if (startIndex < 0 || endIndex > length) {
-        throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, length: $length")
-    }
-    return substring(0, startIndex) + substring(endIndex)
-}
-
-/**
- * Returns a new string with the characters in the given [range] removed.
- *
- * @param range The range of characters to remove.
- */
-public fun String.removeRange(range: IntRange): String =
-    removeRange(range.first, range.last + 1)
-
-/**
- * If this string starts with the given [prefix], returns a copy of this string with the prefix removed.
- * Otherwise returns this string unchanged.
- *
- * @param prefix The prefix to remove.
- */
-public fun String.removePrefix(prefix: CharSequence): String {
-    val p = prefix.toString()
-    if (startsWith(p)) return substring(__string_struct_get_length(p))
-    return this
-}
-
-/**
- * If this string ends with the given [suffix], returns a copy of this string with the suffix removed.
- * Otherwise returns this string unchanged.
- *
- * @param suffix The suffix to remove.
- */
-public fun String.removeSuffix(suffix: CharSequence): String {
-    val s = suffix.toString()
-    if (endsWith(s)) return substring(0, __string_struct_get_length(this) - __string_struct_get_length(s))
-    return this
-}
-
-/**
- * When this string has the given [prefix] and [suffix], returns a new string having both removed.
- * Otherwise returns this string unchanged.
- *
- * @param prefix The prefix to remove.
- * @param suffix The suffix to remove.
- */
-public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String {
-    val p = prefix.toString()
-    val s = suffix.toString()
-    if (length >= __string_struct_get_length(p) + __string_struct_get_length(s) && startsWith(p) && endsWith(s)) {
-        return substring(p.length, __string_struct_get_length(this) - __string_struct_get_length(s))
-    }
-    return this
-}
-
-/**
- * When this string has the given [delimiter] as both prefix and suffix, returns a new string
- * having the delimiter removed from both ends. Otherwise returns this string unchanged.
- *
- * @param delimiter The delimiter to remove from both ends.
- */
-public fun String.removeSurrounding(delimiter: CharSequence): String =
-    removeSurrounding(delimiter, delimiter)

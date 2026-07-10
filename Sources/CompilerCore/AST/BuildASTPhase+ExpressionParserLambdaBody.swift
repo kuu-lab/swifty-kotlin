@@ -45,7 +45,7 @@ extension BuildASTPhase.ExpressionParser {
             guard let statement = astArena.expr(statementID) else { return false }
             switch statement {
             case .localDecl, .localAssign, .memberAssign, .indexedAssign,
-                 .compoundAssign, .indexedCompoundAssign, .localFunDecl:
+                 .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
                 return true
             default:
                 return false
@@ -101,7 +101,7 @@ extension BuildASTPhase.ExpressionParser {
 
         switch lastExpr {
         case .localDecl, .localAssign, .memberAssign, .indexedAssign,
-             .compoundAssign, .indexedCompoundAssign, .localFunDecl:
+             .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
             return nil
         default:
             _ = statements.popLast()

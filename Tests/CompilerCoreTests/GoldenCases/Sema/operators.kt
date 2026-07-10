@@ -47,3 +47,20 @@ fun arrayAssignExample(): Int {
     arr[0] = 42
     return arr[0]
 }
+
+class Counter(var count: Int)
+
+fun memberCompoundAdd(c: Counter): Int {
+    c.count += 10
+    return c.count
+}
+
+fun memberCompoundInc(c: Counter): Int {
+    c.count++
+    return c.count
+}
+
+fun memberCompoundDec(c: Counter): Int {
+    c.count--
+    return c.count
+}

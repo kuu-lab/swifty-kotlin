@@ -385,6 +385,7 @@ extension KIRLoweringDriver {
                     delegation: delegation,
                     ctorFQName: ctorFQName,
                     ownerSymbol: ownerSymbol,
+                    ctorSymbol: ctorSymbol,
                     sema: sema,
                     arena: arena,
                     compilationCtx: compilationCtx,
@@ -595,7 +596,7 @@ extension KIRLoweringDriver {
 
     // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
-    /// Emits `kk_kfunction_create` / `kk_kproperty_stub_create` calls for each
+    /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
     /// declared non-synthetic member of a class, followed by
     /// `kk_kclass_register_member` to attach them to the KClass handle.
     /// Called from `synthesizeConstructorReflectionInitializer` so that
@@ -671,7 +672,7 @@ extension KIRLoweringDriver {
                 let kpropResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kproperty_stub_create"),
+                    callee: interner.intern("__kk_kproperty_stub_create"),
                     arguments: [propNameExpr, propTypeExpr],
                     result: kpropResult,
                     canThrow: false,

@@ -118,7 +118,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/reflect/KClassAnnotationRegistration",
         "kotlin/text/StringBuilder",
         "kotlin/text/StringIndentFormat",
-        "kotlin/text/StringSearchReplace",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {
@@ -149,7 +148,6 @@ final class LoadSourcesPhase: CompilerPhase {
             ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
             ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
             ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
-            ("__bundled_kotlin_time_stdlib.kt", BundledKotlinStdlib.kotlinTimeSource),
         ]
         for (path, source) in residualSources {
             guard !sourceManager.containsFile(path: path) else { continue }

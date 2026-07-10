@@ -1,10 +1,10 @@
 /// Sema coverage for STDLIB-RANDOM-FN-001:
 /// `fun Random.asJavaRandom(): java.util.Random` extension function.
 ///
-/// The function is registered as a synthetic top-level extension in the
-/// `kotlin.random` package with `kotlin.random.Random` as its receiver and
-/// `java.util.Random` as its return type. It is linked to the runtime entry
-/// `kk_random_asJavaRandom`.
+/// The function is a top-level extension in the `kotlin.random` package with
+/// `kotlin.random.Random` as its receiver and `java.util.Random` as its return
+/// type (Sources/CompilerCore/Stdlib/kotlin/random/JavaRandomInterop.kt). KSP-466:
+/// real Kotlin source (`java.util.Random(this)`), not a native bridge.
 
 #if canImport(Testing)
 @testable import CompilerCore
@@ -35,8 +35,9 @@ struct RandomAsJavaRandomFunctionTests {
                 "asJavaRandom must be registered as a top-level extension in kotlin.random")
     }
 
-    /// The registered overload accepts no value parameters and links to
-    /// `kk_random_asJavaRandom`.
+    /// The registered overload accepts no value parameters. KSP-466: asJavaRandom
+    /// is real Kotlin source now (JavaRandomInterop.kt: `java.util.Random(this)`),
+    /// not a native bridge.
     @Test func testAsJavaRandomLinksToRuntimeStub() throws {
         let (sema, interner) = try makeSema()
 
@@ -48,8 +49,8 @@ struct RandomAsJavaRandomFunctionTests {
         }
         let candidateSym = try #require(arity0,
                                         "asJavaRandom must expose an arity-0 (value parameters) overload")
-        #expect(sema.symbols.externalLinkName(for: candidateSym) == "kk_random_asJavaRandom",
-                "asJavaRandom must link to kk_random_asJavaRandom")
+        #expect(sema.symbols.externalLinkName(for: candidateSym) == nil,
+                "asJavaRandom is real Kotlin, not a native bridge")
     }
 
     /// The receiver type must be `kotlin.random.Random` so that

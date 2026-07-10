@@ -2,14 +2,6 @@ symbol fq=golden.sema.useReplaceChar kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.useReplaceCharCaseSensitive kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceCharIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceStringIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.text.replace#0 kind=function vis=public flags=synthetic sig=recv=String params=[Char,Char] ret=String
-symbol fq=kotlin.text.replace#1 kind=function vis=public flags=synthetic sig=recv=String params=[Char,Char,Boolean] ret=String
-symbol fq=kotlin.text.replace#3 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,Boolean] ret=String
-symbol fq=kotlin.text.replace.ignoreCase kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replace.newChar kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replace.newValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replace.oldChar kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replace.oldValue kind=valueParameter vis=private flags=synthetic
 file f0 package=golden.sema
   decl golden.sema.useReplaceChar fun useReplaceChar sym=golden.sema.useReplaceChar
   decl golden.sema.useReplaceStringIgnoreCase fun useReplaceStringIgnoreCase sym=golden.sema.useReplaceStringIgnoreCase
@@ -23,14 +15,14 @@ expr e@5:44 string(Hello World) type=String
 expr e@5:66 string(hello) type=String
 expr e@5:75 string(Hi) type=String
 expr e@5:94 bool(true) type=Boolean
-expr e@5:44#1 memberCall recv=e@5:44 callee=replace args=[_:e@5:66,_:e@5:75,ignoreCase:e@5:94] type=String call=kotlin.text.replace#3
+expr e@5:44#1 memberCall recv=e@5:44 callee=replace args=[_:e@5:66,_:e@5:75,ignoreCase:e@5:94] type=String call=kotlin.text.replace#1
 expr e@7:42 string(Hello World) type=String
 expr e@7:64 char(104) type=Char
 expr e@7:69 char(74) type=Char
 expr e@7:87 bool(true) type=Boolean
-expr e@7:42#1 memberCall recv=e@7:42 callee=replace args=[_:e@7:64,_:e@7:69,ignoreCase:e@7:87] type=String call=kotlin.text.replace#1
+expr e@7:42#1 memberCall recv=e@7:42 callee=replace args=[_:e@7:64,_:e@7:69,ignoreCase:e@7:87] type=String call=kotlin.text.replace#0
 expr e@9:45 string(Hello World) type=String
 expr e@9:67 char(72) type=Char
 expr e@9:72 char(74) type=Char
 expr e@9:90 bool(false) type=Boolean
-expr e@9:45#1 memberCall recv=e@9:45 callee=replace args=[_:e@9:67,_:e@9:72,ignoreCase:e@9:90] type=String call=kotlin.text.replace#1
+expr e@9:45#1 memberCall recv=e@9:45 callee=replace args=[_:e@9:67,_:e@9:72,ignoreCase:e@9:90] type=String call=kotlin.text.replace#0

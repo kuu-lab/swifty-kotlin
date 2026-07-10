@@ -119,6 +119,29 @@ struct AnonymousObjectLocalTypingTests {
         }
     }
 
+    @Test func testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction() throws {
+        let source = """
+        interface Runner {
+            fun run(value: Int): Int
+        }
+
+        fun main() {
+            val local = object : Runner {
+                val callback: (Int) -> Int = { value -> value + 1 }
+                override fun run(value: Int): Int = this.callback(value)
+            }
+            println(local.run(41))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+        }
+    }
+
     private func topLevelFunction(
         named name: String,
         in ast: ASTModule,

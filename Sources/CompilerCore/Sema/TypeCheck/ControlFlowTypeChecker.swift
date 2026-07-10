@@ -191,7 +191,11 @@ final class ControlFlowTypeChecker {
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
         var bodyLocals = locals
         if let loopVariable {
+            // `until` desugars to a memberCall (infix function), not a `.binary` range
+            // op, so the AST-shape check alone misses it; fall back to the semantic
+            // flag that markRangeCallBindings sets when resolving such calls.
             let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+                || sema.bindings.isRangeExpr(iterableExpr)
             let elementType = bindLoopIterationOperators(
                 exprID: id,
                 iterableType: iterableType,
@@ -200,6 +204,7 @@ final class ControlFlowTypeChecker {
             ) ?? driver.helpers.iterableElementType(
                 for: iterableType,
                 isRangeExpr: isRangeExpr,
+                isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
                 sema: sema,
                 interner: ctx.interner
             ) ?? sema.types.anyType

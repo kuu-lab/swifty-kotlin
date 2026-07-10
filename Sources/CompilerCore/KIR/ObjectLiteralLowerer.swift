@@ -148,7 +148,17 @@ final class ObjectLiteralLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let objectValueType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
+        let emittedNominal = ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
+        if emittedNominal {
+            lowerObjectLiteralMemberFunctions(
+                objectDecl,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+        }
 
         let intType = sema.types.intType
         let layout = sema.symbols.nominalLayout(for: objectSymbol)
@@ -177,6 +187,14 @@ final class ObjectLiteralLowerer {
         registerObjectLiteralSupertypes(
             objectSymbol: objectSymbol,
             objectValue: objectValue,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        appendObjectItableMethodRegistrations(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -426,12 +444,40 @@ final class ObjectLiteralLowerer {
         exprID: ExprID,
         objectSymbol: SymbolID,
         arena: KIRArena
-    ) {
+    ) -> Bool {
         guard driver.ctx.markObjectLiteralEmitted(exprID) else {
-            return
+            return false
         }
         let nominalDeclID = arena.appendDecl(.nominalType(KIRNominalType(symbol: objectSymbol)))
         driver.ctx.appendGeneratedCallableDecl(nominalDeclID)
+        return true
+    }
+
+    private func lowerObjectLiteralMemberFunctions(
+        _ objectDecl: ObjectDecl,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) {
+        guard !objectDecl.memberFunctions.isEmpty else {
+            return
+        }
+        let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
+            memberFunctions: objectDecl.memberFunctions,
+            memberProperties: [],
+            nestedClasses: [],
+            nestedObjects: [],
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers
+        )
+        for declID in allDecls {
+            driver.ctx.appendGeneratedCallableDecl(declID)
+        }
     }
 
     private func syntheticObjectLiteralSymbols(

@@ -401,7 +401,7 @@ extension CodegenBackendIntegrationTests {
             // replace with empty new value (deletion)
             println("hello".replace("l", ""))
 
-            // replace with empty old value (no-op on empty string)
+            // replace with empty old value inserts the replacement at the boundary
             println("".replace("", "x"))
 
             // replaceFirst: only first occurrence changed
@@ -424,7 +424,7 @@ extension CodegenBackendIntegrationTests {
                 hello
                 aXXX
                 heo
-
+                x
                 Zabaa
                 hello
 
@@ -2154,4 +2154,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-

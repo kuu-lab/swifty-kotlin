@@ -38,44 +38,18 @@ final class RuntimeStringRandomTests: XCTestCase {
     }
 
     // MARK: - kk_string_random_random (seeded random)
-
-    func testRandomWithSeededRandomIsReproducible() {
-        let str = runtimeMakeStringRaw("xyz")
-        let seed = kk_random_create_seeded(42)
-
-        var thrown1 = 0
-        let result1 = __kk_string_random_random(str, seed, &thrown1)
-        XCTAssertEqual(thrown1, 0)
-
-        let seed2 = kk_random_create_seeded(42)
-        var thrown2 = 0
-        let result2 = __kk_string_random_random(str, seed2, &thrown2)
-        XCTAssertEqual(thrown2, 0)
-
-        XCTAssertEqual(kk_unbox_char(result1), kk_unbox_char(result2),
-                       "Same seed should produce same random character")
-    }
-
-    func testRandomWithSeededRandomReturnsCharFromString() {
-        let str = runtimeMakeStringRaw("hello")
-        let seed = kk_random_create_seeded(99)
-        for _ in 0..<10 {
-            var thrown = 0
-            let result = __kk_string_random_random(str, seed, &thrown)
-            XCTAssertEqual(thrown, 0)
-            let ch = kk_unbox_char(result)
-            let validChars = "hello".unicodeScalars.map { Int($0.value) }
-            XCTAssertTrue(validChars.contains(ch), "Result \(ch) not in 'hello'")
-        }
-    }
-
-    func testRandomWithSeededRandomThrowsOnEmptyString() {
-        let str = runtimeMakeStringRaw("")
-        let seed = kk_random_create_seeded(1)
-        var thrown = 0
-        _ = __kk_string_random_random(str, seed, &thrown)
-        XCTAssertNotEqual(thrown, 0, "random(Random) on empty string should throw")
-    }
+    //
+    // KSP-466: kk_random_create_seeded no longer exists — Random(seed) now
+    // constructs a real compiled Kotlin object (Sources/CompilerCore/Stdlib/
+    // kotlin/random/Random.kt), which Swift-level test code cannot fabricate
+    // directly the way the old SeededRandomBox could. String.random(random)'s
+    // own Kotlin migration is separate, later work (not KSP-466's scope); its
+    // seeded-determinism behavior is covered end-to-end at the Codegen
+    // integration layer (compiling and running real `"str".random(Random(seed))`
+    // Kotlin, e.g. Tests/CompilerBackendTests/Codegen/
+    // CodegenBackendIntegrationTests+RangeRandomEdgeCases.swift for the
+    // analogous Range.random(random) case) rather than by poking at Swift
+    // runtime internals here.
 
     func testRandomWithDefaultReceiverUsesSystemRandom() {
         let str = runtimeMakeStringRaw("abcdef")

@@ -1,20 +1,16 @@
 symbol fq=__local_0.r kind=local vis=private flags=_ type=kotlin.random.Random
 symbol fq=__local_1.a kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.b kind=local vis=private flags=_ type=Long
-symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
-symbol fq=kotlin.random.Random.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[Long] ret=kotlin.random.Random
-symbol fq=kotlin.random.Random.<init>.seed kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
-symbol fq=kotlin.random.nextLong#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Long
+symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomLongSeed kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=_
   decl useRandomLongSeed fun useRandomLongSeed sym=useRandomLongSeed
 expr e@4:20 long(42) type=Long
-expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#1
+expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#2
 expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.r
 expr e@5:13 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e@5:13#1 memberCall recv=e@5:13 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0
+expr e@5:13#1 memberCall recv=e@5:13 callee=nextInt args=[] type=Int call=kotlin.random.Random.nextInt#0
 expr e@5:5 localDecl a mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_1.a
 expr e@6:13 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e@6:13#1 memberCall recv=e@6:13 callee=nextLong args=[] type=Long call=kotlin.random.nextLong#0
+expr e@6:13#1 memberCall recv=e@6:13 callee=nextLong args=[] type=Long call=kotlin.random.Random.nextLong#0
 expr e@6:5 localDecl b mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_2.b

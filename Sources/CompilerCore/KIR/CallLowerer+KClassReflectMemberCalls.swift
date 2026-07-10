@@ -74,7 +74,25 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let typeArg = sema.bindings.callBindings[exprID]?.substitutedTypeArguments.first
+        lowerReifiedTypeNameHint(
+            typeArg: sema.bindings.callBindings[exprID]?.substitutedTypeArguments.first,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Renders a reified type argument (or `nil`) as a runtime name-hint string
+    /// literal, preferring the fully-qualified name, then the simple name, then
+    /// a rendered fallback, then an empty string when no type is available.
+    func lowerReifiedTypeNameHint(
+        typeArg: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         let name = typeArg.flatMap { RuntimeTypeCheckToken.qualifiedName(of: $0, sema: sema, interner: interner) }
             ?? typeArg.flatMap { RuntimeTypeCheckToken.simpleName(of: $0, sema: sema, interner: interner) }
             ?? typeArg.map { sema.types.renderType($0) }
@@ -192,7 +210,6 @@ extension CallLowerer {
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-        let stringType = sema.types.stringType
 
         func lowerFirstArgumentOrNull() -> KIRExprID {
             guard let firstArg = args.first else {
@@ -395,19 +412,17 @@ extension CallLowerer {
             )
 
         case "findAnnotation":
-            let searchNameExpr: KIRExprID
-            if let firstArg = args.first {
-                searchNameExpr = driver.lowerExpr(
-                    firstArg.expr,
-                    ast: ast, sema: sema, arena: arena, interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
-            } else {
-                let emptyStr = interner.intern("")
-                searchNameExpr = arena.appendExpr(.stringLiteral(emptyStr), type: stringType)
-                instructions.append(.constValue(result: searchNameExpr, value: .stringLiteral(emptyStr)))
-            }
+            // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
+            // no value parameters — the annotation class to search for comes from
+            // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
+            // `bindKClassFindAnnotationCall`), not from `args`.
+            let searchNameExpr = lowerReifiedTypeNameHint(
+                typeArg: sema.bindings.findAnnotationSearchType(for: exprID),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             return emitRuntimeCall(
                 callee: "kk_kclass_find_annotation",
                 arguments: [kclassExpr, searchNameExpr],

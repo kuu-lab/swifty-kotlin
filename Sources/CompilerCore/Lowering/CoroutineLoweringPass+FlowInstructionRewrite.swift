@@ -19,6 +19,24 @@ extension CoroutineLoweringPass {
             return expr
         }
 
+        // KSP-499 Stage 3: `.call` branches below already gate on `symbol ==
+        // nil` per-branch (the existing convention in this file for "this is
+        // still an unresolved Flow intrinsic, not a call to something else").
+        // `.virtualCall` — the KIR shape for ordinary member-call syntax like
+        // `someFlow.map { ... }`, the far more common way these operators are
+        // actually written — has no equivalent check, so once Sema resolves
+        // `.map`/`.toList`/etc. to a real bundled/user Kotlin declaration
+        // (non-nil, non-synthetic symbol), this pass must stop rewriting it
+        // by name so that real implementation actually runs.
+        func hasRealDeclaration(_ symbol: SymbolID?) -> Bool {
+            guard let symbol, let sema = ctx.sema,
+                  let resolvedSymbol = sema.symbols.symbol(symbol)
+            else {
+                return false
+            }
+            return !resolvedSymbol.flags.contains(.synthetic)
+        }
+
         func appendFlowReleaseCall(_ handleExpr: KIRExprID) {
             loweredBody.append(.call(
                 symbol: nil,
@@ -524,6 +542,10 @@ extension CoroutineLoweringPass {
                 loweredBody.append(instruction)
 
             case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+                if hasRealDeclaration(symbol) {
+                    loweredBody.append(instruction)
+                    continue
+                }
                 if callee == names.map, arguments.count == 1,
                    flowExprIDs.contains(receiver.rawValue)
                 {

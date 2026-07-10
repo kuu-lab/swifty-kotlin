@@ -308,12 +308,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             kkCallee = lookup.kkFileIsFileName
         case lookup.isDirectoryName:
             kkCallee = lookup.kkFileIsDirectoryName
-        case lookup.namePropertyName:
-            kkCallee = lookup.kkFileNameName
-        case lookup.nameWithoutExtensionName:
-            kkCallee = lookup.kkFileNameWithoutExtensionName
-        case lookup.pathPropertyName:
-            kkCallee = lookup.kkFilePathName
         case lookup.forEachLineName:
             kkCallee = lookup.kkFileForEachLineName
         // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch (virtual call path, args excludes receiver)
@@ -564,27 +558,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         listExprIDs: inout Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-        if callee == lookup.filterNotNullName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListFilterNotNullName,
-                arguments: [receiver],
-                result: hofResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
-        }
-
-        guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.mapNotNullName
-            || callee == lookup.filterNotName
+        guard callee == lookup.mapName || callee == lookup.mapNotNullName
             || callee == lookup.forEachName || callee == lookup.onEachName
             || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName
             || callee == lookup.anyName || callee == lookup.noneName
@@ -597,8 +571,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) ?? callee
         let needsListTag = callee == lookup.mapName
             || callee == lookup.mapNotNullName
-            || callee == lookup.flatMapName || callee == lookup.filterName
-            || callee == lookup.filterNotName
+            || callee == lookup.flatMapName
             || callee == lookup.onEachName
             || callee == lookup.takeWhileName || callee == lookup.dropWhileName
             || callee == lookup.takeLastWhileName || callee == lookup.dropLastWhileName
@@ -1025,8 +998,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        guard callee == lookup.filterToName || callee == lookup.filterNotToName
-            || callee == lookup.mapToName || callee == lookup.flatMapToName
+        guard callee == lookup.mapToName || callee == lookup.flatMapToName
             || callee == lookup.mapNotNullToName || callee == lookup.mapIndexedToName
             || callee == lookup.mapIndexedNotNullToName
             || callee == lookup.flatMapIndexedToName || callee == lookup.associateToName
@@ -1053,16 +1025,12 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         let isSequenceReceiver = sequenceExprIDs.contains(receiver.rawValue)
         let kkName: InternedString = switch callee {
-        case lookup.filterToName: lookup.kkListFilterToName
-        case lookup.filterNotToName: lookup.kkListFilterNotToName
         case lookup.mapToName: lookup.kkListMapToName
         case lookup.flatMapToName: lookup.kkListFlatMapToName
         case lookup.mapNotNullToName: lookup.kkListMapNotNullToName
         case lookup.mapIndexedToName: lookup.kkListMapIndexedToName
         case lookup.mapIndexedNotNullToName: lookup.kkListMapIndexedNotNullToName
         case lookup.flatMapIndexedToName: lookup.kkListFlatMapIndexedToName
-        case lookup.filterIndexedToName:
-            isSequenceReceiver ? lookup.kkSequenceFilterIndexedToName : lookup.kkListFilterIndexedToName
         case lookup.associateToName:
             isSequenceReceiver ? lookup.kkSequenceAssociateToName : lookup.kkListAssociateToName
         default: callee
@@ -1461,14 +1429,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // filterIndexed: args = [lambda]
-        if callee == lookup.filterIndexedName || callee == lookup.kkListFilterIndexedName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let hofResult = emitHOFCall(kkName: lookup.kkListFilterIndexedName, receiver: receiver, arguments: arguments + [zeroExpr], result: result, origCanThrow: origCanThrow, origThrownResult: origThrownResult, module: module, loweredBody: &loweredBody)
-            if let result { listExprIDs.insert(result.rawValue); listExprIDs.insert(hofResult.rawValue) }
-            return true
-        }
         // foldIndexed: args = [initial, lambda]
         if callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName, arguments.count == 2 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
