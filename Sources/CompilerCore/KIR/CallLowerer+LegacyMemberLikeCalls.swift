@@ -641,7 +641,7 @@ extension CallLowerer {
                 var rhs = loweredArgIDs[0]
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -653,7 +653,7 @@ extension CallLowerer {
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -2594,7 +2594,7 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
+                    let listExpr = arena.appendTemporary()
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_toList"),
