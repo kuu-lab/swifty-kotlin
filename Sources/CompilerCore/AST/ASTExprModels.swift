@@ -180,6 +180,7 @@ public enum Expr: Equatable, Codable {
     case safeMemberCall(receiver: ExprID, callee: InternedString, typeArgs: [TypeRefID], args: [CallArgument], range: SourceRange)
     case compoundAssign(op: CompoundAssignOp, name: InternedString, value: ExprID, range: SourceRange)
     case indexedCompoundAssign(op: CompoundAssignOp, receiver: ExprID, indices: [ExprID], value: ExprID, range: SourceRange)
+    case memberCompoundAssign(op: CompoundAssignOp, receiver: ExprID, callee: InternedString, value: ExprID, range: SourceRange)
     case throwExpr(value: ExprID, range: SourceRange)
     case lambdaLiteral(params: [InternedString], body: ExprID, label: InternedString? = nil, range: SourceRange)
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)

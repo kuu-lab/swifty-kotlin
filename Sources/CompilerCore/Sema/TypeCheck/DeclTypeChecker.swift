@@ -188,7 +188,8 @@ final class DeclTypeChecker {
                 delegateExpr, property: property,
                 symbol: symbol,
                 inferredPropertyType: inferredPropertyType,
-                ctx: ctx
+                ctx: ctx,
+                diagnostics: diagnostics
             )
         }
 

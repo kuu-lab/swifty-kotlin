@@ -203,7 +203,8 @@ extension BuildASTPhase {
 
             if let compound = parseCompoundAssignment(
                 from: statementTokens,
-                context: context
+                context: context,
+                options: options
             ) {
                 return compound
             }
@@ -343,6 +344,21 @@ extension BuildASTPhase {
                     range: range
                 ))
 
+            case let .memberCall(receiver, callee, typeArgs, args, _):
+                guard options.allowMemberAssign,
+                      typeArgs.isEmpty,
+                      args.isEmpty
+                else {
+                    return nil
+                }
+                return context.astArena.appendExpr(.memberCompoundAssign(
+                    op: op,
+                    receiver: receiver,
+                    callee: callee,
+                    value: oneExpr,
+                    range: range
+                ))
+
             default:
                 return nil
             }
@@ -350,7 +366,8 @@ extension BuildASTPhase {
 
         private static func parseCompoundAssignment(
             from statementTokens: ArraySlice<Token>,
-            context: LocalStatementCoreContext
+            context: LocalStatementCoreContext,
+            options: LocalStatementCoreOptions
         ) -> ExprID? {
             let compoundOps: [(TokenKind, CompoundAssignOp)] = [
                 (.symbol(.plusAssign), .plusAssign),
@@ -422,6 +439,20 @@ extension BuildASTPhase {
                     op: op,
                     receiver: receiver,
                     indices: indices,
+                    value: valueExpr,
+                    range: range
+                ))
+            case let .memberCall(receiver, callee, typeArgs, args, _):
+                guard options.allowMemberAssign,
+                      typeArgs.isEmpty,
+                      args.isEmpty
+                else {
+                    return nil
+                }
+                return context.astArena.appendExpr(.memberCompoundAssign(
+                    op: op,
+                    receiver: receiver,
+                    callee: callee,
                     value: valueExpr,
                     range: range
                 ))

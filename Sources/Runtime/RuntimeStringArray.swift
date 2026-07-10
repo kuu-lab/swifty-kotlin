@@ -578,10 +578,14 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
             return 1
         }
-        // RuntimeThrowableBox objects from external/runtime calls usually do not
-        // have registered type IDs. Preserve the broad throwable fallback for
-        // unknown nominal tokens so existing catch-path behaviour does not regress.
-        return 1
+        // Typed RuntimeThrowableBox subclasses (STDLIB-LOG-149 and friends) know
+        // their exact exception hierarchy, so a lookup miss here is a genuine type
+        // mismatch (e.g. a ClassCastException checked against an IllegalStateException
+        // catch clause) and must NOT match. Only the untyped base RuntimeThrowableBox
+        // — used by external/runtime calls that don't carry Kotlin exception-hierarchy
+        // metadata — falls back to the broad "matches any catch clause" behaviour so
+        // it stays catchable despite the missing type info.
+        return ObjectIdentifier(type(of: throwable)) == ObjectIdentifier(RuntimeThrowableBox.self) ? 1 : 0
 
     default:
         return 0
@@ -594,7 +598,7 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
     if kk_op_is(value, typeToken) != 0 {
         return value
     }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "ClassCastException")
+    outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
 }
 
@@ -639,6 +643,20 @@ public func kk_array_new(_ length: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
+}
+
+/// Same as `kk_array_new`, but validates `length` first and throws
+/// `NegativeArraySizeException` for negative sizes instead of silently
+/// clamping to an empty array. Used by the `Array(size) { init }` family of
+/// pseudo-constructors (Array, IntArray, ByteArray, ...), which must reject
+/// negative sizes the way real Kotlin does.
+@_cdecl("kk_array_new_checked")
+public func kk_array_new_checked(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard length >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        return 0
+    }
+    return kk_array_new(length)
 }
 
 @_cdecl("kk_object_new")
@@ -1213,7 +1231,7 @@ public func kk_kclass_cast(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateClassCastException(
             message: "ClassCastException: Invalid KClass handle."
         )
         return runtimeNullSentinelInt
@@ -1228,7 +1246,7 @@ public func kk_kclass_cast(
     } else {
         typeName = "Unknown"
     }
-    outThrown?.pointee = runtimeAllocateThrowable(
+    outThrown?.pointee = runtimeAllocateClassCastException(
         message: "ClassCastException: Value cannot be cast to \(typeName)."
     )
     return runtimeNullSentinelInt
@@ -1556,7 +1574,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         if let scalar = UnicodeScalar(charBox.value) {
             Swift.print(Character(scalar))
         } else {
-            Swift.print("�")
+            Swift.print("?")
         }
         return
     }
@@ -1859,7 +1877,7 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
             hash: value.payload3
         )
     case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "�"
+        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "?"
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }

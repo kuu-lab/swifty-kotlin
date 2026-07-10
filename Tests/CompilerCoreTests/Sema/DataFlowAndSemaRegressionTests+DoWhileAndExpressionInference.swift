@@ -173,6 +173,56 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
+    // MARK: - ExprInference: member compound assign / postfix on val
+
+    @Test func testMemberCompoundAssignOnValEmitsDiagnostic() throws {
+        let source = """
+        class Box(val n: Int)
+        fun bump(b: Box): Int {
+            b.n += 1
+            return b.n
+        }
+        fun main(): Int = bump(Box(5))
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0014", in: ctx)
+        }
+    }
+
+    @Test func testMemberPostfixIncrementOnValEmitsDiagnostic() throws {
+        let source = """
+        class Box(val n: Int)
+        fun bump(b: Box): Int {
+            b.n++
+            return b.n
+        }
+        fun main(): Int = bump(Box(5))
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0014", in: ctx)
+        }
+    }
+
+    @Test func testMemberCompoundAssignOnVarDoesNotEmitDiagnostic() throws {
+        let source = """
+        class Box(var n: Int)
+        fun bump(b: Box): Int {
+            b.n += 1
+            return b.n
+        }
+        fun main(): Int = bump(Box(5))
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0014", in: ctx)
+        }
+    }
+
     // MARK: - ExprInference: when expression
 
     @Test func testWhenExpressionInference() throws {

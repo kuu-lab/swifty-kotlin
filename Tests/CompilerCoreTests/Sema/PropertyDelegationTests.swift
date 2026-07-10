@@ -104,7 +104,7 @@ struct SemaDelegateTypeCheckTests {
     @Test func testDelegatedPropertyCreatesStorageSymbolDuringHeaderCollection() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -149,7 +149,11 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
-    @Test func testDelegatedPropertyTypeDefaultsToNullableAnyWhenNotDeclared() throws {
+    // `MyDelegate.getValue` intentionally omits `operator` so this test exercises
+    // the KSWIFTK-SEMA-0103 diagnostic path: type inference can't resolve a
+    // return type from getValue, so the property type must still safely fall
+    // back to Any? (rather than being left unset) alongside the reported error.
+    @Test func testDelegatedPropertyMissingGetValueOperatorFallsBackToNullableAnyAndReportsError() throws {
         let source = """
         class MyDelegate {
             fun getValue(thisRef: Any?, property: Any?): Int = 42
@@ -164,6 +168,9 @@ struct SemaDelegateTypeCheckTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
+
+            #expect(ctx.diagnostics.hasError,
+                          "Delegate type missing the 'getValue' operator should report an error")
 
             let fooFQ = [interner.intern("Foo")]
             let fooChildren = sema.symbols.children(ofFQName: fooFQ)
@@ -187,7 +194,7 @@ struct SemaDelegateTypeCheckTests {
     @Test func testDelegatedPropertyPreservesExplicitType() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -222,8 +229,8 @@ struct SemaDelegateTypeCheckTests {
     @Test func testMutableDelegatedPropertyCreatesStorageSymbol() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 0
-            fun setValue(thisRef: Any?, property: Any?, value: Int) {}
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 0
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
         }
         class Foo {
             var x: Int by MyDelegate()
@@ -257,7 +264,7 @@ struct SemaDelegateTypeCheckTests {
     @Test func testMultipleDelegatedPropertiesCreateSeparateStorageSymbols() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -291,7 +298,7 @@ struct SemaDelegateTypeCheckTests {
     @Test func testDelegatedPropertyRecordsDelegateTypeOnSyntheticSymbol() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -329,7 +336,7 @@ struct KIRDelegateAccessorTests {
     @Test func testDelegatedValSynthesizesGetterWithGetValueCall() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -375,8 +382,8 @@ struct KIRDelegateAccessorTests {
     @Test func testDelegatedVarSynthesizesSetterWithSetValueCall() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
-            fun setValue(thisRef: Any?, property: Any?, value: Int) {}
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
         }
         class Foo {
             var x: Int by MyDelegate()
@@ -414,7 +421,7 @@ struct KIRDelegateAccessorTests {
     @Test func testDelegatedValDoesNotSynthesizeSetter() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -441,7 +448,7 @@ struct KIRDelegateAccessorTests {
     @Test func testDelegateStorageGlobalIsEmitted() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -468,7 +475,7 @@ struct KIRDelegateAccessorTests {
     @Test func testGetValueCallUsesDelegateStorageAsSymbol() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -510,7 +517,7 @@ struct ConstructorDelegateInitTests {
     @Test func testConstructorEmitsInitializerForDelegateStorage() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()
@@ -540,7 +547,7 @@ struct ConstructorDelegateInitTests {
     @Test func testMultipleDelegatedPropertiesEmitSeparateGlobalsInKIR() throws {
         let source = """
         class MyDelegate {
-            fun getValue(thisRef: Any?, property: Any?): Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
         }
         class Foo {
             val x: Int by MyDelegate()

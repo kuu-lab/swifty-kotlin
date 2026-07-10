@@ -547,36 +547,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
-                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
-                        : calleeStr == "last" ? "kk_string_last_flat"
-                        : "kk_string_single_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID, thrownExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
-                        : "kk_string_singleOrNull_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeName == interner.intern("zipWithNext") {
                     // String.zipWithNext overload dispatch: no-arg → kk_string_zipWithNext,
                     // transform → kk_string_zipWithNextTransform.
@@ -836,7 +806,7 @@ extension CallLowerer {
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("__kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
+                        nil
                     } else {
                         nil
                     }
@@ -891,8 +861,6 @@ extension CallLowerer {
                     ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
                 case "reduce":
                     ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
-                case "singleOrNull":
-                    ("kk_string_singleOrNull_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
@@ -1284,51 +1252,6 @@ extension CallLowerer {
             }
         }
 
-        // String stdlib: replaceFirst(oldValue, newValue) (STDLIB-188)
-        // Skip when first arg is a Regex — handled by the STDLIB-REGEX-094 block below.
-        if args.count == 2, interner.resolve(calleeName) == "replaceFirst" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let firstArgIsRegex = isRegexLikeType(
-                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            )
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType), !firstArgIsRegex {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_replaceFirst_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
-        if args.count == 3, interner.resolve(calleeName) == "replaceFirst" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let thirdArgType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
-            )
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               sema.types.isSubtype(thirdArgType, sema.types.booleanType)
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_replaceFirst_ignoreCase"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
         // STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>)
         if args.count == 1, interner.resolve(calleeName) == "slice" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
@@ -1410,84 +1333,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
                     result: result,
                     canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: replace(old, new) (STDLIB-006) / replace(Char, Char) (STDLIB-TEXT-FN-055)
-        if args.count == 2, interner.resolve(calleeName) == "replace" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                let firstArgType = sema.types.makeNonNullable(
-                    sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-                )
-                let runtimeCallee: String
-                if isRegexLikeType(firstArgType, sema: sema, interner: interner) {
-                    runtimeCallee = "kk_string_replace_regex"
-                } else if sema.types.isSubtype(firstArgType, sema.types.charType) {
-                    runtimeCallee = "kk_string_replace_char_flat"
-                } else {
-                    runtimeCallee = "kk_string_replace_flat"
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(runtimeCallee),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // STDLIB-TEXT-FN-055: replace(old, new, ignoreCase) — 3-arg overload
-        if args.count == 3, interner.resolve(calleeName) == "replace" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let firstArgType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-            )
-            let thirdArgType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
-            )
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               sema.types.isSubtype(thirdArgType, sema.types.booleanType)
-            {
-                let runtimeCallee = sema.types.isSubtype(firstArgType, sema.types.charType)
-                    ? "kk_string_replace_char_ignoreCase_flat"
-                    : "kk_string_replace_ignoreCase_flat"
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(runtimeCallee),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: replaceFirst(regex, replacement) (STDLIB-REGEX-094)
-        if args.count == 2, interner.resolve(calleeName) == "replaceFirst" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               isRegexLikeType(
-                   sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType,
-                   sema: sema,
-                   interner: interner
-               ) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_replaceFirst_regex"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
                     thrownResult: nil
                 ))
                 return result

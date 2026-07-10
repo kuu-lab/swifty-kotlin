@@ -246,6 +246,10 @@ extension LambdaLowerer {
         case let .memberAssign(receiverExpr, _, valueExpr, _):
             collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: valueExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .memberCompoundAssign(_, receiverExpr, _, valueExpr, _):
+            collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            collectBoundIdentifierSymbols(in: valueExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
         }
     }
 
@@ -444,6 +448,10 @@ extension LambdaLowerer {
                 || containsImplicitReceiverReference(in: body, ast: ast)
 
         case let .memberAssign(receiverExpr, _, valueExpr, _):
+            return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
+                || containsImplicitReceiverReference(in: valueExpr, ast: ast)
+
+        case let .memberCompoundAssign(_, receiverExpr, _, valueExpr, _):
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
                 || containsImplicitReceiverReference(in: valueExpr, ast: ast)
         }

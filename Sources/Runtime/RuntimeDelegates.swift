@@ -1,47 +1,7 @@
 import Foundation
 
-typealias KKCustomDelegateGetterEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-typealias KKCustomDelegateSetterEntryPoint = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-
 private let runtimeNotNullUninitializedPayload =
     "IllegalStateException: Property delegate must be assigned before being accessed."
-
-/// Throws an `IllegalStateException` for uninitialized `notNull` delegate access.
-/// (STDLIB-PROP-ABI-001)
-///
-/// When `outThrown` is non-nil (throwing call site), the exception is set via
-/// `outThrown` and 0 is returned.  When `outThrown` is nil (non-throwing call
-/// site — the compiler currently lowers this as a non-throwing call), we fall
-/// back to `fatalError` so the process still terminates with a diagnostic
-/// message and a non-zero exit code.
-@inline(__always)
-private func runtimeThrowNotNullUninitialized(
-    propertyName: String? = nil,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    if let outThrown {
-        let name = propertyName ?? "unknown"
-        let message = "Property \(name) should be initialized before get."
-        outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
-        return 0
-    } else {
-        let message = runtimeStructuredPanicMessage(runtimeNotNullUninitializedPayload)
-        FileHandle.standardError.write(Data((message + "\n").utf8))
-        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
-    }
-}
-
-final class RuntimeCustomDelegateBox {
-    let delegateHandle: Int
-    let getValueFnPtr: Int
-    let setValueFnPtr: Int
-
-    init(delegateHandle: Int, getValueFnPtr: Int, setValueFnPtr: Int) {
-        self.delegateHandle = delegateHandle
-        self.getValueFnPtr = getValueFnPtr
-        self.setValueFnPtr = setValueFnPtr
-    }
-}
 
 // MARK: - KProperty Stub (PROP-007, STDLIB-REFLECT-062)
 
@@ -132,7 +92,7 @@ public func kk_callable_ref_parameters(_ tagged: Int) -> Int {
 }
 
 
-@_cdecl("kk_kproperty_stub_create")
+@_cdecl("__kk_kproperty_stub_create")
 public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> Int {
     let stub = RuntimeKPropertyStub(name: nameStr, returnType: returnTypeStr)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(stub).toOpaque())
@@ -143,9 +103,9 @@ public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> In
 }
 
 // (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 / STDLIB-REFLECT-062 (KProperty 完全メタデータ実装)
-// kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility} は全て同タスクに紐付く。
+// __kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility} は全て同タスクに紐付く。
 // STDLIB-REFLECT-062: extended create with full KProperty metadata
-@_cdecl("kk_kproperty_stub_create_full")
+@_cdecl("__kk_kproperty_stub_create_full")
 public func kk_kproperty_stub_create_full(
     _ nameStr: Int,
     _ returnTypeStr: Int,
@@ -167,7 +127,7 @@ public func kk_kproperty_stub_create_full(
     return Int(bitPattern: opaque)
 }
 
-@_cdecl("kk_kproperty_stub_name")
+@_cdecl("__kk_kproperty_stub_name")
 public func kk_kproperty_stub_name(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
@@ -178,7 +138,7 @@ public func kk_kproperty_stub_name(_ handle: Int) -> Int {
     return stub.name
 }
 
-@_cdecl("kk_kproperty_stub_return_type")
+@_cdecl("__kk_kproperty_stub_return_type")
 public func kk_kproperty_stub_return_type(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
@@ -190,7 +150,7 @@ public func kk_kproperty_stub_return_type(_ handle: Int) -> Int {
 }
 
 // STDLIB-REFLECT-062: visibility accessor
-@_cdecl("kk_kproperty_stub_visibility")
+@_cdecl("__kk_kproperty_stub_visibility")
 public func kk_kproperty_stub_visibility(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
@@ -208,7 +168,7 @@ public func kk_kproperty_stub_visibility(_ handle: Int) -> Int {
 }
 
 // STDLIB-REFLECT-062: isLateinit accessor
-@_cdecl("kk_kproperty_stub_is_lateinit")
+@_cdecl("__kk_kproperty_stub_is_lateinit")
 public func kk_kproperty_stub_is_lateinit(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
@@ -220,7 +180,7 @@ public func kk_kproperty_stub_is_lateinit(_ handle: Int) -> Int {
 }
 
 // STDLIB-REFLECT-062: isConst accessor
-@_cdecl("kk_kproperty_stub_is_const")
+@_cdecl("__kk_kproperty_stub_is_const")
 public func kk_kproperty_stub_is_const(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
@@ -447,209 +407,4 @@ public func kk_notNull_set_value(_ handle: Int, _ newValue: Int) -> Int {
     }
     box.currentValue = newValue
     return newValue
-}
-
-// MARK: - Custom Delegate
-
-@_cdecl("kk_custom_delegate_create")
-public func kk_custom_delegate_create(
-    _ delegateHandle: Int,
-    _ getValueFnPtr: Int,
-    _ setValueFnPtr: Int
-) -> Int {
-    let box = RuntimeCustomDelegateBox(
-        delegateHandle: delegateHandle,
-        getValueFnPtr: getValueFnPtr,
-        setValueFnPtr: setValueFnPtr
-    )
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    runtimeStorage.withDelegateLock { state in
-        state.customDelegateBoxes[UInt(bitPattern: opaque)] = box
-    }
-    return Int(bitPattern: opaque)
-}
-
-@_cdecl("kk_custom_delegate_get_value")
-public func kk_custom_delegate_get_value(_ handle: Int, _ thisRef: Int, _ property: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let key = UInt(bitPattern: ptr)
-    let box = runtimeStorage.withDelegateLock { state in
-        state.customDelegateBoxes[key]
-    }
-    guard let box, box.getValueFnPtr != 0 else {
-        return 0
-    }
-    let getter = unsafeBitCast(box.getValueFnPtr, to: KKCustomDelegateGetterEntryPoint.self)
-    var thrown = 0
-    let value = getter(box.delegateHandle, thisRef, property, &thrown)
-    if thrown != 0 {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: custom delegate getter threw")
-    }
-    return value
-}
-
-@_cdecl("kk_custom_delegate_set_value")
-public func kk_custom_delegate_set_value(_ handle: Int, _ thisRef: Int, _ property: Int, _ newValue: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return newValue
-    }
-    let key = UInt(bitPattern: ptr)
-    let box = runtimeStorage.withDelegateLock { state in
-        state.customDelegateBoxes[key]
-    }
-    guard let box else {
-        return newValue
-    }
-    if box.setValueFnPtr == 0 {
-        return newValue
-    }
-    let setter = unsafeBitCast(box.setValueFnPtr, to: KKCustomDelegateSetterEntryPoint.self)
-    var thrown = 0
-    let result = setter(box.delegateHandle, thisRef, property, newValue, &thrown)
-    if thrown != 0 {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: custom delegate setter threw")
-    }
-    return result
-}
-
-// MARK: - Generic Delegate Operator Shims
-
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 (delegated property getValue / setValue lowering)
-/// Bridges compiler-emitted delegated property accessors that still lower to
-/// `getValue` / `setValue` symbols instead of direct runtime helper names.
-@_cdecl("kk_delegate_get_value")
-public func kk_delegate_get_value(_ handle: Int, _: Int, _ property: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let isObj = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObj else {
-        return 0
-    }
-    if let lazyBox = tryCast(ptr, to: RuntimeLazyBox.self) {
-        return lazyBox.getValue()
-    }
-    if let observableBox = tryCast(ptr, to: RuntimeObservableBox.self) {
-        return observableBox.currentValue
-    }
-    if let vetoableBox = tryCast(ptr, to: RuntimeVetoableBox.self) {
-        return vetoableBox.currentValue
-    }
-    if let notNullBox = tryCast(ptr, to: RuntimeNotNullBox.self) {
-        guard let value = notNullBox.currentValue else {
-            return runtimeThrowNotNullUninitialized(outThrown: outThrown)
-        }
-        return value
-    }
-    // Map-backed property delegation (STDLIB-335)
-    if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
-        let propName = kk_kproperty_stub_name(property)
-        for i in 0..<mapBox.keys.count {
-            if runtimeRawStringsEqual(mapBox.keys[i], propName) {
-                return mapBox.values[i]
-            }
-        }
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: key not found in map delegate")
-    }
-    return 0
-}
-
-/// Bridges compiler-emitted delegated property setters that still lower to
-/// `setValue` instead of direct runtime helper names.
-@_cdecl("kk_delegate_set_value")
-public func kk_delegate_set_value(
-    _ handle: Int,
-    _: Int,
-    _ property: Int,
-    _ newValue: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let isObj = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObj else {
-        return 0
-    }
-    if let observableBox = tryCast(ptr, to: RuntimeObservableBox.self) {
-        let oldValue = observableBox.currentValue
-        observableBox.currentValue = newValue
-        if observableBox.callbackFnPtr != 0 {
-            let callback = unsafeBitCast(observableBox.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
-            var thrown = 0
-            _ = callback(0, oldValue, newValue, &thrown)
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: observable callback threw")
-            }
-        }
-        return newValue
-    }
-    if let vetoableBox = tryCast(ptr, to: RuntimeVetoableBox.self) {
-        let oldValue = vetoableBox.currentValue
-        if vetoableBox.callbackFnPtr != 0 {
-            let callback = unsafeBitCast(vetoableBox.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
-            var thrown = 0
-            let accepted = callback(0, oldValue, newValue, &thrown)
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: vetoable callback threw")
-            }
-            if accepted != 0 {
-                vetoableBox.currentValue = newValue
-            }
-        } else {
-            vetoableBox.currentValue = newValue
-        }
-        return vetoableBox.currentValue
-    }
-    if let notNullBox = tryCast(ptr, to: RuntimeNotNullBox.self) {
-        notNullBox.currentValue = newValue
-        return newValue
-    }
-    // MutableMap-backed property delegation (STDLIB-335)
-    if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
-        let propName = kk_kproperty_stub_name(property)
-        for i in 0..<mapBox.keys.count {
-            if runtimeRawStringsEqual(mapBox.keys[i], propName) {
-                mapBox.values[i] = newValue
-                return newValue
-            }
-        }
-        // Key not present yet — insert new entry.
-        mapBox.keys.append(propName)
-        mapBox.values.append(newValue)
-        return newValue
-    }
-    return newValue
-}
-
-private func runtimeRawStringsEqual(_ lhsRaw: Int, _ rhsRaw: Int) -> Bool {
-    if rhsRaw == runtimeNullSentinelInt {
-        return false
-    }
-    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhsRaw),
-          let lhs = extractString(from: lhsPtr)
-    else {
-        fatalError(
-            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in runtimeRawStringsEqual (lhsRaw=0x\(String(lhsRaw, radix: 16)))"
-        )
-    }
-    guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhsRaw),
-          let rhs = extractString(from: rhsPtr)
-    else {
-        fatalError(
-            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in runtimeRawStringsEqual (rhsRaw=0x\(String(rhsRaw, radix: 16)))"
-        )
-    }
-    return lhs == rhs
 }

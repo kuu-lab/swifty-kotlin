@@ -360,6 +360,17 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // For qualified nested-type references within the current package (e.g. a
+        // Companion-scoped extension "Duration.Companion.ZERO" written in the same
+        // file/package as "class Duration"), try the path prefixed by the current
+        // package FQName before falling back to import expansion.
+        if path.count > 1,
+           let currentPackageFQName,
+           !currentPackageFQName.isEmpty
+        {
+            candidatePaths.append(currentPackageFQName + path)
+        }
+
         // For qualified nested-type references (e.g. "KMutableProperty.Setter"), expand
         // the first component via imports and append the remaining tail.
         if path.count > 1, let firstComponent = path.first {

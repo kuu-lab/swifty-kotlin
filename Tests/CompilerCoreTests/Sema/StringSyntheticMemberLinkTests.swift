@@ -68,17 +68,10 @@ struct StringSyntheticMemberLinkTests {
 
         let expected: [String: String] = [
             "trim": "kk_string_trim_flat",
-            "replace": "kk_string_replace_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
             "toDouble": "kk_string_toDouble",
-            "hexToShort": "kk_string_hexToShort_flat",
-            "hexToUByte": "kk_string_hexToUByte_flat",
-            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
-            "hexToUInt": "kk_string_hexToUInt_flat",
-            "hexToULong": "kk_string_hexToULong_flat",
-            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -182,21 +175,15 @@ struct StringSyntheticMemberLinkTests {
                 .contains("kk_string_plus"),
             "String?.plus(other: Any?) should link to kk_string_plus"
         )
-        // STDLIB-TEXT-FN-055: replace overloads
+        // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
+        let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
         #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_flat"),
-            "String.replace(Char, Char) should link to kk_string_replace_char_flat"
-        )
-        #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_ignoreCase_flat"),
-            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase_flat"
-        )
-        #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_ignoreCase_flat"),
-            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase_flat"
+            !replaceLinks.contains("kk_string_replace_flat")
+                && !replaceLinks.contains("kk_string_replace_char_flat")
+                && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
+                && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
+                && !replaceLinks.contains("kk_string_replace_regex"),
+            "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
         )
     }
 
