@@ -356,8 +356,7 @@ public func kk_string_split_limit_flat(
 }
 
 
-@_cdecl("kk_string_replace")
-public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
@@ -366,16 +365,14 @@ public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> In
 
 // MARK: - STDLIB-TEXT-FN-055: String.replace overloads
 
-@_cdecl("kk_string_replace_char")
-public func kk_string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
+func runtimeStringReplaceChar(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
     return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr))
 }
 
-@_cdecl("kk_string_replace_ignoreCase")
-public func kk_string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+func runtimeStringReplaceIgnoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
@@ -383,8 +380,7 @@ public func kk_string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw:
     return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue, options: options))
 }
 
-@_cdecl("kk_string_replace_char_ignoreCase")
-public func kk_string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+func runtimeStringReplaceCharIgnoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)

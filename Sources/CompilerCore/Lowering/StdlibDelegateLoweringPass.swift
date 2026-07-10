@@ -7,6 +7,79 @@ enum StdlibDelegateKind: Equatable {
     case notNull
     /// Custom user-defined delegate with getValue/setValue operators.
     case custom
+
+    /// Detects the delegate kind from the delegate expression's AST shape.
+    ///
+    /// This is the single source of truth for recognizing the stdlib delegate
+    /// factories (`lazy`, `Delegates.observable/vetoable/notNull`): both KIR
+    /// lowering (`MemberLowerer`, to pick a runtime dispatch strategy) and Sema
+    /// (`DeclTypeChecker.typeCheckDelegate`, to skip the missing-operator
+    /// diagnostic for these factories pending KSP-491/492) call this — do not
+    /// reimplement the matching elsewhere, since the two callers disagreeing on
+    /// which expressions count as "known" would either suppress a real
+    /// diagnostic or produce a spurious one.
+    ///
+    /// The name set intentionally differs *per AST node shape*: a bare name
+    /// only ever refers to the top-level `lazy` function; a member call only
+    /// ever means `Delegates.observable/vetoable/notNull` (those are never
+    /// referenced as a bare identifier).
+    static func detect(
+        delegateExpr: ExprID?,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> StdlibDelegateKind {
+        guard let exprID = delegateExpr,
+              let expr = ast.arena.expr(exprID) else { return .custom }
+        let lazyID = interner.intern("lazy")
+        let observableID = interner.intern("observable")
+        let vetoableID = interner.intern("vetoable")
+        let notNullID = interner.intern("notNull")
+        switch expr {
+        case let .nameRef(name, _):
+            if name == lazyID { return .lazy }
+            return .custom
+        case let .call(callee, _, _, _):
+            if let calleeExpr = ast.arena.expr(callee) {
+                switch calleeExpr {
+                case let .nameRef(name, _):
+                    if name == observableID { return .observable }
+                    if name == vetoableID { return .vetoable }
+                    if name == notNullID { return .notNull }
+                    if name == lazyID { return .lazy }
+                default: break
+                }
+            }
+            return detectFromCallExpr(callee: callee, ast: ast, interner: interner)
+        case let .memberCall(_, callee, _, _, _):
+            if callee == observableID { return .observable }
+            if callee == vetoableID { return .vetoable }
+            if callee == notNullID { return .notNull }
+            return .custom
+        default:
+            return .custom
+        }
+    }
+
+    private static func detectFromCallExpr(
+        callee: ExprID, ast: ASTModule, interner: StringInterner
+    ) -> StdlibDelegateKind {
+        guard let expr = ast.arena.expr(callee) else { return .custom }
+        let observableID = interner.intern("observable")
+        let vetoableID = interner.intern("vetoable")
+        let notNullID = interner.intern("notNull")
+        switch expr {
+        case let .memberCall(_, name, _, _, _):
+            if name == observableID { return .observable }
+            if name == vetoableID { return .vetoable }
+            if name == notNullID { return .notNull }
+        case let .nameRef(name, _):
+            if name == observableID { return .observable }
+            if name == vetoableID { return .vetoable }
+            if name == notNullID { return .notNull }
+        default: break
+        }
+        return .custom
+    }
 }
 
 /// Rewrites delegate property initialization sequences for known stdlib
@@ -64,8 +137,6 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                     let calleeName = interner.resolve(callee)
                     if let kind = delegateFactoryKind(calleeName) {
                         delegateKindByFieldName[fieldName] = kind
-                    } else if calleeName == "kk_custom_delegate_create" {
-                        delegateKindByFieldName[fieldName] = .custom
                     }
                 }
                 return function // no mutation in this scan pass
@@ -209,9 +280,9 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                     continue
                                 }
                             case .custom:
-                                // Custom delegates: the kk_custom_delegate_create
-                                // call was already emitted by KIR lowering.
-                                // Pass through as-is.
+                                // Custom delegates: MemberLowerer+DelegatedAndAccessorLowering
+                                // already resolves getValue/setValue to a direct call on the
+                                // user-defined operator symbol. No rewrite needed here.
                                 break
                             }
                         }

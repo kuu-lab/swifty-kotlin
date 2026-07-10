@@ -48,7 +48,7 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kproperty_stub_name"),
+            callee: interner.intern("__kk_kproperty_stub_name"),
             arguments: [receiverID],
             result: result,
             canThrow: false,

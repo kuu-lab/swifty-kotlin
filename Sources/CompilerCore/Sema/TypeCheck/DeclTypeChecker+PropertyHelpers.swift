@@ -38,7 +38,8 @@ extension DeclTypeChecker {
         property: PropertyDecl,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        diagnostics: DiagnosticEngine
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -68,6 +69,16 @@ extension DeclTypeChecker {
                 else { return false }
                 return sym.flags.contains(.operatorFunction)
             }
+        // Tracks whether getValue/setValue were actually resolved for the *effective*
+        // delegate type (see below: provideDelegate, when present, fully supersedes
+        // this direct check). Deliberately not read back from
+        // sema.symbols.delegateGetValueSymbol(for:) for the diagnostic below — that
+        // symbol table entry is only ever set on success and never cleared, so if a
+        // provideDelegate re-resolution later fails, a stale symbol from this direct
+        // check would otherwise mask the failure.
+        var getValueResolved = false
+        var setValueResolved = false
+
         if let getValueSymbol = getValueCandidates.first,
            let getValueSig = resolvedDelegateMemberSignature(
                for: getValueSymbol,
@@ -78,8 +89,10 @@ extension DeclTypeChecker {
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
             result = getValueSig.returnType
+            getValueResolved = true
         } else if let getValueSymbol = getValueCandidates.first {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
+            getValueResolved = true
         }
 
         // Check setValue for var properties.
@@ -98,6 +111,7 @@ extension DeclTypeChecker {
                 }
             if let setValueSymbol = setValueCandidates.first {
                 sema.symbols.setDelegateSetValueSymbol(setValueSymbol, for: symbol)
+                setValueResolved = true
             }
         }
 
@@ -147,6 +161,9 @@ extension DeclTypeChecker {
                             else { return false }
                             return !sym.flags.contains(.synthetic)
                         }
+                    // provideDelegate's return type is the effective delegate, so its
+                    // resolution (success or failure) fully supersedes the direct check above.
+                    getValueResolved = actualGetValueSymbol != nil
                     if let actualGetValueSymbol {
                         sema.symbols.setDelegateGetValueSymbol(actualGetValueSymbol, for: symbol)
                         // When provideDelegate is present, the property type must be inferred from
@@ -181,12 +198,41 @@ extension DeclTypeChecker {
                                 else { return false }
                                 return !sym.flags.contains(.synthetic)
                             }
+                        // Same rationale as getValueResolved above: provideDelegate's
+                        // return type supersedes the direct check.
+                        setValueResolved = actualSetValueSymbol != nil
                         if let actualSetValueSymbol {
                             sema.symbols.setDelegateSetValueSymbol(actualSetValueSymbol, for: symbol)
                         }
                     }
                 }
             }
+        }
+
+        // Kotlin requires a delegate's (effective, post-provideDelegate) type to expose
+        // getValue (and setValue for `var`) operators; a type lacking them is a compile
+        // error, not a silent fallback to Any?. Skip the small set of stdlib delegate
+        // factories (`lazy`, `Delegates.observable/vetoable/notNull`) whose dispatch KIR
+        // lowering still hardcodes structurally (StdlibDelegateLoweringPass) rather than
+        // resolving through the operator convention — that gap is tracked separately
+        // (KSP-491/492) and must stay silent until those factories are wired to real
+        // operator-based dispatch.
+        let isKnownStdlibDelegate = StdlibDelegateKind.detect(
+            delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
+        ) != .custom
+        if !getValueResolved, !isKnownStdlibDelegate {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0103",
+                "Property delegate must have a 'getValue' operator function.",
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+            )
+        }
+        if property.isVar, !setValueResolved, !isKnownStdlibDelegate {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0104",
+                "Mutable property delegate must have a 'setValue' operator function.",
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+            )
         }
 
         if result == nil {

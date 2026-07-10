@@ -70,7 +70,10 @@ extension MemberLowerer {
         case .notNull:
             interner.intern("kk_notNull_get_value")
         case .custom:
-            interner.intern("kk_custom_delegate_get_value")
+            // Dispatches via `symbol: customGetValueSymbol` below (a direct call to the
+            // resolved user-defined operator), so this name is only used for KIR dumps/LLVM
+            // instruction naming, never for runtime symbol lookup.
+            interner.intern("getValue")
         }
         let setValueName: InternedString = switch delegateKind {
         case .lazy:
@@ -82,7 +85,7 @@ extension MemberLowerer {
         case .notNull:
             interner.intern("kk_notNull_set_value")
         case .custom:
-            interner.intern("kk_custom_delegate_set_value")
+            interner.intern("setValue")
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
@@ -248,7 +251,7 @@ extension MemberLowerer {
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_kproperty_stub_create"),
+                callee: interner.intern("__kk_kproperty_stub_create"),
                 arguments: [propertyNameExprID, returnTypeExprID],
                 result: kPropertyExprID,
                 canThrow: false,

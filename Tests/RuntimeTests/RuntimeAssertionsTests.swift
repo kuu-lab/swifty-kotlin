@@ -243,6 +243,36 @@ final class RuntimeAssertionsTests: XCTestCase {
         )
     }
 
+    // MARK: - RuntimeNegativeArraySizeExceptionBox
+
+    func testNegativeArraySizeExceptionBoxExceptionFQName() {
+        let box = RuntimeNegativeArraySizeExceptionBox(message: "-1")
+        XCTAssertEqual(box.exceptionFQName, "kotlin.NegativeArraySizeException")
+    }
+
+    func testNegativeArraySizeExceptionBoxRenderedMessage() {
+        let box = RuntimeNegativeArraySizeExceptionBox(message: "-1")
+        XCTAssertEqual(box.renderedMessage, "NegativeArraySizeException: -1")
+    }
+
+    func testNegativeArraySizeExceptionBoxHierarchyContainsExpectedTypes() {
+        let box = RuntimeNegativeArraySizeExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertTrue(hierarchy.contains("kotlin.NegativeArraySizeException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Exception"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"))
+    }
+
+    func testNegativeArraySizeExceptionBoxHierarchyOrder() {
+        let box = RuntimeNegativeArraySizeExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertEqual(hierarchy.first, "kotlin.NegativeArraySizeException",
+                       "NegativeArraySizeException should be first in hierarchy")
+        XCTAssertEqual(hierarchy.last, "kotlin.Throwable",
+                       "Throwable should be last in hierarchy")
+    }
+
     // MARK: - Type Discrimination
 
     func testAssertionErrorBoxIsDistinctFromIllegalStateBox() {
@@ -289,6 +319,16 @@ final class RuntimeAssertionsTests: XCTestCase {
             runtimeThrowableBoxHasExactType(
                 arrayIndexBox,
                 RuntimeConcurrentModificationExceptionBox.self
+            )
+        )
+    }
+
+    func testNegativeArraySizeBoxIsDistinctFromArrayIndexOutOfBoundsBox() {
+        let negativeArraySizeBox = RuntimeNegativeArraySizeExceptionBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(
+                negativeArraySizeBox,
+                RuntimeArrayIndexOutOfBoundsExceptionBox.self
             )
         )
     }
@@ -401,5 +441,54 @@ final class RuntimeAssertionsTests: XCTestCase {
 
         XCTAssertEqual(messageOnlyBox.message, "bad index")
         XCTAssertEqual(noArgBox.message, "")
+    }
+
+    func testNegativeArraySizeExceptionRuntimeConstructors() {
+        let messageRaw = makeRuntimeString("-1")
+        let messageOnly = kk_negative_array_size_exception_new_message(messageRaw)
+        let noArg = kk_negative_array_size_exception_new()
+
+        guard let messageOnlyPtr = UnsafeMutableRawPointer(bitPattern: messageOnly),
+              let messageOnlyBox = tryCast(messageOnlyPtr, to: RuntimeNegativeArraySizeExceptionBox.self),
+              let noArgPtr = UnsafeMutableRawPointer(bitPattern: noArg),
+              let noArgBox = tryCast(noArgPtr, to: RuntimeNegativeArraySizeExceptionBox.self)
+        else {
+            return XCTFail("Expected typed NegativeArraySizeException runtime boxes")
+        }
+
+        XCTAssertEqual(messageOnlyBox.message, "-1")
+        XCTAssertEqual(noArgBox.message, "")
+    }
+
+    // MARK: - kk_array_new_checked
+
+    func testArrayNewCheckedRejectsNegativeSizeWithoutAllocating() {
+        var thrown: Int = 0
+        let result = withUnsafeMutablePointer(to: &thrown) { kk_array_new_checked(-1, $0) }
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+
+        guard let thrownPtr = UnsafeMutableRawPointer(bitPattern: thrown),
+              let box = tryCast(thrownPtr, to: RuntimeNegativeArraySizeExceptionBox.self)
+        else {
+            return XCTFail("Expected kk_array_new_checked to throw a typed NegativeArraySizeException box")
+        }
+        XCTAssertEqual(box.message, "-1")
+    }
+
+    func testArrayNewCheckedAllocatesNormallyForNonNegativeSize() {
+        var thrown: Int = 0
+        let result = withUnsafeMutablePointer(to: &thrown) { kk_array_new_checked(3, $0) }
+        XCTAssertEqual(thrown, 0)
+        XCTAssertNotEqual(result, 0)
+        XCTAssertEqual(kk_array_size(result), 3)
+    }
+
+    func testArrayNewCheckedZeroSizeDoesNotThrow() {
+        var thrown: Int = 0
+        let result = withUnsafeMutablePointer(to: &thrown) { kk_array_new_checked(0, $0) }
+        XCTAssertEqual(thrown, 0)
+        XCTAssertNotEqual(result, 0)
+        XCTAssertEqual(kk_array_size(result), 0)
     }
 }

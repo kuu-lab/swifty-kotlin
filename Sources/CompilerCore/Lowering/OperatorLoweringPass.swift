@@ -499,20 +499,28 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             if sema.types.isSubtype(type, stringType) {
                 return valueExpr
             }
-            let tag: Int64 = switch sema.types.kind(of: type) {
-            case .primitive(.boolean, _):
-                2
-            case .stringStruct:
-                3
-            default:
-                1
-            }
+            let tag = computeAnyFallbackTag(for: type, sema: sema)
             let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
             body.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
             let converted = arena.appendTemporary(type: stringType)
+            // This pass rewrites already-lowered functions in place, and their
+            // control-flow labels were assigned during the earlier CallLowerer/
+            // ExprLowerer construction phase (starting at 10000, see
+            // KIRLoweringContext.makeLoopLabel/resetScopeForFunction) — introducing
+            // fresh ad-hoc label numbers here risks colliding with those (unlike
+            // DataEnumSealedSynthesisPass's toString() synthesis, which builds a
+            // brand-new function body from scratch and can safely branch). So
+            // nullable Float?/Double?/ULong? route through kk_any_to_string_nullable
+            // instead of a KIR-level null guard: it disambiguates a real value from
+            // null by checking whether the raw value is boxed (see its doc comment),
+            // with no branching required in this function's body.
+            let isNullable = sema.types.makeNonNullable(type) != type
+            let calleeName = isNullable && (tag == 5 || tag == 6 || tag == 7)
+                ? "kk_any_to_string_nullable"
+                : "kk_any_to_string"
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_any_to_string"),
+                callee: interner.intern(calleeName),
                 arguments: [valueExpr, tagExpr],
                 result: converted,
                 canThrow: false,

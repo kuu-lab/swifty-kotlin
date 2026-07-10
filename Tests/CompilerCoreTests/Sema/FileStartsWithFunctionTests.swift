@@ -14,16 +14,22 @@ import Testing
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 @Suite
 struct FileStartsWithFunctionTests {
+    // KSP-483: `startsWith` is now also used internally by the bundled
+    // `Stdlib/kotlin/io/Files.kt` (as `String.startsWith`), so member-call
+    // scans across the whole AST must exclude bundled-stdlib files or they'll
+    // pick up those internal calls alongside the user source's calls.
     private func memberCallExprIDs(
         named name: String,
         in ast: ASTModule,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager
     ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
+                  case let .memberCall(_, callee, _, _, range) = expr,
+                  interner.resolve(callee) == name,
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
             }
@@ -109,7 +115,9 @@ struct FileStartsWithFunctionTests {
             let booleanType = sema.types.booleanType
 
             let ast = try #require(ctx.ast)
-            let callExprs = memberCallExprIDs(named: "startsWith", in: ast, interner: interner)
+            let callExprs = memberCallExprIDs(
+                named: "startsWith", in: ast, interner: interner, sourceManager: ctx.sourceManager
+            )
             #expect(callExprs.count == 2, "expected two startsWith member calls")
             for callExpr in callExprs {
                 #expect(
@@ -120,51 +128,5 @@ struct FileStartsWithFunctionTests {
         }
     }
 
-    // MARK: - Sema registers both overloads with the expected runtime link names
-
-    @Test func testFileStartsWithSignaturesAndRuntimeLinkNames() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let interner = ctx.interner
-            let sema = try #require(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
-
-            let fileSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
-            )
-            let fileType = types.make(
-                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
-            )
-
-            let candidates = symbols.lookupAll(
-                fqName: ["java", "io", "File", "startsWith"].map(interner.intern)
-            )
-
-            let fileOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes == [fileType]
-                    && signature.returnType == types.booleanType
-            })
-            #expect(
-                symbols.externalLinkName(for: fileOverload) == "kk_file_startsWith_file",
-                "File.startsWith(File) should bind to runtime helper kk_file_startsWith_file"
-            )
-
-            let stringOverload = try #require(candidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == fileType
-                    && signature.parameterTypes == [types.stringType]
-                    && signature.returnType == types.booleanType
-            })
-            #expect(
-                symbols.externalLinkName(for: stringOverload) == "kk_file_startsWith_string",
-                "File.startsWith(String) should bind to runtime helper kk_file_startsWith_string"
-            )
-        }
-    }
 }
 #endif
