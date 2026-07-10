@@ -282,11 +282,34 @@ extension DataFlowSemaPhase {
             }
 
             // Kotlin: interface properties without getter/setter body are implicitly abstract.
-            // Properties with custom accessors (getter/setter) or initializer are concrete.
+            // Properties with custom accessors (getter/setter) are concrete; interfaces
+            // cannot hold per-instance state, so initializers and delegate expressions
+            // are rejected outright (matches kotlinc's "property initializers in
+            // interfaces are prohibited" / "delegated properties in interfaces are
+            // prohibited").
             if symbols.symbol(ownerSymbol)?.kind == .interface {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
-                if !hasCustomAccessor && !hasInitializer {
+                let hasDelegate = propertyDecl.delegateExpression != nil
+                if hasInitializer {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0303",
+                        "Property initializers in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
+                if hasDelegate {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0304",
+                        "Delegated properties in interfaces are prohibited.",
+                        range: propertyDecl.range
+                    )
+                }
+                // A rejected initializer/delegate still provides no real accessor
+                // body, so keep treating the property as abstract for override
+                // checking (`collectInheritedAbstractMembers` in Inheritance.swift)
+                // instead of silently letting implementing classes skip overriding it.
+                if !hasCustomAccessor {
                     propertyFlags.insert(.abstractType)
                 }
             }
@@ -364,13 +387,19 @@ extension DataFlowSemaPhase {
             // need a backing field because they have no storage — the getter
             // body is evaluated on every access.
             // STDLIB-CLASS-010: Abstract properties cannot have backing fields.
+            // Interfaces never need a backing field either — properties in an
+            // interface have no instance state of their own (KIR lowering
+            // suppresses storage emission for them; keep the symbol table
+            // consistent so `field` bindings aren't wired up to a nonexistent
+            // field for interface accessor bodies).
             let isAbstractProperty = propertyFlags.contains(.abstractType)
+            let isInterfaceOwner = symbols.symbol(ownerSymbol)?.kind == .interface
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
                 && !hasExplicitBackingField
-            let needsBackingField = !isAbstractProperty && (
+            let needsBackingField = !isAbstractProperty && !isInterfaceOwner && (
                 hasExplicitBackingField
                 || (!isGetterOnlyComputed
                     && (propertyDecl.getter != nil || propertyDecl.setter != nil))
