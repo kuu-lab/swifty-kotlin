@@ -535,6 +535,12 @@ extension CallLowerer {
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
 
+            // Guard sentinels (CODE-001 pattern), mirroring scopeUse above:
+            // without this, an enclosing try/catch's appendThrowAwareInstructions
+            // pass can re-check the block call's already-routed exceptionSlot and
+            // jump straight to its own catch target before unpin() runs.
+            instructions.append(.beginFinallyGuard)
+
             // try: invoke the block lambda with the pinned handle.
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
@@ -579,6 +585,7 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            instructions.append(.endFinallyGuard)
 
             // After finally: rethrow if an exception was caught, otherwise continue.
             instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
