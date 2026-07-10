@@ -428,7 +428,7 @@ extension ExprLowerer {
                 // DelegatedAndAccessorLowering.swift's lowerAccessorBody
                 // seeds `field` references to inside accessor bodies.
                 if let sym = sema.symbols.symbol(symbol),
-                   sym.kind == .property || sym.kind == .field,
+                   sym.kind == .property,
                    let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
@@ -1016,7 +1016,7 @@ extension ExprLowerer {
                     ))
                 } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                           let symInfo = sema.symbols.symbol(symbol),
-                          symInfo.kind == .property || symInfo.kind == .field,
+                          symInfo.kind == .property,
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                           let ownerInfo = sema.symbols.symbol(ownerSymbol),
                           ownerInfo.kind == .class || ownerInfo.kind == .interface
