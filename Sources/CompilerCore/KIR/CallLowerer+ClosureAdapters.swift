@@ -136,10 +136,11 @@ extension CallLowerer {
         } else {
             finalArgs.append(lambdaID)
         }
-        finalArgs.append(makeClosureRawArgument(
+        finalArgs.append(makeClosureRawOrBoxedArgument(
             callableInfo: resolvedCallableInfo,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         ))
         return finalArgs
@@ -187,32 +188,13 @@ extension CallLowerer {
         }
 
         var finalArgs: [KIRExprID] = [loweredCallableID]
-        if let callableInfo {
-            let boxedCaptureArguments = makeBoxedCallableCaptureArguments(
-                callableInfo: callableInfo,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            if let boxedCaptureArgument = boxedCaptureArguments.first {
-                finalArgs.append(boxedCaptureArgument)
-            } else {
-                finalArgs.append(makeClosureRawArgument(
-                    callableInfo: callableInfo,
-                    sema: sema,
-                    arena: arena,
-                    instructions: &instructions
-                ))
-            }
-        } else {
-            finalArgs.append(makeClosureRawArgument(
-                callableInfo: nil,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions
-            ))
-        }
+        finalArgs.append(makeClosureRawOrBoxedArgument(
+            callableInfo: callableInfo,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ))
         return finalArgs
     }
 
@@ -284,6 +266,37 @@ extension CallLowerer {
         return zeroExpr
     }
 
+    /// Builds the single `closureRaw` slot for the `(fnPtr, closureRaw)` ABI:
+    /// 2+ captures are packed into a boxed closure object (so the lambda body's
+    /// `kk_array_get_inbounds` unpacking has something valid to read), a single
+    /// capture is passed raw, and no captures / no callable info yields 0.
+    /// Every call site that produces a closureRaw argument for a
+    /// collection-HOF-marked lambda must go through this — using
+    /// `callableInfo.captureArguments.first` directly silently drops captures
+    /// beyond the first once there are 2 or more.
+    private func makeClosureRawOrBoxedArgument(
+        callableInfo: KIRCallableValueInfo?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let callableInfo else {
+            return makeClosureRawArgument(callableInfo: nil, sema: sema, arena: arena, instructions: &instructions)
+        }
+        let boxedCaptureArguments = makeBoxedCallableCaptureArguments(
+            callableInfo: callableInfo,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        if let boxedCaptureArgument = boxedCaptureArguments.first {
+            return boxedCaptureArgument
+        }
+        return makeClosureRawArgument(callableInfo: callableInfo, sema: sema, arena: arena, instructions: &instructions)
+    }
+
     private func appendCollectionHOFSelectorPair(
         _ selector: (loweredArgID: KIRExprID, callableInfo: KIRCallableValueInfo?),
         to arrayExpr: KIRExprID,
@@ -305,10 +318,11 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let closureRaw = makeClosureRawArgument(
+        let closureRaw = makeClosureRawOrBoxedArgument(
             callableInfo: selector.callableInfo,
             sema: sema,
             arena: arena,
+            interner: interner,
             instructions: &instructions
         )
         let closureIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2 + 1)), type: sema.types.intType)
@@ -427,16 +441,16 @@ extension CallLowerer {
         // STDLIB-SEQ-002: 1-arg generateSequence(nextFunction) → kk_sequence_generate_noarg(fnPtr, closureRaw)
         if externalLinkName == "kk_sequence_generate_noarg", loweredArguments.count == 1 {
             let lambdaID = loweredArguments[0]
-            if sema.bindings.isCollectionHOFLambdaExpr(originalArgs[0].expr),
-               let callableInfo = driver.ctx.callableValueInfo(for: lambdaID),
-               let closureRaw = callableInfo.captureArguments.first
-            {
-                return [lambdaID, closureRaw]
-            } else {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                return [lambdaID, zeroExpr]
-            }
+            let callableInfo = sema.bindings.isCollectionHOFLambdaExpr(originalArgs[0].expr)
+                ? driver.ctx.callableValueInfo(for: lambdaID)
+                : nil
+            return [lambdaID, makeClosureRawOrBoxedArgument(
+                callableInfo: callableInfo,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )]
         }
 
         // sequence { ... } builder: expand the receiver lambda to (fnPtr, closureRaw).
@@ -475,17 +489,24 @@ extension CallLowerer {
                 seedArgument = seedResult
             }
 
-            var finalArgs = [seedArgument, loweredArguments[1]]
-            if sema.bindings.isCollectionHOFLambdaExpr(originalArgs[1].expr),
-               let callableInfo = driver.ctx.callableValueInfo(for: loweredArguments[1]),
-               let closureRaw = callableInfo.captureArguments.first
-            {
-                finalArgs.append(closureRaw)
-            } else {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArgs.append(zeroExpr)
-            }
+            // Multi-capture lambdas (>= 2 captures) must be packed into a
+            // closure object here, matching the (closureRaw, ...) ABI that
+            // LambdaLowerer generates for these collection-HOF-marked
+            // lambdas. Forwarding captureArguments.first directly hands the
+            // lambda body a raw capture value instead of a closure object,
+            // which it then misreads via kk_array_get_inbounds — wrong
+            // values for small offsets, out-of-bounds crashes for larger
+            // ones.
+            let callableInfo = sema.bindings.isCollectionHOFLambdaExpr(originalArgs[1].expr)
+                ? driver.ctx.callableValueInfo(for: loweredArguments[1])
+                : nil
+            let finalArgs = [seedArgument, loweredArguments[1], makeClosureRawOrBoxedArgument(
+                callableInfo: callableInfo,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )]
             return finalArgs
         }
 
@@ -685,10 +706,11 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArgs.append(selector.loweredArgID)
-            finalArgs.append(makeClosureRawArgument(
+            finalArgs.append(makeClosureRawOrBoxedArgument(
                 callableInfo: selector.callableInfo,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             ))
             return finalArgs
@@ -713,10 +735,11 @@ extension CallLowerer {
                     instructions: &instructions
                 )
                 finalArgs.append(selector.loweredArgID)
-                finalArgs.append(makeClosureRawArgument(
+                finalArgs.append(makeClosureRawOrBoxedArgument(
                     callableInfo: selector.callableInfo,
                     sema: sema,
                     arena: arena,
+                    interner: interner,
                     instructions: &instructions
                 ))
             }

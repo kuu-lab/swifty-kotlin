@@ -128,63 +128,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_custom_delegate_create",
-            parameters: [
-                RuntimeABIParameter(name: "delegateHandle", type: .intptr),
-                RuntimeABIParameter(name: "getValueFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "setValueFnPtr", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_custom_delegate_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "thisRef", type: .intptr),
-                RuntimeABIParameter(name: "property", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_custom_delegate_set_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "thisRef", type: .intptr),
-                RuntimeABIParameter(name: "property", type: .intptr),
-                RuntimeABIParameter(name: "newValue", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_delegate_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "delegateRaw", type: .intptr),
-                RuntimeABIParameter(name: "thisRef", type: .intptr),
-                RuntimeABIParameter(name: "property", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Delegate"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_delegate_set_value",
-            parameters: [
-                RuntimeABIParameter(name: "delegateRaw", type: .intptr),
-                RuntimeABIParameter(name: "thisRef", type: .intptr),
-                RuntimeABIParameter(name: "property", type: .intptr),
-                RuntimeABIParameter(name: "newValue", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Delegate"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_function_invoke",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),

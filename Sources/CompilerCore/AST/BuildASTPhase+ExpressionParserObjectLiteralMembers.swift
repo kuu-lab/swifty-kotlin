@@ -10,10 +10,15 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        var functionDeclIDs: [DeclID] = []
         var propertyDeclIDs: [DeclID] = []
         for (start, end) in statementRanges {
             let group = bodyTokens[start ..< end]
             guard !group.isEmpty else {
+                continue
+            }
+            if let functionDecl = parseObjectLiteralFunctionDecl(from: group) {
+                functionDeclIDs.append(astArena.appendDecl(.funDecl(functionDecl)))
                 continue
             }
             guard let propertyDecl = parseObjectLiteralPropertyDecl(from: group) else {
@@ -22,7 +27,7 @@ extension BuildASTPhase.ExpressionParser {
             propertyDeclIDs.append(astArena.appendDecl(.propertyDecl(propertyDecl)))
         }
 
-        guard !propertyDeclIDs.isEmpty else {
+        guard !functionDeclIDs.isEmpty || !propertyDeclIDs.isEmpty else {
             return nil
         }
 
@@ -34,6 +39,7 @@ extension BuildASTPhase.ExpressionParser {
             name: syntheticName,
             modifiers: [.private],
             superTypes: superTypes,
+            memberFunctions: functionDeclIDs,
             memberProperties: propertyDeclIDs
         )
         return astArena.appendDecl(.objectDecl(objectDecl))
@@ -62,6 +68,57 @@ extension BuildASTPhase.ExpressionParser {
             merged.append((start, end))
         }
         return merged
+    }
+
+    private func parseObjectLiteralFunctionDecl(from tokens: ArraySlice<Token>) -> FunDecl? {
+        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        guard sanitized.contains(where: { $0.kind == .keyword(.fun) }) else {
+            return nil
+        }
+        let parseTokens = objectLiteralMemberParseTokens(from: sanitized)
+        let parser = KotlinParser(
+            tokens: parseTokens,
+            interner: interner,
+            diagnostics: diagnostics ?? DiagnosticEngine()
+        )
+        let parsed = parser.parseFile()
+        guard let functionNodeID = firstTopLevelNode(
+            ofKind: .funDecl,
+            in: parsed.arena,
+            root: parsed.root
+        ) else {
+            return nil
+        }
+        return BuildASTPhase(diagnostics: diagnostics).makeFunDecl(
+            from: functionNodeID,
+            in: parsed.arena,
+            interner: interner,
+            astArena: astArena
+        )
+    }
+
+    private func objectLiteralMemberParseTokens(from tokens: [Token]) -> [Token] {
+        guard let last = tokens.last else {
+            return []
+        }
+        let eofRange = SourceRange(start: last.range.end, end: last.range.end)
+        return tokens + [Token(kind: .eof, range: eofRange)]
+    }
+
+    private func firstTopLevelNode(
+        ofKind kind: SyntaxKind,
+        in arena: SyntaxArena,
+        root: NodeID
+    ) -> NodeID? {
+        for child in arena.children(of: root) {
+            guard case let .node(childID) = child else {
+                continue
+            }
+            if arena.node(childID).kind == kind {
+                return childID
+            }
+        }
+        return nil
     }
 
     private func parseObjectLiteralPropertyDecl(from tokens: ArraySlice<Token>) -> PropertyDecl? {

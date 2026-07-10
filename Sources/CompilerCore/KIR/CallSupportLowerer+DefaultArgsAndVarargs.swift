@@ -96,6 +96,13 @@ extension CallSupportLowerer {
             case 0:
                 return interner.intern("kk_string_builder_new")
             case 1:
+                // Two 1-arg overloads exist: StringBuilder(content: String) and
+                // StringBuilder(capacity: Int). Disambiguate by argument type —
+                // routing an Int capacity through the string-taking entry point
+                // would misinterpret the raw Int as a string pointer/length quad.
+                if argumentTypes[0] == types.intType {
+                    return interner.intern("kk_string_builder_new_with_capacity")
+                }
                 return interner.intern("kk_string_builder_new_from_string_flat")
             default:
                 return nil

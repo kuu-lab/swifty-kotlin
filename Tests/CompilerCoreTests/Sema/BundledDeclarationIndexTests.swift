@@ -18,7 +18,7 @@ struct BundledDeclarationIndexTests {
             """
         )
 
-        let index = BundledDeclarationIndex.build(ast: ast, sourceManager: ctx.sourceManager)
+        let index = BundledDeclarationIndex.build(ast: ast, sourceManager: ctx.sourceManager, interner: ctx.interner)
         let qualifiedOwner = intern(["kotlin", "collections", "Outer", "Inner"], ctx.interner)
         let unqualifiedOwner = intern(["Outer", "Inner"], ctx.interner)
         let touch = ctx.interner.intern("touch")
@@ -41,7 +41,7 @@ struct BundledDeclarationIndexTests {
             """
         )
 
-        let index = BundledDeclarationIndex.build(ast: ast, sourceManager: ctx.sourceManager)
+        let index = BundledDeclarationIndex.build(ast: ast, sourceManager: ctx.sourceManager, interner: ctx.interner)
         let owner = intern(["kotlin", "collections", "Outer", "Cursor"], ctx.interner)
         let advance = ctx.interner.intern("advance")
 

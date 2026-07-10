@@ -139,6 +139,7 @@ public final class ASTArena: @unchecked Sendable {
              let .memberCall(_, _, _, _, range),
              let .indexedAccess(_, _, range),
              let .indexedCompoundAssign(_, _, _, _, range),
+             let .memberCompoundAssign(_, _, _, _, range),
              let .binary(_, _, _, range),
              let .whenExpr(_, _, _, range),
              let .returnExpr(_, _, range),

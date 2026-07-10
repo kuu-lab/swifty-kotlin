@@ -501,6 +501,18 @@ enum DiagnosticRegistry {
             summary: "Synthetic stdlib stub duplicates a bundled Kotlin source declaration."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0103",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Property delegate type is missing a 'getValue' operator function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0104",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Mutable property delegate type is missing a 'setValue' operator function."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-TAILREC",
             pass: "SEMA",
             defaultSeverity: .warning,

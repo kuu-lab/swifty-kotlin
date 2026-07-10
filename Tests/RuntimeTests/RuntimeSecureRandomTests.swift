@@ -21,28 +21,28 @@ final class RuntimeSecureRandomTests: XCTestCase {
     }
 
     func testSecureRandomGenerateSeedProducesRequestedLength() {
-        let secure = kk_secure_random_get_instance()
-        let bytes = runtimeListInts(kk_secure_random_generate_seed(secure, 8))
+        let secure = __kk_secure_random_get_instance()
+        let bytes = runtimeListInts(__kk_secure_random_generate_seed(secure, 8))
 
         XCTAssertEqual(bytes.count, 8)
     }
 
     func testSecureRandomSetSeedMakesOutputDeterministic() {
-        let a = kk_secure_random_get_instance()
-        let b = kk_secure_random_get_instance()
-        _ = kk_secure_random_set_seed(a, 12345)
-        _ = kk_secure_random_set_seed(b, 12345)
+        let a = __kk_secure_random_get_instance()
+        let b = __kk_secure_random_get_instance()
+        _ = __kk_secure_random_set_seed(a, 12345)
+        _ = __kk_secure_random_set_seed(b, 12345)
 
-        let first = runtimeListInts(kk_secure_random_generate_seed(a, 6))
-        let second = runtimeListInts(kk_secure_random_generate_seed(b, 6))
+        let first = runtimeListInts(__kk_secure_random_generate_seed(a, 6))
+        let second = runtimeListInts(__kk_secure_random_generate_seed(b, 6))
 
         XCTAssertEqual(first, second)
     }
 
     func testSecureRandomNextBytesUsesInputLength() {
-        let secure = kk_secure_random_get_instance()
+        let secure = __kk_secure_random_get_instance()
         let input = registerRuntimeObject(RuntimeListBox(elements: Array(repeating: 0, count: 5)))
-        let output = runtimeListInts(kk_secure_random_next_bytes(secure, input))
+        let output = runtimeListInts(__kk_secure_random_next_bytes(secure, input))
 
         XCTAssertEqual(output.count, 5)
     }
