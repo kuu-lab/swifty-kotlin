@@ -475,67 +475,6 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: [listTypeParamSymbol, flatMapIndexedToTypeParamSymbol]
         )
 
-        let filterIsInstanceTypeParamName = interner.intern("R")
-        let filterIsInstanceTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstance"), filterIsInstanceTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceResultType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(filterIsInstanceTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstance"),
-            memberFQName: listFQName + [interner.intern("filterIsInstance")],
-            parameterTypes: [],
-            externalLinkName: "kk_list_filterIsInstance",
-            returnTypeOverride: filterIsInstanceResultType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-
-        let filterIsInstanceToTypeParamName = interner.intern("R")
-        let filterIsInstanceToTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceToTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstanceTo"), filterIsInstanceToTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceToTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceToTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceToDestinationType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(filterIsInstanceToTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstanceTo"),
-            memberFQName: listFQName + [interner.intern("filterIsInstanceTo")],
-            parameterTypes: [filterIsInstanceToDestinationType],
-            externalLinkName: "kk_list_filterIsInstanceTo",
-            returnTypeOverride: filterIsInstanceToDestinationType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceToTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotNullTo"),
-            memberFQName: listFQName + [interner.intern("filterNotNullTo")],
-            parameterTypes: [destinationCollectionType],
-            externalLinkName: "kk_list_filterNotNullTo",
-            returnTypeOverride: destinationCollectionType
-        )
-
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],

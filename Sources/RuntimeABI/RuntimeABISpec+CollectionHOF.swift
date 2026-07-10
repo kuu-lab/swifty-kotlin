@@ -600,13 +600,11 @@ public extension RuntimeABISpec {
         )
         var functions: [RuntimeABIFunctionSpec] = []
         functions.append(contentsOf: before.map { hofSpec($0) })
-        functions.append(contentsOf: [filterNotNullSpec, requireNoNullsSpec, foldSpec])
+        functions.append(contentsOf: [requireNoNullsSpec, foldSpec])
         functions.append(contentsOf: [
-                filterIsInstanceToSpec,
-                filterToSpec, filterNotToSpec, mapToSpec, flatMapToSpec,
-                mapNotNullToSpec, filterNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
+                mapToSpec, flatMapToSpec,
+                mapNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
-                filterIndexedToSpec,
             ])
         functions.append(
             contentsOf: genericAfter.flatMap { name in
@@ -763,16 +761,6 @@ public extension RuntimeABISpec {
                 ),
                 hofSpec("kk_list_indexOfFirst"),
                 hofSpec("kk_list_indexOfLast"),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_filterIsInstance",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "typeToken", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",
                     parameters: [
