@@ -372,6 +372,53 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
+                // No direct field offset (the property has a distinct backing
+                // field because it declares a custom accessor): dispatch to
+                // the getter accessor when a real `get() { ... }` body exists
+                // (mirrors CallLowerer+MemberPropertyReads.swift's explicit-
+                // receiver equivalent), otherwise fall back to reading the
+                // backing field's own storage directly, since the compiler-
+                // provided default getter is just `return field` — the same
+                // backing-field global that MemberLowerer+
+                // DelegatedAndAccessorLowering.swift's lowerAccessorBody
+                // seeds `field` references to inside accessor bodies.
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
+                   ownerKind == .class || ownerKind == .interface
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
+                        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                        let result = arena.appendTemporary(type: resultType)
+                        instructions.append(.call(
+                            symbol: getterSymbol,
+                            callee: interner.intern("get"),
+                            arguments: [receiverExprID],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        return result
+                    }
+                    if let backingFieldSym = sema.symbols.backingFieldSymbol(for: symbol) {
+                        let id = arena.appendExpr(.symbolRef(backingFieldSym), type: resultType)
+                        instructions.append(.loadGlobal(result: id, symbol: backingFieldSym))
+                        return wrapLateinitReadIfNeeded(
+                            id,
+                            symbol: symbol,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                    }
+                }
                 // For top-level or object-member property symbols, emit loadGlobal so the
                 // backend reads the current value from the global slot.
                 if let sym = sema.symbols.symbol(symbol),
@@ -952,6 +999,56 @@ extension ExprLowerer {
                         canThrow: false,
                         thrownResult: nil
                     ))
+                } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface
+                {
+                    // No direct field offset (the property has a distinct
+                    // backing field because it declares a custom accessor):
+                    // this bare-name write must not be treated as a plain
+                    // local variable. If a real `set(...)` body exists,
+                    // dispatch to the setter accessor directly (mirrors
+                    // CallLowerer+MemberPropertyReads.swift's getter dispatch
+                    // for the analogous read side). Otherwise the setter is
+                    // the compiler-provided default (`field = value`), so
+                    // write straight to the backing field's own storage —
+                    // the same backing-field global that MemberLowerer+
+                    // DelegatedAndAccessorLowering.swift's lowerAccessorBody
+                    // seeds `field` references to inside accessor bodies.
+                    // (`.object` is deliberately excluded: the branch above
+                    // already routes every object-member property through
+                    // global-copy storage before reaching here.)
+                    if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
+                        let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                        instructions.append(.call(
+                            symbol: setterSymbol,
+                            callee: interner.intern("set"),
+                            arguments: [receiverExprID, valueID],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    } else if let backingFieldSym = sema.symbols.backingFieldSymbol(for: symbol) {
+                        // Deliberately `.storeGlobal`, not `.copy(to: .symbolRef(...))`:
+                        // PropertyLoweringPass rewrites any `.copy` targeting a
+                        // `.backingField`-kind symbolRef into a setter-accessor
+                        // call, which would misfire here since no setter
+                        // accessor function was emitted for this property.
+                        instructions.append(.storeGlobal(value: valueID, symbol: backingFieldSym))
+                    } else if let storageID = driver.ctx.localValue(for: symbol) {
+                        // Neither a real setter nor a backing field exists (e.g. an
+                        // abstract property with no accessor of its own): fall back
+                        // to the same treatment as the outer `else` below rather than
+                        // silently dropping the write, since this `else if` already
+                        // claimed the assignment and nothing after it will run.
+                        instructions.append(.copy(from: valueID, to: storageID))
+                    } else {
+                        driver.ctx.setLocalValue(valueID, for: symbol)
+                    }
                 } else {
                     if let storageID = driver.ctx.localValue(for: symbol) {
                         // Mutable local already has storage: emit a copy so the C variable
