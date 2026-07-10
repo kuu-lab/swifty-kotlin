@@ -1275,6 +1275,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_any_to_string_nullable",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "tag", type: .intptr),
+            ],
+            returnType: .opaquePointer,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_any_hashCode",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

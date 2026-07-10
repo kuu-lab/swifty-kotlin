@@ -385,6 +385,7 @@ extension KIRLoweringDriver {
                     delegation: delegation,
                     ctorFQName: ctorFQName,
                     ownerSymbol: ownerSymbol,
+                    ctorSymbol: ctorSymbol,
                     sema: sema,
                     arena: arena,
                     compilationCtx: compilationCtx,
