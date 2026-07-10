@@ -207,3 +207,7 @@ path can emit (see `docs/dead-code-audit.md` for the exclusion pipeline):
 ```bash
 bash Scripts/dead_code_audit.sh --verbose
 ```
+
+The `Quarterly Audits` workflow runs this audit with the fiction audit on the
+first day of January, April, July, and October. Its summary and the intermediate
+audit files are retained as a 90-day GitHub Actions artifact.
