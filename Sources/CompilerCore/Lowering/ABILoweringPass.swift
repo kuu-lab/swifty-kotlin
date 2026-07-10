@@ -253,6 +253,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        functionReturnKind: functionReturnKind,
                        returnType: function.returnType,
                        module: module, types: types, symbols: symbols,
+                       interner: ctx.interner,
                        boxingCalleeTable: boxingCalleeTable
                    )
                 {
@@ -271,10 +272,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                    let rewritten = rewriteCopyBoxingOrUnboxing(
                        from: from, to: to,
                        module: module, types: types, symbols: symbols,
+                       interner: ctx.interner,
                        boxingCalleeTable: boxingCalleeTable
                    )
                 {
-                    newBody.append(rewritten)
+                    newBody.append(contentsOf: rewritten)
                     idx += 1
                     continue
                 }
@@ -532,6 +534,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
+        interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
@@ -540,9 +543,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         else {
             return nil
         }
-        let resolvedValueKind = resolveValueClassKind(
-            types.kind(of: valueType), types: types, symbols: symbols
-        )
+        let rawValueKind = types.kind(of: valueType)
+        let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
         guard let boxCallee = boxCalleeForPrimitive(
             resolvedValueKind,
             boxingCalleeTable: boxingCalleeTable
@@ -550,10 +552,16 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
         var instructions: [KIRInstruction] = []
-        let boxedResult = emitNonThrowingCall(
-            callee: boxCallee,
-            arg: value,
+        let boxedResult = module.arena.appendTemporary(type: returnType)
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: value,
+            rawSourceKind: rawValueKind,
+            result: boxedResult,
             resultType: returnType,
+            types: types,
+            symbols: symbols,
+            interner: interner,
             arena: module.arena,
             into: &instructions
         )
@@ -566,8 +574,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
+        interner: StringInterner,
         boxingCalleeTable: BoxingCalleeTable
-    ) -> KIRInstruction? {
+    ) -> [KIRInstruction]? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
         else {
@@ -584,8 +593,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 boxingCalleeTable: boxingCalleeTable
             )
         {
-            return .call(symbol: nil, callee: boxCallee, arguments: [from],
-                         result: to, canThrow: false, thrownResult: nil)
+            var instructions: [KIRInstruction] = []
+            emitBoxCallWithValueClassTag(
+                boxCallee: boxCallee,
+                value: from,
+                rawSourceKind: rawFromKind,
+                result: to,
+                resultType: toType,
+                types: types,
+                symbols: symbols,
+                interner: interner,
+                arena: module.arena,
+                into: &instructions
+            )
+            return instructions
         }
         if needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
            let unboxCallee = unboxingCallee(
@@ -594,8 +615,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                types: types, symbols: symbols
            )
         {
-            return .call(symbol: nil, callee: unboxCallee, arguments: [from],
-                         result: to, canThrow: false, thrownResult: nil)
+            return [.call(symbol: nil, callee: unboxCallee, arguments: [from],
+                         result: to, canThrow: false, thrownResult: nil)]
         }
         return nil
     }

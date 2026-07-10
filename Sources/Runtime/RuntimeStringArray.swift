@@ -504,6 +504,12 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if !isObjectPointer {
             return 1
         }
+        // A box tagged with a nominal type ID (kk_tag_value_class_box) represents
+        // a boxed value class, which is a distinct type from its underlying
+        // primitive even though it shares the same physical box.
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.longBase,
@@ -521,6 +527,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeLongBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.doubleBase:
@@ -531,6 +540,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeDoubleBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.floatBase:
@@ -541,6 +553,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeFloatBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.charBase:
@@ -551,6 +566,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeCharBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.booleanBase:
@@ -562,6 +580,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         if !isObjectPointer {
             return (value == 0 || value == 1) ? 1 : 0
+        }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
         }
         return tryCast(ptr, to: RuntimeBoolBox.self) == nil ? 0 : 1
 
