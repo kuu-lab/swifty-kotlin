@@ -224,6 +224,28 @@ extension ExprTypeChecker {
             return sema.types.unitType
         }
 
+        // Members declared on a supertype are never found by
+        // `cachedScopeLookup`: a `ClassMemberScope`'s parent is the
+        // enclosing *lexical* scope (file/package), not the superclass's
+        // scope, so scope lookup never walks the inheritance chain. Plain
+        // reads and simple `=` reassignment already resolve inherited
+        // properties through the inheritance-aware `lookupMemberProperty`
+        // (see resolveImplicitReceiverMember above); reuse it here so that
+        // `inheritedField += 1` resolves the same member, taking priority
+        // over lexically scope-visible candidates just like
+        // inferNameRefExpr does for plain reads.
+        var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID)?
+        if let receiverType = ctx.implicitReceiverType,
+           let member = driver.helpers.lookupMemberProperty(
+               named: name,
+               receiverType: sema.types.makeNonNullable(receiverType),
+               sema: sema
+           ),
+           let memberSymbol = ctx.cachedSymbol(member.symbol)
+        {
+            implicitReceiverMember = (memberSymbol, member.type)
+        }
+
         // Fall back to scope-visible property lookup for compound assignments
         // like `counter += 1` where `counter` is a top-level var or a member
         // property accessed via implicit receiver (inside a class/object
@@ -233,15 +255,19 @@ extension ExprTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        if let propSymbol = candidates.first(where: { sym in
+        let scopeVisibleProperty = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = sema.symbols.symbol(parentID) else { return true }
             return parentSym.kind == .package || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
-        }) {
+        })
+        if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
-            let propType = sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
+            if implicitReceiverMember != nil {
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+            }
+            let propType = implicitReceiverMember?.type ?? sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
                 op: op,
