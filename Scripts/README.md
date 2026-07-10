@@ -190,8 +190,10 @@ bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTe
 
 ## Refactoring guard metrics
 
-`loc_report.sh` emits the metrics used as the RF-series refactor gate
-(see `docs/refactoring-metrics.md` for the tracked baseline):
+`loc_report.sh` emits the metrics used as the RF-series refactor gate,
+including phase-target path counts for Sema/DataFlow, TypeCheck, and legacy
+CallLowerer files (see `docs/refactoring-metrics.md` for the tracked baseline
+and CI artifact name):
 
 ```bash
 bash Scripts/loc_report.sh > after.tsv
