@@ -76,10 +76,21 @@ struct StringToDoubleFunctionTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            // Exclude bundled stdlib source (e.g. kotlin.random.Random's own
+            // `Long.toDouble()` call in doubleFromParts, KSP-466) so this only
+            // matches the test's own String-receiver fixture call. Numeric
+            // `.toDouble()` widening conversions are compiler intrinsics with no
+            // callBinding, unlike the String.toDouble() runtime bridge this test
+            // targets, so a bundled numeric toDouble() call being matched first
+            // would otherwise make callBinding(for:) nil here.
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "toDouble" && args.isEmpty
+                firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr,
+                          ctx.interner.resolve(callee) == "toDouble",
+                          args.isEmpty,
+                          let range = ast.arena.exprRange(exprID)
+                    else { return false }
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 },
                 "Expected member call to toDouble() in AST"
             )

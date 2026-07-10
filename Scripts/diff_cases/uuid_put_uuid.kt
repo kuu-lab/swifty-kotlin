@@ -33,5 +33,32 @@ fun main() {
     }
     println("bytes match toByteArray: $match")
 
+    // putUuid throws for a negative offset
+    try {
+        val small = ByteArray(16)
+        small.putUuid(-1, original)
+        println("putUuid negative offset: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("putUuid negative offset: threw IndexOutOfBoundsException")
+    }
+
+    // putUuid throws when the array is too small to hold 16 bytes
+    try {
+        val tooSmall = ByteArray(10)
+        tooSmall.putUuid(0, original)
+        println("putUuid too-small array: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("putUuid too-small array: threw IndexOutOfBoundsException")
+    }
+
+    // uuid(at:) throws when the offset runs past the end of the array
+    try {
+        val tooSmall = ByteArray(10)
+        tooSmall.uuid(0)
+        println("uuid too-small array: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("uuid too-small array: threw IndexOutOfBoundsException")
+    }
+
     println("OK")
 }

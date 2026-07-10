@@ -16,9 +16,15 @@ struct IntersectionTypeFlowTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let xRef = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .nameRef(name, _) = expr else { return false }
-                return ctx.interner.resolve(name) == "x"
+            // Exclude bundled stdlib source (e.g. kotlin.random.Random's own `x`
+            // field, KSP-466) so this only matches the test's own fixture,
+            // regardless of how many other `x`-named declarations the stdlib has.
+            let xRef = try #require(firstExprID(in: ast) { exprID, expr in
+                guard case let .nameRef(name, _) = expr,
+                      ctx.interner.resolve(name) == "x",
+                      let range = ast.arena.exprRange(exprID)
+                else { return false }
+                return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let xType = try #require(sema.bindings.exprType(for: xRef))
 

@@ -10,10 +10,10 @@ symbol fq=__local_8.catalog kind=local vis=private flags=_ type=golden.sema.Prod
 symbol fq=__local_9.validEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
 symbol fq=__local_10.invalidEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
 symbol fq=__local_11.outer kind=local vis=private flags=_ type=golden.sema.OuterClass
-symbol fq=__local_12.client1 kind=local vis=private flags=_ type=<error>
-symbol fq=__local_13.client2 kind=local vis=private flags=_ type=<error>
-symbol fq=__local_14.file1 kind=local vis=private flags=_ type=<error>
-symbol fq=__local_15.file2 kind=local vis=private flags=_ type=<error>
+symbol fq=__local_12.client1 kind=local vis=private flags=_ type=golden.sema.NetworkClient
+symbol fq=__local_13.client2 kind=local vis=private flags=_ type=golden.sema.NetworkClient
+symbol fq=__local_14.file1 kind=local vis=private flags=_ type=golden.sema.FileManager
+symbol fq=__local_15.file2 kind=local vis=private flags=_ type=golden.sema.FileManager
 symbol fq=golden.sema.Calculator kind=class vis=public flags=_
 symbol fq=golden.sema.Calculator.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Calculator params=[] ret=golden.sema.Calculator
 symbol fq=golden.sema.Calculator.Companion kind=object vis=public flags=_
@@ -45,6 +45,7 @@ symbol fq=golden.sema.EmailAddress.address kind=property vis=public flags=_ type
 symbol fq=golden.sema.EmailAddress.toString kind=function vis=public flags=_ sig=recv=golden.sema.EmailAddress params=[] ret=String
 symbol fq=golden.sema.FileManager kind=class vis=public flags=_
 symbol fq=golden.sema.FileManager.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.FileManager params=[] ret=golden.sema.FileManager
+symbol fq=golden.sema.FileManager.Factory kind=object vis=public flags=_
 symbol fq=golden.sema.Logger kind=class vis=public flags=_
 symbol fq=golden.sema.Logger.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Logger params=[] ret=golden.sema.Logger
 symbol fq=golden.sema.Logger.Companion kind=object vis=public flags=_
@@ -57,6 +58,7 @@ symbol fq=golden.sema.Logger.log kind=function vis=public flags=_ sig=recv=golde
 symbol fq=golden.sema.Logger.log.$9.message kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.NetworkClient kind=class vis=public flags=_
 symbol fq=golden.sema.NetworkClient.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.NetworkClient params=[] ret=golden.sema.NetworkClient
+symbol fq=golden.sema.NetworkClient.Companion kind=object vis=public flags=_
 symbol fq=golden.sema.OuterClass kind=class vis=public flags=_
 symbol fq=golden.sema.OuterClass.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.OuterClass params=[] ret=golden.sema.OuterClass
 symbol fq=golden.sema.OuterClass.Companion kind=object vis=public flags=_
@@ -100,14 +102,16 @@ symbol fq=golden.sema.User.Companion.fromNameAndAge.$18.name kind=valueParameter
 symbol fq=golden.sema.User.age kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.User.getInfo kind=function vis=public flags=_ sig=recv=golden.sema.User params=[] ret=String
 symbol fq=golden.sema.User.name kind=property vis=public flags=_ type=String
-symbol fq=golden.sema.createDefault kind=function vis=public flags=_ sig=recv=<error> params=[] ret=golden.sema.NetworkClient
-symbol fq=golden.sema.createFile kind=function vis=public flags=_ sig=recv=<error> params=[] ret=golden.sema.FileManager
-symbol fq=golden.sema.createReadOnly kind=function vis=public flags=_ sig=recv=<error> params=[] ret=golden.sema.FileManager
-symbol fq=golden.sema.createWithTimeout kind=function vis=public flags=_ sig=recv=<error> params=[Int] ret=golden.sema.NetworkClient
+symbol fq=golden.sema.createDefault kind=function vis=public flags=_ sig=recv=golden.sema.NetworkClient.Companion params=[] ret=golden.sema.NetworkClient
+symbol fq=golden.sema.createFile kind=function vis=public flags=_ sig=recv=golden.sema.FileManager.Factory params=[] ret=golden.sema.FileManager
+symbol fq=golden.sema.createReadOnly kind=function vis=public flags=_ sig=recv=golden.sema.FileManager.Factory params=[] ret=golden.sema.FileManager
+symbol fq=golden.sema.createWithTimeout kind=function vis=public flags=_ sig=recv=golden.sema.NetworkClient.Companion params=[Int] ret=golden.sema.NetworkClient
 symbol fq=golden.sema.createWithTimeout.$19.timeout kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.defaultTimeout kind=property vis=public flags=_ type=Int
+symbol fq=golden.sema.defaultTimeout.$get kind=function vis=public flags=synthetic sig=recv=golden.sema.NetworkClient.Companion params=[] ret=Int
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.maxFiles kind=property vis=public flags=_ type=Int
+symbol fq=golden.sema.maxFiles.$get kind=function vis=public flags=synthetic sig=recv=golden.sema.FileManager.Factory params=[] ret=Int
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.contains#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
@@ -329,24 +333,24 @@ expr e@151:5 call callee=e@151:5#1 args=[_:e@151:13#1] type=Unit call=kotlin.io.
 expr e@152:13 name(outer) type=golden.sema.OuterClass ref=__local_11.outer
 expr e@152:13#1 memberCall recv=e@152:13 callee=getCompanionSecretFromOuter args=[] type=String call=golden.sema.OuterClass.getCompanionSecretFromOuter
 expr e@152:5 call callee=e@152:5#1 args=[_:e@152:13#1] type=Unit call=kotlin.io.println#1
-expr e@154:19 name(NetworkClient) type=golden.sema.NetworkClient ref=golden.sema.NetworkClient
-expr e@154:19#1 memberCall recv=e@154:19 callee=createDefault args=[] type=<error>
+expr e@154:19 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
+expr e@154:19#1 memberCall recv=e@154:19 callee=createDefault args=[] type=golden.sema.NetworkClient call=golden.sema.createDefault
 expr e@154:5 localDecl client1 mutable=0 type=_ init=e@154:19#1 type=Unit ref=__local_12.client1
-expr e@155:19 name(NetworkClient) type=golden.sema.NetworkClient ref=golden.sema.NetworkClient
+expr e@155:19 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@155:51 int(5000) type=Int
-expr e@155:19#1 memberCall recv=e@155:19 callee=createWithTimeout args=[_:e@155:51] type=<error>
+expr e@155:19#1 memberCall recv=e@155:19 callee=createWithTimeout args=[_:e@155:51] type=golden.sema.NetworkClient call=golden.sema.createWithTimeout
 expr e@155:5 localDecl client2 mutable=0 type=_ init=e@155:19#1 type=Unit ref=__local_13.client2
-expr e@157:33 name(NetworkClient) type=golden.sema.NetworkClient ref=golden.sema.NetworkClient
-expr e@157:33#1 memberCall recv=e@157:33 callee=defaultTimeout args=[] type=<error>
+expr e@157:33 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
+expr e@157:33#1 memberCall recv=e@157:33 callee=defaultTimeout args=[] type=Int call=golden.sema.defaultTimeout.$get
 expr e@157:13 stringTemplate[lit(Default timeout: ),expr(e@157:33#1)] type=String
 expr e@157:5 call callee=e@157:5#1 args=[_:e@157:13] type=Unit call=kotlin.io.println#1
-expr e@159:17 name(FileManager) type=golden.sema.FileManager ref=golden.sema.FileManager
-expr e@159:17#1 memberCall recv=e@159:17 callee=createFile args=[] type=<error>
+expr e@159:17 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
+expr e@159:17#1 memberCall recv=e@159:17 callee=createFile args=[] type=golden.sema.FileManager call=golden.sema.createFile
 expr e@159:5 localDecl file1 mutable=0 type=_ init=e@159:17#1 type=Unit ref=__local_14.file1
-expr e@160:17 name(FileManager) type=golden.sema.FileManager ref=golden.sema.FileManager
-expr e@160:17#1 memberCall recv=e@160:17 callee=createReadOnly args=[] type=<error>
+expr e@160:17 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
+expr e@160:17#1 memberCall recv=e@160:17 callee=createReadOnly args=[] type=golden.sema.FileManager call=golden.sema.createReadOnly
 expr e@160:5 localDecl file2 mutable=0 type=_ init=e@160:17#1 type=Unit ref=__local_15.file2
-expr e@162:27 name(FileManager) type=golden.sema.FileManager ref=golden.sema.FileManager
-expr e@162:27#1 memberCall recv=e@162:27 callee=maxFiles args=[] type=<error>
+expr e@162:27 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
+expr e@162:27#1 memberCall recv=e@162:27 callee=maxFiles args=[] type=Int call=golden.sema.maxFiles.$get
 expr e@162:13 stringTemplate[lit(Max files: ),expr(e@162:27#1)] type=String
 expr e@162:5 call callee=e@162:5#1 args=[_:e@162:13] type=Unit call=kotlin.io.println#1

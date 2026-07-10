@@ -1275,6 +1275,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_any_to_string_nullable",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "tag", type: .intptr),
+            ],
+            returnType: .opaquePointer,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_any_hashCode",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -3167,18 +3177,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replaceFirst_ignoreCase",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "oldRaw", type: .intptr),
-                RuntimeABIParameter(name: "newRaw", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceRange_indices",

@@ -1961,58 +1961,6 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_hexToInt_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToInt_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToShort_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToShort_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToUByte_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToUByte_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToUShort_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToUShort_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToUInt_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToUInt_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToULong_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToULong_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToLong_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToLong_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_hexToByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToByteArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_hexToUByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_hexToUByteArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
                 "kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toByteArray_flat",
                     stringArgumentCount: 1,

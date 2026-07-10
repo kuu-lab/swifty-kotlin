@@ -331,6 +331,58 @@ final class CoercionRuntimeTests: XCTestCase {
         XCTAssertEqual(kk_uint_to_ubyte(255), 255)
     }
 
+    // MARK: - Int/UInt 32-bit Reinterpretation Regression Tests
+    //
+    // kk_int_to_uint / kk_long_to_uint / kk_uint_to_int / kk_ulong_to_int used
+    // to be identity functions. That happened to look right whenever the
+    // source payload was already a non-negative value the target type could
+    // hold as-is, but it left the Int64 payload numerically unchanged for any
+    // value that needed an actual bit-pattern reinterpretation, silently
+    // producing a wrong (still-negative, or out-of-range) result. Found via
+    // `(-1L).toUInt()` while working on HexFormat (KSP-481).
+
+    func testIntToUIntConversion() {
+        // Negative Int must reinterpret its bit pattern as unsigned, not
+        // stay negative.
+        XCTAssertEqual(kk_int_to_uint(-1), Int(UInt32.max))
+        XCTAssertEqual(kk_int_to_uint(Int(Int32.min)), Int(UInt32(Int32.max) + 1))
+        XCTAssertEqual(kk_int_to_uint(100), 100)
+        XCTAssertEqual(kk_int_to_uint(0), 0)
+    }
+
+    func testLongToUIntConversion() {
+        // Narrowing Long -> UInt keeps only the low 32 bits, then reads them
+        // as unsigned.
+        XCTAssertEqual(kk_long_to_uint(-1), Int(UInt32.max))
+        XCTAssertEqual(kk_long_to_uint(100), 100)
+        // 0x1_0000_0001 truncates to 0x0000_0001.
+        XCTAssertEqual(kk_long_to_uint(4294967297), 1)
+    }
+
+    func testUIntToIntConversion() {
+        // UInt values at or above 2^31 must reinterpret as negative Int.
+        XCTAssertEqual(kk_uint_to_int(Int(UInt32.max)), -1)
+        XCTAssertEqual(kk_uint_to_int(2147483648), Int(Int32.min))
+        XCTAssertEqual(kk_uint_to_int(100), 100)
+    }
+
+    func testULongToIntConversion() {
+        // Narrowing ULong -> Int keeps only the low 32 bits, then reads them
+        // as signed.
+        XCTAssertEqual(kk_ulong_to_int(Int(UInt32.max)), -1)
+        XCTAssertEqual(kk_ulong_to_int(100), 100)
+        // 2^32 truncates to 0.
+        XCTAssertEqual(kk_ulong_to_int(4294967296), 0)
+    }
+
+    func testUIntIntRoundTripRegression() {
+        // (-1L).toUInt() == 4294967295u must hold both as a value and in
+        // equality — this was returning -1 (and comparing false) before the
+        // fix.
+        XCTAssertEqual(kk_long_to_uint(-1), kk_int_to_uint(-1))
+        XCTAssertEqual(kk_uint_to_int(kk_int_to_uint(-1)), -1)
+    }
+
     // MARK: - Range-based Coercion Tests (STDLIB-CONV-006)
 
     func testIntCoerceInRangeRuntimeBehavior() {

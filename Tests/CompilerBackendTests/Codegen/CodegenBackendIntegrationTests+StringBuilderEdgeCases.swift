@@ -296,4 +296,37 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // Regression: StringBuilder(capacity: Int) used to crash (SIGSEGV) because the
+    // Int argument was routed through the String-taking native constructor, which
+    // reinterpreted the raw capacity value as a string data pointer.
+    func testCodegenCompilesStringBuilderCapacityConstructor() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder(16)
+            sb.append("hello")
+            println(sb.toString())
+
+            println(StringBuilder(8).append("world").toString())
+
+            val implicit = with(StringBuilder(4)) {
+                append("cap")
+                toString()
+            }
+            println(implicit)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderCapacityConstructor",
+            expected:
+                """
+                hello
+                world
+                cap
+                """
+                + "\n"
+        )
+    }
 }

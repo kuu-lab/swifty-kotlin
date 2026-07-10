@@ -204,8 +204,13 @@ final class ABIMismatchTests: XCTestCase {
         // - 8 STDLIB-MATH-109 hyperbolic/cbrt entries (sinh, cosh, tanh, cbrt + Float overloads)
         // - 6 STDLIB-MATH-113 floating-point helpers
         XCTAssertGreaterThanOrEqual(RuntimeABISpec.mathFunctions.count, 112)
-        // Random ABI includes default, seeded, bounded numeric helpers, range overloads, UInt/ULong helpers, byte array/unsigned byte helpers, SecureRandom helpers, and explicit bit extraction.
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.randomFunctions.count, 36)
+        // KSP-466: nextInt/Long/UInt/ULong/Float/Double/Boolean/Bits/Bytes/UBytes moved to
+        // Kotlin source (Sources/CompilerCore/Stdlib/kotlin/random/*.kt), and so did
+        // asKotlinRandom/asJavaRandom/java.util.Random (JavaUtilRandom.kt/
+        // JavaRandomInterop.kt). Remaining bridge surface: seed entropy, IntRange/
+        // LongRange/UIntRange/ULongRange overloads (KSP-457 scope, unchanged), and
+        // SecureRandom (KSP-467 scope).
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.randomFunctions.count, 9)
     }
 
     func testTotalFunctionCount() {
@@ -248,7 +253,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.sequenceFunctions,
             RuntimeABISpec.regexFunctions,
             RuntimeABISpec.base64Functions,
-            RuntimeABISpec.hexFormatFunctions,
             RuntimeABISpec.comparatorFunctions,
             RuntimeABISpec.resultFunctions,
             RuntimeABISpec.kotlinVersionFunctions,
@@ -611,6 +615,7 @@ final class ABIMismatchTests: XCTestCase {
     func testKKStringReplaceFirstRangePointerABIRemoved() {
         let legacyNames = [
             "kk_string_replaceFirst",
+            "kk_string_replaceFirst_ignoreCase",
             "kk_string_replaceRange",
             "kk_string_removeRange",
             "kk_string_removeRange_range",

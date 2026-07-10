@@ -94,25 +94,18 @@ extension DataFlowSemaPhase {
 
         // MARK: - File properties (STDLIB-321)
 
-        registerFileMemberProperty(
-            named: "name",
-            externalLinkName: "kk_file_name",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `name` is migrated to Kotlin source (Stdlib/kotlin/io/Files.kt,
+        // auto-loaded by LoadSourcesPhase) as a pure-logic extension property
+        // derived from `path`. Direct compat stub removed.
 
-        // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
-        registerFileMemberProperty(
-            named: "nameWithoutExtension",
-            externalLinkName: "kk_file_nameWithoutExtension",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `nameWithoutExtension` is migrated to Kotlin source
+        // (Stdlib/kotlin/io/Files.kt). Direct compat stub removed.
 
+        // KSP-483: `path` reads File's internal state, so it stays a direct
+        // synthetic member (not migrated). A Kotlin-source extension property
+        // named `path` would collide with the `kotlin.io.path` package FQName
+        // in this compiler's symbol table, so the other 12 pure-logic members
+        // below read `path` through this member instead of a bridge.
         registerFileMemberProperty(
             named: "path",
             externalLinkName: "kk_file_path",
@@ -143,31 +136,10 @@ extension DataFlowSemaPhase {
         )
 
         let nullableStringType = types.makeNullable(types.stringType)
-        registerFileMemberProperty(
-            named: "parent",
-            externalLinkName: "kk_file_parent",
-            ownerSymbol: fileSymbol,
-            returnType: nullableStringType,
-            symbols: symbols,
-            interner: interner
-        )
 
-        // MARK: - File extension property (STDLIB-IO-PROP-002)
-
-        // `kotlin.io.File.extension` is a non-null `String` extension property that
-        // returns the substring after the last `.` of the file name. When the file
-        // name contains no dot, the property returns an empty string. This matches
-        // Kotlin's stdlib `kotlin.io.FileTreeWalk.kt` definition. The Sema layer
-        // exposes it as a synthetic member on `java.io.File` because KSwiftK does
-        // not yet model Kotlin extension properties separately from members.
-        registerFileMemberProperty(
-            named: "extension",
-            externalLinkName: "kk_file_extension",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `parent` and `extension` are migrated to Kotlin source
+        // (Stdlib/kotlin/io/Files.kt) as pure-logic extension properties
+        // derived from `path`. Direct compat stubs removed.
 
         // MARK: - File query methods (STDLIB-321)
 
@@ -272,101 +244,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - File.resolveSibling (STDLIB-IO-FN-036)
-        //
-        // Two overloads matching kotlin.io.File:
-        //   fun File.resolveSibling(relative: File): File
-        //   fun File.resolveSibling(relative: String): File
-        // Both replace the last path component of the receiver with `relative`,
-        // mirroring kotlin.io.File.resolveSibling semantics.
-
-        registerFileMemberFunction(
-            named: "resolveSibling",
-            externalLinkName: "kk_file_resolveSibling_file",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("relative", fileType)],
-            returnType: fileType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "resolveSibling",
-            externalLinkName: "kk_file_resolveSibling_string",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("relative", types.stringType)],
-            returnType: fileType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File.normalize (STDLIB-IO-FN-024)
-        //
-        // Kotlin signature: fun File.normalize(): File
-        // Returns a new File whose path has been normalized by resolving any `.`
-        // and `..` components, and by removing redundant separators.  The operation
-        // is purely lexical — no filesystem access — matching kotlin-stdlib behaviour.
-
-        registerFileMemberFunction(
-            named: "normalize",
-            externalLinkName: "kk_file_normalize",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: fileType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File.startsWith (STDLIB-IO-FN-037)
-        //
-        // Two overloads matching kotlin.io.File:
-        //   fun File.startsWith(other: File): Boolean
-        //   fun File.startsWith(other: String): Boolean
-        // Both compare path components against the receiver, returning true when
-        // the receiver's path begins with all components of `other`.
-
-        registerFileMemberFunction(
-            named: "startsWith",
-            externalLinkName: "kk_file_startsWith_file",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("other", fileType)],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "startsWith",
-            externalLinkName: "kk_file_startsWith_string",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("other", types.stringType)],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - STDLIB-IO-FN-038: File.toRelativeString(base: File): String
-        //
-        // Produces the relative path string from `base` to `this`, mirroring the
-        // semantics of `kotlin.io.File.toRelativeString`. The synthetic stub
-        // binds to the runtime helper `kk_file_toRelativeString`, which is
-        // responsible for raising `IllegalArgumentException` via the standard
-        // `outThrown` channel when the two paths cannot share a common root.
-        registerFileMemberFunction(
-            named: "toRelativeString",
-            externalLinkName: "kk_file_toRelativeString",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("base", fileType)],
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `resolveSibling` (File/String overloads), `normalize`,
+        // `startsWith` (File/String overloads), and `toRelativeString` are
+        // migrated to Kotlin source (Stdlib/kotlin/io/Files.kt) as pure-logic
+        // functions derived from `path`. Direct compat stubs removed.
 
         // MARK: - File read/write methods (STDLIB-320)
         // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
@@ -1511,20 +1392,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - File.invariantSeparatorsPath (STDLIB-IO-PROP-003)
-        //
-        // Kotlin signature: `public val File.invariantSeparatorsPath: String`
-        // declared in the `kotlin.io` package.  Returns the file path with the
-        // platform-specific separator replaced by a forward slash `/`.
-        registerKotlinIOExtensionProperty(
-            named: "invariantSeparatorsPath",
-            packageFQName: kotlinIOPkg,
-            receiverType: fileType,
-            returnType: types.stringType,
-            externalLinkName: "kk_file_invariantSeparatorsPath",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `invariantSeparatorsPath` is migrated to Kotlin source
+        // (Stdlib/kotlin/io/Files.kt) as a pure-logic extension property
+        // derived from `path`. Direct compat stub removed.
 
         // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
         //
@@ -1851,21 +1721,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - File.isRooted extension property (STDLIB-IO-PROP-004)
-        //
-        // Kotlin signature: `public val File.isRooted: Boolean` declared in the
-        // `kotlin.io` package. Returns `true` if this file's path begins with a
-        // root component (e.g. `/` on Unix, drive letter on Windows). Backed by
-        // the runtime helper `kk_file_isRooted`.
-        registerKotlinIOExtensionProperty(
-            named: "isRooted",
-            packageFQName: kotlinIOPkg,
-            receiverType: fileType,
-            returnType: types.booleanType,
-            externalLinkName: "kk_file_isRooted",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-483: `isRooted` is migrated to Kotlin source (Stdlib/kotlin/io/Files.kt)
+        // as a pure-logic extension property derived from `path`. Direct compat
+        // stub removed.
 
         // MARK: - File.copyRecursively(target, overwrite) (STDLIB-IO-FN-012)
         //

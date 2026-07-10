@@ -1,8 +1,17 @@
 /// Synthetic stubs for kotlin.time.Instant class (STDLIB-TIME-083).
-/// Registers Instant.now(), Instant.fromEpochMilliseconds() companion factories,
-/// instance properties (epochSeconds, nanoOfSecond), top-level extension
-/// properties (isDistantPast, isDistantFuture), arithmetic operators
-/// (+/-Duration), comparison (compareTo), until(), and elapsed().
+///
+/// Registers the `Instant.now()` / `Instant.fromEpochMilliseconds(Long)`
+/// companion factories as direct native bridges: Kotlin source cannot declare
+/// an extension whose receiver is `Instant.Companion` (the parser/Sema only
+/// resolve single-identifier extension receiver types), so these factories
+/// cannot be re-expressed in Kotlin source (KSP-472).
+///
+/// Also registers `__kk_instant_*` bridge methods used by
+/// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,
+/// `nanoOfSecond`, `isDistantPast`, `isDistantFuture`, `plus`/`minus`
+/// (Duration), `compareTo`, and `until()` as Kotlin-source extension
+/// properties/functions/operators (KSP-472). `elapsed()` has no bridge; it
+/// is written directly in Kotlin source as `this.until(Instant.now())`.
 extension DataFlowSemaPhase {
     func registerSyntheticInstantStubs(
         symbols: SymbolTable,
@@ -75,103 +84,94 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- epochSeconds property (Long) ---
-        registerInstantMemberProperty(
-            named: "epochSeconds",
-            externalLinkName: "kk_instant_epoch_seconds",
-            ownerSymbol: instantSymbol,
-            returnType: longType,
-            symbols: symbols,
-            interner: interner
-        )
+        // --- KSP-472: bridge methods for Stdlib/kotlin/time/Instant.kt ---
+        // Called as `this.__kk_instant_*(...)` from Kotlin source; the
+        // public API (epochSeconds, nanoOfSecond, isDistantPast,
+        // isDistantFuture, plus, minus, compareTo, until) is defined there
+        // as extension properties/functions/operators.
 
-        // --- nanoOfSecond property (Int) ---
-        registerInstantMemberProperty(
-            named: "nanoOfSecond",
-            externalLinkName: "kk_instant_nano_of_second",
-            ownerSymbol: instantSymbol,
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- top-level extension properties ---
-        registerInstantExtensionProperty(
-            named: "isDistantPast",
-            packageFQName: kotlinTimePkg,
-            receiverType: instantType,
-            returnType: boolType,
-            externalLinkName: "kk_instant_is_distant_past",
-            symbols: symbols,
-            interner: interner
-        )
-        registerInstantExtensionProperty(
-            named: "isDistantFuture",
-            packageFQName: kotlinTimePkg,
-            receiverType: instantType,
-            returnType: boolType,
-            externalLinkName: "kk_instant_is_distant_future",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- plus(Duration): Instant ---
         registerInstantInstanceMethod(
-            named: "plus",
+            named: "__kk_instant_epoch_seconds",
+            externalLinkName: "kk_instant_epoch_seconds",
+            returnType: longType,
+            parameters: [],
+            ownerSymbol: instantSymbol,
+            ownerType: instantType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerInstantInstanceMethod(
+            named: "__kk_instant_nano_of_second",
+            externalLinkName: "kk_instant_nano_of_second",
+            returnType: intType,
+            parameters: [],
+            ownerSymbol: instantSymbol,
+            ownerType: instantType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerInstantInstanceMethod(
+            named: "__kk_instant_is_distant_past",
+            externalLinkName: "kk_instant_is_distant_past",
+            returnType: boolType,
+            parameters: [],
+            ownerSymbol: instantSymbol,
+            ownerType: instantType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerInstantInstanceMethod(
+            named: "__kk_instant_is_distant_future",
+            externalLinkName: "kk_instant_is_distant_future",
+            returnType: boolType,
+            parameters: [],
+            ownerSymbol: instantSymbol,
+            ownerType: instantType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerInstantInstanceMethod(
+            named: "__kk_instant_plus_duration",
             externalLinkName: "kk_instant_plus_duration",
             returnType: instantType,
             parameters: [(name: "duration", type: durationType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
-            isOperator: true,
             symbols: symbols,
             interner: interner
         )
 
-        // --- minus(Duration): Instant ---
         registerInstantInstanceMethod(
-            named: "minus",
+            named: "__kk_instant_minus_duration",
             externalLinkName: "kk_instant_minus_duration",
             returnType: instantType,
             parameters: [(name: "duration", type: durationType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
-            isOperator: true,
             symbols: symbols,
             interner: interner
         )
 
-        // --- compareTo(Instant): Int ---
         registerInstantInstanceMethod(
-            named: "compareTo",
+            named: "__kk_instant_compare",
             externalLinkName: "kk_instant_compare",
             returnType: intType,
             parameters: [(name: "other", type: instantType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
-            isOperator: true,
             symbols: symbols,
             interner: interner
         )
 
-        // --- until(Instant): Duration ---
         registerInstantInstanceMethod(
-            named: "until",
+            named: "__kk_instant_until",
             externalLinkName: "kk_instant_until",
             returnType: durationType,
             parameters: [(name: "other", type: instantType)],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- elapsed(): Duration ---
-        registerInstantInstanceMethod(
-            named: "elapsed",
-            externalLinkName: "kk_instant_elapsed",
-            returnType: durationType,
-            parameters: [],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
             symbols: symbols,
@@ -269,108 +269,6 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    private func registerInstantMemberProperty(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        returnType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
-    }
-
-    private func registerInstantExtensionProperty(
-        named name: String,
-        packageFQName: [InternedString],
-        receiverType: TypeID,
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-                && symbols.extensionPropertyReceiverType(for: symbolID) == receiverType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [],
-                        returnType: returnType
-                    ),
-                    for: getterSymbol
-                )
-                symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
-            }
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setPropertyType(returnType, for: propertySymbol)
-        symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-
-        let getterSymbol = symbols.define(
-            kind: .function,
-            name: interner.intern("get"),
-            fqName: propertyFQName + [interner.intern("$get")],
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(propertySymbol, for: getterSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType
-            ),
-            for: getterSymbol
-        )
-        symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
-        symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
     }
 
     private func registerInstantInstanceMethod(
