@@ -636,6 +636,20 @@ public func kk_array_new(_ length: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
+/// Same as `kk_array_new`, but validates `length` first and throws
+/// `NegativeArraySizeException` for negative sizes instead of silently
+/// clamping to an empty array. Used by the `Array(size) { init }` family of
+/// pseudo-constructors (Array, IntArray, ByteArray, ...), which must reject
+/// negative sizes the way real Kotlin does.
+@_cdecl("kk_array_new_checked")
+public func kk_array_new_checked(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard length >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        return 0
+    }
+    return kk_array_new(length)
+}
+
 @_cdecl("kk_object_new")
 public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     let box = RuntimeObjectBox(length: length, classID: Int64(classId))
