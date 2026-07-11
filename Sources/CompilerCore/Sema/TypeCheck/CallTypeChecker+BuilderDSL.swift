@@ -1086,6 +1086,115 @@ extension CallTypeChecker {
         )))
     }
 
+    func inferSequenceScopeYieldAllImplicitReceiverCall(
+        _ id: ExprID,
+        calleeName: InternedString?,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        guard let calleeName,
+              ctx.interner.resolve(calleeName) == "yieldAll",
+              args.count == 1,
+              explicitTypeArgs.isEmpty,
+              let receiverType = ctx.implicitReceiverType,
+              isSequenceScopeReceiver(receiverType, sema: ctx.sema, interner: ctx.interner)
+        else {
+            return nil
+        }
+
+        let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+        let preferredOwnerName = sequenceScopeYieldAllPreferredParameterOwnerName(
+            for: argumentType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+
+        guard let chosen = candidates.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { candidate in
+            guard ctx.sema.symbols.externalLinkName(for: candidate) == "kk_sequence_builder_yieldAll",
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            if ctx.sema.types.isSubtype(argumentType, signature.parameterTypes[0]) {
+                return true
+            }
+            guard let preferredOwnerName else {
+                return false
+            }
+            return classSimpleName(of: signature.parameterTypes[0], sema: ctx.sema, interner: ctx.interner) == preferredOwnerName
+        }) else {
+            return nil
+        }
+
+        let resolved = ResolvedCall(
+            chosenCallee: chosen,
+            substitutedTypeArguments: [:],
+            parameterMapping: [0: 0],
+            diagnostic: nil
+        )
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
+        ctx.sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        ctx.sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    private func isSequenceScopeReceiver(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return false
+        }
+        return interner.resolve(name) == "SequenceScope"
+            && symbol.fqName.dropLast().map(interner.resolve) == ["kotlin", "sequences"]
+    }
+
+    private func sequenceScopeYieldAllPreferredParameterOwnerName(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let simpleName = classSimpleName(of: type, sema: sema, interner: interner) else {
+            return nil
+        }
+        switch simpleName {
+        case "Iterator":
+            return "Iterator"
+        case "Sequence":
+            return "Sequence"
+        case "Iterable", "Collection", "MutableCollection", "List", "MutableList", "Set", "MutableSet":
+            return "Iterable"
+        default:
+            return nil
+        }
+    }
+
+    private func classSimpleName(
+        of type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return nil
+        }
+        return interner.resolve(name)
+    }
+
     func produceBuilderReceiverType(
         channelType: TypeID,
         sema: SemaModule,
