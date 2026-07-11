@@ -350,6 +350,11 @@ extension CallLowerer {
 
             // Wrap block call with throw-aware instructions so exceptions are
             // captured into exceptionSlot and control jumps to finallyLabel.
+            // CODE-001: the beginFinallyGuard/endFinallyGuard pair prevents
+            // an outer try/catch/use from re-wrapping this already-routed
+            // call if this `use` is itself nested inside one — otherwise the
+            // outer pass would race ahead of the close() cleanup below.
+            instructions.append(.beginFinallyGuard)
             driver.controlFlowLowerer.appendThrowAwareInstructions(
                 blockInstructions,
                 exceptionSlot: exceptionSlot,
@@ -360,6 +365,7 @@ extension CallLowerer {
                 arena: arena,
                 instructions: &instructions
             )
+            instructions.append(.endFinallyGuard)
             instructions.append(.jump(finallyLabel))
 
             // finally: call close() on the receiver via virtual dispatch.
@@ -560,6 +566,10 @@ extension CallLowerer {
                 thrownResult: nil
             ))
 
+            // CODE-001: guard against an outer try/catch/use re-wrapping this
+            // already-routed call if `usePinned` is itself nested inside one
+            // (see the matching guard in the scopeUse case above).
+            instructions.append(.beginFinallyGuard)
             driver.controlFlowLowerer.appendThrowAwareInstructions(
                 blockInstructions,
                 exceptionSlot: exceptionSlot,
@@ -570,6 +580,7 @@ extension CallLowerer {
                 arena: arena,
                 instructions: &instructions
             )
+            instructions.append(.endFinallyGuard)
             instructions.append(.jump(finallyLabel))
 
             // finally: unpin() the handle. Concrete call — Pinned is a final

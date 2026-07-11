@@ -1549,18 +1549,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         withFlatString("  -Infinity ") { data, length, byteCount, hash in
             var thrown = 0
-            let doubleRaw = kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+            let doubleRaw = __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
             XCTAssertEqual(thrown, 0)
             XCTAssertEqual(Double(bitPattern: UInt64(bitPattern: Int64(doubleRaw))), -.infinity)
 
-            let floatRaw = kk_string_toFloat_flat(data, length, byteCount, hash, &thrown)
+            let floatRaw = __kk_string_toFloat_flat(data, length, byteCount, hash, &thrown)
             XCTAssertEqual(thrown, 0)
             XCTAssertEqual(Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: floatRaw))), -.infinity)
         }
 
         withFlatString("3.5") { data, length, byteCount, hash in
-            XCTAssertNotEqual(kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertNotEqual(kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertNotEqual(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertNotEqual(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
         }
 
         withFlatString("nope") { data, length, byteCount, hash in
@@ -1570,8 +1570,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
             XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
             XCTAssertEqual(kk_string_toIntOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
-            XCTAssertEqual(kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(__kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(__kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
         }
     }
 
@@ -2620,6 +2620,28 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) }, "[1, 2]")
     }
 
+    func testThrowableStringConversionMatchesPrintln() {
+        // Regression test: runtimeElementToString (used by kk_any_to_string, which
+        // string template interpolation and the `+` concatenation operator lower to)
+        // used to be missing a RuntimeThrowableBox case and fell through to printing
+        // the raw pointer bit pattern instead of "Throwable(ExceptionName: message)".
+        let throwableRaw = runtimeAllocateIllegalStateException(message: "boom")
+        let expected = "Throwable(IllegalStateException: boom)"
+
+        XCTAssertEqual(runtimeElementToString(throwableRaw), expected)
+        XCTAssertEqual(runtimeRenderAnyForPrint(throwableRaw), expected)
+        XCTAssertEqual(
+            capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: throwableRaw)) },
+            expected
+        )
+
+        // anyFallbackTag() emits tag 1 ("default"/object) for class-typed operands
+        // of `+`/string templates, so this exercises the exact ABI path the compiler
+        // lowers `"$e"` and `"foo: " + e` to.
+        let converted = kk_any_to_string(throwableRaw, 1)
+        XCTAssertEqual(extractString(from: converted) ?? "", expected)
+    }
+
     func testStringTakeDropFunctions() {
         XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_take_flat), "")
         XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_take_flat), "ab")
@@ -3179,19 +3201,19 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToDoubleParsesSpecialValuesAndThrowsOnInvalidInput() {
         var thrown = 0
         let parsed = withFlatString("  -Infinity ") { data, length, byteCount, hash in
-            kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(doubleFromRuntimeBits(parsed), -.infinity)
 
         let nanRaw = withFlatString("NaN") { data, length, byteCount, hash in
-            kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
         XCTAssertTrue(doubleFromRuntimeBits(nanRaw).isNaN)
 
         withFlatString("nope") { data, length, byteCount, hash in
-            _ = kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+            _ = __kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
@@ -3210,7 +3232,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         ]
 
         for (source, expected) in cases {
-            let raw = kk_string_toDouble(rawFromRuntimeString(source), &thrown)
+            let raw = __kk_string_toDouble(rawFromRuntimeString(source), &thrown)
             XCTAssertEqual(thrown, 0, "Expected \(source) to parse")
             XCTAssertEqual(doubleFromRuntimeBits(raw), expected, accuracy: 1e-12)
         }
@@ -3219,18 +3241,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToDoubleRejectsSwiftOnlySpellings() {
         var thrown = 0
 
-        _ = kk_string_toDouble(rawFromRuntimeString("nan"), &thrown)
+        _ = __kk_string_toDouble(rawFromRuntimeString("nan"), &thrown)
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
 
         let parsedInf = withFlatString("inf") { data, length, byteCount, hash in
-            kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
+            __kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
         }
         XCTAssertEqual(parsedInf, runtimeNullSentinelInt)
 
         let parsed = withFlatString("0x1p2D") { data, length, byteCount, hash in
-            kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
+            __kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
         }
         XCTAssertNotEqual(parsed, runtimeNullSentinelInt)
         XCTAssertEqual(doubleFromRuntimeBits(parsed), 4.0, accuracy: 1e-12)

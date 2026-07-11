@@ -1,0 +1,56 @@
+name: Quarterly Audits
+
+on:
+  schedule:
+    - cron: '15 9 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dead-code-and-fiction:
+    name: Dead Code and Fiction Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Run dead-code audit
+        run: |
+          mkdir -p "$RUNNER_TEMP/quarterly-audits/dead-code"
+          bash Scripts/dead_code_audit.sh \
+            --output-dir "$RUNNER_TEMP/quarterly-audits/dead-code" \
+            --verbose | tee "$RUNNER_TEMP/quarterly-audits/dead-code-summary.txt"
+      - name: Run fiction audit
+        env:
+          DUMP_SURFACE: "1"
+        run: |
+          bash Scripts/swift_test.sh --filter FictionAuditDumpTests \
+            -Xswiftc -swift-version -Xswiftc 6 \
+            | tee "$RUNNER_TEMP/quarterly-audits/fiction-audit.txt"
+      - name: Summarize audits
+        run: |
+          {
+            echo '## Quarterly audits'
+            echo
+            echo '### Dead code'
+            echo '```text'
+            cat "$RUNNER_TEMP/quarterly-audits/dead-code-summary.txt"
+            echo '```'
+            echo
+            echo '### Fiction audit'
+            echo '```text'
+            cat "$RUNNER_TEMP/quarterly-audits/fiction-audit.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload audit artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: quarterly-audits-${{ github.run_id }}
+          path: ${{ runner.temp }}/quarterly-audits
+          if-no-files-found: error
+          retention-days: 90

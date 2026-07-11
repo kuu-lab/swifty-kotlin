@@ -130,5 +130,15 @@ public extension RuntimeABISpec {
             section: "Boxing",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_tag_value_class_box",
+            parameters: [
+                RuntimeABIParameter(name: "boxedRaw", type: .intptr),
+                RuntimeABIParameter(name: "classID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
     ]
 }
