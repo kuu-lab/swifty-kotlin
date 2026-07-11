@@ -1294,7 +1294,7 @@ final class CallLowerer {
     /// Returns true if the callee is a runtime function that requires a thrown
     /// channel (outThrown) parameter in its ABI. This ensures the codegen
     /// appends the extra `intptr_t * _Nullable` slot.
-    private func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
+    func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
         let name = interner.resolve(calleeName)
         return [
             "kk_runCatching",
@@ -1310,7 +1310,7 @@ final class CallLowerer {
         ].contains(name)
     }
 
-    private func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
+    func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
             "kk_result_getOrElse",
             "kk_result_getOrThrow",
