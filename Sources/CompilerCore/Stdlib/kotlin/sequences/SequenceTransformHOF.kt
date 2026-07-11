@@ -35,6 +35,10 @@ public external fun <T, R> Sequence<T>.flatMap(transform: (T) -> Iterable<R>): S
 
 public external fun <T, R> Sequence<T>.flatMap(transform: (T) -> Sequence<R>): Sequence<R>
 
+public external fun <T> Sequence<Iterable<T>>.flatten(): Sequence<T>
+
+public external fun <T> Sequence<Sequence<T>>.flatten(): Sequence<T>
+
 public external fun <T, R> Sequence<T>.flatMapIndexed(transform: (index: Int, T) -> Iterable<R>): Sequence<R>
 
 public external fun <T, R> Sequence<T>.flatMapIndexed(transform: (index: Int, T) -> Sequence<R>): Sequence<R>
