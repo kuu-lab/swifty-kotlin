@@ -80,6 +80,26 @@ final class SeededRandomBox {
     }
 }
 
+// Compatibility helpers for native collection/range callers that still pass a
+// Random receiver as an opaque handle while the Kotlin Random implementation is
+// being migrated. These intentionally use system entropy for now.
+func runtimeRandomNextIntBelow(_ receiver: Int, _ until: Int) -> Int {
+    _ = receiver
+    return Int.random(in: 0 ..< until)
+}
+
+func runtimeRandomNextBits64(_ receiver: Int) -> UInt64 {
+    _ = receiver
+    var rng = SystemRandomNumberGenerator()
+    return rng.next()
+}
+
+@_cdecl("__kk_random_seed_entropy")
+public func __kk_random_seed_entropy() -> Int {
+    var rng = SystemRandomNumberGenerator()
+    return Int(bitPattern: UInt(truncatingIfNeeded: rng.next()))
+}
+
 // MARK: - SecureRandom (STDLIB-101)
 
 final class SecureRandomBox {
