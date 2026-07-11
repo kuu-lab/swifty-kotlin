@@ -214,6 +214,18 @@ class RuntimeArrayBox {
         }
     }
 
+    /// O(1) single-element access. Prefer this over `elements[i]` inside loops:
+    /// `elements` materializes the whole array on every get/set, making per-index
+    /// loop access O(n) per iteration.
+    subscript(index: Int) -> Int {
+        get { storage[index].legacyRawValue }
+        set { storage[index] = RuntimeValue(raw: newValue) }
+    }
+
+    var count: Int {
+        storage.count
+    }
+
     init(length: Int) {
         storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
     }

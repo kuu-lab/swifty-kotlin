@@ -93,9 +93,9 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testElapsedNowOnPastMarkIsNonNegative() {
         // A mark taken 100ms in the "past" (shifted backward) should have elapsed >= 100ms.
         let mark = kk_time_source_monotonic_mark_now(0)
-        let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_milliseconds(100))
+        let pastMark = kk_time_mark_minus_duration(mark, durationFromMilliseconds(100))
         let elapsed = kk_time_mark_elapsed_now(pastMark)
-        let elapsedMs = kk_duration_inWholeMilliseconds(elapsed)
+        let elapsedMs = durationInWholeMilliseconds(elapsed)
         XCTAssertGreaterThanOrEqual(elapsedMs, 100,
             "Elapsed for a mark set 100ms in the past should be >= 100ms")
     }
@@ -103,7 +103,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testElapsedNowOnFutureMarkIsNegative() {
         // A mark 10 seconds in the future has negative elapsed (not yet reached).
         let mark = kk_time_source_monotonic_mark_now(0)
-        let futureMark = kk_time_mark_plus_duration(mark, kk_duration_from_seconds(10))
+        let futureMark = kk_time_mark_plus_duration(mark, durationFromSeconds(10))
         let elapsed = kk_time_mark_elapsed_now(futureMark)
         XCTAssertLessThan(kk_duration_inWholeNanoseconds(elapsed), 0,
             "Elapsed for a far-future mark should be negative")
@@ -130,7 +130,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testPlusOnSecondReducesElapsedByThatDuration() {
         let mark = kk_time_source_monotonic_mark_now(0)
         // Shift 1 second forward
-        let shiftedMark = kk_time_mark_plus_duration(mark, kk_duration_from_seconds(1))
+        let shiftedMark = kk_time_mark_plus_duration(mark, durationFromSeconds(1))
         // shiftedMark.elapsedNow() should be roughly mark.elapsedNow() - 1s
         // Since the mark is ~1s in the future, elapsedNow should be negative (future).
         // With only nanoseconds elapsed since markNow(), that means approximately -1s.
@@ -151,7 +151,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testMinusOnSecondIncreasesElapsedByThatDuration() {
         let mark = kk_time_source_monotonic_mark_now(0)
         // Shift 1 second backward → already 1 second in the past
-        let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_seconds(1))
+        let pastMark = kk_time_mark_minus_duration(mark, durationFromSeconds(1))
         let elapsedPast = kk_time_mark_elapsed_now(pastMark)
         let elapsedOriginal = kk_time_mark_elapsed_now(mark)
         let elapsedPastNs = kk_duration_inWholeNanoseconds(elapsedPast)
@@ -170,7 +170,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// A mark set 1 second in the past must have already passed.
     func testPastMarkHasPassedNow() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_seconds(1))
+        let pastMark = kk_time_mark_minus_duration(mark, durationFromSeconds(1))
         XCTAssertEqual(kk_time_mark_has_passed_now(pastMark), 1,
             "A mark 1s in the past must report hasPassedNow() == true")
         XCTAssertEqual(kk_time_mark_has_not_passed_now(pastMark), 0,
@@ -180,7 +180,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// A mark set 10 seconds in the future must NOT have passed yet.
     func testFutureMarkHasNotPassedNow() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let futureMark = kk_time_mark_plus_duration(mark, kk_duration_from_seconds(10))
+        let futureMark = kk_time_mark_plus_duration(mark, durationFromSeconds(10))
         XCTAssertEqual(kk_time_mark_has_not_passed_now(futureMark), 1,
             "A mark 10s in the future must report hasNotPassedNow() == true")
         XCTAssertEqual(kk_time_mark_has_passed_now(futureMark), 0,
@@ -190,8 +190,8 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// hasPassedNow and hasNotPassedNow must be mutually exclusive for any mark.
     func testHasPassedAndHasNotPassedAreMutuallyExclusive() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_milliseconds(100))
-        let futureMark = kk_time_mark_plus_duration(mark, kk_duration_from_seconds(10))
+        let pastMark = kk_time_mark_minus_duration(mark, durationFromMilliseconds(100))
+        let futureMark = kk_time_mark_plus_duration(mark, durationFromSeconds(10))
         // past mark
         XCTAssertNotEqual(kk_time_mark_has_passed_now(pastMark), kk_time_mark_has_not_passed_now(pastMark),
             "hasPassedNow and hasNotPassedNow must differ for past mark")
@@ -211,7 +211,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testCompareEarlierMarkIsNegative() {
         // earlier < later → compare(earlier, later) < 0
         let earlier = kk_time_source_monotonic_mark_now(0)
-        let later = kk_time_mark_plus_duration(earlier, kk_duration_from_milliseconds(100))
+        let later = kk_time_mark_plus_duration(earlier, durationFromMilliseconds(100))
         XCTAssertLessThan(kk_time_mark_compare(earlier, later), 0,
             "compare(earlier, later) should be negative")
     }
@@ -219,14 +219,14 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testCompareLaterMarkIsPositive() {
         // later > earlier → compare(later, earlier) > 0
         let earlier = kk_time_source_monotonic_mark_now(0)
-        let later = kk_time_mark_plus_duration(earlier, kk_duration_from_milliseconds(100))
+        let later = kk_time_mark_plus_duration(earlier, durationFromMilliseconds(100))
         XCTAssertGreaterThan(kk_time_mark_compare(later, earlier), 0,
             "compare(later, earlier) should be positive")
     }
 
     func testCompareAntisymmetry() {
         let a = kk_time_source_monotonic_mark_now(0)
-        let b = kk_time_mark_plus_duration(a, kk_duration_from_milliseconds(50))
+        let b = kk_time_mark_plus_duration(a, durationFromMilliseconds(50))
         let ab = kk_time_mark_compare(a, b)
         let ba = kk_time_mark_compare(b, a)
         XCTAssertTrue((ab < 0 && ba > 0) || (ab > 0 && ba < 0) || (ab == 0 && ba == 0),
@@ -244,17 +244,17 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testMinusMarkLaterMinusEarlierIsPositive() {
         let earlier = kk_time_source_monotonic_mark_now(0)
-        let later = kk_time_mark_plus_duration(earlier, kk_duration_from_milliseconds(200))
+        let later = kk_time_mark_plus_duration(earlier, durationFromMilliseconds(200))
         let diff = kk_time_mark_minus_mark(later, earlier)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(diff), 200,
+        XCTAssertEqual(durationInWholeMilliseconds(diff), 200,
             "later - earlier should yield the exact shifted duration")
     }
 
     func testMinusMarkEarlierMinusLaterIsNegative() {
         let earlier = kk_time_source_monotonic_mark_now(0)
-        let later = kk_time_mark_plus_duration(earlier, kk_duration_from_milliseconds(300))
+        let later = kk_time_mark_plus_duration(earlier, durationFromMilliseconds(300))
         let diff = kk_time_mark_minus_mark(earlier, later)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(diff), -300,
+        XCTAssertEqual(durationInWholeMilliseconds(diff), -300,
             "earlier - later should yield negative duration")
     }
 
@@ -264,7 +264,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// not crash or wrap around.
     func testPlusDurationSaturatesAtInt64Max() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = kk_duration_from_nanoseconds(Int(Int64.max))
+        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
         let saturatedMark = kk_time_mark_plus_duration(mark, infiniteDuration)
         // The result must be a valid handle (non-zero).
         XCTAssertNotEqual(saturatedMark, 0,
@@ -278,7 +278,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// Subtracting Duration.INFINITE should saturate to Int64.min, not crash.
     func testMinusDurationSaturatesAtInt64Min() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = kk_duration_from_nanoseconds(Int(Int64.max))
+        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
         let saturatedMark = kk_time_mark_minus_duration(mark, infiniteDuration)
         XCTAssertNotEqual(saturatedMark, 0,
             "Saturated TimeMark from - Duration.INFINITE must yield a valid handle")
@@ -291,7 +291,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     /// minus-mark on saturated marks: saturation must not produce NaN-like garbage.
     func testMinusMarkOnSaturatedMarksDoesNotCrash() {
         let a = kk_time_source_monotonic_mark_now(0)
-        let inf = kk_duration_from_nanoseconds(Int(Int64.max))
+        let inf = durationFromNanoseconds(Int(Int64.max))
         let maxMark = kk_time_mark_plus_duration(a, inf)
         let minMark = kk_time_mark_minus_duration(a, inf)
         let diff = kk_time_mark_minus_mark(maxMark, minMark)
@@ -307,7 +307,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testElapsedNowDurationToStringHasValidSuffix() {
         let mark = kk_time_source_monotonic_mark_now(0)
         // Shift the mark 50ms into the past so elapsedNow is clearly positive.
-        let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_milliseconds(50))
+        let pastMark = kk_time_mark_minus_duration(mark, durationFromMilliseconds(50))
         let elapsed = kk_time_mark_elapsed_now(pastMark)
         let strHandle = kk_duration_toString(elapsed)
         guard let str = stringFromHandle(strHandle) else {
@@ -350,7 +350,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testPlusMinusRoundTripRestoresOriginalMark() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let d = kk_duration_from_milliseconds(250)
+        let d = durationFromMilliseconds(250)
         let shifted = kk_time_mark_plus_duration(mark, d)
         let restored = kk_time_mark_minus_duration(shifted, d)
         // restored == mark (same uptimeNanoseconds)
@@ -360,7 +360,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testMinusPlusRoundTripRestoresOriginalMark() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let d = kk_duration_from_milliseconds(250)
+        let d = durationFromMilliseconds(250)
         let shifted = kk_time_mark_minus_duration(mark, d)
         let restored = kk_time_mark_plus_duration(shifted, d)
         XCTAssertEqual(kk_time_mark_compare(restored, mark), 0,

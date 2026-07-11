@@ -2,7 +2,7 @@
 /// Synthetic stdlib stubs for java.math.BigInteger (STDLIB-NUM-129).
 /// Registers the BigInteger class, companion factory method (valueOf),
 /// constructor (String), and instance methods (add, subtract, multiply,
-/// divide, gcd, abs, pow, toInt, toLong, toString).
+/// divide, gcd, abs, pow, toInt, toLong).
 extension DataFlowSemaPhase {
     func registerSyntheticBigIntegerStubs(
         symbols: SymbolTable,
@@ -191,18 +191,6 @@ extension DataFlowSemaPhase {
             named: "toLong",
             externalLinkName: "kk_biginteger_toLong",
             returnType: longType,
-            parameters: [],
-            ownerSymbol: bigIntegerSymbol,
-            ownerType: bigIntegerType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // toString() -> String
-        registerBigIntegerInstanceMethod(
-            named: "toString",
-            externalLinkName: "kk_biginteger_toString",
-            returnType: stringType,
             parameters: [],
             ownerSymbol: bigIntegerSymbol,
             ownerType: bigIntegerType,

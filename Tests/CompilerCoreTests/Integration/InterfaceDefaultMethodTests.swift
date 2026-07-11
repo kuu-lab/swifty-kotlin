@@ -320,10 +320,17 @@ import Testing
     }
 
     @Test func testInterfaceConcreteProperty() throws {
+        // Real kotlinc rejects property initializers in interfaces
+        // ("property initializers in interfaces are prohibited"), so default
+        // property values must be expressed via a getter (and a no-op setter
+        // for `var`), not `= expr`.
         let source = """
         interface TestInterface {
-            val concreteProperty: String = "default"
-            var concreteVar: Int = 42
+            val concreteProperty: String
+                get() = "default"
+            var concreteVar: Int
+                get() = 42
+                set(value) {}
         }
         class TestClass : TestInterface
         """

@@ -9,3 +9,4 @@ file f0 package=golden.sema
   decl golden.sema.Bar class Bar sym=golden.sema.Bar
   decl golden.sema.Marker class Marker sym=golden.sema.Marker
   decl golden.sema.Baz class Baz sym=golden.sema.Baz
+expr e@3:45 string(default) type=String

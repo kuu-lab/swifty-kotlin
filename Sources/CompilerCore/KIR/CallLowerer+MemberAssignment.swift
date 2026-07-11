@@ -51,6 +51,8 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // Custom setters must run before direct storage paths so their bodies
+        // observe explicit-receiver assignments as Kotlin does.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -58,12 +60,6 @@ extension CallLowerer {
            || ownerInfo.kind == .object,
            memberPropertyHasCustomSetterBody(propertySymbol, ast: ast, sema: sema)
         {
-            // Must call the setter (not write the backing field directly) so its
-            // body actually runs. Dispatched directly via the synthetic accessor
-            // symbol scheme — the same reliable mechanism the read side already
-            // uses for custom getters — rather than the chosenCallee-based
-            // fallback below, which resolves plain stored-property assignment
-            // and is not set up to name this accessor correctly.
             let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: sema.types.unitType)
@@ -79,11 +75,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // `object` member properties are stored as flat global slots keyed by
+        // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
+        // reads via `loadGlobal` and bare-name assignment inside the object body
+        // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
+        // via `kk_object_new` (for interface/vtable dispatch) never holds the
+        // object's own stored properties, so it must not be treated as
+        // field-offset storage here.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface
-           || ownerInfo.kind == .object,
+           ownerInfo.kind == .object
+        {
+            let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+            let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+            instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+            instructions.append(.copy(from: valueID, to: globalRef))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
            ]
@@ -132,9 +147,10 @@ extension CallLowerer {
     /// Lowers `receiver.field op= value` (and the desugared form of
     /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
     /// evaluating `receiver` exactly once. The load and store sides mirror
-    /// `lowerMemberAssignExpr`'s two safe, well-defined storage strategies —
-    /// a synthetic runtime accessor (`_load`/`_store` link-name pair) or a
-    /// direct field offset — falling back to a best-effort setter/getter
+    /// `lowerMemberAssignExpr`'s safe, well-defined storage strategies —
+    /// a synthetic runtime accessor (`_load`/`_store` link-name pair), an
+    /// `object` member's global slot, or a direct field offset on a
+    /// class/interface instance — falling back to a best-effort setter/getter
     /// name for anything else, the same fallback (and the same pre-existing
     /// limitations for custom accessors reached through an explicit
     /// receiver) that plain member assignment already relies on.
@@ -182,13 +198,29 @@ extension CallLowerer {
             return (getterLink, String(getterLink.dropLast("_load".count)) + "_store")
         }()
 
-        // Direct field-offset storage for ordinary stored properties.
-        let fieldOffset: Int? = {
+        // `object` member properties are stored as flat global slots keyed by
+        // the property's own symbol (see `lowerMemberAssignExpr` for the full
+        // rationale), not as per-instance field-offset storage.
+        let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            else {
+                return false
+            }
+            return ownerInfo.kind == .object
+        }()
+
+        // Direct field-offset storage for ordinary stored properties on
+        // class/interface instances.
+        let fieldOffset: Int? = {
+            guard syntheticLinks == nil,
+                  !isObjectOwned,
+                  let propertySymbol,
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                  ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+                  ownerInfo.kind == .class || ownerInfo.kind == .interface
             else {
                 return nil
             }
@@ -210,6 +242,13 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             currentValue = result
+        } else if isObjectOwned, let propertySymbol {
+            let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+            instructions.append(.loadGlobal(result: result, symbol: propertySymbol))
+            currentValue = wrapLateinitReadIfNeeded(
+                result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            )
         } else if let fieldOffset {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -335,6 +374,10 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if isObjectOwned, let propertySymbol {
+                let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+                instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+                instructions.append(.copy(from: newValue, to: globalRef))
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -370,5 +413,31 @@ extension CallLowerer {
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
+    }
+
+    /// Mirrors `memberPropertyUsesAccessor` (the read-side/getter check in
+    /// `CallLowerer+MemberPropertyReads.swift`) but for the setter half: true
+    /// when the property has a real, user-written `set(...) { ... }` body, in
+    /// which case assignment must dispatch to the setter accessor instead of
+    /// writing storage directly.
+    func memberPropertyUsesSetterAccessor(
+        _ propertySymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        for rawDecl in ast.arena.decls.indices {
+            let declID = DeclID(rawValue: Int32(rawDecl))
+            guard sema.bindings.declSymbols[declID] == propertySymbol,
+                  let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if let setter = propertyDecl.setter {
+                return setter.body != .unit
+            }
+            return propertyDecl.delegateExpression != nil
+        }
+        return false
     }
 }

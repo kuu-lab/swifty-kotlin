@@ -335,7 +335,7 @@ enum MemberRuntimeDispatch {
         case "reversed":
             return rangeRuntimeName(kind: kind, member: "reversed", longMember: "reversed")
         case "step":
-            if key.arity <= 1 {
+            if key.arity == 0 {
                 return rangeRuntimeName(
                     kind: kind,
                     member: "step",
@@ -379,11 +379,11 @@ enum MemberRuntimeDispatch {
         case ("toIntOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toIntOrNull_flat")
         case ("toDouble", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toDouble_flat", canThrow: true)
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDouble_flat", canThrow: true)
         case ("toDoubleOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toDoubleOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDoubleOrNull_flat")
         case ("toFloatOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toFloatOrNull_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toFloatOrNull_flat")
         case ("toList", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toList_flat")
         case ("toMutableList", 0):

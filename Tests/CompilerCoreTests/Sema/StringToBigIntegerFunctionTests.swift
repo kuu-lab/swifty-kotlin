@@ -27,14 +27,14 @@ final class StringToBigIntegerFunctionTests: XCTestCase {
     func testToBigIntegerStubLinksToRuntimeSymbol() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "toBigInteger", sema: sema, interner: interner),
-            "kk_string_toBigInteger",
-            "String.toBigInteger should link to kk_string_toBigInteger"
+        let directLink = externalLink(for: "toBigInteger", sema: sema, interner: interner)
+        XCTAssert(
+            directLink == nil || directLink?.isEmpty == true,
+            "String.toBigInteger should be source-backed and not have a direct external link"
         )
         XCTAssertNotNil(
-            RuntimeABISpec.allFunctions.first { $0.name == "kk_string_toBigInteger" },
-            "kk_string_toBigInteger must be registered in RuntimeABISpec"
+            RuntimeABISpec.allFunctions.first { $0.name == "__kk_string_toBigInteger" },
+            "__kk_string_toBigInteger must be registered in RuntimeABISpec"
         )
     }
 
@@ -93,10 +93,9 @@ final class StringToBigIntegerFunctionTests: XCTestCase {
                 "Expected call binding for toBigInteger"
             )
 
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toBigInteger",
-                "String.toBigInteger() should resolve to kk_string_toBigInteger"
+            XCTAssert(
+                sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
+                "String.toBigInteger() should resolve to standard library function (no direct external link)"
             )
         }
     }
