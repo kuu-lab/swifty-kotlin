@@ -411,29 +411,6 @@ extension DataFlowSemaPhase {
             keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
             valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol
         )
-        registerSyntheticCollectionTypeAliases(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-        if let mutableListSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]),
-           let mutableSetSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]),
-           let mutableMapSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableMap")]),
-           let linkedHashSetSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("LinkedHashSet")])
-        {
-            registerSyntheticCollectionFactoryStubs(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                kotlinCollectionsPkg: kotlinCollectionsPkg,
-                listSymbol: listInterfaceSymbol,
-                mutableListSymbol: mutableListSymbol,
-                setSymbol: setInterfaceSymbol,
-                mutableSetSymbol: mutableSetSymbol,
-                linkedHashSetSymbol: linkedHashSetSymbol,
-                mapSymbol: mapSymbols.mapSymbol,
-                mutableMapSymbol: mutableMapSymbol
-            )
-        }
         registerMapToMutableMapMember(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
