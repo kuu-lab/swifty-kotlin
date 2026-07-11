@@ -64,10 +64,8 @@ struct ExperimentalBitwiseFunctionTests {
             }
         }
 
-        // 2 user calls each, plus bundled Base64.kt's encode/decode bit
-        // manipulation (`and`/`shl`/`or` on Int, KSP-482): 13 more `and`
-        // and 4 more `or` calls. `inv`/`xor` are unused by Base64 and stay at 2.
-        #expect(seenCalls == ["and": 15, "inv": 2, "or": 6, "xor": 2])
+        // The range filter above intentionally counts only user-file calls.
+        #expect(seenCalls == ["and": 2, "inv": 2, "or": 2, "xor": 2])
     }
 }
 #endif
