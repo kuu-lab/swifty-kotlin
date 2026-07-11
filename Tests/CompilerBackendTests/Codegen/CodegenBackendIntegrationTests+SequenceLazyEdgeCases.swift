@@ -4,7 +4,7 @@ import Foundation
 import XCTest
 
 // STDLIB-020: Sequence lazy evaluation order and sequence builder semantics.
-extension CodegenBackendIntegrationTests {
+final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
 
     func testSequenceMapTakeEvaluatesOnlyNeededElements() throws {
         let source = """
