@@ -581,19 +581,43 @@ extension CoroutineLoweringPass {
         ) else {
             return nil
         }
-        // STDLIB-CORO-BUG-01: a direct call from one suspend function's body to
-        // another (e.g. `val x = step(41)` inside another suspend function) must
-        // relay the callee's completion back into *this* function's own suspend
-        // point -- see kk_coroutine_call_direct_suspend. Without the caller's own
-        // continuation there is nothing to relay into, so bail out to the
-        // original (broken but previously-existing) call shape rather than
-        // guessing.
-        guard let callerContinuationSymbol else {
-            return nil
-        }
-
         let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
+        // Synthetic KIR fixtures and non-suspend callers do not carry a lowered
+        // caller continuation. Preserve their historical continuation argument
+        // shape; only lowered suspend bodies can use the relay ABI below.
+        guard let callerContinuationSymbol else {
+            let continuationTemp = rewrite.module.arena.appendTemporary(
+                type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
+            )
+            return [
+                .constValue(
+                    result: continuationFunctionID,
+                    value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
+                ),
+                .call(
+                    symbol: nil,
+                    callee: rewrite.continuationFactory,
+                    arguments: [continuationFunctionID],
+                    result: continuationTemp,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .call(
+                    symbol: loweredTarget.symbol,
+                    callee: loweredTarget.name,
+                    arguments: call.arguments + [continuationTemp],
+                    result: call.result,
+                    canThrow: call.canThrow,
+                    thrownResult: call.thrownResult,
+                    isSuperCall: call.isSuperCall
+                ),
+            ]
+        }
+
+        // STDLIB-CORO-BUG-01: a direct call from one suspend function's body to
+        // another must relay the callee's completion back into this function's
+        // own suspend point through kk_coroutine_call_direct_suspend.
         let childContinuationTemp = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
@@ -837,6 +861,11 @@ extension CoroutineLoweringPass {
                callees: [
                    rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
                ],
+               module: rewrite.module
+           ),
+           !loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.directSuspendCallCallee,
                module: rewrite.module
            )
         {
