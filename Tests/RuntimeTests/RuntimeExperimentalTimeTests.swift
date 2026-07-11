@@ -14,8 +14,8 @@ final class RuntimeExperimentalTimeTests: IsolatedRuntimeXCTestCase {
 
     func testShiftedMarkReportsFutureAndPast() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let future = kk_time_mark_plus_duration(mark, kk_duration_from_milliseconds(50))
-        let past = kk_time_mark_minus_duration(mark, kk_duration_from_milliseconds(50))
+        let future = kk_time_mark_plus_duration(mark, durationFromMilliseconds(50))
+        let past = kk_time_mark_minus_duration(mark, durationFromMilliseconds(50))
 
         XCTAssertEqual(kk_time_mark_has_not_passed_now(future), 1)
         XCTAssertEqual(kk_time_mark_has_passed_now(future), 0)
@@ -51,7 +51,7 @@ final class RuntimeExperimentalTimeTests: IsolatedRuntimeXCTestCase {
 
         let first = kk_clock_now(clock)
         XCTAssertGreaterThanOrEqual(kk_instant_compare(first, origin), 0)
-        XCTAssertLessThan(kk_duration_inWholeMilliseconds(kk_instant_until(origin, first)), 500)
+        XCTAssertLessThan(durationInWholeMilliseconds(kk_instant_until(origin, first)), 500)
 
         Thread.sleep(forTimeInterval: 0.002)
         let second = kk_clock_now(clock)

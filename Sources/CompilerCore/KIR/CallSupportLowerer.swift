@@ -293,6 +293,26 @@ final class CallSupportLowerer {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let argIndices = argIndicesByParameter[0] ?? []
+            // `arrayOf<T>` erases T to Any at runtime, so primitive elements must
+            // be boxed before storage. intArrayOf/longArrayOf/etc. share this same
+            // "kk_array_of" external link name but declare a concrete primitive
+            // element type (native storage), so they must be excluded here.
+            let elementTypeIsErased: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[0]) {
+                true
+            } else {
+                false
+            }
+            let effectiveArguments = elementTypeIsErased
+                ? boxPrimitiveVarargArguments(
+                    providedArguments,
+                    argIndices: argIndices,
+                    spreadFlags: spreadFlags,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                : providedArguments
             let packedArray: KIRExprID
             if argIndices.isEmpty {
                 packedArray = emitArrayNew(
@@ -306,7 +326,7 @@ final class CallSupportLowerer {
             } else {
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
-                    providedArguments: providedArguments,
+                    providedArguments: effectiveArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
                     arena: arena,
@@ -386,6 +406,41 @@ final class CallSupportLowerer {
             normalized.append(sentinel)
         }
         return NormalizedCallResult(arguments: normalized, defaultMask: mask)
+    }
+
+    /// Boxes primitive-typed vararg elements so they can be stored in an
+    /// `Any`-erased array slot (e.g. `arrayOf<T>`'s backing array). Spread
+    /// arguments are passed through unchanged since they already reference an
+    /// existing collection rather than a scalar value.
+    private func boxPrimitiveVarargArguments(
+        _ providedArguments: [KIRExprID],
+        argIndices: [Int],
+        spreadFlags: [Bool],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        let boxingTable = BoxingCalleeTable(interner: interner)
+        var boxed = providedArguments
+        for idx in argIndices {
+            if idx < spreadFlags.count, spreadFlags[idx] {
+                continue
+            }
+            guard let argType = arena.exprType(providedArguments[idx]),
+                  let boxCallee = boxingTable.boxCallee(for: argType, types: sema.types, requireNonNull: false)
+            else {
+                continue
+            }
+            boxed[idx] = emitNonThrowingCall(
+                callee: boxCallee,
+                arg: providedArguments[idx],
+                resultType: sema.types.anyType,
+                arena: arena,
+                into: &instructions
+            )
+        }
+        return boxed
     }
 
     func packVarargArguments(
