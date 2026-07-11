@@ -1351,7 +1351,9 @@ final class CallLowerer {
         }
     }
 
-    private func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
+    // Shared by direct and member-call lowering paths, which are split across
+    // CallLowerer.swift and CallLowerer+MemberCallEmission.swift.
+    func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
             "kk_runtime_result_get_or_else",
             "kk_runtime_result_get_or_throw",
