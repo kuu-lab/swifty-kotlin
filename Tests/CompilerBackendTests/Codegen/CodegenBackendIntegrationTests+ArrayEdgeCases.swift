@@ -199,6 +199,11 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+}
+
+/// Keep this regression in its own XCTestCase so SwiftPM does not have to
+/// type-check the already-large CodegenBackendIntegrationTests discovery list.
+final class ArrayForLoopIntegrationTests: XCTestCase {
     func testCodegenArrayForLoopIteratesAllElements() throws {
         let source = """
         fun main() {
@@ -209,10 +214,32 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try assertKotlinOutput(
-            source,
-            moduleName: "ArrayForLoopIteration",
-            expected: "72\n73\n10\n20\n30\na\nb\nc\nx\ny\nz\n"
-        )
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let options = CompilerOptions(
+                moduleName: "ArrayForLoopIteration",
+                inputs: [path],
+                outputPath: outputBase,
+                emit: .executable,
+                target: defaultTargetTriple()
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                "72\n73\n10\n20\n30\na\nb\nc\nx\ny\nz\n"
+            )
+        }
     }
 }
