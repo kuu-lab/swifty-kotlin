@@ -199,6 +199,34 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                 }
             }
 
+            // KSP-499 Stage 3: a call to a *source-level* operator name
+            // (map/filter/toList/collect/flow/...) that Sema already resolved
+            // to a real, non-synthetic declared symbol is never one of this
+            // pass's hard-coded Flow intrinsics — those are recognized purely
+            // by literal callee name and never bind a symbol (see
+            // CallTypeChecker+MemberCallInferenceCollectionFlow.swift). When a
+            // bundled/user Kotlin declaration exists for such a name, skip the
+            // structural rewrite so the real implementation actually runs.
+            // Excludes the already-lowered `kk_flow_*` bridge names: a
+            // Kotlin-source implementation legitimately calls those via
+            // `@KsSymbolName` `external fun` declarations (which DO carry a
+            // real symbol), and this pass's bookkeeping below must keep
+            // tracking those results as flow-typed regardless.
+            let kkFlowBridgeNames: Set<InternedString> = [
+                kkFlowCreateName, kkFlowEmitName, kkFlowCollectName, kkFlowOfName,
+                kkFlowEmptyName, kkFlowAsFlowName, kkFlowToListName, kkFlowFirstName,
+                kkFlowSingleName,
+            ]
+            func shouldSkipSourceLevelRewrite(symbol: SymbolID?, callee: InternedString) -> Bool {
+                guard !kkFlowBridgeNames.contains(callee),
+                      let symbol, let sema = ctx.sema,
+                      let resolvedSymbol = sema.symbols.symbol(symbol)
+                else {
+                    return false
+                }
+                return !resolvedSymbol.flags.contains(.synthetic)
+            }
+
             for instruction in function.body {
                 switch instruction {
                 case let .copy(from, to):
@@ -209,6 +237,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     loweredBody.append(instruction)
 
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                    if shouldSkipSourceLevelRewrite(symbol: symbol, callee: callee) {
+                        loweredBody.append(instruction)
+                        continue
+                    }
                     if callee == collectName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,
@@ -502,6 +534,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     ))
 
                 case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+                    if shouldSkipSourceLevelRewrite(symbol: symbol, callee: callee) {
+                        loweredBody.append(instruction)
+                        continue
+                    }
                     if callee == emitName, isFlowBuilderFunction {
                         let flowHandleExpr: KIRExprID
                         let valueExpr: KIRExprID

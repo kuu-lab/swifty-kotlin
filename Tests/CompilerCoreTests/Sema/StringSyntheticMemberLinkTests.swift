@@ -71,13 +71,6 @@ struct StringSyntheticMemberLinkTests {
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
-            "toDouble": "kk_string_toDouble",
-            "hexToShort": "kk_string_hexToShort_flat",
-            "hexToUByte": "kk_string_hexToUByte_flat",
-            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
-            "hexToUInt": "kk_string_hexToUInt_flat",
-            "hexToULong": "kk_string_hexToULong_flat",
-            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -326,30 +319,33 @@ struct StringSyntheticMemberLinkTests {
             "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
         )
         #expect(
-            externalLink(
-                for: "toDoubleOrNull",
-                receiverType: sema.types.stringType,
-                parameterCount: 0,
-                sema: sema,
-                interner: interner
-            ) == "kk_string_toDoubleOrNull",
-            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+            !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
+                .contains("__kk_string_toDoubleOrNull"),
+            "String.toDoubleOrNull should be source-backed and not have a direct external link"
         )
         #expect(
-            externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
-            "String.toBigDecimal should link to kk_string_toBigDecimal"
+            externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
         )
         #expect(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
-            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+            externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
         )
         #expect(
-            externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
-            "String.toBigInteger should link to kk_string_toBigInteger"
+            externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
         )
         #expect(
-            externalLink(for: "toBigIntegerOrNull", sema: sema, interner: interner) == "kk_string_toBigIntegerOrNull",
-            "String.toBigIntegerOrNull should link to kk_string_toBigIntegerOrNull"
+            externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
         )
     }
 

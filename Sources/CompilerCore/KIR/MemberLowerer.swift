@@ -16,7 +16,8 @@ final class MemberLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
-        compilationCtx: CompilationContext? = nil
+        compilationCtx: CompilationContext? = nil,
+        isInterfaceContext: Bool = false
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         var directMembers: [KIRDeclID] = []
         var allDecls: [KIRDeclID] = []
@@ -50,6 +51,12 @@ final class MemberLowerer {
             // with type `propType` (e.g. `stringStruct`) would cause the code
             // generator to write a wide stringStruct aggregate into an i64-sized
             // slot, corrupting adjacent globals (including the delegate storage).
+            //
+            // Interface properties never have per-instance storage of their own —
+            // any state lives in the implementing class, which gets its own
+            // KIRGlobal/backing field when it declares (or overrides) the property.
+            // Skip storage emission here so a plain interface property (with no
+            // accessor body) doesn't leak a bogus module-level global.
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
@@ -58,14 +65,14 @@ final class MemberLowerer {
                 && !hasExplicitBackingField
             let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-            if !isGetterOnlyComputed && !isDelegateProperty {
+            if !isInterfaceContext, !isGetterOnlyComputed, !isDelegateProperty {
                 let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
             }
 
             // Emit backing field global for properties with custom accessors.
-            if let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
+            if !isInterfaceContext, let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
                 let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
                 let backingFieldKirID = arena.appendDecl(
                     .global(KIRGlobal(symbol: backingFieldSymbol, type: backingFieldType))
@@ -110,7 +117,12 @@ final class MemberLowerer {
             // Lower delegated property: emit delegate storage global and
             // synthesise getter (and setter for var) that call getValue/setValue
             // on the delegate instance.
-            if propertyDecl.delegateExpression != nil {
+            // Delegated properties in interfaces are rejected in Sema
+            // (KSWIFTK-SEMA-0304); isInterfaceContext guards this as defense in
+            // depth so an interface property never gets delegate storage or
+            // synthesized accessors, matching the storage/backing-field
+            // suppression above.
+            if !isInterfaceContext, propertyDecl.delegateExpression != nil {
                 let delegateKind = StdlibDelegateKind.detect(
                     delegateExpr: propertyDecl.delegateExpression,
                     ast: ast,
@@ -224,21 +236,25 @@ final class MemberLowerer {
                     }
                 }
             case let .interfaceDecl(nestedInterface):
-                // Interface properties have no backing storage; pass empty list.
+                // Interface properties have no backing storage of their own, but
+                // properties with a default accessor body (e.g. `val x get() = ...`)
+                // still need that body lowered so non-overriding implementers can
+                // dispatch to it. isInterfaceContext suppresses storage emission.
                 var nestedInterfaceAllObjects = nestedInterface.nestedObjects
                 if let companionDeclID = nestedInterface.companionObject {
                     nestedInterfaceAllObjects.append(companionDeclID)
                 }
                 let (nestedDirect, nestedAll) = lowerMemberDecls(
                     memberFunctions: nestedInterface.memberFunctions,
-                    memberProperties: [],
+                    memberProperties: nestedInterface.memberProperties,
                     nestedClasses: nestedInterface.nestedClasses,
                     nestedObjects: nestedInterfaceAllObjects,
                     ast: ast,
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    isInterfaceContext: true
                 )
                 let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
                 directMembers.append(kirID)

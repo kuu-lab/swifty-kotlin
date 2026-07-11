@@ -263,5 +263,104 @@ struct IncrementalCompilationCacheTests {
         let changed = cache.changedFiles(allPaths: [sourceFile])
         #expect(changed.contains(sourceFile))
     }
+
+    // MARK: - restoreCachedOutput
+
+    private func makeRestoreOptions(outputPath: String) -> CompilerOptions {
+        CompilerOptions(
+            moduleName: "M",
+            inputs: [],
+            outputPath: outputPath,
+            emit: .executable,
+            target: TargetTriple.hostDefault()
+        )
+    }
+
+    private func writeManifest(
+        cacheRoot: String,
+        buildConfigurationHash: String,
+        relativePath: String,
+        kind: String = "file"
+    ) throws {
+        let manifest = """
+        {
+          "version": 1,
+          "fingerprints": [],
+          "buildConfigurationHash": "\(buildConfigurationHash)",
+          "outputArtifact": {
+            "kind": "\(kind)",
+            "relativePath": "\(relativePath)"
+          }
+        }
+        """
+        try manifest.write(toFile: cacheRoot + "/manifest.json", atomically: true, encoding: .utf8)
+    }
+
+    @Test
+    func testRestoreCachedOutputCopiesValidArtifact() throws {
+        let cacheRoot = tempDir + "/cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let relativePath = "artifacts/\(buildHash)/output"
+        let artifactDir = cacheRoot + "/artifacts/\(buildHash)"
+        try FileManager.default.createDirectory(atPath: artifactDir, withIntermediateDirectories: true)
+        let artifactFile = artifactDir + "/output"
+        try "cached".write(toFile: artifactFile, atomically: true, encoding: .utf8)
+
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: relativePath)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == true)
+        #expect(FileManager.default.fileExists(atPath: options.outputPath))
+        let content = try String(contentsOfFile: options.outputPath, encoding: .utf8)
+        #expect(content == "cached")
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsPathTraversal() throws {
+        let cacheRoot = tempDir + "/cache"
+        let outsideFile = tempDir + "/secret.txt"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+        try "outside".write(toFile: outsideFile, atomically: true, encoding: .utf8)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: "../secret.txt")
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
+
+    @Test
+    func testRestoreCachedOutputRejectsAbsolutePath() throws {
+        let cacheRoot = tempDir + "/cache"
+        try FileManager.default.createDirectory(atPath: cacheRoot, withIntermediateDirectories: true)
+
+        let options = makeRestoreOptions(outputPath: tempDir + "/out")
+        let cache = IncrementalCompilationCache(cachePath: cacheRoot)
+        let buildHash = cache.buildConfigurationHash(for: options)
+
+        let secretFile = tempDir + "/absolute_secret.txt"
+        try "secret".write(toFile: secretFile, atomically: true, encoding: .utf8)
+
+        try writeManifest(cacheRoot: cacheRoot, buildConfigurationHash: buildHash, relativePath: secretFile)
+
+        let cache2 = IncrementalCompilationCache(cachePath: cacheRoot)
+        cache2.loadPreviousState()
+        let result = cache2.restoreCachedOutput(for: options)
+        #expect(result == false)
+        #expect(!FileManager.default.fileExists(atPath: options.outputPath))
+    }
 }
 #endif

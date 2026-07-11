@@ -56,8 +56,12 @@ struct StringToDoubleFunctionTests {
                 resolvedReturnType == sema.types.doubleType,
                 "String.toDouble() should return Double"
             )
+            #expect(resolvedLink == nil || resolvedLink?.isEmpty == true)
+            let privateFq = ["kotlin", "text", "__kk_string_toDouble"].map { ctx.interner.intern($0) }
+            let privateSymbol = sema.symbols.lookup(fqName: privateFq)
+            #expect(privateSymbol != nil)
+            #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toDouble")
         }
-        #expect(resolvedLink == "kk_string_toDouble")
     }
 
     @Test func testStringToDoubleCallBindsToRuntimeBridge() throws {
@@ -72,10 +76,21 @@ struct StringToDoubleFunctionTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            // Exclude bundled stdlib source (e.g. kotlin.random.Random's own
+            // `Long.toDouble()` call in doubleFromParts, KSP-466) so this only
+            // matches the test's own String-receiver fixture call. Numeric
+            // `.toDouble()` widening conversions are compiler intrinsics with no
+            // callBinding, unlike the String.toDouble() runtime bridge this test
+            // targets, so a bundled numeric toDouble() call being matched first
+            // would otherwise make callBinding(for:) nil here.
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "toDouble" && args.isEmpty
+                firstExprID(in: ast) { exprID, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr,
+                          ctx.interner.resolve(callee) == "toDouble",
+                          args.isEmpty,
+                          let range = ast.arena.exprRange(exprID)
+                    else { return false }
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 },
                 "Expected member call to toDouble() in AST"
             )
@@ -85,8 +100,8 @@ struct StringToDoubleFunctionTests {
                 "Expected call binding for toDouble"
             )
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toDouble",
-                "String.toDouble() should resolve to kk_string_toDouble"
+                sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
+                "String.toDouble() should resolve to standard library function (no direct external link)"
             )
         }
     }
