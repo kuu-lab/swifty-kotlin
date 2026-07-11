@@ -211,7 +211,7 @@ extension CallLowerer {
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),

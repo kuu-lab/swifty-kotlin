@@ -20,10 +20,6 @@ extension CallLowerer {
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
         let arrayNewCallee = interner.intern("kk_array_new_checked")
-        let arraySetCallee = interner.intern("kk_array_set")
-        let lessThanCallee = interner.intern("kk_op_lt")
-        let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
@@ -39,8 +35,6 @@ extension CallLowerer {
         // 2. Create the array: kk_array_new_checked(size) — throws
         // NegativeArraySizeException for negative sizes instead of silently
         // clamping to an empty array.
-        // kk_array_new zero-fills every slot, which is exactly ArrayName(size)'s
-        // contract (no init lambda), so the 1-arg form is done here.
         let arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
@@ -51,9 +45,18 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
+        // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
+        // already zero-fills every slot (RuntimeValue(raw: 0)), which matches
+        // Kotlin's per-type zero value (0, 0.0, false, NUL char) for every
+        // primitive array element type, so there is no init lambda to run.
         guard args.count == 2 else {
             return arrayExpr
         }
+
+        let arraySetCallee = interner.intern("kk_array_set")
+        let lessThanCallee = interner.intern("kk_op_lt")
+        let addCallee = interner.intern("kk_op_add")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         // 3. Loop setup: index = 0
         let indexExpr = arena.appendTemporary(type: intType)

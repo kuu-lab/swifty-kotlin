@@ -564,27 +564,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "toDouble",
-            externalLinkName: "kk_string_toDouble",
-            receiverType: stringType,
-            parameters: [],
-            returnType: doubleType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toDoubleOrNull",
-            externalLinkName: "kk_string_toDoubleOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableDoubleType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
@@ -629,27 +608,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "toFloat",
-            externalLinkName: "kk_string_toFloat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: floatType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toFloatOrNull",
-            externalLinkName: "kk_string_toFloatOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableFloatType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
@@ -2945,69 +2903,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
         let nullableBigIntegerType = types.makeNullable(bigIntegerType)
 
-        registerSyntheticStringExtensionFunction(
-            named: "toBigDecimal",
-            externalLinkName: "kk_string_toBigDecimal",
-            receiverType: stringType,
-            parameters: [],
-            returnType: bigDecimalType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigDecimalOrNull",
-            externalLinkName: "kk_string_toBigDecimalOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(bigDecimalType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigInteger",
-            externalLinkName: "kk_string_toBigInteger",
-            receiverType: stringType,
-            parameters: [],
-            returnType: bigIntegerType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigIntegerOrNull",
-            externalLinkName: "kk_string_toBigIntegerOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableBigIntegerType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticBigNumberMemberFunction(
-            ownerSymbol: bigDecimalSymbol,
-            ownerType: bigDecimalType,
-            name: "toString",
-            returnType: stringType,
-            externalLinkName: "kk_bignum_toString",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticBigNumberMemberFunction(
-            ownerSymbol: bigIntegerSymbol,
-            ownerType: bigIntegerType,
-            name: "toString",
-            returnType: stringType,
-            externalLinkName: "kk_bignum_toString",
-            symbols: symbols,
-            interner: interner
-        )
 
         // STDLIB-574: ByteArray / List<Int> internal representation
         let byteArrayType = makeNominalType(
