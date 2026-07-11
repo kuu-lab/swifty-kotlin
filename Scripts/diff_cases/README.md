@@ -76,5 +76,6 @@ Cases:
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
 - `custom_setter_explicit_receiver_read.kt`: デフォルト getter + カスタム setter のプロパティを明示的レシーバ経由で読み取る parity
+- `explicit_backing_field.kt`: Kotlin 2.0 explicit backing field をクラスメンバーに持つ場合の、インスタンス実体への初期化 parity
 
 The set intentionally includes both successful programs and compile-error cases.

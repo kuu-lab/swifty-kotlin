@@ -222,6 +222,7 @@ final class ObjectLiteralLowerer {
                   case let .propertyDecl(propertyDecl) = decl,
                   let initializer = propertyDecl.initializer,
                   let fieldOffset = layout?.fieldOffsets[sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol]
+                      ?? layout?.fieldOffsets[propertySymbol]
             else {
                 continue
             }
