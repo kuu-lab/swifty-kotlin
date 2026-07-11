@@ -623,7 +623,7 @@ extension CallLowerer {
                 var rhs = loweredArgIDs[0]
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -635,7 +635,7 @@ extension CallLowerer {
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -1361,39 +1361,7 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toDouble" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toDouble_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toDoubleOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toDoubleOrNull_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toFloatOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toFloatOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -2576,7 +2544,7 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
+                    let listExpr = arena.appendTemporary()
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_toList"),
