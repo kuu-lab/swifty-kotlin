@@ -1190,7 +1190,15 @@ extension DataFlowSemaPhase {
         // zip(other: Iterable<R>): List<Pair<E, R>>
         let zipName = interner.intern("zip")
         let zipFQName = listFQName + [zipName]
-        if symbols.lookup(fqName: zipFQName) == nil {
+        let collectionsFQName = Array(listFQName.dropLast())
+        let iterableFQName = collectionsFQName + [interner.intern("Iterable")]
+        let sourceBackedZipOneArg = bundledIndex.contains(ownerFQName: iterableFQName, name: zipName, arity: 1)
+            || BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: iterableFQName,
+                name: zipName,
+                arity: 1
+            )
+        if !sourceBackedZipOneArg, symbols.lookup(fqName: zipFQName) == nil {
             let rName = interner.intern("R")
             let rSymbol = symbols.define(
                 kind: .typeParameter,
@@ -1251,7 +1259,13 @@ extension DataFlowSemaPhase {
             guard let sig = symbols.functionSignature(for: symID) else { return false }
             return sig.parameterTypes.count == 2
         }
-        if !hasTwoParamZip {
+        let sourceBackedZipTransform = bundledIndex.contains(ownerFQName: iterableFQName, name: zipName, arity: 2)
+            || BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: iterableFQName,
+                name: zipName,
+                arity: 2
+            )
+        if !sourceBackedZipTransform, !hasTwoParamZip {
             let zipTransformScope = zipFQName + [interner.intern("transform")]
             let otherRName = interner.intern("R")
             let otherRSymbol = symbols.define(
