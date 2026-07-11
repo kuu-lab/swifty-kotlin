@@ -126,7 +126,8 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNextTransform"))
             XCTAssertFalse(callNames.contains("kk_list_zipWithNext"))
             XCTAssertFalse(callNames.contains("kk_list_zipWithNextTransform"))
         }
