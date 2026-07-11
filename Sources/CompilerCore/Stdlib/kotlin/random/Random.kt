@@ -236,7 +236,14 @@ public open class Random internal constructor(
         return signedResult.toULong()
     }
 
-    public companion object Default : Random(__kk_random_seed_entropy()) {
+    public companion object Default : Random(1, 0, 0, 0, 1, 0) {
+        private val defaultRandom: Random
+
+        init {
+            val entropy = __kk_random_seed_entropy()
+            defaultRandom = Random(entropy)
+        }
+
         // NOTE: every open member is re-declared here, even though most bodies
         // are identical to what Random's own skeleton implementation would
         // already compute by calling nextBits() virtually. This compiler's "bare ClassName.member()"
@@ -246,30 +253,30 @@ public open class Random internal constructor(
         // inherits — confirmed with a minimal repro independent of Random.
         // Relying on inheritance here would make Random.nextInt()/nextLong()/
         // etc. (without an explicit `.Default`) fail to resolve.
-        override fun nextBits(bitCount: Int): Int = super.nextBits(bitCount)
-        override fun nextInt(): Int = super.nextInt()
-        override fun nextInt(until: Int): Int = super.nextInt(until)
-        override fun nextInt(from: Int, until: Int): Int = super.nextInt(from, until)
-        override fun nextLong(): Long = super.nextLong()
-        override fun nextLong(until: Long): Long = super.nextLong(until)
-        override fun nextLong(from: Long, until: Long): Long = super.nextLong(from, until)
-        override fun nextBoolean(): Boolean = super.nextBoolean()
-        override fun nextDouble(): Double = super.nextDouble()
-        override fun nextDouble(until: Double): Double = super.nextDouble(until)
-        override fun nextDouble(from: Double, until: Double): Double = super.nextDouble(from, until)
-        override fun nextFloat(): Float = super.nextFloat()
-        override fun nextFloat(until: Float): Float = super.nextFloat(until)
-        override fun nextFloat(from: Float, until: Float): Float = super.nextFloat(from, until)
+        override fun nextBits(bitCount: Int): Int = defaultRandom.nextBits(bitCount)
+        override fun nextInt(): Int = defaultRandom.nextInt()
+        override fun nextInt(until: Int): Int = defaultRandom.nextInt(until)
+        override fun nextInt(from: Int, until: Int): Int = defaultRandom.nextInt(from, until)
+        override fun nextLong(): Long = defaultRandom.nextLong()
+        override fun nextLong(until: Long): Long = defaultRandom.nextLong(until)
+        override fun nextLong(from: Long, until: Long): Long = defaultRandom.nextLong(from, until)
+        override fun nextBoolean(): Boolean = defaultRandom.nextBoolean()
+        override fun nextDouble(): Double = defaultRandom.nextDouble()
+        override fun nextDouble(until: Double): Double = defaultRandom.nextDouble(until)
+        override fun nextDouble(from: Double, until: Double): Double = defaultRandom.nextDouble(from, until)
+        override fun nextFloat(): Float = defaultRandom.nextFloat()
+        override fun nextFloat(until: Float): Float = defaultRandom.nextFloat(until)
+        override fun nextFloat(from: Float, until: Float): Float = defaultRandom.nextFloat(from, until)
         override fun nextBytes(array: ByteArray, fromIndex: Int, toIndex: Int): ByteArray =
-            super.nextBytes(array, fromIndex, toIndex)
-        override fun nextBytes(array: ByteArray): ByteArray = super.nextBytes(array)
-        override fun nextBytes(size: Int): ByteArray = super.nextBytes(size)
-        override fun nextUInt(): UInt = super.nextUInt()
-        override fun nextUInt(until: UInt): UInt = super.nextUInt(until)
-        override fun nextUInt(from: UInt, until: UInt): UInt = super.nextUInt(from, until)
-        override fun nextULong(): ULong = super.nextULong()
-        override fun nextULong(until: ULong): ULong = super.nextULong(until)
-        override fun nextULong(from: ULong, until: ULong): ULong = super.nextULong(from, until)
+            defaultRandom.nextBytes(array, fromIndex, toIndex)
+        override fun nextBytes(array: ByteArray): ByteArray = defaultRandom.nextBytes(array)
+        override fun nextBytes(size: Int): ByteArray = defaultRandom.nextBytes(size)
+        override fun nextUInt(): UInt = defaultRandom.nextUInt()
+        override fun nextUInt(until: UInt): UInt = defaultRandom.nextUInt(until)
+        override fun nextUInt(from: UInt, until: UInt): UInt = defaultRandom.nextUInt(from, until)
+        override fun nextULong(): ULong = defaultRandom.nextULong()
+        override fun nextULong(until: ULong): ULong = defaultRandom.nextULong(until)
+        override fun nextULong(from: ULong, until: ULong): ULong = defaultRandom.nextULong(from, until)
     }
 }
 
