@@ -848,7 +848,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, isDelegated, _):
             if let initializer {
                 let initializerID = lowerExpr(
                     initializer,
@@ -860,10 +860,40 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
-                    let declaredType = arena.exprType(initializerID)
+                    let initializerType = arena.exprType(initializerID)
+                    // Prefer the symbol's Sema-recorded declared type over the
+                    // initializer's own type: an explicit widening annotation
+                    // (e.g. `val x: Any = 42L`) records `Any` on the symbol while
+                    // the literal's own arena type stays `Long`. Falling back to
+                    // the initializer's type here would silently drop the
+                    // widening, leaving the local aliased to an unboxed literal
+                    // register.
+                    let declaredType = (isDelegated ? nil : sema.symbols.propertyType(for: symbol))
+                        ?? initializerType
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                    driver.ctx.setLocalValue(initializerID, for: symbol)
+                    // When a primitive initializer (Int, Long, ...) is widened to
+                    // an Any-typed local, route through a `.copy` into a freshly
+                    // typed slot so ABILoweringPass's existing copy-boxing logic
+                    // (the same path used for reassignment) inserts the box call.
+                    // Narrowly scoped to primitive-source/Any-target: routing
+                    // *every* declared/initializer type mismatch through `.copy`
+                    // also caught reference-type variance (e.g. `val f: () -> Any
+                    // = stringProducer`) and non-null-to-nullable-primitive
+                    // widening (e.g. `val x: Int? = 5`), both of which broke —
+                    // closures lost their exprID-keyed capture metadata, and
+                    // nullable-primitive call sites expect the unboxed raw
+                    // sentinel representation, not a heap-boxed pointer.
+                    if !isDelegated, let initializerType, initializerType != declaredType,
+                       case .primitive = sema.types.kind(of: initializerType),
+                       case .any = sema.types.kind(of: declaredType)
+                    {
+                        let localSlot = arena.appendTemporary(type: declaredType)
+                        instructions.append(.copy(from: initializerID, to: localSlot))
+                        driver.ctx.setLocalValue(localSlot, for: symbol)
+                    } else {
+                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                    }
                 }
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
@@ -1453,6 +1483,64 @@ extension ExprLowerer {
                             interner: interner,
                             instructions: &instructions
                         )
+                    }
+                } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                              sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+                          ]
+                {
+                    // Instance field accessed via implicit `this` receiver: must load/store
+                    // through the object's field storage, mirroring the `.localAssign` write
+                    // path and the `nameRef` read path. Falling through to the plain-local
+                    // branch below would only update the compiler's local-value cache
+                    // (used for real locals/params), never the field itself, so the write
+                    // was silently dropped.
+                    let fieldType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+                    instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let rawLoadedValue = arena.appendTemporary(type: fieldType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_get_inbounds"),
+                        arguments: [receiverExprID, offsetExpr],
+                        result: rawLoadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    let loadedValue = wrapLateinitReadIfNeeded(
+                        rawLoadedValue,
+                        symbol: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    func storeField(_ value: KIRExprID) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_array_set"),
+                            arguments: [receiverExprID, offsetExpr, value],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeField(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: fieldType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeField(resultID)
                     }
                 } else {
                     if let storageID = driver.ctx.localValue(for: symbol) {

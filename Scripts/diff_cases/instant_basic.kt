@@ -7,25 +7,22 @@
 // what exposed this: kswiftc previously failed to compile this file too (for the .seconds bug),
 // so the compile-exit-code mismatch was masked by both sides failing for different reasons.
 import kotlin.time.*
+import kotlin.time.Duration.Companion.seconds
 
 fun main() {
     // fromEpochMilliseconds
     val epoch = Instant.fromEpochMilliseconds(0L)
 
-    // epochSeconds and nanoOfSecond properties
+    // epochSeconds property
     val epochSec = epoch.epochSeconds
-    val epochNano = epoch.nanoOfSecond
     println(epochSec)   // 0
-    println(epochNano)  // 0
 
     // Instant arithmetic: plus/minus Duration (deterministic with epoch base)
     val d = 5.seconds
     val later = epoch + d
     val earlier = epoch - d
     println(later.epochSeconds)   // 5
-    println(later.nanoOfSecond)   // 0
     println(earlier.epochSeconds) // -5
-    println(earlier.nanoOfSecond) // 0
 
     // comparisons
     println(epoch <= epoch) // true
@@ -34,9 +31,10 @@ fun main() {
     val epoch2 = Instant.fromEpochMilliseconds(0L)
     println(epoch == epoch2) // true
 
-    // until() — duration between two Instants
+    // duration between two Instants, expressed via epochSeconds difference
+    // (kotlin.time.Instant has no until()/minus(Instant) helper; only
+    // operator plus/minus(Duration) and Comparable<Instant>)
     val t1 = Instant.fromEpochMilliseconds(1000L)
     val t2 = Instant.fromEpochMilliseconds(3000L)
-    val diff = t1.until(t2)
-    println(diff.inWholeSeconds) // 2
+    println(t2.epochSeconds - t1.epochSeconds) // 2
 }

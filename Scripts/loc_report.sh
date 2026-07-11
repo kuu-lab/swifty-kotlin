@@ -13,10 +13,14 @@ Emit refactoring guard metrics as TSV:
 
 Metrics:
   loc_by_directory                         Physical lines in tracked files, grouped by top-level directory
+  loc_by_path_prefix                       Physical lines in tracked Swift files under a refactor target path
   header_helpers_synthetic_total_lines     Physical lines in HeaderHelpers+Synthetic*.swift files
+  call_lowerer_legacy_total_lines          Physical lines in CallLowerer+Legacy*.swift files
   kir_lowering_todo_fixme_count            TODO/FIXME markers remaining in KIR and Lowering Swift sources
   kk_literal_count                         Occurrences of string literals beginning with "kk_ in Swift/Kotlin sources
   interner_resolve_literal_comparison_count Occurrences of interner.resolve(...) == "..." in Swift sources
+  typecheck_interner_resolve_literal_comparison_count
+                                            Same as above, scoped to Sources/CompilerCore/Sema/TypeCheck
 USAGE
 }
 
@@ -109,13 +113,36 @@ while IFS= read -r file; do
   KIR_LOWERING_FILES+=("$file")
 done < <(git ls-files 'Sources/CompilerCore/KIR/*.swift' 'Sources/CompilerCore/Lowering/*.swift' | LC_ALL=C sort)
 
+SEMA_DATAFLOW_FILES=()
+while IFS= read -r file; do
+  SEMA_DATAFLOW_FILES+=("$file")
+done < <(git ls-files 'Sources/CompilerCore/Sema/DataFlow/*.swift' | LC_ALL=C sort)
+
+SEMA_TYPECHECK_FILES=()
+while IFS= read -r file; do
+  SEMA_TYPECHECK_FILES+=("$file")
+done < <(git ls-files 'Sources/CompilerCore/Sema/TypeCheck/*.swift' | LC_ALL=C sort)
+
+CALL_LOWERER_LEGACY_FILES=()
+while IFS= read -r file; do
+  CALL_LOWERER_LEGACY_FILES+=("$file")
+done < <(git ls-files 'Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift' | LC_ALL=C sort)
+
 printf 'metric\tscope\tvalue\n'
 emit_directory_loc
+printf 'loc_by_path_prefix\tSources/CompilerCore/Sema/DataFlow\t%s\n' \
+  "$(count_lines "${SEMA_DATAFLOW_FILES[@]}")"
+printf 'loc_by_path_prefix\tSources/CompilerCore/Sema/TypeCheck\t%s\n' \
+  "$(count_lines "${SEMA_TYPECHECK_FILES[@]}")"
 printf 'header_helpers_synthetic_total_lines\tSources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift\t%s\n' \
   "$(count_lines "${SYNTHETIC_HEADER_FILES[@]}")"
+printf 'call_lowerer_legacy_total_lines\tSources/CompilerCore/KIR/CallLowerer+Legacy*.swift\t%s\n' \
+  "$(count_lines "${CALL_LOWERER_LEGACY_FILES[@]}")"
 printf 'kir_lowering_todo_fixme_count\tSources/CompilerCore/{KIR,Lowering}/*.swift\t%s\n' \
   "$(count_regex_occurrences 'TODO|FIXME' "${KIR_LOWERING_FILES[@]}")"
 printf 'kk_literal_count\tSwift/Kotlin sources\t%s\n' \
   "$(count_regex_occurrences '"kk_[^"]*"' "${SWIFT_AND_KOTLIN_FILES[@]}")"
 printf 'interner_resolve_literal_comparison_count\tSwift sources\t%s\n' \
   "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"
+printf 'typecheck_interner_resolve_literal_comparison_count\tSources/CompilerCore/Sema/TypeCheck\t%s\n' \
+  "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SEMA_TYPECHECK_FILES[@]}")"

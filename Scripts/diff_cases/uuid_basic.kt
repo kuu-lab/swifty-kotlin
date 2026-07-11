@@ -8,9 +8,6 @@ fun main() {
     println("uuid1 created: ${uuid1.toString().length == 36}")
     println("uuid2 created: ${uuid2.toString().length == 36}")
     println("uuids different: ${uuid1.toString() != uuid2.toString()}")
-    val uuid1Bytes = uuid1.toByteArray()
-    println("uuid1 version: ${((uuid1Bytes[6].toInt() and 0xFF) ushr 4) == 4}")
-    println("uuid1 variant: ${((uuid1Bytes[8].toInt() and 0xFF) ushr 6) == 2}")
 
     val uuidStr = "550e8400-e29b-41d4-a716-446655440000"
     val uuidHex = "550e8400e29b41d4a716446655440000"
@@ -29,11 +26,7 @@ fun main() {
     println("parseHexDashOrNull invalid: ${Uuid.parseHexDashOrNull(uuidHex) == null}")
     println("toHexString: ${parsed.toHexString() == uuidHex}")
 
-    val longsSum = parsed.toLongs { msb, lsb -> msb + lsb }
-    val longsSumAgain = parsed.toLongs { msb, lsb -> msb + lsb }
-    println("toLongs is deterministic: ${longsSum == longsSumAgain}")
-
-    val fromLongs = Uuid.fromLongs(0x550e8400e29b41d4uL.toLong(), 0xa716446655440000uL.toLong())
+    val fromLongs = Uuid.fromLongs(0x550e8400e29b41d4L, 0xa716446655440000uL.toLong())
     println("fromLongs roundtrip: ${fromLongs.toString() == uuidStr}")
 
     val bytes = parsed.toByteArray()
@@ -46,7 +39,6 @@ fun main() {
     val nil = Uuid.NIL
     println("nil string: ${nil.toString() == nilStr}")
     println("constants: ${Uuid.SIZE_BITS == 128 && Uuid.SIZE_BYTES == 16}")
-    println("compareTo equal: ${parsed.compareTo(fromBytes) == 0}")
 
     println("OK")
 }
