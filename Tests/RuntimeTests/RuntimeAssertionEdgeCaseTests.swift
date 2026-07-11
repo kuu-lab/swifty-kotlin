@@ -350,8 +350,8 @@ final class RuntimeAssertionEdgeCaseTests: XCTestCase {
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
         let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Assertion failed.",
-                       "assert(false) default message must be \"Assertion failed.\"")
+        XCTAssertEqual(box.message, "Assertion failed",
+                       "assert(false) default message must be \"Assertion failed\" (no trailing period, matching kotlin-stdlib's AssertionError(\"Assertion failed\"))")
     }
 
     // MARK: - Exception hierarchy for exception types

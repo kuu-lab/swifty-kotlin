@@ -380,6 +380,13 @@ extension BuildASTPhase {
                  .multiDollarStringQuote, .multiDollarRawStringQuote,
                  .softKeyword:
                 true
+            case let .keyword(keyword):
+                // Declaration-modifier keywords (`value`, `data`, `open`, `const`, ...) are
+                // contextual: outside of a modifier-list position they are ordinary
+                // identifiers (e.g. a local variable named `value`). Without this, an infix
+                // call whose RHS starts with one of these names (e.g. `0 or value`) would
+                // fail this lookahead and silently truncate to just the LHS.
+                KotlinParser.isDeclarationModifierKeyword(keyword)
             default:
                 false
             }

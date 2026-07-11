@@ -150,7 +150,7 @@ public func kk_precondition_assert(_ condition: Int, _ outThrown: UnsafeMutableP
         return 0
     }
     if condition == 0 {
-        outThrown?.pointee = runtimeAllocateAssertionError(message: "Assertion failed.")
+        outThrown?.pointee = runtimeAllocateAssertionError(message: "Assertion failed")
         return 0
     }
     return 0
@@ -171,7 +171,7 @@ public func kk_precondition_assert_lazy(
         return 0
     }
     guard fnPtr != 0 else {
-        outThrown?.pointee = runtimeAllocateAssertionError(message: "Assertion failed.")
+        outThrown?.pointee = runtimeAllocateAssertionError(message: "Assertion failed")
         return 0
     }
 
@@ -179,7 +179,7 @@ public func kk_precondition_assert_lazy(
     let rawMessage = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &lazyThrown)
     if lazyThrown != 0 {
         outThrown?.pointee = runtimeAllocateAssertionError(
-            message: "Assertion failed.",
+            message: "Assertion failed",
             cause: lazyThrown
         )
         return 0
