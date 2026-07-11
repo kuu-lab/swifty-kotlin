@@ -877,6 +877,10 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// so that cancellation can prevent the body from starting when the job is
     /// cancelled before the dispatched closure begins.
     weak var dispatchWorkItem: DispatchWorkItem? = nil
+    /// Distinguishes a scheduled active job from one whose body has begun.
+    /// Cancellation can complete the former immediately when its work item is
+    /// cancelled before execution starts.
+    private var hasStartedExecuting = false
     /// CORO-004: Resumers invoked with the terminal value when the job completes.
     /// Lets a suspend-aware `Job.join()` caller resume via its continuation instead
     /// of blocking a GCD thread on `completionSemaphore`.
@@ -913,6 +917,17 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func markStarted() {
+        lock.lock()
+        hasStartedExecuting = true
+        if state == .new {
+            state = .active
+        }
+        lock.unlock()
+    }
+
+    /// Publishes the active state as soon as launch returns, before the
+    /// dispatch queue gets a chance to run the body.
+    func markScheduled() {
         lock.lock()
         if state == .new {
             state = .active
@@ -1077,10 +1092,11 @@ final class RuntimeJobHandle: @unchecked Sendable {
             cancelCause = resolvedCause
             result = 0
             failure = 0
-            // A never-started job can become terminal immediately. Once a job
-            // has started, keep the intermediate cancelling state so explicit
-            // completion mirrors kotlinx.coroutines lifecycle semantics.
-            if state == .new {
+            // A job that has not started executing can become terminal
+            // immediately. Once execution has begun, keep the intermediate
+            // cancelling state so explicit completion mirrors lifecycle
+            // semantics.
+            if state == .new || (state == .active && !hasStartedExecuting) {
                 state = .cancelled
                 shouldSignalCompletion = true
                 joinResumersToRun = joinResumers
@@ -1822,10 +1838,9 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
 
     let workItem = DispatchWorkItem {
         // Mark the body as started on the dispatch thread, then re-check
-        // cancellation. A cancel() that wins the race before the work item
-        // executes keeps the job in `.new` and completes it immediately via
-        // dispatchWorkItem.cancel(); if cancellation happens between markStarted()
-        // and the guard below, the body is skipped here.
+        // cancellation. A cancel() that wins before the work item executes
+        // completes the scheduled job immediately; if cancellation happens
+        // between markStarted() and the guard below, the body is skipped here.
         job.markStarted()
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
@@ -1859,6 +1874,7 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
         }
     }
     job.dispatchWorkItem = workItem
+    job.markScheduled()
     KxMiniRuntime.launch(workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
@@ -1991,6 +2007,7 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
         }
     }
     job.dispatchWorkItem = workItem
+    job.markScheduled()
     KxMiniRuntime.launch(workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
@@ -2128,6 +2145,7 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
         }
     }
     job.dispatchWorkItem = workItem
+    job.markScheduled()
     dispatcher.queue.async(execute: workItem)
     return Int(bitPattern: jobPtr)
 }
@@ -2190,6 +2208,7 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
         }
     }
     job.dispatchWorkItem = workItem
+    job.markScheduled()
     dispatcher.queue.async(execute: workItem)
     return Int(bitPattern: jobPtr)
 }
@@ -2303,6 +2322,7 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
         _ = job.complete(with: result)
     }
     job.dispatchWorkItem = workItem
+    job.markScheduled()
     KxMiniRuntime.launch(workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
