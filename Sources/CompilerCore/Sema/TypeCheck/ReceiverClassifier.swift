@@ -102,10 +102,12 @@ struct ReceiverClassifier {
 
     func isCollectionLikeType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
+        for (_, symbol) in classTypes(of: type) {
+            if knownNames.isCollectionLikeSymbol(symbol) {
+                return true
+            }
         }
-        return knownNames.isCollectionLikeSymbol(symbol)
+        return false
     }
 
     func isListLikeType(_ type: TypeID) -> Bool {
@@ -150,17 +152,19 @@ struct ReceiverClassifier {
     }
 
     func isMutableCollectionType(_ type: TypeID) -> Bool {
-        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
+        for (classType, symbol) in classTypes(of: type) {
+            if (
+                symbol.name == interner.intern("MutableCollection")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("MutableCollection"),
+                    ]
+            ) && classType.args.count == 1 {
+                return true
+            }
         }
-        return (
-            symbol.name == interner.intern("MutableCollection")
-                || symbol.fqName == [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("MutableCollection"),
-                ]
-        ) && classType.args.count == 1
+        return false
     }
 
     func isMutableListCollectionReceiver(receiverID: ExprID) -> Bool {
@@ -244,6 +248,38 @@ struct ReceiverClassifier {
 
     private func receiverType(for receiverID: ExprID) -> TypeID {
         sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+    }
+
+    private func classTypes(of type: TypeID) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        var visitedTypeParams: Set<SymbolID> = []
+        return classTypes(of: type, visitedTypeParams: &visitedTypeParams)
+    }
+
+    private func classTypes(
+        of type: TypeID,
+        visitedTypeParams: inout Set<SymbolID>
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        let nonNullType = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNullType) {
+        case let .classType(classType):
+            guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                return []
+            }
+            return [(classType, symbol)]
+        case let .intersection(parts):
+            return parts.flatMap {
+                classTypes(of: $0, visitedTypeParams: &visitedTypeParams)
+            }
+        case let .typeParam(typeParam):
+            guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                return []
+            }
+            return sema.symbols.typeParameterUpperBounds(for: typeParam.symbol).flatMap {
+                classTypes(of: $0, visitedTypeParams: &visitedTypeParams)
+            }
+        default:
+            return []
+        }
     }
 
     private func nominalSymbol(of type: TypeID) -> SemanticSymbol? {

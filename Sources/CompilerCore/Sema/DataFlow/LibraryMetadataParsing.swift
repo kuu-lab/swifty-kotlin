@@ -199,11 +199,6 @@ extension DataFlowSemaPhase {
             ownerFQName: record.fqName,
             cache: cache
         ) else {
-            diagnostics.warning(
-                "KSWIFTK-LIB-0003",
-                "Invalid typealias signature metadata at \(metadataPath): \(renderFQName(record.fqName, interner: interner))",
-                range: nil
-            )
             return nil
         }
         if case .error = types.kind(of: decoded) {
@@ -235,11 +230,6 @@ extension DataFlowSemaPhase {
             metadataPath: metadataPath,
             ownerFQName: ownerFQName
         ) else {
-            diagnostics.warning(
-                "KSWIFTK-LIB-0003",
-                "Invalid value class underlying type in metadata at \(metadataPath): \(renderFQName(ownerFQName, interner: interner))",
-                range: nil
-            )
             return nil
         }
         return decoded
@@ -275,6 +265,9 @@ extension DataFlowSemaPhase {
     private struct MetadataTypeSignatureParser {
         private let source: [Character]
         private var index: Int
+        private var depth: Int
+        private var depthLimitReported: Bool
+        private var isOversized: Bool
         private let symbols: SymbolTable
         private let types: TypeSystem
         private let interner: StringInterner
@@ -282,6 +275,8 @@ extension DataFlowSemaPhase {
         private let metadataPath: String
         private let ownerFQName: [InternedString]
         private let syntheticTypeParameterBase: Int32 = DataFlowSemaPhase.syntheticTypeParameterBase
+        private static let maxDepth: Int = 512
+        private static let maxSourceLength: Int = 1_048_576
 
         init(
             source: String,
@@ -292,8 +287,16 @@ extension DataFlowSemaPhase {
             metadataPath: String,
             ownerFQName: [InternedString]
         ) {
-            self.source = Array(source)
+            if source.count > Self.maxSourceLength {
+                self.source = []
+                self.isOversized = true
+            } else {
+                self.source = Array(source)
+                self.isOversized = false
+            }
             index = 0
+            depth = 0
+            depthLimitReported = false
             self.symbols = symbols
             self.types = types
             self.interner = interner
@@ -303,10 +306,21 @@ extension DataFlowSemaPhase {
         }
 
         mutating func parse() -> TypeID? {
-            guard let type = parseType(), index == source.count else {
+            if isOversized {
                 diagnostics.warning(
                     "KSWIFTK-LIB-0003",
-                    "Malformed type signature in metadata at \(metadataPath): \(String(source)) (\(ownerName()))",
+                    "Type signature in metadata exceeds maximum length at \(metadataPath) (\(ownerName()))",
+                    range: nil
+                )
+                return nil
+            }
+            guard let type = parseType(), index == source.count else {
+                if depthLimitReported {
+                    return nil
+                }
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0003",
+                    "Malformed type signature in metadata at \(metadataPath): \(truncatedSource) (\(ownerName()))",
                     range: nil
                 )
                 return nil
@@ -314,7 +328,27 @@ extension DataFlowSemaPhase {
             return type
         }
 
+        private var truncatedSource: String {
+            let prefix = source.prefix(200)
+            let suffix = source.count > 200 ? "..." : ""
+            return String(prefix) + suffix
+        }
+
         private mutating func parseType() -> TypeID? {
+            guard depth < Self.maxDepth else {
+                if !depthLimitReported {
+                    depthLimitReported = true
+                    diagnostics.warning(
+                        "KSWIFTK-LIB-0003",
+                        "Type signature nesting exceeds maximum depth of \(Self.maxDepth) in metadata at \(metadataPath) (\(ownerName()))",
+                        range: nil
+                    )
+                }
+                return nil
+            }
+            depth += 1
+            defer { depth -= 1 }
+
             if consume(prefix: "Q<") {
                 guard let inner = parseType(), consume(character: ">") else {
                     return nil

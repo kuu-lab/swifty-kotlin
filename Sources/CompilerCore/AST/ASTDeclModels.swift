@@ -521,6 +521,9 @@ public struct ValueParamDecl: Equatable, Codable {
     public let isProperty: Bool
     /// `true` only for `var` primary constructor properties.
     public let isMutableProperty: Bool
+    /// `true` when a primary constructor property parameter carries the
+    /// `override` modifier, e.g. `class Foo(override val x: String)`.
+    public let isOverrideProperty: Bool
     public let hasDefaultValue: Bool
     public let isVararg: Bool
     public let defaultValue: ExprID?
@@ -531,6 +534,7 @@ public struct ValueParamDecl: Equatable, Codable {
         type: TypeRefID?,
         isProperty: Bool = false,
         isMutableProperty: Bool = false,
+        isOverrideProperty: Bool = false,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
         defaultValue: ExprID? = nil,
@@ -540,6 +544,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.type = type
         self.isProperty = isProperty
         self.isMutableProperty = isMutableProperty
+        self.isOverrideProperty = isOverrideProperty
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
         self.defaultValue = defaultValue

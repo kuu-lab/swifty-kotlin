@@ -67,6 +67,8 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody
