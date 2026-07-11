@@ -1,6 +1,6 @@
 # Refactoring Metrics
 
-Baseline captured on 2026-07-02 for the RF-GUARD state that includes this document and `Scripts/loc_report.sh`.
+Baseline refreshed on 2026-07-10 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
 
 ## LoC Guard
 
@@ -14,23 +14,31 @@ Output:
 
 ```tsv
 metric	scope	value
-loc_by_directory	.	741
-loc_by_directory	.github	488
-loc_by_directory	Scripts	21553
-loc_by_directory	Sources	313343
-loc_by_directory	Stdlib	3783
-loc_by_directory	Tests	223920
-loc_by_directory	docs	3009
-header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	82624
-kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	3
-kk_literal_count	Swift/Kotlin sources	15624
-interner_resolve_literal_comparison_count	Swift sources	692
+loc_by_directory	.	968
+loc_by_directory	.github	680
+loc_by_directory	Scripts	22317
+loc_by_directory	Sources	329616
+loc_by_directory	Stdlib	3732
+loc_by_directory	Tests	229772
+loc_by_directory	docs	3093
+loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	95073
+loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	35256
+header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	79078
+call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	4058
+kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	2
+kk_literal_count	Swift/Kotlin sources	17532
+interner_resolve_literal_comparison_count	Swift sources	711
+typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	104
 ```
 
 Notes:
 - `loc_by_directory` counts physical lines in git-tracked files, grouped by top-level directory.
+- `loc_by_path_prefix` tracks phase-specific line-count targets that are too coarse at top-level directory granularity.
 - `kk_literal_count` counts Swift/Kotlin string literals beginning with `"kk_`.
 - `kir_lowering_todo_fixme_count` counts remaining `TODO` / `FIXME` markers in `Sources/CompilerCore/KIR/*.swift` and `Sources/CompilerCore/Lowering/*.swift`.
+- `call_lowerer_legacy_total_lines` and `typecheck_interner_resolve_literal_comparison_count` track RF4 reduction goals directly.
+
+CI publishes the same TSV from the `refactoring-metrics` job as artifact `refactoring-metrics-${run_id}` and mirrors it into the job summary.
 
 ## KIR + Lowering TODO/FIXME Triage
 

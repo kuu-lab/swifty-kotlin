@@ -322,7 +322,8 @@ extension DataFlowSemaPhase {
             name: String,
             parameterTypes: [TypeID],
             returnType: TypeID,
-            valueParameterNames: [String] = []
+            valueParameterNames: [String] = [],
+            externalLinkName: String? = nil
         ) {
             let memberName = interner.intern(name)
             let memberFQName = mutableCollectionFQName + [memberName]
@@ -336,6 +337,9 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(mutableCollectionSymbol, for: memberSymbol)
+            if let externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            }
 
             var valueParameterSymbols: [SymbolID] = []
             for parameterName in valueParameterNames {
@@ -371,13 +375,15 @@ extension DataFlowSemaPhase {
             name: "add",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
-            valueParameterNames: ["element"]
+            valueParameterNames: ["element"],
+            externalLinkName: "kk_mutable_collection_add"
         )
         registerMutableCollectionFunction(
             name: "addAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
-            valueParameterNames: ["elements"]
+            valueParameterNames: ["elements"],
+            externalLinkName: "kk_mutable_collection_addAll"
         )
         registerMutableCollectionFunction(
             name: "clear",

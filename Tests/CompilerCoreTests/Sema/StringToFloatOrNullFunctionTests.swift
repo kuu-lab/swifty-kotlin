@@ -33,15 +33,15 @@ struct StringToFloatOrNullFunctionTests {
             try runSema(ctx)
             let sema = try #require(ctx.sema)
 
+            let directLink = externalLink(for: "toFloatOrNull", sema: sema, interner: ctx.interner)
             #expect(
-                externalLink(for: "toFloatOrNull", sema: sema, interner: ctx.interner) == "kk_string_toFloatOrNull",
-                "String.toFloatOrNull should link to kk_string_toFloatOrNull"
+                directLink == nil || directLink?.isEmpty == true,
+                "String.toFloatOrNull should be source-backed and not have a direct external link"
             )
 
-            let links = externalLinks(for: "toFloatOrNull", sema: sema, interner: ctx.interner)
             #expect(
-                links.contains("kk_string_toFloatOrNull"),
-                "lookupAll for toFloatOrNull must include kk_string_toFloatOrNull; got: \(links)"
+                externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: ctx.interner) == "__kk_string_toFloatOrNull",
+                "__kk_string_toFloatOrNull should link to __kk_string_toFloatOrNull"
             )
         }
     }

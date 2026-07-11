@@ -53,6 +53,7 @@ extension CodegenBackendIntegrationTests {
                 close:ok
                 done
                 use:fail
+                close:fail
                 caught
                 null
                 false

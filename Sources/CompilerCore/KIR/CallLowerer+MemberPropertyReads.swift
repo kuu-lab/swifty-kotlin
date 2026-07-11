@@ -180,11 +180,18 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // `object` member properties never reach this point: they're always
+        // intercepted earlier by `tryLowerObjectMemberPropertyRead`, which
+        // reads them from their global slot via `loadGlobal` (mirroring how
+        // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
+        // Restricting this guard to `.class`/`.interface` keeps the read and
+        // write sides symmetric instead of relying on call-order to keep a
+        // dead `.object` field-offset arm harmless.
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+              ownerInfo.kind == .class || ownerInfo.kind == .interface
         else {
             return nil
         }
@@ -204,7 +211,7 @@ extension CallLowerer {
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
