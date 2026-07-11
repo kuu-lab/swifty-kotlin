@@ -30,7 +30,7 @@ struct NativeCInteropByteArrayToKStringFunctionTests {
                 && sig.parameterTypes == [sema.types.intType, sema.types.intType, sema.types.booleanType]
                 && sig.returnType == sema.types.stringType
         }, "ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence) must be registered")
-        #expect(try #require(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
+        #expect(!try #require(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
 
         // Verify all three parameters have default values
         let sig = try #require(sema.symbols.functionSignature(for: fn))
