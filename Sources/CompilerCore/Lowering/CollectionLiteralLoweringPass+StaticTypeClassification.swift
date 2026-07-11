@@ -8,6 +8,69 @@ enum CollectionLiteralTrackedStaticTypeKind {
 }
 
 extension CollectionLiteralLoweringSupport {
+    func makeWindowedTransformBridgeArguments(
+        receiver: KIRExprID,
+        windowedArguments: [KIRExprID],
+        module: KIRModule,
+        sema: SemaModule?,
+        loweredBody: inout [KIRInstruction]
+    ) -> [KIRExprID]? {
+        guard windowedArguments.count >= 2 else {
+            return nil
+        }
+
+        func zeroLiteral() -> KIRExprID {
+            let expr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: expr, value: .intLiteral(0)))
+            return expr
+        }
+
+        func oneLiteral() -> KIRExprID {
+            let expr = module.arena.appendExpr(.intLiteral(1), type: nil)
+            loweredBody.append(.constValue(result: expr, value: .intLiteral(1)))
+            return expr
+        }
+
+        func isCallableArgument(_ exprID: KIRExprID) -> Bool {
+            if module.arena.callableValueInfoByExprID[exprID] != nil {
+                return true
+            }
+            if let sema,
+               let type = module.arena.exprType(exprID),
+               case .functionType = sema.types.kind(of: sema.types.makeNonNullable(type))
+            {
+                return true
+            }
+            if case .externSymbolAddress? = module.arena.expr(exprID) {
+                return true
+            }
+            return false
+        }
+
+        guard let lambdaIndex = windowedArguments.indices.reversed().first(where: {
+            $0 > 0 && isCallableArgument(windowedArguments[$0])
+        }) else {
+            return nil
+        }
+
+        let valueArguments = Array(windowedArguments[..<lambdaIndex])
+        guard (1...3).contains(valueArguments.count) else {
+            return nil
+        }
+
+        let closureRawID = if lambdaIndex + 1 < windowedArguments.count {
+            windowedArguments[lambdaIndex + 1]
+        } else {
+            zeroLiteral()
+        }
+
+        let sizeID = valueArguments[0]
+        let stepID = valueArguments.count >= 2 ? valueArguments[1] : oneLiteral()
+        let partialID = valueArguments.count >= 3 ? valueArguments[2] : zeroLiteral()
+
+        return [receiver, sizeID, stepID, partialID, windowedArguments[lambdaIndex], closureRawID]
+    }
+
     func classifyTrackedExprByStaticType(
         _ expr: KIRExprID,
         module: KIRModule,

@@ -43,7 +43,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let before = [
-            "kk_list_map", "kk_list_filter", "kk_list_mapNotNull", "kk_list_forEach",
+            "kk_list_map", "kk_list_mapNotNull", "kk_list_forEach",
             "kk_list_flatMap", "kk_list_flatMapIndexed", "kk_list_any", "kk_list_none", "kk_list_all",
         ]
         let reduceOrNullSpec = hofSpec("kk_list_reduceOrNull")
@@ -319,12 +319,6 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "closureRaw", type: .intptr),
             RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
-        let legacyListZipTransformSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_zip_transform",
-            parameters: listZipTransformParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
         let listWindowChunkBridgeSpecs = [
             RuntimeABIFunctionSpec(
                 name: "__kk_list_chunked",
@@ -646,26 +640,21 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        var functions: [RuntimeABIFunctionSpec] = []
-        functions.append(contentsOf: before.map { hofSpec($0) })
-        functions.append(contentsOf: [filterNotNullSpec, requireNoNullsSpec, foldSpec])
-        functions.append(contentsOf: [
-                filterIsInstanceToSpec,
-                filterToSpec, filterNotToSpec, mapToSpec, flatMapToSpec,
-                mapNotNullToSpec, filterNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
+        return before.map { hofSpec($0) }
+            + [requireNoNullsSpec, foldSpec]
+            + [
+                mapToSpec, flatMapToSpec,
+                mapNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
-                filterIndexedToSpec,
-            ])
-        functions.append(
-            contentsOf: genericAfter.flatMap { name in
+            ]
+            + genericAfter.flatMap { name in
                 if name == "kk_list_sortedBy" {
                     return [hofSpec(name), sortedByPrimitiveSpec]
                 }
                 return [hofSpec(name)]
             }
-        )
-        functions.append(contentsOf: [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec])
-        functions.append(contentsOf: [
+            + [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec]
+            + [
                 associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
                 RuntimeABIFunctionSpec(
                     name: "kk_list_associateByTo",
@@ -717,7 +706,6 @@ public extension RuntimeABISpec {
                     section: "Collection"
                 ),
             ]
-            + [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
                 unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
@@ -811,16 +799,6 @@ public extension RuntimeABISpec {
                 ),
                 hofSpec("kk_list_indexOfFirst"),
                 hofSpec("kk_list_indexOfLast"),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_filterIsInstance",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "typeToken", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",
                     parameters: [
@@ -1395,7 +1373,6 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-            ])
-        return functions
+            ]
     }()
 }

@@ -1,68 +1,5 @@
 /// Destination, association, zip, and indexed higher-order collection rewrites.
 extension CollectionLiteralConstructionLoweringPass {
-    func makeWindowedTransformBridgeArguments(
-        receiver: KIRExprID,
-        windowedArguments: [KIRExprID],
-        module: KIRModule,
-        sema: SemaModule?,
-        loweredBody: inout [KIRInstruction]
-    ) -> [KIRExprID]? {
-        guard windowedArguments.count >= 2 else {
-            return nil
-        }
-
-        func zeroLiteral() -> KIRExprID {
-            let expr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: expr, value: .intLiteral(0)))
-            return expr
-        }
-
-        func oneLiteral() -> KIRExprID {
-            let expr = module.arena.appendExpr(.intLiteral(1), type: nil)
-            loweredBody.append(.constValue(result: expr, value: .intLiteral(1)))
-            return expr
-        }
-
-        func isCallableArgument(_ exprID: KIRExprID) -> Bool {
-            if module.arena.callableValueInfoByExprID[exprID] != nil {
-                return true
-            }
-            if let sema,
-               let type = module.arena.exprType(exprID),
-               case .functionType = sema.types.kind(of: sema.types.makeNonNullable(type))
-            {
-                return true
-            }
-            if case .externSymbolAddress? = module.arena.expr(exprID) {
-                return true
-            }
-            return false
-        }
-
-        guard let lambdaIndex = windowedArguments.indices.reversed().first(where: {
-            $0 > 0 && isCallableArgument(windowedArguments[$0])
-        }) else {
-            return nil
-        }
-
-        let valueArguments = Array(windowedArguments[..<lambdaIndex])
-        guard (1...3).contains(valueArguments.count) else {
-            return nil
-        }
-
-        let closureRawID = if lambdaIndex + 1 < windowedArguments.count {
-            windowedArguments[lambdaIndex + 1]
-        } else {
-            zeroLiteral()
-        }
-
-        let sizeID = valueArguments[0]
-        let stepID = valueArguments.count >= 2 ? valueArguments[1] : oneLiteral()
-        let partialID = valueArguments.count >= 3 ? valueArguments[2] : zeroLiteral()
-
-        return [receiver, sizeID, stepID, partialID, windowedArguments[lambdaIndex], closureRawID]
-    }
-
     func rewriteTransformHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -75,28 +12,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-    if callee == lookup.filterNotNullName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListFilterNotNullName,
-                arguments: arguments,
-                result: hofResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
-        }
-    }
-
     if callee == lookup.associateByName,
        arguments.count == 4 || arguments.count == 5,
        state.listExprIDs.contains(arguments[0].rawValue)
@@ -279,8 +194,7 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     // --- STDLIB-021: destination collection variants with [receiver, dest, lambda, closureRaw?] ---
-    if callee == lookup.filterToName || callee == lookup.filterNotToName
-        || callee == lookup.mapToName || callee == lookup.flatMapToName
+    if callee == lookup.mapToName || callee == lookup.flatMapToName
         || callee == lookup.mapNotNullToName || callee == lookup.mapIndexedToName
         || callee == lookup.mapIndexedNotNullToName
         || callee == lookup.flatMapIndexedToName || callee == lookup.associateToName
@@ -304,8 +218,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             let isSequenceReceiver = state.sequenceExprIDs.contains(receiverID.rawValue)
             let kkName: InternedString = switch callee {
-            case lookup.filterToName: lookup.kkListFilterToName
-            case lookup.filterNotToName: lookup.kkListFilterNotToName
             case lookup.mapToName: lookup.kkListMapToName
             case lookup.flatMapToName: lookup.kkListFlatMapToName
             case lookup.mapNotNullToName: lookup.kkListMapNotNullToName
@@ -444,8 +356,7 @@ extension CollectionLiteralConstructionLoweringPass {
                loweredBody: &loweredBody
            )
         {
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListWindowedTransformBridgeName,
@@ -498,8 +409,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListZipTransformBridgeName,
