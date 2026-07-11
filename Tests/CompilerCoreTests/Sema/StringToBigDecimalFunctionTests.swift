@@ -28,13 +28,14 @@ struct StringToBigDecimalFunctionTests {
     @Test func testToBigDecimalStubLinksToRuntimeSymbol() throws {
         let (sema, interner) = try makeSema()
 
+        let directLink = externalLink(for: "toBigDecimal", sema: sema, interner: interner)
         #expect(
-            externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
-            "String.toBigDecimal should link to kk_string_toBigDecimal"
+            directLink == nil || directLink?.isEmpty == true,
+            "String.toBigDecimal should be source-backed and not have a direct external link"
         )
         #expect(
-            RuntimeABISpec.allFunctions.first { $0.name == "kk_string_toBigDecimal" } != nil,
-            "kk_string_toBigDecimal must be registered in RuntimeABISpec"
+            RuntimeABISpec.allFunctions.first { $0.name == "__kk_string_toBigDecimal" } != nil,
+            "__kk_string_toBigDecimal must be registered in RuntimeABISpec"
         )
     }
 
@@ -95,8 +96,8 @@ struct StringToBigDecimalFunctionTests {
             )
 
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toBigDecimal",
-                "String.toBigDecimal() should resolve to kk_string_toBigDecimal"
+                sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
+                "String.toBigDecimal() should resolve to standard library function (no direct external link)"
             )
         }
     }

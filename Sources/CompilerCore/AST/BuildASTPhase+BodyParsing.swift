@@ -215,6 +215,8 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
+        let raw = skipLeadingLocalAnnotations(raw, interner: interner)
+        let filtered = skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
@@ -414,6 +416,26 @@ extension BuildASTPhase {
             index = parsed.nextIndex
         }
         return annotations
+    }
+
+    /// Skips leading annotation tokens (`@Name`, `@Name(...)`, optionally with
+    /// a use-site target) from a local statement's token list. Local
+    /// statements have no AST representation for annotations, so callers that
+    /// dispatch on a statement's leading keyword must strip them first —
+    /// otherwise a leading `@` token is unrecognized by every local-statement
+    /// parser (and by the generic `ExpressionParser` fallback), silently
+    /// dropping the entire statement.
+    func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
+        var index = 0
+        while index < tokens.count, tokens[index].kind == .symbol(.at) {
+            guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+            ) else {
+                break
+            }
+            index = parsed.nextIndex
+        }
+        return index == 0 ? tokens : Array(tokens[index...])
     }
 
     /// Checks if a token represents a declaration start keyword.

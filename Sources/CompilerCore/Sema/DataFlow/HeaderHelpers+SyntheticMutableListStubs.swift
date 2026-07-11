@@ -13,6 +13,7 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         listInterfaceSymbol: SymbolID,
         collectionInterfaceSymbol: SymbolID,
+        mutableCollectionInterfaceSymbol: SymbolID,
         mutableIterableInterfaceSymbol: SymbolID
     ) {
         let listTypeParamName = interner.intern("E")
@@ -45,10 +46,18 @@ extension DataFlowSemaPhase {
         )))
         types.setNominalTypeParameterSymbols([mlTypeParamSymbol], for: mutableListInterfaceSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: mutableListInterfaceSymbol)
-        symbols.setDirectSupertypes([listInterfaceSymbol, mutableIterableInterfaceSymbol], for: mutableListInterfaceSymbol)
-        types.setNominalDirectSupertypes([listInterfaceSymbol, mutableIterableInterfaceSymbol], for: mutableListInterfaceSymbol)
+        symbols.setDirectSupertypes(
+            [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+            for: mutableListInterfaceSymbol
+        )
+        types.setNominalDirectSupertypes(
+            [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+            for: mutableListInterfaceSymbol
+        )
         symbols.setSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
+        symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
         symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
 

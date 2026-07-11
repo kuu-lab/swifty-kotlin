@@ -439,6 +439,7 @@ extension KIRLoweringDriver {
         delegation: ConstructorDelegationCall,
         ctorFQName: [InternedString],
         ownerSymbol: SymbolID,
+        ctorSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         compilationCtx: CompilationContext,
@@ -473,8 +474,16 @@ extension KIRLoweringDriver {
         }
         let delegationResultID = arena.appendTemporary(type: sema.types.unitType
         )
+        // A class can have several constructors sharing the same `<init>` FQ
+        // name, so a plain FQ-name lookup can't tell which overload the
+        // delegation call means, and can even resolve back to the
+        // constructor currently being lowered (infinite self-recursion).
+        // Prefer the overload Sema already picked; only fall back to the
+        // naive lookup (still excluding self) if that binding is missing.
+        let resolvedSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
+            ?? sema.symbols.lookupAll(fqName: delegationTarget).first(where: { $0 != ctorSymbol })
         body.append(.call(
-            symbol: sema.symbols.lookupAll(fqName: delegationTarget).first,
+            symbol: resolvedSymbol,
             callee: compilationCtx.interner.intern("<init>"),
             arguments: argIDs,
             result: delegationResultID,

@@ -215,64 +215,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_find",
             returnTypeOverride: types.makeNullable(listTypeParamType)
         )
-        registerMemberOverload(
-            memberName: interner.intern("filterNot"),
-            memberFQName: listFQName + [interner.intern("filterNot")],
-            parameterTypes: [listPredicateType],
-            externalLinkName: "kk_list_filterNot"
-        )
-
-        let destinationCollectionType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterTo"),
-            memberFQName: listFQName + [interner.intern("filterTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotTo"),
-            memberFQName: listFQName + [interner.intern("filterNotTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterNotTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        let indexedPredicateType = types.make(.functionType(FunctionType(
-            params: [types.intType, listTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIndexedTo"),
-            memberFQName: listFQName + [interner.intern("filterIndexedTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                indexedPredicateType,
-            ],
-            externalLinkName: "kk_list_filterIndexedTo",
-            returnTypeOverride: destinationCollectionType
-        )
 
         let mapToTypeParamName = interner.intern("R")
         let mapToTypeParamSymbol = symbols.define(
@@ -528,67 +470,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_flatMapIndexedTo",
             returnTypeOverride: flatMapIndexedToDestinationType,
             typeParameterSymbols: [listTypeParamSymbol, flatMapIndexedToTypeParamSymbol]
-        )
-
-        let filterIsInstanceTypeParamName = interner.intern("R")
-        let filterIsInstanceTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstance"), filterIsInstanceTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceResultType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(filterIsInstanceTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstance"),
-            memberFQName: listFQName + [interner.intern("filterIsInstance")],
-            parameterTypes: [],
-            externalLinkName: "kk_list_filterIsInstance",
-            returnTypeOverride: filterIsInstanceResultType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-
-        let filterIsInstanceToTypeParamName = interner.intern("R")
-        let filterIsInstanceToTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceToTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstanceTo"), filterIsInstanceToTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceToTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceToTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceToDestinationType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(filterIsInstanceToTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstanceTo"),
-            memberFQName: listFQName + [interner.intern("filterIsInstanceTo")],
-            parameterTypes: [filterIsInstanceToDestinationType],
-            externalLinkName: "kk_list_filterIsInstanceTo",
-            returnTypeOverride: filterIsInstanceToDestinationType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceToTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotNullTo"),
-            memberFQName: listFQName + [interner.intern("filterNotNullTo")],
-            parameterTypes: [destinationCollectionType],
-            externalLinkName: "kk_list_filterNotNullTo",
-            returnTypeOverride: destinationCollectionType
         )
 
         // chunked(size: Int): List<List<E>> and windowed(size: Int, step: Int): List<List<E>>
