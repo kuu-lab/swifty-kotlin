@@ -780,31 +780,47 @@ extension CallLowerer {
             )
         }
 
-        // compareBy(sel1, sel2[, sel3]): fixed-arity multi-selector overloads (STDLIB-613).
-        // kk_comparator_from_multi_selectors(sel1, sel2) → (sel1Fn, sel1Closure, sel2Fn, sel2Closure)
-        // kk_comparator_from_multi_selectors3(sel1, sel2, sel3) → (sel1Fn, sel1Closure, sel2Fn, sel2Closure, sel3Fn, sel3Closure)
-        let comparatorMultiSelectorFixedNames: Set = ["kk_comparator_from_multi_selectors", "kk_comparator_from_multi_selectors3"]
-        if comparatorMultiSelectorFixedNames.contains(externalLinkName), loweredArguments.count >= 2 {
-            var finalArgs: [KIRExprID] = []
-            for i in 0..<loweredArguments.count {
+        // Fixed-arity comparator factories take one (fnPtr, closureRaw) pair
+        // per selector. The selector expressions are lowered as ordinary
+        // arguments first, so expand them here before emitting the ABI call.
+        let fixedComparatorSelectorCount: Int? = switch externalLinkName {
+        case "kk_comparator_from_multi_selectors": 2
+        case "kk_comparator_from_multi_selectors3": 3
+        case "kk_compareValuesBy1": 1
+        case "kk_compareValuesBy": 2
+        case "kk_compareValuesBy3": 3
+        default: nil
+        }
+        if let selectorCount = fixedComparatorSelectorCount {
+            let selectorOffset = externalLinkName.hasPrefix("kk_compareValuesBy") ? 2 : 0
+            guard loweredArguments.count == selectorOffset + selectorCount,
+                  originalArgs.count == selectorOffset + selectorCount
+            else {
+                return loweredArguments
+            }
+            var expanded = Array(loweredArguments.prefix(selectorOffset))
+            for index in 0..<selectorCount {
+                let argumentIndex = selectorOffset + index
                 let selector = makeCollectionHOFSelectorArgument(
-                    loweredArgID: loweredArguments[i],
-                    argExprID: originalArgs[i].expr,
+                    loweredArgID: loweredArguments[argumentIndex],
+                    argExprID: originalArgs[argumentIndex].expr,
+>>>>>>> 6bf8e8c733 (Expand fixed-arity comparator selector closures)
+                 sema: sema,
+                 arena: arena,
+                 interner: interner,
+                 instructions: &instructions
+             )
+                 expanded.append(selector.loweredArgID)
+                 expanded.append(makeClosureRawOrBoxedArgument(
+                    callableInfo: selector.callableInfo,
                     sema: sema,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
-                )
-                finalArgs.append(selector.loweredArgID)
-                finalArgs.append(makeClosureRawArgument(
-                    callableInfo: selector.callableInfo,
-                    sema: sema,
-                    arena: arena,
-                    instructions: &instructions
                 ))
-            }
-            return finalArgs
-        }
+             }
+             return expanded
+         }
 
         // compareBy(vararg selectors): pack selector (fnPtr, closureRaw) pairs into a runtime array.
         if externalLinkName == "kk_comparator_from_multi_selectors_vararg", loweredArguments.count >= 4 {
