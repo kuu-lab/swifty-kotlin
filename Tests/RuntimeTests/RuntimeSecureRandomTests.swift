@@ -12,9 +12,9 @@ final class RuntimeSecureRandomTests: XCTestCase {
         super.tearDown()
     }
 
-    private func runtimeListInts(_ raw: Int) -> [Int] {
+    private func runtimeArrayInts(_ raw: Int) -> [Int] {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let box = tryCast(ptr, to: RuntimeListBox.self) else {
+              let box = tryCast(ptr, to: RuntimeArrayBox.self) else {
             return []
         }
         return box.elements
@@ -22,7 +22,7 @@ final class RuntimeSecureRandomTests: XCTestCase {
 
     func testSecureRandomGenerateSeedProducesRequestedLength() {
         let secure = __kk_secure_random_get_instance()
-        let bytes = runtimeListInts(__kk_secure_random_generate_seed(secure, 8))
+        let bytes = runtimeArrayInts(__kk_secure_random_generate_seed(secure, 8))
 
         XCTAssertEqual(bytes.count, 8)
     }
@@ -33,17 +33,19 @@ final class RuntimeSecureRandomTests: XCTestCase {
         _ = __kk_secure_random_set_seed(a, 12345)
         _ = __kk_secure_random_set_seed(b, 12345)
 
-        let first = runtimeListInts(__kk_secure_random_generate_seed(a, 6))
-        let second = runtimeListInts(__kk_secure_random_generate_seed(b, 6))
+        let first = runtimeArrayInts(__kk_secure_random_generate_seed(a, 6))
+        let second = runtimeArrayInts(__kk_secure_random_generate_seed(b, 6))
 
         XCTAssertEqual(first, second)
     }
 
     func testSecureRandomNextBytesUsesInputLength() {
         let secure = __kk_secure_random_get_instance()
-        let input = registerRuntimeObject(RuntimeListBox(elements: Array(repeating: 0, count: 5)))
-        let output = runtimeListInts(__kk_secure_random_next_bytes(secure, input))
+        let input = registerRuntimeObject(RuntimeArrayBox(length: 5))
+        let rawOutput = __kk_secure_random_next_bytes(secure, input)
+        let output = runtimeArrayInts(rawOutput)
 
+        XCTAssertEqual(rawOutput, input)
         XCTAssertEqual(output.count, 5)
     }
 }

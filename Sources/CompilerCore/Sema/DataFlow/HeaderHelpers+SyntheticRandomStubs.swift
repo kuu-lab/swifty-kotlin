@@ -145,19 +145,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // byteArrayType is needed for the nextBytes stubs and SecureRandom below.
-        // Must be the real kotlin.ByteArray class (matching the ByteArray(n) /
-        // byteArrayOf(...) construction sites and mirroring uByteArrayType just
-        // below), not a List<Int> stand-in: List<Int> is a different nominal type,
-        // and looking it up by fqName also silently fell back to Any whenever this
-        // ran (as it does, being in the "Random" stub bucket) before the
-        // "Collections" bucket registers kotlin.collections.List.
-        let byteArrayType = makePrimitiveArrayType(
-            named: "ByteArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // `Random.nextBytes` is now a real Kotlin-source member; this type is
+        // only for SecureRandom. It must nevertheless be the real ByteArray
+        // class, not a List<Int> stand-in, because callers construct a
+        // RuntimeArrayBox through `ByteArray(size)`.
+        let byteArrayType = types.make(.classType(ClassType(
+            classSymbol: ensureClassSymbol(
+                named: "ByteArray",
+                in: [interner.intern("kotlin")],
+                symbols: symbols,
+                interner: interner
+            ),
+            args: [],
+            nullability: .nonNull
+        )))
 
         // SecureRandom basic support
         let secureRandomSymbol = ensureClassSymbol(
