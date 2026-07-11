@@ -640,21 +640,21 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        return before.map { hofSpec($0) }
-            + [requireNoNullsSpec, foldSpec]
-            + [
+        var result: [RuntimeABIFunctionSpec] = before.map { hofSpec($0) }
+        result.append(contentsOf: [requireNoNullsSpec, foldSpec])
+        result.append(contentsOf: [
                 mapToSpec, flatMapToSpec,
                 mapNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
-            ]
-            + genericAfter.flatMap { name in
+            ])
+        result.append(contentsOf: genericAfter.flatMap { name in
                 if name == "kk_list_sortedBy" {
                     return [hofSpec(name), sortedByPrimitiveSpec]
                 }
                 return [hofSpec(name)]
-            }
-            + [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec]
-            + [
+            })
+        result.append(contentsOf: [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec])
+        result.append(contentsOf: [
                 associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
                 RuntimeABIFunctionSpec(
                     name: "kk_list_associateByTo",
@@ -705,9 +705,9 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-            ]
-            + listWindowChunkBridgeSpecs
-            + [
+            ])
+        result.append(contentsOf: listWindowChunkBridgeSpecs)
+        result.append(contentsOf: [
                 unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
@@ -1373,6 +1373,7 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-            ]
+            ])
+        return result
     }()
 }
