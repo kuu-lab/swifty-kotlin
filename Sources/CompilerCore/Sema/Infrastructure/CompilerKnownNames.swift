@@ -227,6 +227,7 @@ package struct KnownCompilerNames {
     let mutableSet: InternedString
     let linkedHashSet: InternedString
     let collection: InternedString
+    let mutableCollection: InternedString
     let arrayDeque: InternedString
     let array: InternedString
     let intArray: InternedString
@@ -376,6 +377,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
+    let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
@@ -417,6 +419,7 @@ package struct KnownCompilerNames {
         mutableSet = interner.intern("MutableSet")
         linkedHashSet = interner.intern("LinkedHashSet")
         collection = interner.intern("Collection")
+        mutableCollection = interner.intern("MutableCollection")
         arrayDeque = interner.intern("ArrayDeque")
         array = interner.intern("Array")
         intArray = interner.intern("IntArray")
@@ -576,6 +579,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
         kotlinCollectionsArrayDequeFQName = [kotlin, kotlinCollections, arrayDeque]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
+        kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]
         kotlinxCoroutinesDeferredFQName = [kotlinx, coroutines, deferred]
         kotlinxCoroutinesChannelFQName = [kotlinx, coroutines, channels, channel]
@@ -775,8 +779,10 @@ package struct KnownCompilerNames {
     func isCollectionLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         isConcreteListLikeSymbol(symbol)
             || symbol.name == collection
+            || symbol.name == mutableCollection
             || isSetLikeSymbol(symbol)
             || symbolMatches(symbol, fqName: kotlinCollectionsCollectionFQName)
+            || symbolMatches(symbol, fqName: kotlinCollectionsMutableCollectionFQName)
             || isMapLikeSymbol(symbol)
             || isSequenceSymbol(symbol)
     }

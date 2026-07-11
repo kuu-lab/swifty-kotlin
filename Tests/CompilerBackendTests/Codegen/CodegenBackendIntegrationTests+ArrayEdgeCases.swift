@@ -171,28 +171,30 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
 
-    // Regression test: calling filterIsInstance() directly on an Array receiver used to
-    // crash at runtime ("kk_list_filterIsInstance received invalid list handle") because
-    // Array literals were incorrectly flagged as collection-expr, causing the List-only
-    // fallback resolver to bind the call against Array's RuntimeArrayBox representation.
-    func testCodegenArrayFilterIsInstanceMatchesKotlinc() throws {
+    func testArrayOfBoxesPrimitiveElementsForFilterIsInstance() throws {
         let source = """
         fun main() {
             val values: Array<Any> = arrayOf(1, "two", 3)
-            println(values.filterIsInstance<Int>().toList())
-            println(values.filterIsInstance<String>())
-            println(arrayOf(1, 2, 3).filterIsInstance<String>())
+            println(values.asSequence().filterIsInstance<Int>().toList())
+            println(values.asSequence().filterIsInstance<String>().toList())
+
+            val mixed: Array<Any> = arrayOf(1.5, "x", 2.5, 7L, true)
+            println(mixed.asSequence().filterIsInstance<Double>().toList())
+            println(mixed.asSequence().filterIsInstance<Long>().toList())
+            println(mixed.asSequence().filterIsInstance<Boolean>().toList())
         }
         """
 
         try assertKotlinOutput(
             source,
-            moduleName: "ArrayFilterIsInstance",
+            moduleName: "ArrayOfBoxesPrimitives",
             expected:
                 """
                 [1, 3]
                 [two]
-                []
+                [1.5, 2.5]
+                [7]
+                [true]
                 """ + "\n"
         )
     }

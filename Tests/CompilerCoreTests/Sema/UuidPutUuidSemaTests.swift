@@ -2,38 +2,32 @@
 import Foundation
 import Testing
 
-// MARK: - ByteArray.putUuid / ByteArray.uuid sema stub tests
+// MARK: - KSP-476: ByteArray.putUuid / ByteArray.uuid sema wiring
 //
-// Verifies that the two kotlin.uuid extension functions on ByteArray are
-// registered with the correct ABI link names, receiver types, parameter types,
-// return types, and @ExperimentalUuidApi opt-in annotations.
+// Both extension functions are pure Kotlin now, declared for real in
+// Stdlib/kotlin/uuid/Uuid.kt (no externalLinkName of their own). Verify they
+// are source-backed with the expected receiver/parameter/return types and
+// @ExperimentalUuidApi opt-in annotations.
 
 @Suite
 struct UuidPutUuidSemaTests {
 
     // MARK: - Shared fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
+    private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
+        var result: (CompilationContext, SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
+            result = (ctx, sema, ctx.interner)
         }
         return try #require(result)
     }
 
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        let (_, sema, interner) = try makeSemaWithContext()
+        return (sema, interner)
     }
 
     /// Finds the first symbol at `fqPath` whose receiver type matches `byteArraySymbol`.
@@ -58,19 +52,33 @@ struct UuidPutUuidSemaTests {
         return sema.symbols.lookup(fqName: fq)
     }
 
+    private func isSourceBacked(
+        sym: SymbolID,
+        ctx: CompilationContext,
+        sema: SemaModule
+    ) -> Bool {
+        let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+        guard let info = sema.symbols.symbol(sym) else { return false }
+        return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
+    }
+
     // MARK: - putUuid registration
 
     @Test
-    func testPutUuidExtensionFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "putUuid"],
-            sema: sema,
-            interner: interner
+    func testPutUuidExtensionFunctionIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
+            findByteArrayExtensionSymbol(
+                fqPath: ["kotlin", "uuid", "putUuid"],
+                byteArraySymbol: byteArraySym,
+                sema: sema,
+                interner: interner
+            )
         )
         #expect(
-            links.contains("kk_byteArray_putUuid"),
-            "ByteArray.putUuid must link to kk_byteArray_putUuid; found: \(links)"
+            isSourceBacked(sym: sym, ctx: ctx, sema: sema),
+            "ByteArray.putUuid must be declared in Uuid.kt, not registered as a synthetic stub"
         )
     }
 
@@ -194,16 +202,20 @@ struct UuidPutUuidSemaTests {
     // MARK: - uuid(at:) registration
 
     @Test
-    func testUuidAtExtensionFunctionIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "uuid", "uuid"],
-            sema: sema,
-            interner: interner
+    func testUuidAtExtensionFunctionIsSourceBacked() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
+            findByteArrayExtensionSymbol(
+                fqPath: ["kotlin", "uuid", "uuid"],
+                byteArraySymbol: byteArraySym,
+                sema: sema,
+                interner: interner
+            )
         )
         #expect(
-            links.contains("kk_byteArray_uuid"),
-            "ByteArray.uuid must link to kk_byteArray_uuid; found: \(links)"
+            isSourceBacked(sym: sym, ctx: ctx, sema: sema),
+            "ByteArray.uuid must be declared in Uuid.kt, not registered as a synthetic stub"
         )
     }
 

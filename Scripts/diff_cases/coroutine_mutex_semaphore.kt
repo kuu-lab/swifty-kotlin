@@ -1,4 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// SKIP-DIFF (DEBT-DIFF-003): Mutex.withLock / Semaphore.withPermit calls nested inside a
+// launch { } trailing lambda fail Sema overload resolution (KSWIFTK-SEMA-0002); the same
+// calls work when placed directly in a runBlocking { } body. See docs/diff-skip-inventory.md.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import java.util.concurrent.atomic.AtomicInteger
