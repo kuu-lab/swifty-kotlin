@@ -326,5 +326,74 @@ struct FinallyExceptionRouteTests {
             )
         }
     }
+
+    // MARK: - usePinned nested inside an outer try (CODE-001 guard placement)
+
+    /// Verifies that `usePinned`'s block-call is wrapped in its own nested
+    /// beginFinallyGuard/endFinallyGuard region when `usePinned` is itself
+    /// nested inside an outer try. Without this guard, the outer try's own
+    /// appendThrowAwareInstructions pass would re-wrap the already-routed
+    /// block call, inserting a premature jump to the outer catch dispatch
+    /// that races ahead of usePinned's own unpin() cleanup — the same class
+    /// of bug fixed for the try/catch/finally and `use{}` cases, but not
+    /// observable via printed output since unpin() has no visible side
+    /// effect. This checks the KIR shape directly instead: two levels of
+    /// beginFinallyGuard nesting must be reachable (the outer try's own body
+    /// guard, plus usePinned's own guard around its block call).
+    @Test func testUsePinnedNestedInOuterTryGuardsBlockCallFromOuterRewrap() throws {
+        let source = """
+        import kotlinx.cinterop.ExperimentalForeignApi
+        import kotlinx.cinterop.Pinned
+        import kotlinx.cinterop.usePinned
+
+        class Box(var value: Int)
+
+        @ExperimentalForeignApi
+        fun main() {
+            try {
+                val box = Box(42)
+                box.usePinned { pinned: Pinned<Box> ->
+                    pinned.get().value
+                }
+            } catch (e: Exception) {
+                println("caught")
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            var depth = 0
+            var maxDepth = 0
+            var sawCallAtNestedDepth = false
+            for instr in body {
+                switch instr {
+                case .beginFinallyGuard:
+                    depth += 1
+                    maxDepth = max(maxDepth, depth)
+                case .endFinallyGuard:
+                    depth -= 1
+                case .call where depth >= 2:
+                    sawCallAtNestedDepth = true
+                default:
+                    break
+                }
+            }
+
+            #expect(depth == 0, "beginFinallyGuard/endFinallyGuard must be balanced")
+            #expect(
+                maxDepth >= 2,
+                "Expected usePinned's block-call guard nested inside the outer try's own body guard"
+            )
+            #expect(
+                sawCallAtNestedDepth,
+                "Expected the usePinned block-call itself inside the doubly-guarded region"
+            )
+        }
+    }
 }
 #endif

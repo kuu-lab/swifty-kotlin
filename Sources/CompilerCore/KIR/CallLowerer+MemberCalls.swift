@@ -134,7 +134,27 @@ extension CallLowerer {
         } else {
             false
         }
-        if isFlowReceiver {
+        // KSP-499 Stage 3: skip this hard-coded Flow intrinsic dispatch when a
+        // real bundled/user Kotlin declaration exists for this exact (Flow
+        // owner, member name, arity) — mirrors the same priority check added
+        // to the Sema layer (CallTypeChecker+MemberCallInferenceCollectionFlow.swift).
+        // Without this, Sema could resolve the call to a genuine Kotlin
+        // implementation while KIR lowering still silently rewrote it to the
+        // native intrinsic below.
+        let hasBundledFlowDeclaration: Bool = {
+            guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+                  case let .classType(classType) = sema.types.kind(of: receiverType),
+                  let ownerSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return sema.bundledIndex.contains(
+                ownerFQName: ownerSymbol.fqName,
+                name: calleeName,
+                arity: args.count
+            )
+        }()
+        if isFlowReceiver, !hasBundledFlowDeclaration {
             if callee == "transform", args.count == 1 {
                 let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
                 let result = arena.appendTemporary(type: boundType

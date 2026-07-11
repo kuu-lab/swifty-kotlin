@@ -60,7 +60,11 @@ struct StringToFloatFunctionTests {
                 resolvedReturnType == sema.types.floatType,
                 "String.toFloat() should return Float"
             )
+            #expect(resolvedLink == nil || resolvedLink?.isEmpty == true)
+            let privateFq = ["kotlin", "text", "__kk_string_toFloat"].map { ctx.interner.intern($0) }
+            let privateSymbol = sema.symbols.lookup(fqName: privateFq)
+            #expect(privateSymbol != nil)
+            #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toFloat")
         }
-        #expect(resolvedLink == "kk_string_toFloat")
     }
 }

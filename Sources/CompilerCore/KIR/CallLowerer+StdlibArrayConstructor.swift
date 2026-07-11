@@ -11,7 +11,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor,
-              args.count == 2
+              args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -19,11 +19,7 @@ extension CallLowerer {
         let intType = sema.types.intType
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
-        let arrayNewCallee = interner.intern("kk_array_new")
-        let arraySetCallee = interner.intern("kk_array_set")
-        let lessThanCallee = interner.intern("kk_op_lt")
-        let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
+        let arrayNewCallee = interner.intern("kk_array_new_checked")
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
@@ -36,16 +32,31 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // 2. Create the array: kk_array_new(size)
+        // 2. Create the array: kk_array_new_checked(size) — throws
+        // NegativeArraySizeException for negative sizes instead of silently
+        // clamping to an empty array.
         let arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
             arguments: [sizeExpr],
             result: arrayExpr,
-            canThrow: false,
+            canThrow: true,
             thrownResult: nil
         ))
+
+        // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
+        // already zero-fills every slot (RuntimeValue(raw: 0)), which matches
+        // Kotlin's per-type zero value (0, 0.0, false, NUL char) for every
+        // primitive array element type, so there is no init lambda to run.
+        guard args.count == 2 else {
+            return arrayExpr
+        }
+
+        let arraySetCallee = interner.intern("kk_array_set")
+        let lessThanCallee = interner.intern("kk_op_lt")
+        let addCallee = interner.intern("kk_op_add")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         // 3. Loop setup: index = 0
         let indexExpr = arena.appendTemporary(type: intType)

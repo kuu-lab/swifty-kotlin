@@ -26,10 +26,15 @@ final class StringToBigDecimalOrNullFunctionTests: XCTestCase {
             try runSema(ctx)
             let sema = try XCTUnwrap(ctx.sema)
 
+            let directLink = externalLink(for: "toBigDecimalOrNull", sema: sema, interner: ctx.interner)
+            XCTAssert(
+                directLink == nil || directLink?.isEmpty == true,
+                "String.toBigDecimalOrNull should be source-backed and not have a direct external link"
+            )
             XCTAssertEqual(
-                externalLink(for: "toBigDecimalOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toBigDecimalOrNull",
-                "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+                externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: ctx.interner),
+                "__kk_string_toBigDecimalOrNull",
+                "__kk_string_toBigDecimalOrNull should link to __kk_string_toBigDecimalOrNull"
             )
         }
     }
