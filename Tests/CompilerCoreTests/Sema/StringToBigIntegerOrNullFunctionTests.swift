@@ -17,9 +17,14 @@ struct StringToBigIntegerOrNullFunctionTests {
             try runSema(ctx)
             let sema = try #require(ctx.sema)
 
+            let directLink = externalLink(for: "toBigIntegerOrNull", sema: sema, interner: ctx.interner)
             #expect(
-                externalLink(for: "toBigIntegerOrNull", sema: sema, interner: ctx.interner) == "kk_string_toBigIntegerOrNull",
-                "String.toBigIntegerOrNull should link to kk_string_toBigIntegerOrNull"
+                directLink == nil || directLink?.isEmpty == true,
+                "String.toBigIntegerOrNull should be source-backed and not have a direct external link"
+            )
+            #expect(
+                externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: ctx.interner) == "__kk_string_toBigIntegerOrNull",
+                "__kk_string_toBigIntegerOrNull should link to __kk_string_toBigIntegerOrNull"
             )
         }
     }
@@ -63,7 +68,7 @@ struct StringToBigIntegerOrNullFunctionTests {
             #expect(
                 sema.bindings.callBinding(for: callExpr).flatMap {
                     sema.symbols.externalLinkName(for: $0.chosenCallee)
-                } == "kk_string_toBigIntegerOrNull"
+                } == nil
             )
         }
     }

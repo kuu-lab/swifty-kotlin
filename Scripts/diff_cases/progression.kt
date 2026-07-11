@@ -144,4 +144,31 @@ fun main() {
     val emptyULong = ULongProgression.fromClosedRange(10UL, 1UL, 1)
     println(emptyULong.isEmpty())
     println(emptyULong.toList())
+
+    // Test step() as a dot call on a range (not the infix keyword form).
+    // Regression for KSWIFTK-RUNTIME-0001: .step(n) as an explicit dot call
+    // must construct a new stepped progression, not alias the step-property getter.
+    println("\n=== step() as dot call ===")
+    val longDotStep = (1L..10L).step(2L)
+    println(5L in longDotStep)
+    println(longDotStep.toList())
+
+    val intDotStep = (1..10).step(2)
+    println(5 in intDotStep)
+    println(intDotStep.toList())
+
+    val uintDotStep = (1u..10u).step(2)
+    println(5u in uintDotStep)
+    println(uintDotStep.toList())
+
+    val ulongDotStep = (1UL..10UL).step(2)
+    println(5UL in ulongDotStep)
+    println(ulongDotStep.toList())
+
+    val charDotStep = ('a'..'j').step(2)
+    println('e' in charDotStep)
+    println(charDotStep.toList())
+
+    val downToDotStep = (10 downTo 1).step(3)
+    println(downToDotStep.toList())
 }

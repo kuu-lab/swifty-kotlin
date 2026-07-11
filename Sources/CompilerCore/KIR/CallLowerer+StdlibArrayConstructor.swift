@@ -19,7 +19,7 @@ extension CallLowerer {
         let intType = sema.types.intType
         let boolType = sema.types.booleanType
         let anyType = sema.types.anyType
-        let arrayNewCallee = interner.intern("kk_array_new")
+        let arrayNewCallee = interner.intern("kk_array_new_checked")
         let arraySetCallee = interner.intern("kk_array_set")
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
@@ -36,14 +36,16 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // 2. Create the array: kk_array_new(size)
+        // 2. Create the array: kk_array_new_checked(size) — throws
+        // NegativeArraySizeException for negative sizes instead of silently
+        // clamping to an empty array.
         let arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
             arguments: [sizeExpr],
             result: arrayExpr,
-            canThrow: false,
+            canThrow: true,
             thrownResult: nil
         ))
 

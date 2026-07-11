@@ -367,5 +367,47 @@ struct LibMetadataImportIntegrationTests {
             #expect(!pathWarnings.isEmpty)
         }
     }
+
+    @Test func testInlineKIRArtifactWithExcessiveParameterCountEmitsError() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let inlineDir = libDir.appendingPathComponent("inline-kir")
+        try fm.createDirectory(at: inlineDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "HugeInline",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin",
+          "inlineKIRDir": "inline-kir"
+        }
+        """
+        let metadata = """
+        symbols=1
+        function HugeParams fq=lib.foo schema=v1 arity=0 suspend=0 inline=1
+        """
+        let kirbin = "params=2000000000\n"
+
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try kirbin.write(to: inlineDir.appendingPathComponent("HugeParams.kirbin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "HugeInlineApp",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            assertHasDiagnostic("KSWIFTK-LIB-0020", in: ctx)
+        }
+    }
 }
 #endif

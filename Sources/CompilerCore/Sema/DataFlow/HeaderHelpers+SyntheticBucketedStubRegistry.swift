@@ -138,9 +138,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
             phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "HexFormat") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "KotlinVersion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
         },

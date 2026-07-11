@@ -83,6 +83,33 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  refactoring-metrics:
+    name: Refactoring Metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Generate loc report
+        run: |
+          mkdir -p "$RUNNER_TEMP/refactoring-metrics"
+          bash Scripts/loc_report.sh | tee "$RUNNER_TEMP/refactoring-metrics/loc_report.tsv"
+      - name: Summarize loc report
+        run: |
+          {
+            echo '## Refactoring metrics'
+            echo
+            echo '```tsv'
+            cat "$RUNNER_TEMP/refactoring-metrics/loc_report.tsv"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload loc report artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: refactoring-metrics-${{ github.run_id }}
+          path: ${{ runner.temp }}/refactoring-metrics/loc_report.tsv
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     name: Build
     runs-on: ubuntu-latest
