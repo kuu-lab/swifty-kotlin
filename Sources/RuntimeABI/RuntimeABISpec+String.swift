@@ -2068,7 +2068,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "ByteArray"
+            section: "ByteArray",
+            isThrowing: false
         ),
         // STDLIB-574: ByteArray.decodeToString(charset)
         RuntimeABIFunctionSpec(
@@ -2078,7 +2079,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "charsetId", type: .intptr),
             ],
             returnType: .intptr,
-            section: "ByteArray"
+            section: "ByteArray",
+            isThrowing: false
         ),
         // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, ...)
         RuntimeABIFunctionSpec(
