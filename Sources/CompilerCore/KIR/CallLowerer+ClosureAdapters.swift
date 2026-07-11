@@ -426,6 +426,15 @@ extension CallLowerer {
             return
         }
 
+        // Inline calls consume lambda arguments directly during inline
+        // expansion. Wrapping those arguments in a runtime function object
+        // disconnects their thrown-result slot from the caller's try/catch.
+        // Materialization is only needed for non-inline source-backed bodies
+        // that invoke a function-valued parameter at runtime.
+        if sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) == true {
+            return
+        }
+
         let valueArgOffset = signature.receiverType == nil ? 0 : 1
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
