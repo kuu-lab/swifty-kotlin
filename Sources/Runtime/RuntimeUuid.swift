@@ -241,6 +241,13 @@ func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     )
 }
 
+// Keep the private bridge name used by the Kotlin source implementation and
+// ABI inventory while retaining the public compatibility entry point above.
+@_cdecl("__kk_uuid_toKotlinUuid")
+func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+    kk_uuid_toKotlinUuid(receiver)
+}
+
 // MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
 
 @_cdecl("kk_byteArray_putUuid")
