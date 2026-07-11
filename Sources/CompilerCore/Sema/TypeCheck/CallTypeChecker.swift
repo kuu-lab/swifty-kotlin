@@ -2515,6 +2515,78 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sourceBackedFactory.type)
                 return sourceBackedFactory.type
             }
+
+            // Type aliases and concrete collection classes are represented by
+            // synthetic type symbols rather than source-backed factory
+            // functions. Keep their constructor typing available while the
+            // bundled stdlib is bootstrapped; CollectionLiteralLoweringPass
+            // rewrites the resulting calls to the matching runtime bridge.
+            let expectedCollectionArgs: [TypeID] = if let expectedType,
+                                                       expectedType != sema.types.errorType,
+                                                       case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
+            {
+                expectedClassType.args.map { arg in
+                    switch arg {
+                    case let .invariant(type), let .in(type), let .out(type): type
+                    case .star: sema.types.anyType
+                    }
+                }
+            } else {
+                []
+            }
+            let constructorElementType = explicitTypeArgs.first
+                ?? expectedCollectionArgs.first
+                ?? sema.types.anyType
+            switch resolvedName {
+            case "ArrayList":
+                let resultType = makeSyntheticListConstructorType(
+                    name: resolvedName,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: constructorElementType
+                )
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            case "HashSet":
+                let resultType = makeSyntheticMutableSetType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: constructorElementType
+                )
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            case "LinkedHashSet":
+                let resultType = makeSyntheticLinkedHashSetType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: constructorElementType
+                )
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            case "HashMap", "LinkedHashMap":
+                let keyType = explicitTypeArgs.first ?? expectedCollectionArgs.first ?? sema.types.anyType
+                let valueType = explicitTypeArgs.dropFirst().first
+                    ?? expectedCollectionArgs.dropFirst().first
+                    ?? sema.types.anyType
+                let resultType = makeSyntheticMutableMapType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    keyType: keyType,
+                    valueType: valueType
+                )
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            default:
+                break
+            }
         }
 
         if let calleeName,
