@@ -13,6 +13,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_new_checked",
+            parameters: [
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Array"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_of_nulls",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),

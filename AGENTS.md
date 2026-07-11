@@ -2,6 +2,13 @@
 
 AI 向けの補足。プロジェクトのクイックリファレンスは [`CLAUDE.md`](CLAUDE.md)、アーキテクチャは [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照。
 
+## バグ報告ルール
+
+作業中に発見したコンパイラ / ランタイムのバグは、その場で修正しない場合でも**必ず [`TODO.md`](TODO.md) にタスクとして追記する**（詳細は [`CLAUDE.md`](CLAUDE.md) の「バグ報告ルール」）。セッション外への報告や修正 PR の作成だけでは追跡が残らない。
+
+- 必須記載: 症状 / 最小再現 Kotlin コード（または `Scripts/diff_cases/` のケースパス）/ 発見元タスク ID
+- 修正 PR を作成したら PR 番号をタスク行へ追記し、マージ後に `[x]` 化する
+
 ## Cursor Cloud specific instructions
 
 ### 概要
@@ -48,3 +55,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 - `kswiftc` でリンクする際、Swift リンカ（`swiftc`）が PATH に必要。
 - Linux で `kswiftc` 実行時に `libswiftCore` 向けの linker warning が出ることがあるが、`hello.kt` のような最小ケースでは実行は成功する。
 - ゴールデン更新は `UPDATE_GOLDEN=1` と `-Xswiftc -swift-version -Xswiftc 6` を CI に合わせて使う（[`CLAUDE.md`](CLAUDE.md)）。
+
+## 言語設定
+- 回答や指示への応答は、常に日本語で行ってください。
+

@@ -171,22 +171,17 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
 
-    func testArrayOfBoxesPrimitiveElementsForIsChecks() throws {
+    func testArrayOfBoxesPrimitiveElementsForFilterIsInstance() throws {
         let source = """
         fun main() {
+            val values: Array<Any> = arrayOf(1, "two", 3)
+            println(values.asSequence().filterIsInstance<Int>().toList())
+            println(values.asSequence().filterIsInstance<String>().toList())
+
             val mixed: Array<Any> = arrayOf(1.5, "x", 2.5, 7L, true)
-            var i = 0
-            while (i < mixed.size) {
-                val item = mixed[i]
-                when (item) {
-                    is Double -> println("Double: " + item)
-                    is Long -> println("Long: " + item)
-                    is String -> println("String: " + item)
-                    is Boolean -> println("Boolean: " + item)
-                    else -> println("other: " + item)
-                }
-                i = i + 1
-            }
+            println(mixed.asSequence().filterIsInstance<Double>().toList())
+            println(mixed.asSequence().filterIsInstance<Long>().toList())
+            println(mixed.asSequence().filterIsInstance<Boolean>().toList())
         }
         """
 
@@ -195,11 +190,11 @@ extension CodegenBackendIntegrationTests {
             moduleName: "ArrayOfBoxesPrimitives",
             expected:
                 """
-                Double: 1.5
-                String: x
-                Double: 2.5
-                Long: 7
-                Boolean: true
+                [1, 3]
+                [two]
+                [1.5, 2.5]
+                [7]
+                [true]
                 """ + "\n"
         )
     }

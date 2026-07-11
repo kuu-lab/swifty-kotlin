@@ -593,6 +593,15 @@ get_kotlinc_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
+# Extract extra JVM flags (e.g. -ea) from // JAVA_FLAGS: directives in the test
+# file. These are passed to the `java` invocation that runs the reference jar,
+# before -cp/-jar so they are parsed as JVM options rather than program args.
+# Format: // JAVA_FLAGS: <flags>
+get_java_extra_flags() {
+  local kt_file="$1"
+  grep -E '^[[:space:]]*//[[:space:]]*JAVA_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*JAVA_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
+}
+
 # Normalize stdout: replace lines matching pattern with placeholder for diff.
 # The pattern is passed through the environment (not awk -v) so backslashes in
 # the regex are not mangled by awk's escape-sequence processing.
@@ -650,6 +659,9 @@ run_case() {
   local kotlinc_extra_flags
   kotlinc_extra_flags="$(get_kotlinc_extra_flags "$kt_file")"
 
+  local java_extra_flags
+  java_extra_flags="$(get_java_extra_flags "$kt_file")"
+
   if [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
@@ -686,16 +698,20 @@ run_case() {
           echo "Missing Main-Class in reference jar manifest." >"$ref_run_stderr"
         else
           if needs_stdin_eof "$kt_file"; then
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            # shellcheck disable=SC2086
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           else
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            # shellcheck disable=SC2086
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           fi
         fi
       else
         if needs_stdin_eof "$kt_file"; then
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         else
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         fi
       fi
     fi

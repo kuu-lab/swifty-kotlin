@@ -268,7 +268,16 @@ enum RuntimeTypeCheckToken {
     }
 
     static func stableNominalTypeID(symbol: SymbolID, sema: SemaModule, interner: StringInterner) -> Int64 {
-        guard let semanticSymbol = sema.symbols.symbol(symbol) else {
+        stableNominalTypeID(symbol: symbol, symbols: sema.symbols, interner: interner)
+    }
+
+    /// Same computation as the `sema:`-based overload, for lowering passes
+    /// (e.g. ABILoweringPass) that only have a `SymbolTable` in scope. Keep
+    /// the hash formula identical to Runtime's `runtimeStableNominalTypeID`
+    /// so a value class's box-time tag (kk_tag_value_class_box) always
+    /// matches its check-time payload (kk_op_is).
+    static func stableNominalTypeID(symbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> Int64 {
+        guard let semanticSymbol = symbols.symbol(symbol) else {
             return 0
         }
         let fqName = semanticSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")

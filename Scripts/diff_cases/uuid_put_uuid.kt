@@ -1,3 +1,9 @@
+// SKIP-DIFF (DEBT-DIFF-005): kswiftc's synthetic kotlin.uuid stubs expose ByteArray.putUuid(at, uuid) /
+// ByteArray.uuid(at) / ByteArray.getUuid(offset) (kk_byteArray_putUuid / kk_byteArray_uuid / kk_uuid_getUuid
+// bridge-only externs in HeaderHelpers+SyntheticUuidStubs.swift). Real Kotlin stdlib only has
+// java.nio.ByteBuffer.putUuid/getUuid (JVM-only, since Kotlin 2.4) — there is no ByteArray-receiver
+// version and no top-level ByteArray.uuid() at all, so JVM kotlinc fails with "receiver type mismatch"
+// / "unresolved reference 'uuid'".
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
 import kotlin.uuid.Uuid
@@ -32,6 +38,33 @@ fun main() {
         }
     }
     println("bytes match toByteArray: $match")
+
+    // putUuid throws for a negative offset
+    try {
+        val small = ByteArray(16)
+        small.putUuid(-1, original)
+        println("putUuid negative offset: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("putUuid negative offset: threw IndexOutOfBoundsException")
+    }
+
+    // putUuid throws when the array is too small to hold 16 bytes
+    try {
+        val tooSmall = ByteArray(10)
+        tooSmall.putUuid(0, original)
+        println("putUuid too-small array: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("putUuid too-small array: threw IndexOutOfBoundsException")
+    }
+
+    // uuid(at:) throws when the offset runs past the end of the array
+    try {
+        val tooSmall = ByteArray(10)
+        tooSmall.uuid(0)
+        println("uuid too-small array: no exception thrown")
+    } catch (e: IndexOutOfBoundsException) {
+        println("uuid too-small array: threw IndexOutOfBoundsException")
+    }
 
     println("OK")
 }

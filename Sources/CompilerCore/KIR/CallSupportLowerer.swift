@@ -293,6 +293,26 @@ final class CallSupportLowerer {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let argIndices = argIndicesByParameter[0] ?? []
+            // `arrayOf<T>` erases T to Any at runtime, so primitive elements must
+            // be boxed before storage. intArrayOf/longArrayOf/etc. share this same
+            // "kk_array_of" external link name but declare a concrete primitive
+            // element type (native storage), so they must be excluded here.
+            let elementTypeIsErased: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[0]) {
+                true
+            } else {
+                false
+            }
+            let effectiveArguments = elementTypeIsErased
+                ? boxPrimitiveVarargArguments(
+                    providedArguments,
+                    argIndices: argIndices,
+                    spreadFlags: spreadFlags,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                : providedArguments
             let packedArray: KIRExprID
             if argIndices.isEmpty {
                 packedArray = emitArrayNew(
@@ -425,7 +445,10 @@ final class CallSupportLowerer {
         return NormalizedCallResult(arguments: normalized, defaultMask: mask)
     }
 
-    /// Boxes primitive-typed vararg elements for storage in an `Any`-erased array slot; spread arguments pass through unchanged.
+    /// Boxes primitive-typed vararg elements so they can be stored in an
+    /// `Any`-erased array slot (e.g. `arrayOf<T>`'s backing array). Spread
+    /// arguments are passed through unchanged since they already reference an
+    /// existing collection rather than a scalar value.
     private func boxPrimitiveVarargArguments(
         _ providedArguments: [KIRExprID],
         argIndices: [Int],

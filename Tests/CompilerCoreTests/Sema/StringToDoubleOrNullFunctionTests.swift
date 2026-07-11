@@ -53,21 +53,21 @@ struct StringToDoubleOrNullFunctionTests {
             try runSema(ctx)
             let sema = try #require(ctx.sema)
 
+            let directLink = externalLink(
+                for: "toDoubleOrNull",
+                receiverType: sema.types.stringType,
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            )
             #expect(
-                externalLink(
-                    for: "toDoubleOrNull",
-                    receiverType: sema.types.stringType,
-                    parameterCount: 0,
-                    sema: sema,
-                    interner: ctx.interner
-                ) == "kk_string_toDoubleOrNull",
-                "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+                directLink == nil || directLink?.isEmpty == true,
+                "String.toDoubleOrNull should be source-backed and not have a direct external link"
             )
 
-            let links = externalLinks(for: "toDoubleOrNull", sema: sema, interner: ctx.interner)
             #expect(
-                links.contains("kk_string_toDoubleOrNull"),
-                "lookupAll for toDoubleOrNull must include kk_string_toDoubleOrNull; got: \(links)"
+                externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: ctx.interner) == "__kk_string_toDoubleOrNull",
+                "__kk_string_toDoubleOrNull should link to __kk_string_toDoubleOrNull"
             )
         }
     }

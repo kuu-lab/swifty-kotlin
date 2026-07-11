@@ -36,6 +36,21 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "AtomicIntAsJavaAtomic", expected: "ok\n")
     }
 
+    func testCodegenJavaAtomicIntegerDirectConstruction() throws {
+        let source = """
+        import java.util.concurrent.atomic.AtomicInteger
+
+        fun main() {
+            val counter = AtomicInteger(0)
+            counter.incrementAndGet()
+            counter.incrementAndGet()
+            counter.addAndGet(3)
+            println(counter.get())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "JavaAtomicIntegerDirectConstruction", expected: "5\n")
+    }
+
     func testCodegenAtomicIntCASFailureReturnsFalseAndLeavesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
