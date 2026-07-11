@@ -277,7 +277,10 @@ extension CallLowerer {
         return (array, count)
     }
 
-    private func boxCollectionFactoryElementIfNeeded(
+    /// Boxes a lowered argument into `Any?` when it is an unboxed primitive, so it can be
+    /// stored as an element of an `Any?`-typed array/list. Reused by other vararg-into-`Any?`
+    /// lowering paths (e.g. `StringBuilder.append(vararg value: Any?)`).
+    func boxCollectionFactoryElementIfNeeded(
         _ argID: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,

@@ -339,17 +339,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
     }
 
-    func anyToStringTag(for type: TypeID, sema: SemaModule) -> Int64 {
-        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-        case .primitive(.boolean, _):
-            2
-        case .stringStruct:
-            3
-        default:
-            1
-        }
-    }
-
     /// DATA-002 / STDLIB-090: Synthesizes `componentN()` KIR function bodies for data classes.
     /// Each componentN takes the receiver ($self) and returns the Nth constructor property
     /// by reading the corresponding field via `kk_array_get_inbounds`.

@@ -1152,7 +1152,7 @@ private func runtimeShuffleElementHandles(_ elements: [Int], randomRaw: Int?) ->
     if let randomRaw {
         var out = elements
         for i in stride(from: out.count - 1, through: 1, by: -1) {
-            let j = kk_random_nextInt_until(randomRaw, i + 1, nil)
+            let j = runtimeRandomNextIntBelow(randomRaw, i + 1)
             out.swapAt(i, j)
         }
         return out

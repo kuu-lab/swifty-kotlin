@@ -83,17 +83,24 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = emitNonThrowingCall(
-                            callee: boxCallee,
-                            arg: arg,
+                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                        emitBoxCallWithValueClassTag(
+                            boxCallee: boxCallee,
+                            value: arg,
+                            rawSourceKind: types.kind(of: argType),
+                            result: boxedResult,
                             resultType: types.anyType,
+                            types: types,
+                            symbols: ctx.sema?.symbols,
+                            interner: ctx.interner,
                             arena: module.arena,
                             into: &loweredBody
                         )
-                        storedArg = boxedArg
+                        storedArg = boxedResult
                     } else {
                         storedArg = arg
                     }
@@ -314,17 +321,24 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = emitNonThrowingCall(
-                            callee: boxCallee,
-                            arg: arg,
+                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                        emitBoxCallWithValueClassTag(
+                            boxCallee: boxCallee,
+                            value: arg,
+                            rawSourceKind: types.kind(of: argType),
+                            result: boxedResult,
                             resultType: types.anyType,
+                            types: types,
+                            symbols: ctx.sema?.symbols,
+                            interner: ctx.interner,
                             arena: module.arena,
                             into: &loweredBody
                         )
-                        storedArg = boxedArg
+                        storedArg = boxedResult
                     } else {
                         storedArg = arg
                     }
