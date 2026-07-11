@@ -626,6 +626,7 @@ extension BuildASTPhase {
         })
         let isValProperty = withoutDefault.contains(where: { $0.kind == .keyword(.val) })
         let isVarProperty = withoutDefault.contains(where: { $0.kind == .keyword(.var) })
+        let isOverrideProperty = withoutDefault.contains(where: { $0.kind == .keyword(.override) })
         let defaultValueExpr: ExprID?
         if let defaultTokens = split.defaultTokens?
             .filter({ $0.kind != .symbol(.semicolon) }),
@@ -641,6 +642,7 @@ extension BuildASTPhase {
             type: typeRef,
             isProperty: isValProperty || isVarProperty,
             isMutableProperty: isVarProperty,
+            isOverrideProperty: isOverrideProperty,
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
             defaultValue: defaultValueExpr,
@@ -694,7 +696,7 @@ extension BuildASTPhase {
             let property = PropertyDecl(
                 range: classRange,
                 name: param.name,
-                modifiers: [],
+                modifiers: param.isOverrideProperty ? [.override] : [],
                 type: param.type,
                 isVar: param.isMutableProperty,
                 isSynthesizedPrimaryConstructorProperty: true

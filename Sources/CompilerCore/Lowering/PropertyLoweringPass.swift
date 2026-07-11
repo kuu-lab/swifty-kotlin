@@ -192,29 +192,53 @@ final class PropertyLoweringPass: LoweringPass {
                                 continue
                             }
                             let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: baseSymbol)
-                            // If the current function IS the setter accessor
-                            // for this property, keep the original copy to
-                            // avoid infinite recursion (setter calling itself).
-                            if function.symbol == setterSymbol {
+                            // If the current function IS one of this property's
+                            // own accessors, keep the original copy: Kotlin's
+                            // `field` keyword always writes directly to backing
+                            // storage, bypassing the setter, even when the write
+                            // occurs inside the getter (e.g. a lazy-caching
+                            // getter that does `field = compute()`). Rewriting
+                            // that into a setter call would both recurse
+                            // (setter's own body) and, for the getter, silently
+                            // run the setter's transformation logic a second
+                            // time on every read.
+                            let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: baseSymbol)
+                            if function.symbol == setterSymbol || function.symbol == getterSymbol {
                                 loweredBody.append(instruction)
                                 continue
                             }
-                            // For `val` properties with explicit backing fields
-                            // (Kotlin 2.0) that have no setter, keep the direct
-                            // backing field copy.  Check that the property is
-                            // immutable and no setter accessor was emitted.
-                            if let propInfo = sema.symbols.symbol(baseSymbol),
-                               !propInfo.flags.contains(.mutable),
-                               !emittedFunctionSymbols.contains(setterSymbol)
-                            {
+                            // No setter accessor function was actually emitted
+                            // for this property — e.g. a `val` with an explicit
+                            // backing field (Kotlin 2.0), or a `var` whose only
+                            // customized accessor is the getter (no `set(value)
+                            // { ... }` block, so PropertyDecl lowering never
+                            // synthesizes a setter accessor; see
+                            // KIRLoweringDriver+ModuleLowering+PropertyDecl.swift).
+                            // There is no accessor to call, so keep the direct
+                            // backing field copy. This check must not be gated
+                            // on mutability: a mutable property can lack a
+                            // setter accessor just as easily as an immutable one.
+                            if !emittedFunctionSymbols.contains(setterSymbol) {
                                 loweredBody.append(instruction)
                                 continue
                             }
+                            // Member property setter accessors are synthesized
+                            // with signature (receiver, value) -> Unit (see
+                            // lowerAccessorBody), so calling one from outside its
+                            // own body — e.g. this rewrite of the constructor's
+                            // field-initializer copy, or of a getter body that
+                            // caches into `field` — must forward that enclosing
+                            // function's own receiver parameter alongside the
+                            // value. Top-level properties have no receiver.
+                            let callArguments = self.setterCallArguments(
+                                from: from, propertySymbol: baseSymbol, function: function,
+                                sema: sema, arena: module.arena, loweredBody: &loweredBody
+                            )
                             loweredBody.append(
                                 .call(
                                     symbol: setterSymbol,
                                     callee: setterName,
-                                    arguments: [from],
+                                    arguments: callArguments,
                                     result: nil,
                                     canThrow: false,
                                     thrownResult: nil
@@ -330,6 +354,38 @@ final class PropertyLoweringPass: LoweringPass {
             return nil
         }
         return sema.symbols.constValueExprKind(for: propertySymbol)
+    }
+
+    /// Builds the argument list for a rewritten setter-accessor call.
+    ///
+    /// Member property setter accessors are synthesized with signature
+    /// `(receiver, value) -> Unit` whenever the property has an owner symbol
+    /// — see `lowerAccessorBody`'s `else if let ownerSymbol, let ownerSym =
+    /// sema.symbols.symbol(ownerSymbol)` branch, which adds a receiver for
+    /// *any* owner kind (class, interface, object, enum class, annotation
+    /// class, ...) without filtering by kind. This check mirrors that exact
+    /// condition rather than enumerating owner kinds, so it can't drift out
+    /// of sync with it the way a hardcoded kind list did (a property owned
+    /// by an enum class was previously — incorrectly — treated as receiver-less).
+    /// Top-level properties have no owner symbol at all, so their setter
+    /// accessors take only the value.
+    private func setterCallArguments(
+        from: KIRExprID,
+        propertySymbol: SymbolID,
+        function: KIRFunction,
+        sema: SemaModule,
+        arena: KIRArena,
+        loweredBody: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol) != nil,
+              let receiverParam = function.params.first
+        else {
+            return [from]
+        }
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
+        loweredBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)))
+        return [receiverExpr, from]
     }
 
     /// Given a backing field symbol, find the property symbol it belongs to.

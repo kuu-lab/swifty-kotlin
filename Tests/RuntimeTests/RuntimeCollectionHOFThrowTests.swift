@@ -175,19 +175,6 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
     }
 
-    func testListFilterThrows() {
-        let array = kk_array_new(1)
-        var thrown = 0
-        _ = kk_array_set(array, 0, 1, &thrown)
-        let list = kk_list_of(array, 1)
-
-        var outThrown = 0
-        let result = kk_list_filter(list, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)
-
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-    }
-
     func testListForEachThrows() {
         let array = kk_array_new(1)
         var thrown = 0

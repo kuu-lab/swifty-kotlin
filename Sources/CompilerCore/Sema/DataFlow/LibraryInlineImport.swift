@@ -25,6 +25,11 @@ extension DataFlowSemaPhase {
         var bodyLines: [String] = []
         var inBody = false
 
+        // Bound the number of KIR parameters that can be requested by an
+        // untrusted inline KIR artifact.  This prevents a tiny `params=<huge>`
+        // line from driving a billion-iteration allocation loop.
+        let maxAllowedParameterCount = 100_000
+
         for rawLine in content.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.isEmpty {
@@ -49,9 +54,27 @@ extension DataFlowSemaPhase {
                     functionName = interner.intern(decoded)
                 }
             case "params":
-                parsedParameterCount = max(0, Int(value) ?? parsedParameterCount)
+                if let rawValue = Int(value) {
+                    parsedParameterCount = max(0, rawValue)
+                    guard parsedParameterCount <= maxAllowedParameterCount else {
+                        diagnostics.error(
+                            "KSWIFTK-LIB-0020",
+                            "Inline KIR parameter count \(parsedParameterCount) in '\(path)' exceeds the maximum supported (\(maxAllowedParameterCount))",
+                            range: nil
+                        )
+                        return nil
+                    }
+                }
             case "paramSymbols":
                 parsedParameterSymbols = parseInlineIntList(value).map(Int32.init)
+                guard parsedParameterSymbols.count <= maxAllowedParameterCount else {
+                    diagnostics.error(
+                        "KSWIFTK-LIB-0020",
+                        "Inline KIR parameter-symbol count \(parsedParameterSymbols.count) in '\(path)' exceeds the maximum supported (\(maxAllowedParameterCount))",
+                        range: nil
+                    )
+                    return nil
+                }
             case "suspend":
                 isSuspend = value == "1" || value == "true"
             default:
@@ -60,6 +83,14 @@ extension DataFlowSemaPhase {
         }
 
         parsedParameterCount = max(parsedParameterCount, parsedParameterSymbols.count)
+        guard parsedParameterCount <= maxAllowedParameterCount else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0020",
+                "Inline KIR parameter count \(parsedParameterCount) in '\(path)' exceeds the maximum supported (\(maxAllowedParameterCount))",
+                range: nil
+            )
+            return nil
+        }
         var params: [KIRParameter] = []
         var parameterSymbolMapping: [Int32: SymbolID] = [:]
         for index in 0 ..< parsedParameterCount {

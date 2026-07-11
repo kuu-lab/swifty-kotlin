@@ -152,7 +152,13 @@ public final class IncrementalCompilationCache {
             return false
         }
 
-        let sourcePath = cachePath + "/" + artifact.relativePath
+        guard let sourcePath = Self.resolvedAndContainedCachePath(
+            relativePath: artifact.relativePath,
+            cachePath: cachePath
+        ) else {
+            return false
+        }
+
         var sourceIsDirectory = ObjCBool(false)
         let fm = FileManager.default
         guard fm.fileExists(atPath: sourcePath, isDirectory: &sourceIsDirectory) else {
@@ -185,6 +191,32 @@ public final class IncrementalCompilationCache {
             }
             return false
         }
+    }
+
+    /// Validates and resolves a manifest-derived `relativePath` against the
+    /// cache directory. Returns `nil` if the path is absolute, contains `..`
+    /// components, or resolves outside the cache.
+    private static func resolvedAndContainedCachePath(relativePath: String, cachePath: String) -> String? {
+        guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else {
+            return nil
+        }
+
+        let components = relativePath.components(separatedBy: "/")
+        guard !components.contains("..") else {
+            return nil
+        }
+
+        let cacheURL = URL(fileURLWithPath: cachePath).standardized
+        let sourceURL = cacheURL.appendingPathComponent(relativePath).standardized
+        let sourceResolved = sourceURL.path
+        let cacheResolved = cacheURL.path
+
+        let cachePrefix = cacheResolved.hasSuffix("/") ? cacheResolved : cacheResolved + "/"
+        guard sourceResolved != cacheResolved, sourceResolved.hasPrefix(cachePrefix) else {
+            return nil
+        }
+
+        return sourceResolved
     }
 
     public var hasPreviousCache: Bool {
