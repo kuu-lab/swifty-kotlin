@@ -240,7 +240,7 @@ kk_write_barrier
 | **MIGRATION-ATOMIC-001** (getAndUpdate/updateAndGet) | `kk_atomic_{int,long,bool,ref}_{getAndUpdate,updateAndGet}` | `RuntimeAtomic.swift` |
 | **TEST-COL-012** (Set HOF) | `kk_set_{map,forEach,filterNot,mapNotNull,flatMap,count_predicate}` | `RuntimeCollectionHOF.swift` |
 | **Flow API 完全実装** | `kk_flow_{count,fold,reduce,emit_with_timestamp}` | `RuntimeCoroutineFlow.swift` |
-| **STDLIB-CINTEROP-FN-009/042** | `kk_pinned_get` / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
+| **STDLIB-CINTEROP-FN-009/042** | ~~`kk_pinned_get`~~（2026-07-10 訂正: `HeaderHelpers+SyntheticCInteropStubs.swift` で externalLinkName 配線済み — 本表から除外） / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
 | **MIGRATION-ENC-001** (Base64) | `kk_base64_{encode,encodeToByteArray}_instance` / `kk_base64_withPadding_{default,mime,urlsafe}` | `RuntimeBase64.swift` |
 | **数値型変換** | `kk_byte_to_{char,uint,ulong}` / `kk_short_to_{char,uint,ulong}` | `RuntimeNumericCoercion.swift` |
 | **Char 演算** | `kk_char_fromCode` / `kk_char_minus` | `RuntimeChar.swift` |

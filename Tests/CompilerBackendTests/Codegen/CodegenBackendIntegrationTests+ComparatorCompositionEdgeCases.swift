@@ -15,6 +15,33 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "CompareByVarargSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
+    // The fixed-arity 2/3-selector compareBy overloads (kk_comparator_from_multi_selectors,
+    // kk_comparator_from_multi_selectors3) were missing from the closure-argument expansion
+    // switch entirely, so selectors were passed as bare fnPtrs with no closureRaw slot,
+    // desyncing every argument after the first selector and crashing at runtime (SIGSEGV).
+    // Only the vararg overload (4+ selectors) was covered above.
+    func testCodegenCompilesCompareByFixedTwoSelectors() throws {
+        let source = """
+        fun main() {
+            val cmp = compareBy<Int>({ it / 100 }, { it % 100 / 10 })
+            println(listOf(231, 132, 121, 221).sortedWith(cmp))
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "CompareByFixedTwoSelectors", expected: "[121, 132, 221, 231]\n")
+    }
+
+    func testCodegenCompilesCompareByFixedThreeSelectors() throws {
+        let source = """
+        fun main() {
+            val cmp = compareBy<Int>({ it / 100 }, { it % 100 / 10 }, { it % 10 })
+            println(listOf(231, 132, 121, 221).sortedWith(cmp))
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "CompareByFixedThreeSelectors", expected: "[121, 132, 221, 231]\n")
+    }
+
     func testCodegenCompilesCompareValuesByVarargSelectors() throws {
         let source = """
         fun main() {
@@ -23,6 +50,26 @@ extension CodegenBackendIntegrationTests {
         """
 
         try assertKotlinOutput(source, moduleName: "CompareValuesByVarargSelectors", expected: "1\n")
+    }
+
+    // A selector bound to a local variable (rather than an inline lambda literal at the
+    // call site) lowers to a boxed Function1 value (kk_function_create_1) instead of a bare
+    // fnPtr symbolRef. makeCollectionHOFSelectorArgument used to return that boxed reference
+    // as-is instead of re-pointing it at the resolved callableInfo's raw fnPtr symbol, so the
+    // runtime trampoline tried to invoke the boxed object as a function pointer and crashed
+    // (SIGBUS). This affects every fixed-arity compareBy/compareValuesBy selector helper, not
+    // just the 1-selector case exercised here.
+    func testCodegenCompilesCompareValuesByFixedOneSelectorCapturingVariable() throws {
+        let source = """
+        fun main() {
+            val mul = 10
+            val off = 1
+            val selector: (Int) -> Int = { x -> x % mul + off }
+            println(compareValuesBy(13, 25, selector))
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "CompareValuesByFixedOneSelectorCapturingVariable", expected: "-1\n")
     }
 
     func testCodegenCompilesComparatorThenByComparatorSelector() throws {

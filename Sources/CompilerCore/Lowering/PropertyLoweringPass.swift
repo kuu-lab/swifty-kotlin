@@ -202,22 +202,8 @@ final class PropertyLoweringPass: LoweringPass {
                             // (setter's own body) and, for the getter, silently
                             // run the setter's transformation logic a second
                             // time on every read.
-                            //
-                            // Constructors get the same treatment: a property
-                            // initializer (`var y: Int = 2`) also writes backing
-                            // storage directly, bypassing any custom setter — the
-                            // `field` keyword is not even reachable from outside
-                            // an accessor body, so any backing-field copy emitted
-                            // inside a constructor is initializer wiring
-                            // (emitPropertyInitializer), never a user assignment.
-                            // Rewriting it into a setter call would run the
-                            // setter's transform logic on the initial value,
-                            // diverging from kotlinc (e.g. initializer `= 2`
-                            // with `set(value) { field = value * 3 }` should
-                            // leave the backing field at 2, not 6).
                             let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: baseSymbol)
-                            let isConstructor = sema.symbols.symbol(function.symbol)?.kind == .constructor
-                            if function.symbol == setterSymbol || function.symbol == getterSymbol || isConstructor {
+                            if function.symbol == setterSymbol || function.symbol == getterSymbol {
                                 loweredBody.append(instruction)
                                 continue
                             }

@@ -11,61 +11,6 @@ final class RuntimeUuidBox {
         self.mostSignificantBits = mostSignificantBits
         self.leastSignificantBits = leastSignificantBits
     }
-
-    /// Format as standard UUID string: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    var uuidString: String {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-
-        let p1 = String(format: "%08x", UInt32(msb >> 32))
-        let p2 = String(format: "%04x", UInt16((msb >> 16) & 0xFFFF))
-        let p3 = String(format: "%04x", UInt16(msb & 0xFFFF))
-        let p4 = String(format: "%04x", UInt16(lsb >> 48))
-        let p5 = String(format: "%012llx", lsb & 0x0000_FFFF_FFFF_FFFF)
-
-        return "\(p1)-\(p2)-\(p3)-\(p4)-\(p5)"
-    }
-
-    /// Format as hex string without dashes: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    var hexString: String {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        return String(format: "%016llx%016llx", msb, lsb)
-    }
-
-    /// Convert to 16-byte array (big-endian)
-    var byteArray: [UInt8] {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        var bytes = [UInt8](repeating: 0, count: 16)
-        for i in 0..<8 {
-            bytes[i] = UInt8((msb >> (56 - i * 8)) & 0xFF)
-        }
-        for i in 0..<8 {
-            bytes[8 + i] = UInt8((lsb >> (56 - i * 8)) & 0xFF)
-        }
-        return bytes
-    }
-
-    var version: Int {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        return Int((msb >> 12) & 0xF)
-    }
-
-    var variant: Int {
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        let topThreeBits = (lsb >> 61) & 0x7
-        switch topThreeBits {
-        case 0b000, 0b001, 0b010, 0b011:
-            return 0 // NCS backward compatibility
-        case 0b100, 0b101:
-            return 2 // RFC 4122 / IETF
-        case 0b110:
-            return 6 // Microsoft compatibility bucket
-        default:
-            return 7 // future reserved bucket
-        }
-    }
 }
 
 private final class RuntimeUuidLexicalOrderComparatorBox {}
@@ -155,15 +100,6 @@ private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBi
     return raw
 }
 
-/// Helper to create a runtime string from a Swift String, returning Int.
-private func uuidMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
-
 // MARK: - Uuid.random()
 
 @_cdecl("__kk_uuid_random")
@@ -230,150 +166,17 @@ public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
 
 // Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
 // object shape (object header slots plus most/least significant bits).
-@_cdecl("kk_uuid_toKotlinUuid")
-func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+// ByteArray.getUuid/uuid/putUuid no longer need native bridges: they're pure
+// Kotlin now, built on top of Uuid.fromLongs and the real
+// mostSignificantBits/leastSignificantBits stored properties.
+@_cdecl("__kk_uuid_toKotlinUuid")
+func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     guard let box = runtimeUuidBox(from: receiver) else {
         return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
     }
     return runtimeUuidObjectRaw(
         mostSignificantBits: box.mostSignificantBits,
         leastSignificantBits: box.leastSignificantBits
-    )
-}
-
-// MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
-
-@_cdecl("kk_byteArray_putUuid")
-public func kk_byteArray_putUuid(
-    _ arrayRaw: Int,
-    _ at: Int,
-    _ uuidRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-
-    guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
-          let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
-        )
-        return 0
-    }
-
-    let size = arrayBox.elements.count
-    if at < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) < 0"
-        )
-        return 0
-    }
-    if at + 16 > size {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
-        )
-        return 0
-    }
-
-    guard let uuidBox = runtimeUuidBox(from: uuidRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: uuid must not be null"
-        )
-        return 0
-    }
-
-    let bytes = uuidBox.byteArray
-    for i in 0..<16 {
-        arrayBox.elements[at + i] = Int(bytes[i])
-    }
-    return 0
-}
-
-// MARK: - ByteArray.uuid(at: Int): Uuid
-
-@_cdecl("kk_byteArray_uuid")
-public func kk_byteArray_uuid(
-    _ arrayRaw: Int,
-    _ at: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-
-    guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
-          let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
-        )
-        return 0
-    }
-
-    let size = arrayBox.elements.count
-    if at < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) < 0"
-        )
-        return 0
-    }
-    if at + 16 > size {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
-        )
-        return 0
-    }
-
-    var msb: UInt64 = 0
-    var lsb: UInt64 = 0
-    for i in 0..<8 {
-        msb = (msb << 8) | UInt64(arrayBox.elements[at + i] & 0xFF)
-    }
-    for i in 8..<16 {
-        lsb = (lsb << 8) | UInt64(arrayBox.elements[at + i] & 0xFF)
-    }
-
-    return runtimeUuidObjectRaw(
-        mostSignificantBits: Int64(bitPattern: msb),
-        leastSignificantBits: Int64(bitPattern: lsb)
-    )
-}
-
-// MARK: - ByteArray.getUuid(offset: Int)
-
-/// Read a UUID from 16 bytes at [offset, offset+16) of the ByteArray.
-/// Throws IndexOutOfBoundsException when offset < 0 or offset + 16 > size.
-@_cdecl("kk_uuid_getUuid")
-public func kk_uuid_getUuid(_ arrayRaw: Int, _ offset: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
-          let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: offset out of bounds for empty reference"
-        )
-        return 0
-    }
-
-    let size = arrayBox.elements.count
-    guard offset >= 0, offset + 16 <= size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: offset \(offset) out of bounds for array of size \(size)"
-        )
-        return 0
-    }
-
-    var msb: UInt64 = 0
-    var lsb: UInt64 = 0
-    for i in 0..<8 {
-        msb = (msb << 8) | UInt64(arrayBox.elements[offset + i] & 0xFF)
-    }
-    for i in 8..<16 {
-        lsb = (lsb << 8) | UInt64(arrayBox.elements[offset + i] & 0xFF)
-    }
-
-    return runtimeUuidObjectRaw(
-        mostSignificantBits: Int64(bitPattern: msb),
-        leastSignificantBits: Int64(bitPattern: lsb)
     )
 }
 

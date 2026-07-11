@@ -191,3 +191,40 @@ final class RuntimeCoroutineTestState: @unchecked Sendable {
         return true
     }
 }
+
+// MARK: - Duration construction helpers (KSP-471)
+
+// kk_duration_from_* per-unit factories were removed in favor of
+// kk_duration_toDuration_int/long/double (unit-ordinal based). DurationUnit
+// ordinals: 0=NANOSECONDS, 1=MICROSECONDS, 2=MILLISECONDS, 3=SECONDS,
+// 4=MINUTES, 5=HOURS, 6=DAYS. These helpers preserve the original per-unit
+// construction call shape for Runtime tests.
+func durationFromNanoseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 0) }
+func durationFromMicroseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 1) }
+func durationFromMilliseconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 2) }
+func durationFromSeconds(_ value: Int) -> Int { kk_duration_toDuration_int(value, 3) }
+func durationFromMinutes(_ value: Int) -> Int { kk_duration_toDuration_int(value, 4) }
+func durationFromHours(_ value: Int) -> Int { kk_duration_toDuration_int(value, 5) }
+func durationFromDays(_ value: Int) -> Int { kk_duration_toDuration_int(value, 6) }
+
+func durationFromNanosecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 0) }
+func durationFromMicrosecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 1) }
+func durationFromMillisecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 2) }
+func durationFromSecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 3) }
+func durationFromMinutesLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 4) }
+func durationFromHoursLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 5) }
+func durationFromDaysLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 6) }
+
+func durationFromSecondsDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 3) }
+func durationFromDaysDouble(_ valueBits: Int) -> Int { kk_duration_toDuration_double(valueBits, 6) }
+
+// kk_duration_inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days were
+// removed (now Kotlin-source extension properties built on inWholeNanoseconds,
+// which stays native). These helpers recompute the same scaling directly from
+// kk_duration_inWholeNanoseconds to preserve the original Runtime test assertions.
+func durationInWholeMilliseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000 }
+func durationInWholeMicroseconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000 }
+func durationInWholeSeconds(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 1_000_000_000 }
+func durationInWholeMinutes(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 60_000_000_000 }
+func durationInWholeHours(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 3_600_000_000_000 }
+func durationInWholeDays(_ handle: Int) -> Int { kk_duration_inWholeNanoseconds(handle) / 86_400_000_000_000 }

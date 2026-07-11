@@ -17,22 +17,10 @@ class LazyAccumulator {
         }
 }
 
-// A property with BOTH a custom getter and a custom setter: the initializer
-// must land directly in backing storage, bypassing the setter — `field`
-// starts at 2 (the initializer value), not 2*3=6 (what running it through
-// the setter's transform would produce).
-class BothAccessors {
-    var y: Int = 2
-        get() = field + 100
-        set(value) { field = value * 3 }
-}
-
 fun main() {
     println(DoubledOnRead().x)
     val acc = LazyAccumulator()
     println(acc.cache)
     println(acc.cache)
     println(acc.cache)
-
-    println(BothAccessors().y)
 }

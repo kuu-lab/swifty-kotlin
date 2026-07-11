@@ -116,6 +116,20 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_negative_array_size_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_negative_array_size_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_throwable_is_cancellation",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),

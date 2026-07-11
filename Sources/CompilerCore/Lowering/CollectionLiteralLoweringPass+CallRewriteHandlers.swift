@@ -72,7 +72,11 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = call.arguments[0]
         let lambdaID = call.arguments[1]
 
-        if state.listExprIDs.contains(receiverID.rawValue), call.callee != lookup.countName {
+        if state.listExprIDs.contains(receiverID.rawValue),
+           call.callee != lookup.countName,
+           call.callee != lookup.filterName,
+           call.callee != lookup.filterNotName
+        {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
             let kkName = listHOFRuntimeName(for: call.callee, lookup: lookup)
             let hofResult = ctx.module.arena.appendTemporary(type: nil
@@ -162,8 +166,6 @@ extension CollectionLiteralConstructionLoweringPass {
     ) -> InternedString {
         switch callee {
         case lookup.mapName: lookup.kkListMapName
-        case lookup.filterName: lookup.kkListFilterName
-        case lookup.filterNotName: lookup.kkListFilterNotName
         case lookup.mapNotNullName: lookup.kkListMapNotNullName
         case lookup.forEachName: lookup.kkListForEachName
         case lookup.onEachName: lookup.kkListOnEachName
@@ -206,8 +208,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
             || callee == lookup.onEachName
     }
 
