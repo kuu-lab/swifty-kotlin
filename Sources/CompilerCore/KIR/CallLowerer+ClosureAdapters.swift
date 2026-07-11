@@ -206,7 +206,7 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> (loweredArgID: KIRExprID, callableInfo: KIRCallableValueInfo?) {
-        var loweredSelectorID = loweredArgID
+        let loweredSelectorID = loweredArgID
         var selectorCallableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if selectorCallableInfo == nil,
            case let .symbolRef(symbol)? = arena.expr(loweredSelectorID),
@@ -232,22 +232,30 @@ extension CallLowerer {
                 symbolIDOffsetBase: -710_000
            )
         {
-            let adaptedExpr = arena.appendExpr(
-                .symbolRef(adaptedInfo.symbol),
-                type: arena.exprType(loweredSelectorID) ?? sema.types.anyType
-            )
-            instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
-            driver.ctx.registerCallableValue(
-                adaptedExpr,
-                symbol: adaptedInfo.symbol,
-                callee: adaptedInfo.callee,
-                captureArguments: adaptedInfo.captureArguments,
-                hasClosureParam: adaptedInfo.hasClosureParam
-            )
-            loweredSelectorID = adaptedExpr
             selectorCallableInfo = adaptedInfo
         }
-        return (loweredSelectorID, selectorCallableInfo)
+        // callableInfo.symbol is always the raw function pointer to invoke through.
+        // loweredArgID may instead be a boxed/materialized callable value (e.g. a
+        // selector read from a local variable rather than an inline lambda literal),
+        // so re-point the selector at a fresh reference to the resolved symbol
+        // instead of reusing loweredArgID, which would pass the boxed object where
+        // a function pointer is expected.
+        guard let callableInfo = selectorCallableInfo else {
+            return (loweredSelectorID, nil)
+        }
+        let fnPtrExpr = arena.appendExpr(
+            .symbolRef(callableInfo.symbol),
+            type: arena.exprType(loweredSelectorID) ?? sema.types.anyType
+        )
+        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+        driver.ctx.registerCallableValue(
+            fnPtrExpr,
+            symbol: callableInfo.symbol,
+            callee: callableInfo.callee,
+            captureArguments: callableInfo.captureArguments,
+            hasClosureParam: callableInfo.hasClosureParam
+        )
+        return (fnPtrExpr, callableInfo)
     }
 
     private func makeClosureRawArgument(
@@ -614,6 +622,32 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+        }
+
+        // compareBy(sel1, sel2[, sel3]): fixed-arity multi-selector overloads (STDLIB-613).
+        // kk_comparator_from_multi_selectors(sel1, sel2) → (sel1Fn, sel1Closure, sel2Fn, sel2Closure)
+        // kk_comparator_from_multi_selectors3(sel1, sel2, sel3) → (sel1Fn, sel1Closure, sel2Fn, sel2Closure, sel3Fn, sel3Closure)
+        let comparatorMultiSelectorFixedNames: Set = ["kk_comparator_from_multi_selectors", "kk_comparator_from_multi_selectors3"]
+        if comparatorMultiSelectorFixedNames.contains(externalLinkName), loweredArguments.count >= 2 {
+            var finalArgs: [KIRExprID] = []
+            for i in 0..<loweredArguments.count {
+                let selector = makeCollectionHOFSelectorArgument(
+                    loweredArgID: loweredArguments[i],
+                    argExprID: originalArgs[i].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                finalArgs.append(selector.loweredArgID)
+                finalArgs.append(makeClosureRawArgument(
+                    callableInfo: selector.callableInfo,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions
+                ))
+            }
+            return finalArgs
         }
 
         // compareBy(vararg selectors): pack selector (fnPtr, closureRaw) pairs into a runtime array.

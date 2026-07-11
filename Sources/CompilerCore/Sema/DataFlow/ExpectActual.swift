@@ -480,6 +480,9 @@ extension DataFlowSemaPhase {
         case let (.any(expectNullability), .any(actualNullability)):
             return expectNullability == actualNullability
 
+        case let (.stringStruct(expectNullability), .stringStruct(actualNullability)):
+            return expectNullability == actualNullability
+
         case let (.primitive(expectPrimitive, expectNullability), .primitive(actualPrimitive, actualNullability)):
             return expectPrimitive == actualPrimitive && expectNullability == actualNullability
 

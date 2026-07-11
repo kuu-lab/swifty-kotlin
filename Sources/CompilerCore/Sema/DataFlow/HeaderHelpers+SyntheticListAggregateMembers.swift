@@ -552,9 +552,19 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // firstOrNull / lastOrNull no-predicate (STDLIB-210)
-        registerSimpleMember(name: "firstOrNull", returnType: nullableElementType, externalLinkName: "kk_list_firstOrNull")
-        registerSimpleMember(name: "lastOrNull", returnType: nullableElementType, externalLinkName: "kk_list_lastOrNull")
+        // firstOrNull / lastOrNull are intentionally NOT registered as synthetic
+        // members here. ListSearchHOF.kt already declares both the no-predicate
+        // and predicate overloads for each; a synthetic arity-0 entry at these
+        // FQ names makes collectMemberFunctionCandidates return a single arity-0
+        // match and skip the extension-function scope lookup that would
+        // otherwise find both Kotlin-source overloads, permanently hiding the
+        // predicate overload.
+        //
+        // single/singleOrNull keep their synthetic no-predicate registration:
+        // unlike firstOrNull/lastOrNull, there is no kk_list_single*-with-predicate
+        // runtime entry point yet, so removing the synthetic member would only
+        // trade "predicate silently ignored" for "predicate silently ignored,
+        // plus the no-predicate call breaks too." Tracked separately.
         // single no-predicate (STDLIB-COL-FN-184)
         registerSimpleMember(name: "single", returnType: listTypeParamType, externalLinkName: "kk_list_single", canThrow: true)
         // singleOrNull no-predicate (STDLIB-211)

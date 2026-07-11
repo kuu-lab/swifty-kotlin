@@ -592,7 +592,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             XCTAssertNil(throwFlags["kk_string_repeat_flat"])
             XCTAssertNil(throwFlags["kk_string_repeat"])
             XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
         }
     }
 
@@ -613,12 +613,14 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new"))
+            // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
+            // negative size), not bare kk_array_new.
+            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
             XCTAssertTrue(callNames.contains("kk_array_set"))
             XCTAssertTrue(callNames.contains("kk_array_get"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_new"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
         }

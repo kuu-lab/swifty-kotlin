@@ -964,19 +964,19 @@ extension CodegenBackendIntegrationTests {
         appendParsingCall("kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
         appendParsingCall("kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
         appendParsingCall("kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
-        appendParsingCall("kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
-        appendParsingCall("kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
+        appendParsingCall("__kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
+        appendParsingCall("__kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
         appendParsingCall("kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
         appendParsingCall("kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
-        appendParsingCall("kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
-        appendParsingCall("kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
+        appendParsingCall("__kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
+        appendParsingCall("__kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
         appendParsingCall("kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
         appendParsingCall("kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToUByte_flat", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
@@ -1027,19 +1027,19 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toUShortOrNull_radix",
             "kk_string_toUIntOrNull_radix",
             "kk_string_toULongOrNull_radix",
-            "kk_string_toDouble",
-            "kk_string_toDoubleOrNull",
+            "__kk_string_toDouble",
+            "__kk_string_toDoubleOrNull",
             "kk_string_toLong",
             "kk_string_toLongOrNull",
-            "kk_string_toFloat",
-            "kk_string_toFloatOrNull",
+            "__kk_string_toFloat",
+            "__kk_string_toFloatOrNull",
             "kk_string_toShort",
             "kk_string_toShortOrNull",
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
-            "kk_string_toBigDecimal",
-            "kk_string_toBigInteger",
+            "__kk_string_toBigDecimal",
+            "__kk_string_toBigInteger",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
