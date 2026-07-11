@@ -5,14 +5,14 @@ symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthet
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
 symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
-symbol fq=kotlin.text.StringBuilder.append#7 kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[String?] ret=kotlin.text.StringBuilder
+symbol fq=kotlin.text.StringBuilder.append#8 kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[String?] ret=kotlin.text.StringBuilder
 symbol fq=kotlin.text.StringBuilder.append.value kind=valueParameter vis=private flags=synthetic
 file f0 package=golden.sema
   decl golden.sema.useBuildStringReceiverThis fun useBuildStringReceiverThis sym=golden.sema.useBuildStringReceiverThis
   decl golden.sema.useBuildListReceiverThis fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis
 expr e@4:5 this type=kotlin.text.StringBuilder
 expr e@4:17 string(a) type=String
-expr e@4:5#1 memberCall recv=e@4:5 callee=append args=[_:e@4:17] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
+expr e@4:5#1 memberCall recv=e@4:5 callee=append args=[_:e@4:17] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#8
 expr e@5:12 string(b) type=String
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=Unit
 expr e@4:5#2 blockExpr stmts=[e@4:5#1] trailing=e@5:5 type=Unit
