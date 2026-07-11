@@ -109,4 +109,86 @@ extension CollectionLiteralLoweringSupport {
         }
         return .unknown
     }
+
+    /// Classifies only the comparator factories that still require a runtime
+    /// trampoline after Comparators.kt is loaded as bundled source.
+    func isComparatorFromCall(
+        exprID: KIRExprID,
+        body: [KIRInstruction],
+        multiSelectorCallee: InternedString,
+        nullsFirstCallee: InternedString? = nil,
+        nullsLastCallee: InternedString? = nil,
+        nullsFirstComparableCallee: InternedString? = nil,
+        nullsLastNaturalCallee: InternedString? = nil,
+        multiSelector3Callee: InternedString? = nil,
+        multiSelectorVarargCallee: InternedString? = nil
+    ) -> ComparatorSource {
+        for inst in body {
+            switch inst {
+            case let .call(_, callee, arguments, result, _, _, _, _):
+                if let result, result.rawValue == exprID.rawValue {
+                    if callee == multiSelectorCallee { return .multiSelector }
+                    if let multiSelector3Callee, callee == multiSelector3Callee { return .multiSelector }
+                    if let multiSelectorVarargCallee, callee == multiSelectorVarargCallee { return .multiSelector }
+                    if let nullsFirstCallee, callee == nullsFirstCallee, let inner = arguments.first {
+                        return .nullsFirst(inner: inner)
+                    }
+                    if let nullsLastCallee, callee == nullsLastCallee, let inner = arguments.first {
+                        return .nullsLast(inner: inner)
+                    }
+                    if let nullsFirstComparableCallee, callee == nullsFirstComparableCallee {
+                        return .nullsFirstComparable
+                    }
+                    if let nullsLastNaturalCallee, callee == nullsLastNaturalCallee {
+                        return .nullsLastNatural
+                    }
+                    return .unknown
+                }
+            case let .copy(from: fromID, to: toID):
+                if toID.rawValue == exprID.rawValue {
+                    return isComparatorFromCall(
+                        exprID: fromID,
+                        body: body,
+                        multiSelectorCallee: multiSelectorCallee,
+                        nullsFirstCallee: nullsFirstCallee,
+                        nullsLastCallee: nullsLastCallee,
+                        nullsFirstComparableCallee: nullsFirstComparableCallee,
+                        nullsLastNaturalCallee: nullsLastNaturalCallee,
+                        multiSelector3Callee: multiSelector3Callee,
+                        multiSelectorVarargCallee: multiSelectorVarargCallee
+                    )
+                }
+            default:
+                break
+            }
+        }
+        return .unknown
+    }
+
+    func retainedComparatorRuntimePair(
+        source: ComparatorSource,
+        comparatorExpr: KIRExprID,
+        module: KIRModule,
+        lookup: CollectionLiteralLookupTables,
+        loweredBody: inout [KIRInstruction]
+    ) -> (trampolineName: InternedString, closureExpr: KIRExprID)? {
+        switch source {
+        case .multiSelector:
+            return (lookup.kkComparatorFromMultiSelectorsTrampolineName, comparatorExpr)
+        case .nullsFirst:
+            return (lookup.kkComparatorNullsFirstTrampolineName, comparatorExpr)
+        case .nullsLast:
+            return (lookup.kkComparatorNullsLastTrampolineName, comparatorExpr)
+        case .nullsFirstComparable:
+            let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+            return (lookup.kkComparatorNullsFirstComparableTrampolineName, zero)
+        case .nullsLastNatural:
+            let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+            return (lookup.kkComparatorNullsLastNaturalTrampolineName, zero)
+        default:
+            return nil
+        }
+    }
 }
