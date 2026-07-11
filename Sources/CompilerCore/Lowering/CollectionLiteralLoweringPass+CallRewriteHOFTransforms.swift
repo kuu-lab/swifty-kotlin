@@ -11,28 +11,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-    if callee == lookup.filterNotNullName, arguments.count == 1 {
-        let receiverID = arguments[0]
-        if state.listExprIDs.contains(receiverID.rawValue) {
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListFilterNotNullName,
-                arguments: arguments,
-                result: hofResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(hofResult.rawValue)
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
-        }
-    }
-
     if callee == lookup.associateByName,
        arguments.count == 4 || arguments.count == 5,
        state.listExprIDs.contains(arguments[0].rawValue)
@@ -215,8 +193,7 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     // --- STDLIB-021: destination collection variants with [receiver, dest, lambda, closureRaw?] ---
-    if callee == lookup.filterToName || callee == lookup.filterNotToName
-        || callee == lookup.mapToName || callee == lookup.flatMapToName
+    if callee == lookup.mapToName || callee == lookup.flatMapToName
         || callee == lookup.mapNotNullToName || callee == lookup.mapIndexedToName
         || callee == lookup.mapIndexedNotNullToName
         || callee == lookup.flatMapIndexedToName || callee == lookup.associateToName
@@ -240,8 +217,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             let isSequenceReceiver = state.sequenceExprIDs.contains(receiverID.rawValue)
             let kkName: InternedString = switch callee {
-            case lookup.filterToName: lookup.kkListFilterToName
-            case lookup.filterNotToName: lookup.kkListFilterNotToName
             case lookup.mapToName: lookup.kkListMapToName
             case lookup.flatMapToName: lookup.kkListFlatMapToName
             case lookup.mapNotNullToName: lookup.kkListMapNotNullToName
