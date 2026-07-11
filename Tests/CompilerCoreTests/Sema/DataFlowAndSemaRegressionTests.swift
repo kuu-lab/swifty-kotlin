@@ -332,5 +332,45 @@ struct DataFlowAndSemaRegressionTests {
             assertHasDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
         }
     }
+
+    // MARK: - BodyAnalysis: structural recursion depth guard
+
+    @Test func testDeeplyNestedGenericTypeRefEmitsDepthDiagnostic() throws {
+        let interner = StringInterner()
+        let listName = interner.intern("List")
+        let intName = interner.intern("Int")
+
+        let symbols = SymbolTable()
+        _ = symbols.define(
+            kind: .class,
+            name: listName,
+            fqName: [listName],
+            declSite: nil,
+            visibility: .public
+        )
+
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let arena = ASTArena()
+
+        var innerRef = arena.appendTypeRef(.named(path: [intName], args: [], nullable: false))
+        for _ in 0..<600 {
+            let arg = TypeArgRef.invariant(innerRef)
+            innerRef = arena.appendTypeRef(.named(path: [listName], args: [arg], nullable: false))
+        }
+
+        let ast = ASTModule(files: [], arena: arena, declarationCount: 0, tokenCount: 0)
+        let phase = DataFlowSemaPhase()
+        _ = phase.resolveTypeRef(
+            innerRef,
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            diagnostics: diagnostics
+        )
+
+        #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TYPE-DEPTH" })
+    }
 }
 #endif

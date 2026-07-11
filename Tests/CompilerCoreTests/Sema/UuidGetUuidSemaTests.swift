@@ -2,22 +2,28 @@
 import Foundation
 import Testing
 
-// Verifies that ByteArray.getUuid(offset: Int) is registered as a synthetic
-// extension in the kotlin.uuid package with the correct ABI external-link name,
-// receiver type, parameter signature, return type, and @ExperimentalUuidApi annotation.
+// KSP-476: ByteArray.getUuid(offset: Int) is pure Kotlin now, declared for
+// real in Stdlib/kotlin/uuid/Uuid.kt (no externalLinkName of its own). Verify
+// it's source-backed with the expected receiver/parameter/return signature
+// and @ExperimentalUuidApi annotation.
 
 @Suite
 struct UuidGetUuidSemaTests {
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
+    private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
+        var result: (CompilationContext, SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
+            result = (ctx, sema, ctx.interner)
         }
         return try #require(result)
+    }
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        let (_, sema, interner) = try makeSemaWithContext()
+        return (sema, interner)
     }
 
     // MARK: - Registration presence
@@ -32,19 +38,19 @@ struct UuidGetUuidSemaTests {
         )
     }
 
-    // MARK: - External link name
+    // MARK: - Source-backed, not a synthetic stub
 
     @Test
-    func testGetUuidLinksToKkUuidGetUuid() throws {
-        let (sema, interner) = try makeSema()
+    func testGetUuidIsSourceBackedNotSynthetic() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
         let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let links = Set(
-            sema.symbols.lookupAll(fqName: fq)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
         #expect(
-            links.contains("kk_uuid_getUuid"),
-            "getUuid must link to kk_uuid_getUuid; found: \(links)"
+            sema.symbols.lookupAll(fqName: fq).contains { sym in
+                guard let info = sema.symbols.symbol(sym) else { return false }
+                return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
+            },
+            "getUuid must be declared in Uuid.kt, not registered as a synthetic stub"
         )
     }
 
@@ -105,22 +111,6 @@ struct UuidGetUuidSemaTests {
         } else {
             Issue.record("getUuid return type is not a class type; got \(sema.types.kind(of: sig.returnType))")
         }
-    }
-
-    // MARK: - Symbol flags
-
-    @Test
-    func testGetUuidIsMarkedThrowingFunction() throws {
-        let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let sym = try #require(sema.symbols.lookupAll(fqName: fq).first)
-        guard let info = sema.symbols.symbol(sym) else {
-            Issue.record("getUuid symbol info missing"); return
-        }
-        #expect(
-            info.flags.contains(.throwingFunction),
-            "getUuid must be marked .throwingFunction (it throws IndexOutOfBoundsException)"
-        )
     }
 
     // MARK: - @ExperimentalUuidApi annotation

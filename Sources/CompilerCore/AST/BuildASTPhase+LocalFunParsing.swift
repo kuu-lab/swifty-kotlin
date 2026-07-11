@@ -167,7 +167,8 @@ extension BuildASTPhase {
         if !bodyTokens.isEmpty {
             let stmtGroups = splitTokensIntoStatements(bodyTokens)
             var blockExprs: [ExprID] = []
-            for stmtTokens in stmtGroups {
+            for rawStmtTokens in stmtGroups {
+                let stmtTokens = skipLeadingLocalAnnotations(rawStmtTokens, interner: interner)
                 let filtered = stmtTokens.filter { $0.kind != .symbol(.semicolon) }
                 guard !filtered.isEmpty else { continue }
                 if let localFun = parseLocalFunDeclExpr(from: stmtTokens, interner: interner, astArena: astArena) {

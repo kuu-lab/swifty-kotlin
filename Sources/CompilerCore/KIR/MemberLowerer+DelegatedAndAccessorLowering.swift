@@ -6,7 +6,8 @@ extension MemberLowerer {
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext? = nil
+        compilationCtx: CompilationContext? = nil,
+        isInterfaceContext: Bool = false
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         lowerMemberDecls(
             memberFunctions: memberFunctions,
@@ -18,7 +19,8 @@ extension MemberLowerer {
             arena: shared.arena,
             interner: shared.interner,
             propertyConstantInitializers: shared.propertyConstantInitializers,
-            compilationCtx: compilationCtx
+            compilationCtx: compilationCtx,
+            isInterfaceContext: isInterfaceContext
         )
     }
 
@@ -119,7 +121,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [],
+                    ) : [delegateHandleExprID],
                     result: resultExprID,
                     canThrow: notNullThrows,
                     thrownResult: thrownExprID
@@ -153,7 +155,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [valueExprID],
+                    ) : [delegateHandleExprID, valueExprID],
                     result: resultExprID,
                     canThrow: false,
                     thrownResult: nil

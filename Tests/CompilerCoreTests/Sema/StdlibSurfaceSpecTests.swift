@@ -44,8 +44,6 @@ struct StdlibSurfaceSpecTests {
     @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("map", 1),
-            list("filter", 1),
-            list("filterNot", 1),
             list("mapNotNull", 1),
             list("flatMap", 1),
             list("forEach", 1),
@@ -64,20 +62,16 @@ struct StdlibSurfaceSpecTests {
             list("onEach", 1),
             list("onEachIndexed", 1),
             list("mapIndexed", 1),
-            list("filterIndexed", 1),
             list("takeWhile", 1),
             list("dropWhile", 1),
             list("takeLastWhile", 1),
             list("dropLastWhile", 1),
-            list("filterTo", 2),
-            list("filterNotTo", 2),
             list("mapTo", 2),
             list("flatMapTo", 2),
             list("mapNotNullTo", 2),
             list("mapIndexedTo", 2),
             list("mapIndexedNotNullTo", 2),
             list("flatMapIndexedTo", 2),
-            list("filterIndexedTo", 2),
             list("associateTo", 2),
             list("associateByTo", 2),
             list("associateWithTo", 2),
@@ -216,7 +210,6 @@ struct StdlibSurfaceSpecTests {
             let sema = try #require(ctx.sema)
 
             let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
-                (.list, ["kotlin", "collections", "List"], "filterIndexedTo", 2),
                 (.list, ["kotlin", "collections", "List"], "mapIndexedTo", 2),
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
@@ -285,10 +278,6 @@ struct StdlibSurfaceSpecTests {
 
     @Test func testSpecDrivenCollectionFallbackMembersKeepLambdaAndReturnTypes() throws {
         let source = """
-        fun filterIndexedToSpec(values: List<Int>, destination: MutableList<Int>): MutableList<Int> {
-            return values.filterIndexedTo(destination) { index, value -> index == value }
-        }
-
         fun mapIndexedToSpec(values: List<Int>, destination: MutableList<Int>): MutableList<Int> {
             return values.mapIndexedTo(destination) { index, value -> index + value }
         }
@@ -326,7 +315,6 @@ struct StdlibSurfaceSpecTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let expectedTypes: [(memberName: String, className: String)] = [
-                ("filterIndexedTo", "MutableList"),
                 ("mapIndexedTo", "MutableList"),
                 ("mapValuesTo", "MutableMap"),
                 ("filterKeys", "Map"),
