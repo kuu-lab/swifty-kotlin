@@ -155,12 +155,13 @@ extension CallTypeChecker {
         }
         // STDLIB-REFLECT-065: findAnnotation<T>()
         if calleeName == knownNames.findAnnotationName {
-            for arg in args {
-                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
-            }
-            let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-            sema.bindings.bindExprType(id, type: nullableAnyType)
-            return nullableAnyType
+            return bindKClassFindAnnotationCall(
+                id,
+                args: args,
+                explicitTypeArgs: explicitTypeArgs,
+                ctx: ctx,
+                locals: &locals
+            )
         }
         // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {
@@ -289,12 +290,13 @@ extension CallTypeChecker {
         }
         // STDLIB-REFLECT-065: findAnnotation<T>()
         if calleeName == knownNames.findAnnotationName {
-            for arg in args {
-                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
-            }
-            let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-            sema.bindings.bindExprType(id, type: nullableAnyType)
-            return nullableAnyType
+            return bindKClassFindAnnotationCall(
+                id,
+                args: args,
+                explicitTypeArgs: explicitTypeArgs,
+                ctx: ctx,
+                locals: &locals
+            )
         }
         // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {

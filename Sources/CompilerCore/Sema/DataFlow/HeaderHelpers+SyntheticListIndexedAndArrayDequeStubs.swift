@@ -214,50 +214,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // filterIndexed(predicate: (Int, T) -> Boolean): List<T>
-        let filterIndexedName = interner.intern("filterIndexed")
-        let filterIndexedFQName = listFQName + [filterIndexedName]
-        if shouldSkipSyntheticStub(
-            bundledIndex: bundledIndex,
-            ownerFQName: listFQName,
-            name: filterIndexedName,
-            arity: 1
-        ) {
-            skipStats?.recordSkip(
-                ownerFQName: listFQName,
-                name: filterIndexedName,
-                arity: 1,
-                interner: interner
-            )
-        } else if symbols.lookup(fqName: filterIndexedFQName) == nil {
-            let predicateType = types.make(.functionType(FunctionType(
-                params: [types.intType, listTypeParamType],
-                returnType: types.booleanType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: filterIndexedName,
-                fqName: filterIndexedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_filterIndexed", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [predicateType],
-                    returnType: receiverType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
         // foldIndexed(initial: R, operation: (Int, R, T) -> R): R
         let foldIndexedName = interner.intern("foldIndexed")
         let foldIndexedFQName = listFQName + [foldIndexedName]

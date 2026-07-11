@@ -120,5 +120,83 @@ import Testing
         assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
     }
 
+    // MARK: - Primary constructor `override val` / `override var` properties
+
+    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
+        let source = """
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
+
+        class MyCommandProcessor(
+            override val pluginId: String,
+            override val displayName: String
+        ) : CommandProcessor
+
+        fun main() {
+            val p = MyCommandProcessor("id", "name")
+            println(p.pluginId)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
+        let source = """
+        abstract class Container {
+            abstract var items: List<String>
+        }
+
+        class Box(override var items: List<String>) : Container()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
+        let source = """
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
+
+        class MyCommandProcessor(
+            override val pluginId: String
+        ) : CommandProcessor {
+            override val displayName: String = "static-name"
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+    }
+
+    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
+        let source = """
+        interface CommandProcessor {
+            val pluginId: String
+            val displayName: String
+        }
+
+        class MyCommandProcessor(
+            val pluginId: String
+        ) : CommandProcessor
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
 }
 #endif

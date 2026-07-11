@@ -16,7 +16,7 @@ struct DurationSyntheticStubTests {
             nullability: .nonNull
         )))
 
-        // Verify __kk_duration_* bridge stubs (MIGRATION-TIME-001)
+        // Verify __kk_duration_* bridge stubs (MIGRATION-TIME-001 / KSP-471)
         let expectedBridges: [(name: String, link: String, parameterTypes: [TypeID])] = [
             ("__kk_duration_plus", "kk_duration_plus", [durationType]),
             ("__kk_duration_minus", "kk_duration_minus", [durationType]),
@@ -28,6 +28,9 @@ struct DurationSyntheticStubTests {
             ("__kk_duration_isNegative", "kk_duration_isNegative", []),
             ("__kk_duration_isPositive", "kk_duration_isPositive", []),
             ("__kk_duration_isInfinite", "kk_duration_isInfinite", []),
+            // KSP-471: compareTo moved from a direct compat stub to a bridge
+            // called from the Kotlin source operator function.
+            ("__kk_duration_compareTo", "kk_duration_compareTo", [durationType]),
         ]
 
         for bridge in expectedBridges {
@@ -45,15 +48,6 @@ struct DurationSyntheticStubTests {
             #expect(!(sema.symbols.symbol(symbol)?.flags.contains(.operatorFunction) == true), "Duration.\(bridge.name) bridge must not be marked as an operator")
             #expect(sema.symbols.externalLinkName(for: symbol) == bridge.link)
         }
-
-        // compareTo is not in MIGRATION-TIME-001 scope — verify it stays as a direct stub
-        let compareToFQName = durationFQName + [interner.intern("compareTo")]
-        let compareToSymbol = try #require(sema.symbols.lookupAll(fqName: compareToFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == durationType && signature.parameterTypes == [durationType]
-        })
-        #expect(sema.symbols.externalLinkName(for: compareToSymbol) == "kk_duration_compareTo")
-        #expect(sema.symbols.symbol(compareToSymbol)?.flags.contains(.operatorFunction) == true, "Duration.compareTo should remain an operatorFunction")
     }
 
     // MIGRATION-TIME-001 complete: operators and predicates are now Kotlin source extension
@@ -78,6 +72,7 @@ struct DurationSyntheticStubTests {
             ("div", [sema.types.intType]),
             ("div", [durationType]),
             ("unaryMinus", []),
+            ("compareTo", [durationType]),
         ]
         for op in arithmeticOps {
             let packageFQName = ["kotlin", "time", op.name].map { interner.intern($0) }
@@ -153,6 +148,12 @@ struct DurationSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: durationSymbol))
+        let companionType = sema.types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
         // MIGRATION-TIME-002: toIsoString is now a Kotlin-source extension function at
         // package scope ["kotlin","time","toIsoString"], not a synthetic stub member.
@@ -168,48 +169,49 @@ struct DurationSyntheticStubTests {
         #expect(sema.symbols.externalLinkName(for: toIsoSymbol) == nil, "Duration.toIsoString should be a bundled Kotlin function with no C external link (MIGRATION-TIME-002)")
         #expect(sema.symbols.symbol(toIsoSymbol)?.declSite != nil, "Duration.toIsoString should have a declSite (Kotlin source, not a synthetic stub)")
 
-        let companionFQName = durationFQName + [interner.intern("Companion")]
-        let parseFQName = companionFQName + [interner.intern("parse")]
-        let parseSymbol = try #require(sema.symbols.lookupAll(fqName: parseFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == [sema.types.stringType]
-                && signature.returnType == durationType
-        })
-        #expect(sema.symbols.externalLinkName(for: parseSymbol) == "kk_duration_parse")
-        #expect(sema.symbols.symbol(parseSymbol)?.flags.contains(.throwingFunction) == true, "Duration.parse should use the thrown channel for invalid input")
+        // KSP-471: parse/parseOrNull/parseIsoString/parseIsoStringOrNull are Kotlin
+        // source Companion extension functions (Stdlib/kotlin/time/Duration.kt) at
+        // package scope, delegating to receiver-less __kk_duration_* bridges.
+        let expectedParseFunctions: [(name: String, returnType: TypeID, bridgeLink: String)] = [
+            ("parse", durationType, "kk_duration_parse"),
+            ("parseOrNull", sema.types.makeNullable(durationType), "kk_duration_parseOrNull"),
+            ("parseIsoString", durationType, "kk_duration_parseIsoString"),
+            ("parseIsoStringOrNull", sema.types.makeNullable(durationType), "kk_duration_parseIsoStringOrNull"),
+        ]
+        for entry in expectedParseFunctions {
+            let packageFQName = ["kotlin", "time", entry.name].map { interner.intern($0) }
+            let sourceSymbol = try #require(sema.symbols.lookupAll(fqName: packageFQName).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return signature.receiverType == companionType
+                    && signature.parameterTypes == [sema.types.stringType]
+                    && signature.returnType == entry.returnType
+            }, "Duration.Companion.\(entry.name) should be a Kotlin source extension function at kotlin.time scope")
+            #expect(sema.symbols.symbol(sourceSymbol)?.declSite != nil, "Duration.Companion.\(entry.name) should have a declSite (Kotlin source, not a synthetic stub)")
+            #expect(sema.symbols.externalLinkName(for: sourceSymbol) == nil, "Duration.Companion.\(entry.name) should have no C external link (Kotlin source)")
 
-        let parseOrNullFQName = companionFQName + [interner.intern("parseOrNull")]
-        let parseOrNullSymbol = try #require(sema.symbols.lookupAll(fqName: parseOrNullFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == [sema.types.stringType]
-                && signature.returnType == sema.types.makeNullable(durationType)
-        })
-        #expect(sema.symbols.externalLinkName(for: parseOrNullSymbol) == "kk_duration_parseOrNull")
+            let bridgeFQName = ["kotlin", "time", "__kk_duration_\(entry.name)"].map { interner.intern($0) }
+            let bridgeSymbol = try #require(sema.symbols.lookupAll(fqName: bridgeFQName).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return signature.receiverType == nil && signature.parameterTypes == [sema.types.stringType]
+            }, "__kk_duration_\(entry.name) bridge should be registered at package scope")
+            #expect(sema.symbols.externalLinkName(for: bridgeSymbol) == entry.bridgeLink)
+        }
 
-        let parseIsoFQName = companionFQName + [interner.intern("parseIsoString")]
-        let parseIsoSymbol = try #require(sema.symbols.lookupAll(fqName: parseIsoFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == [sema.types.stringType]
-                && signature.returnType == durationType
+        let parseThrowingBridgeFQName = ["kotlin", "time", "__kk_duration_parse"].map { interner.intern($0) }
+        let parseThrowingBridge = try #require(sema.symbols.lookupAll(fqName: parseThrowingBridgeFQName).first { symbolID in
+            sema.symbols.functionSignature(for: symbolID)?.receiverType == nil
         })
-        #expect(sema.symbols.externalLinkName(for: parseIsoSymbol) == "kk_duration_parseIsoString")
-        #expect(sema.symbols.symbol(parseIsoSymbol)?.flags.contains(.throwingFunction) == true, "Duration.parseIsoString should use the thrown channel for invalid input")
+        #expect(sema.symbols.symbol(parseThrowingBridge)?.flags.contains(.throwingFunction) == true, "__kk_duration_parse should use the thrown channel for invalid input")
 
-        let parseIsoOrNullFQName = companionFQName + [interner.intern("parseIsoStringOrNull")]
-        let parseIsoOrNullSymbol = try #require(sema.symbols.lookupAll(fqName: parseIsoOrNullFQName).first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes == [sema.types.stringType]
-                && signature.returnType == sema.types.makeNullable(durationType)
+        let parseIsoThrowingBridgeFQName = ["kotlin", "time", "__kk_duration_parseIsoString"].map { interner.intern($0) }
+        let parseIsoThrowingBridge = try #require(sema.symbols.lookupAll(fqName: parseIsoThrowingBridgeFQName).first { symbolID in
+            sema.symbols.functionSignature(for: symbolID)?.receiverType == nil
         })
-        #expect(sema.symbols.externalLinkName(for: parseIsoOrNullSymbol) == "kk_duration_parseIsoStringOrNull")
+        #expect(sema.symbols.symbol(parseIsoThrowingBridge)?.flags.contains(.throwingFunction) == true, "__kk_duration_parseIsoString should use the thrown channel for invalid input")
     }
 
     @Test

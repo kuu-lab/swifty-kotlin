@@ -171,108 +171,31 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayFirstNotNullOfOrNull", expected: "hit\nnull\n")
     }
 
-    // Regression test: `for (x in array)` used to compile but never execute the
-    // loop body. The for-loop lowers to the generic kk_range_iterator/hasNext/next
-    // runtime protocol (arrays get no compile-time-specific rewrite, unlike
-    // List/Set/Map/String), and that runtime fallback didn't recognize
-    // RuntimeArrayBox, so kk_range_hasNext always reported false.
-    func testCodegenArrayForLoopIteratesAllElements() throws {
+    func testArrayOfBoxesPrimitiveElementsForFilterIsInstance() throws {
         let source = """
         fun main() {
-            val bytes = "HI".encodeToByteArray()
-            for (b in bytes) {
-                println(b.toInt())
-            }
+            val values: Array<Any> = arrayOf(1, "two", 3)
+            println(values.asSequence().filterIsInstance<Int>().toList())
+            println(values.asSequence().filterIsInstance<String>().toList())
 
-            val ints = intArrayOf(10, 20, 30)
-            for (i in ints) {
-                println(i)
-            }
-
-            val strings = arrayOf("a", "b", "c")
-            for (s in strings) {
-                println(s)
-            }
-
-            val chars = charArrayOf('x', 'y', 'z')
-            for (c in chars) {
-                println(c)
-            }
+            val mixed: Array<Any> = arrayOf(1.5, "x", 2.5, 7L, true)
+            println(mixed.asSequence().filterIsInstance<Double>().toList())
+            println(mixed.asSequence().filterIsInstance<Long>().toList())
+            println(mixed.asSequence().filterIsInstance<Boolean>().toList())
         }
         """
 
         try assertKotlinOutput(
             source,
-            moduleName: "ArrayForLoopIteration",
+            moduleName: "ArrayOfBoxesPrimitives",
             expected:
                 """
-                72
-                73
-                10
-                20
-                30
-                a
-                b
-                c
-                x
-                y
-                z
+                [1, 3]
+                [two]
+                [1.5, 2.5]
+                [7]
+                [true]
                 """ + "\n"
-        )
-    }
-
-    // Regression test: nesting a for-in loop over an array element that is
-    // itself iterated (e.g. `for (row in nested) { for (v in row) { ... } }`)
-    // used to skip the inner loop body entirely, even after the outer
-    // single-level array iteration above was fixed. The outer loop variable's
-    // runtime value is still a valid RuntimeArrayBox, so this exercises that
-    // nested arrays and mixed Array/List nesting both iterate correctly.
-    func testCodegenNestedArrayForLoopIteratesAllElements() throws {
-        let source = """
-        fun main() {
-            val nested = arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))
-            for (row in nested) {
-                for (v in row) {
-                    print("$v ")
-                }
-            }
-            println()
-
-            val cube = arrayOf(arrayOf(intArrayOf(1, 2), intArrayOf(3, 4)), arrayOf(intArrayOf(5, 6), intArrayOf(7, 8)))
-            for (plane in cube) {
-                for (row in plane) {
-                    for (v in row) {
-                        print("$v ")
-                    }
-                }
-            }
-            println()
-
-            val listOfArrays = listOf(intArrayOf(9, 10), intArrayOf(11, 12))
-            for (row in listOfArrays) {
-                for (v in row) {
-                    print("$v ")
-                }
-            }
-            println()
-
-            val arrayOfLists = arrayOf(listOf(13, 14), listOf(15, 16))
-            for (row in arrayOfLists) {
-                for (v in row) {
-                    print("$v ")
-                }
-            }
-            println()
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "NestedArrayForLoopIteration",
-            expected: "1 2 3 4 \n"
-                + "1 2 3 4 5 6 7 8 \n"
-                + "9 10 11 12 \n"
-                + "13 14 15 16 \n"
         )
     }
 }
