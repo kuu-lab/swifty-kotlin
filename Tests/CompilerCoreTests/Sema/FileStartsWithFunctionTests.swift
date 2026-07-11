@@ -22,14 +22,14 @@ struct FileStartsWithFunctionTests {
         named name: String,
         in ast: ASTModule,
         interner: StringInterner,
-        sourceManager: SourceManager
+        fileID: FileID
     ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                  range.start.file == fileID,
+                  interner.resolve(callee) == name
             else {
                 return nil
             }
@@ -115,9 +115,10 @@ struct FileStartsWithFunctionTests {
             let booleanType = sema.types.booleanType
 
             let ast = try #require(ctx.ast)
-            let callExprs = memberCallExprIDs(
-                named: "startsWith", in: ast, interner: interner, sourceManager: ctx.sourceManager
-            )
+            // Bundled stdlib sources share the same arena as the user's file (and
+            // may themselves call `startsWith`), so scope the scan to `path`.
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            let callExprs = memberCallExprIDs(named: "startsWith", in: ast, interner: interner, fileID: fileID)
             #expect(callExprs.count == 2, "expected two startsWith member calls")
             for callExpr in callExprs {
                 #expect(
