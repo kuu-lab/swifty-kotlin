@@ -329,7 +329,7 @@ final class CallSupportLowerer {
                     providedArguments: effectiveArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
-                    boxPrimitiveElementsUsing: elementIsGenericTypeParameter ? sema.types : nil,
+                    boxPrimitiveElementsUsing: elementTypeIsErased ? sema.types : nil,
                     arena: arena,
                     interner: interner,
                     intType: intType,
