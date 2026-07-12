@@ -140,14 +140,18 @@ final class DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        preResolvedInitializerType: TypeID? = nil
     ) {
         let sema = ctx.sema
         var inferredPropertyType: TypeID? = property.type != nil
             ? sema.symbols.propertyType(for: symbol)
             : nil
 
-        if let initializer = property.initializer {
+        if property.type == nil, let preResolvedInitializerType {
+            // Reuse typeCheckClassLikeMembers's pre-pass result instead of re-running inferExpr (would double-emit diagnostics).
+            inferredPropertyType = preResolvedInitializerType
+        } else if let initializer = property.initializer {
             var locals: LocalBindings = [:]
             let initializerType = driver.inferExpr(
                 initializer, ctx: ctx, locals: &locals,

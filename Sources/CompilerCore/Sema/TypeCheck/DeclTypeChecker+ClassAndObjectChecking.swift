@@ -6,7 +6,8 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        preResolvedInitializerType: TypeID? = nil
     ) {
         let propertyCtx = ctx.with(currentDeclSymbol: symbol)
         validatePropertyHeaderOptInTypes(
@@ -18,7 +19,8 @@ extension DeclTypeChecker {
             symbol: symbol,
             ctx: propertyCtx,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            preResolvedInitializerType: preResolvedInitializerType
         )
     }
 
@@ -245,6 +247,28 @@ extension DeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
 
+        // Pre-infer un-annotated property initializers so sibling member functions checked below don't see the header's Any? placeholder (KSWIFTK-SEMA-0024 ordering bug).
+        var preResolvedPropertyTypes: [SymbolID: TypeID] = [:]
+        for declID in memberProperties {
+            guard let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(property) = decl,
+                  let symbol = sema.bindings.declSymbols[declID],
+                  property.type == nil,
+                  let initializer = property.initializer
+            else {
+                continue
+            }
+            var locals: LocalBindings = [:]
+            let initializerType = driver.inferExpr(
+                initializer,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                locals: &locals,
+                expectedType: nil
+            )
+            sema.symbols.setPropertyType(initializerType, for: symbol)
+            preResolvedPropertyTypes[symbol] = initializerType
+        }
+
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(function) = decl,
@@ -274,7 +298,8 @@ extension DeclTypeChecker {
                 symbol: symbol,
                 ctx: ctx.with(currentDeclSymbol: symbol),
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                preResolvedInitializerType: preResolvedPropertyTypes[symbol]
             )
         }
 
