@@ -7,6 +7,8 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         canThrow: Bool,
         thrownResult: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
@@ -56,10 +58,31 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // yield(value) inside sequence builder → kk_sequence_builder_yield
         if callee == lookup.yieldName, arguments.count == 2 {
+            let builderArg = arguments[0]
+            let valueArg = arguments[1]
+            let storedValue: KIRExprID
+            if let types = ctx.sema?.types,
+               let argType = module.arena.exprType(valueArg),
+               let boxCallee = primitiveBoxCalleeName(
+                   for: argType,
+                   types: types,
+                   interner: ctx.interner
+               )
+            {
+                storedValue = emitNonThrowingCall(
+                    callee: boxCallee,
+                    arg: valueArg,
+                    resultType: types.anyType,
+                    arena: module.arena,
+                    into: &loweredBody
+                )
+            } else {
+                storedValue = valueArg
+            }
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceBuilderYieldName,
-                arguments: arguments,
+                arguments: [builderArg, storedValue],
                 result: result,
                 canThrow: false,
                 thrownResult: nil

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "inherited_val_compound_assign.kt",
+      "range": {
+        "start": { "line": 6, "character": 8 },
+        "end": { "line": 6, "character": 23 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0014",
+      "source": "kswiftk",
+      "message": "Val cannot be reassigned.",
+      "codeActions": [{ "title": "Add explicit type cast", "kind": "quickfix" }]
+    }
+  ]
+}

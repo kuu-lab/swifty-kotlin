@@ -107,7 +107,6 @@ public enum RuntimeABISpec {
         exceptionFunctions,
         fileIOFunctions,
         gcFunctions,
-        hexFormatFunctions,
         i18nFunctions,
         ioFunctions,
         jsNumberFunctions,

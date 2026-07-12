@@ -926,13 +926,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
-        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation): split the lambda
-        // argument at index 1 into a function pointer and environment pointer,
+        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation) and
+        // kk_semaphore_withPermit(handle, actionFnPtr, actionEnvPtr, continuation): split the
+        // lambda argument at index 1 into a function pointer and environment pointer,
         // following the standard closure-conversion ABI used by collection HOFs.
         // A zero continuation placeholder is appended as the 4th argument because the
         // current runtime path blocks on contention and keeps the ABI shape aligned
-        // with the suspend-aware mutex entry point.
-        if loweredCallee == interner.intern("kk_mutex_withLock"),
+        // with the suspend-aware entry point.
+        if loweredCallee == interner.intern("kk_mutex_withLock")
+            || loweredCallee == interner.intern("kk_semaphore_withPermit"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -1153,7 +1155,6 @@ extension CallLowerer {
             interner.intern("kk_list_runningFold"),
             interner.intern("kk_list_runningReduce"),
             interner.intern("kk_list_scanReduce"),
-            interner.intern("kk_list_filterIndexed"),
             interner.intern("kk_list_foldIndexed"),
             interner.intern("kk_list_foldRightIndexed"),
             interner.intern("kk_list_reduceIndexed"),

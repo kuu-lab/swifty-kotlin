@@ -539,6 +539,7 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.receiverType == ownerType
                 && existingSignature.parameterTypes == parameters.map(\.type)
+                && existingSignature.valueParameterIsVararg == parameters.map(\.isVararg)
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
             return
