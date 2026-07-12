@@ -1109,15 +1109,6 @@ extension CallLowerer {
     /// invocations to avoid repeated interning in the hot lowering path.
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
-            interner.intern("kk_base64_decode_default"),
-            interner.intern("kk_base64_decode_urlsafe"),
-            interner.intern("kk_base64_decode_mime"),
-            interner.intern("kk_base64_decodeFromByteArray_default"),
-            interner.intern("kk_base64_decodeFromByteArray_urlsafe"),
-            interner.intern("kk_base64_decodeFromByteArray_mime"),
-            interner.intern("kk_base64_decode_instance"),
-            interner.intern("kk_base64_decodeFromByteArray_instance"),
-            interner.intern("kk_base64_decodingWith"),
             interner.intern("kk_list_random"),
             interner.intern("kk_list_elementAt"),
             interner.intern("kk_list_take"),

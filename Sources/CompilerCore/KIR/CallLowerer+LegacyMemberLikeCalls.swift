@@ -63,7 +63,6 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let argInstructionStart = instructions.count
         let loweredArgIDs = args.map { argument in
             driver.lowerExpr(
                 argument.expr,
@@ -152,23 +151,6 @@ extension CallLowerer {
             }
             return selected
         }()
-
-        if tryLowerBase64MemberCall(
-            receiverExpr: receiverExpr,
-            loweredReceiverID: loweredReceiverID,
-            calleeName: calleeName,
-            chosenCallee: chosenBase64Callee,
-            argExprIDs: args.map(\.expr),
-            loweredArgIDs: loweredArgIDs,
-            argInstructionStart: argInstructionStart,
-            result: result,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        ) {
-            return result
-        }
 
         if args.count == 1,
            interner.resolve(calleeName) == "sortedWith"
