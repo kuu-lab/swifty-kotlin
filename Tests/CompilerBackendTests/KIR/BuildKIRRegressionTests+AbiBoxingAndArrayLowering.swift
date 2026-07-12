@@ -110,7 +110,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListZipWithNextOverloadsToCollectionRuntimeCalls() throws {
+    func testBuildKIRKeepsListZipWithNextOverloadsSourceBacked() throws {
         let source = """
         fun main(values: List<Int>) {
             values.zipWithNext()
@@ -126,9 +126,10 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_zipWithNext"))
-            XCTAssertTrue(callNames.contains("kk_list_zipWithNextTransform"))
-            XCTAssertFalse(callNames.contains("zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNextTransform"))
+            XCTAssertFalse(callNames.contains("kk_list_zipWithNext"))
+            XCTAssertFalse(callNames.contains("kk_list_zipWithNextTransform"))
         }
     }
 
@@ -152,7 +153,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListZipToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersListZipToPrivateBridge() throws {
         let source = """
         fun main(left: List<Int>, right: List<String>) {
             left.zip(right)
@@ -167,8 +168,9 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_zip"))
+            XCTAssertTrue(callNames.contains("__kk_list_zip"))
             XCTAssertFalse(callNames.contains("zip"))
+            XCTAssertFalse(callNames.contains("kk_list_zip"))
         }
     }
 
@@ -404,7 +406,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListWindowedToCollectionRuntimeCalls() throws {
+    func testBuildKIRLowersListWindowedToPrivateBridge() throws {
         let source = """
         fun main(values: List<Int>) {
             values.windowed(3)
@@ -421,10 +423,11 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_windowed_default"))
-            XCTAssertTrue(callNames.contains("kk_list_windowed"))
-            XCTAssertTrue(callNames.contains("kk_list_windowed_partial"))
+            XCTAssertTrue(callNames.contains("__kk_list_windowed"))
             XCTAssertFalse(callNames.contains("windowed"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed_default"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed_partial"))
         }
     }
 
