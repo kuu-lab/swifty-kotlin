@@ -108,6 +108,11 @@ private let runtimeAutoCloseableCloseThunk: @convention(c) (Int, UnsafeMutablePo
     return 0
 }
 
+/// AutoCloseable is a typealias for Closeable (see
+/// HeaderHelpers+SyntheticCloseableStubs.swift), so its stable nominal type ID
+/// for itableDynamic dispatch is Closeable's, keyed by "kotlin.io.Closeable".
+private let runtimeCloseableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable")
+
 /// `AutoCloseable { closeAction }` factory.
 @_cdecl("kk_auto_closeable_create")
 public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
@@ -118,6 +123,11 @@ public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
         0,
         unsafeBitCast(runtimeAutoCloseableCloseThunk, to: Int.self)
     )
+    // A user-written generic function typed `(c: AutoCloseable) -> Unit` that
+    // calls `c.close()` directly (not through the inline-expanded `use {}`)
+    // dispatches via kk_itable_lookup_dynamic, which needs this registration
+    // — see the identical Comparator gap fixed in RuntimeComparator.swift.
+    _ = kk_object_register_itable_iface(resourceRaw, Int(runtimeCloseableInterfaceTypeID), 0)
     return resourceRaw
 }
 
