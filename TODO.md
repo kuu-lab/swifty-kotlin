@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-10（stdlib Kotlin 化ギャップ監査: KSP-CAP / KSP-INF / KSP-W6 / CLEANUP-STUB-096+ / バグバックログを追補）
+最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備 8 件を BUG-020〜027 として追補）
 
 ---
 
@@ -755,3 +755,11 @@
 - [ ] BUG-017: `lazy()`/`lazy(mode)` の戻り値型が `kotlin.properties.Lazy`（`lazyOf` と本家は `kotlin.Lazy`）→ KSP-681 で修正
 - [ ] BUG-018: `kotlin.reflect.full.createInstance` が宣言のみで呼ぶとリンクエラー確定 → KSP-682 で判断
 - [ ] BUG-019: `ByteArray.joinToString`/`contentEquals` が未スタブ（`Scripts/diff_cases/string_tobytearray.kt` の既知ギャップ）→ KSP-660 で吸収
+- [ ] BUG-020: PR #4799（XCTest→Swift Testing移行）で `#if canImport(Testing)` ガードの閉じ位置が誤り、`@Suite struct` 本体（全 `@Test` 関数）がガード外に取り残される構造的バグ。`canImport(Testing)` が false の環境でビルド不能の恐れ — 対象 `Tests/RuntimeTests/RuntimeRangeHOFTests.swift`（2026-07-13 オープンPR一括レビューで発見）
+- [ ] BUG-021: PR #4801（XCTest→Swift Testing移行）で `tearDown()` が呼んでいた `kk_runtime_force_reset()` が `defer` 等に引き継がれず消失、テスト間のランタイム状態隔離が失われる — 対象 `Tests/RuntimeTests/RuntimeListPropertyTests.swift`（同型バグ: BUG-022/024/025/026/027。2026-07-13 オープンPR一括レビューで発見）
+- [ ] BUG-022: PR #4811（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeRegexAnchorTests.swift`
+- [ ] BUG-023: PR #4819（XCTest→Swift Testing移行）でプロセス全体共有のGC排他ロック（`RuntimeTestIsolationSupport.swift` の `gcSemaphore`、`IsolatedRuntimeXCTestCase(requiredLockSet: .gcOnly)` 由来）がファイルローカルな `NSLock` に縮小され、他の66件超の `IsolatedRuntimeXCTestCase` 使用ファイルとのクロスファイル排他が失われる — 対象 `Tests/RuntimeTests/RuntimeReadWriteLockTests.swift`
+- [ ] BUG-024: PR #4824（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeSetCollectionHOFTests.swift`
+- [ ] BUG-025: PR #4825（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeUuidBridgeTests.swift`
+- [ ] BUG-026: PR #4827（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失（131テストの最大規模ファイル）— 対象 `Tests/RuntimeTests/RuntimeCollectionHOFTests.swift`
+- [ ] BUG-027: PR #4828（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeListIteratorTests.swift`
