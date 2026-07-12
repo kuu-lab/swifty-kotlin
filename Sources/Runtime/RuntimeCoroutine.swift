@@ -2276,10 +2276,16 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
         // any non-zero boxed value (string, integer box, etc.) that happens to
         // be registered would otherwise be misidentified as an exception.
         let thrownException = capturedContState?.thrownException ?? 0
-        if thrownException != 0, let handler = exceptionHandler {
-            handler.handler(thrownException)
-            // Fire-and-forget with handler; do not propagate the exception.
-            _ = job.complete(with: 0)
+        if thrownException != 0 {
+            if let handler = exceptionHandler {
+                handler.handler(thrownException)
+                // Fire-and-forget with handler; do not propagate the exception.
+                _ = job.complete(with: 0)
+            } else {
+                // No handler installed: the exception must still fail the job
+                // instead of silently completing as if the body had succeeded.
+                _ = job.completeExceptionally(with: thrownException)
+            }
             return
         }
         _ = job.complete(with: result)
