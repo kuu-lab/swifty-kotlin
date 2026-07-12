@@ -617,6 +617,18 @@ func runtimeInvokeCollectionLambda1(
     return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
 }
 
+/// Like `runtimeInvokeCollectionLambda1`, but leaves `value` boxed for statically-`Any` lambda parameters (LambdaLowerer unboxes concrete-primitive ones itself).
+@inline(__always)
+func runtimeInvokeCollectionLambda1PreservingBox(
+    fnPtr: Int,
+    closureRaw: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(maybeUnbox(closureRaw), value, outThrown)
+}
+
 @inline(__always)
 func runtimeInvokeCollectionLambda2(
     fnPtr: Int,

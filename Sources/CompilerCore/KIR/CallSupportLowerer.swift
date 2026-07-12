@@ -261,6 +261,7 @@ final class CallSupportLowerer {
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
+        var boxedArguments = providedArguments
 
         var argIndicesByParameter: [Int: [Int]] = [:]
         for (argIndex, paramIndex) in callBinding.parameterMapping {
@@ -304,9 +305,19 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
+                boxNonSpreadVarargArguments(
+                    argIndices,
+                    in: &boxedArguments,
+                    elementType: signature.parameterTypes[0],
+                    spreadFlags: spreadFlags,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
-                    providedArguments: providedArguments,
+                    providedArguments: boxedArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
                     arena: arena,
@@ -346,9 +357,19 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    boxNonSpreadVarargArguments(
+                        argIndices,
+                        in: &boxedArguments,
+                        elementType: signature.parameterTypes[paramIndex],
+                        spreadFlags: spreadFlags,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     let packed = packVarargArguments(
                         argIndices: argIndices,
-                        providedArguments: providedArguments,
+                        providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
                         arena: arena,
@@ -386,6 +407,66 @@ final class CallSupportLowerer {
             normalized.append(sentinel)
         }
         return NormalizedCallResult(arguments: normalized, defaultMask: mask)
+    }
+
+    /// Boxes non-spread primitive arguments when the vararg's declared element type is Any/reference/type-param — e.g. `printAll(vararg items: Any)` — but not for a concrete-primitive element type like `IntArray`'s `intArrayOf(vararg elements: Int)`, which needs raw storage.
+    func boxNonSpreadVarargArguments(
+        _ argIndices: [Int],
+        in arguments: inout [KIRExprID],
+        elementType: TypeID,
+        spreadFlags: [Bool],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard varargElementTypeIsBoxingBoundary(sema.types.kind(of: elementType)) else {
+            return
+        }
+        for argIndex in argIndices {
+            guard argIndex < arguments.count else { continue }
+            let isSpread = argIndex < spreadFlags.count && spreadFlags[argIndex]
+            guard !isSpread else { continue }
+            arguments[argIndex] = boxVarargElementIfNeeded(
+                arguments[argIndex],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+    }
+
+    private func varargElementTypeIsBoxingBoundary(_ elementKind: TypeKind) -> Bool {
+        if case .any = elementKind { return true }
+        if case .classType = elementKind { return true }
+        if case .typeParam = elementKind { return true }
+        return false
+    }
+
+    private func boxVarargElementIfNeeded(
+        _ argID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let argType = arena.exprType(argID),
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: argType,
+                  types: sema.types,
+                  requireNonNull: false
+              )
+        else {
+            return argID
+        }
+        return emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argID,
+            resultType: sema.types.anyType,
+            arena: arena,
+            into: &instructions
+        )
     }
 
     func packVarargArguments(
