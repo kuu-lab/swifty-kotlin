@@ -182,6 +182,7 @@ extension ABIMismatchTests {
         "kk_coroutine_launcher_arg_get",
         "kk_coroutine_launcher_arg_set",
         "kk_coroutine_scope_cancel",
+        "kk_coroutine_scope_launch",
         "kk_coroutine_scope_new",
         "kk_coroutine_scope_new_with_context",
         "kk_coroutine_scope_register_child",
