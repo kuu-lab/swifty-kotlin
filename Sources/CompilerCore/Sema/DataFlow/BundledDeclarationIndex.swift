@@ -157,7 +157,31 @@ struct BundledDeclarationIndex: Sendable {
         if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
             return true
         }
+        if ownerFQName == ["kotlin", "random", "Random"] {
+            return isRuntimeBackedRandomSyntheticRetainedOverlap(key, interner: interner)
+        }
         return false
+    }
+
+    private static func isRuntimeBackedRandomSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // KSP-466/KSP-457: nextInt(range: IntRange)/nextLong(range: LongRange)/
+        // nextUInt(range: UIntRange)/nextULong(range: ULongRange) stay native
+        // bridges (kk_random_*_rangeObject/*Range) pending KSP-457's own
+        // range-random Kotlin migration, registered as members so they remain
+        // reachable (see HeaderHelpers+SyntheticRandomStubs.swift). Their arity
+        // (1) happens to collide with the bundled scalar overloads of the same
+        // name (nextInt(until: Int) etc., Random.kt/URandom.kt) since this key
+        // only tracks arity, not parameter types — this is an intentional,
+        // by-design overload pair, not an accidental duplicate.
+        switch interner.resolve(key.name) {
+        case "nextInt", "nextLong", "nextUInt", "nextULong":
+            return key.arity == 1
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedAtomicSyntheticRetainedOverlap(

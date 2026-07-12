@@ -758,6 +758,15 @@ final class ControlFlowLowerer {
             instructions: &bodyInstructions
         )
 
+        // CODE-001: Wrap the body's throw-routing output in a finally-guard
+        // region so that, if this try is itself nested inside an outer
+        // try/catch body, the outer's own appendThrowAwareInstructions pass
+        // does not re-wrap calls that are already routed to this try's
+        // exceptionSlot. Without this, the outer pass would insert its own
+        // jumpIfNotNull immediately after such a call — racing ahead of this
+        // try's own follow-up (catch dispatch / finally) and skipping it
+        // whenever the exception is actually thrown.
+        instructions.append(.beginFinallyGuard)
         appendThrowAwareInstructions(
             bodyInstructions,
             exceptionSlot: exceptionSlot,
@@ -768,6 +777,7 @@ final class ControlFlowLowerer {
             arena: arena,
             instructions: &instructions
         )
+        instructions.append(.endFinallyGuard)
 
         let bodyTerminated = isTerminatedExpr(bodyResultID, arena: arena, sema: sema)
         if !bodyTerminated {
@@ -845,6 +855,11 @@ final class ControlFlowLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &catchBodyInstructions
             )
+            // CODE-001: see the matching guard around the body's own
+            // appendThrowAwareInstructions call above — a nested try inside
+            // this catch body would otherwise have its exception routing
+            // re-wrapped (and its own finally skipped) by an outer try.
+            instructions.append(.beginFinallyGuard)
             appendThrowAwareInstructions(
                 catchBodyInstructions,
                 exceptionSlot: exceptionSlot,
@@ -855,6 +870,7 @@ final class ControlFlowLowerer {
                 arena: arena,
                 instructions: &instructions
             )
+            instructions.append(.endFinallyGuard)
 
             if clause.paramName != nil, binding.parameterSymbol != .invalid {
                 if let previousCatchParamValue {
@@ -970,6 +986,12 @@ final class ControlFlowLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &catchBodyInstructions
                 )
+                // CODE-001: see the matching guard around the body's own
+                // appendThrowAwareInstructions call above — a nested try
+                // inside this catch body would otherwise have its exception
+                // routing re-wrapped (and its own finally skipped) by an
+                // outer try.
+                instructions.append(.beginFinallyGuard)
                 appendThrowAwareInstructions(
                     catchBodyInstructions,
                     exceptionSlot: exceptionSlot,
@@ -980,6 +1002,7 @@ final class ControlFlowLowerer {
                     arena: arena,
                     instructions: &instructions
                 )
+                instructions.append(.endFinallyGuard)
 
                 if clause.paramName != nil, binding.parameterSymbol != .invalid {
                     if let previousCatchParamValue {

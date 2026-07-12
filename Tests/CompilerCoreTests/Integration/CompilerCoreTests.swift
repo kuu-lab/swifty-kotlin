@@ -357,6 +357,26 @@ struct CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
+    @Test func testParameterDefaultValueTypeMismatchReportsTypeDiagnostic() throws {
+        let source = """
+        fun bad(x: Int = "x"): Int = x
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
+    @Test func testPrimaryConstructorParameterDefaultValueTypeMismatchReportsTypeDiagnostic() throws {
+        let source = """
+        class Bad(val x: Int = "x")
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
     @Test func testPropertyGetterTypeMismatchReportsTypeDiagnostic() throws {
         let source = """
         val bad: Int {

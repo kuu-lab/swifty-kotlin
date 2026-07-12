@@ -305,6 +305,12 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
+                // `arrayOf<T>` erases T to Any at runtime, so primitive elements must
+                // be boxed before storage. intArrayOf/longArrayOf/etc. share this same
+                // "kk_array_of" external link name but declare a concrete primitive
+                // element type (native storage); boxNonSpreadVarargArguments only boxes
+                // when the element type is a boxing boundary (Any/classType/typeParam),
+                // so those are left as raw storage.
                 boxNonSpreadVarargArguments(
                     argIndices,
                     in: &boxedArguments,

@@ -116,9 +116,26 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        let deprecationCheckTarget: SymbolID
         if let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen) {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
+            deprecationCheckTarget = ownerProperty
+        } else {
+            deprecationCheckTarget = chosen
         }
+        driver.helpers.checkDeprecation(
+            for: deprecationCheckTarget,
+            sema: sema,
+            interner: ctx.interner,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: deprecationCheckTarget,
+            ctx: ctx,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return sema.types.anyType
         }
