@@ -755,3 +755,4 @@
 - [ ] BUG-017: `lazy()`/`lazy(mode)` の戻り値型が `kotlin.properties.Lazy`（`lazyOf` と本家は `kotlin.Lazy`）→ KSP-681 で修正
 - [ ] BUG-018: `kotlin.reflect.full.createInstance` が宣言のみで呼ぶとリンクエラー確定 → KSP-682 で判断
 - [ ] BUG-019: `ByteArray.joinToString`/`contentEquals` が未スタブ（`Scripts/diff_cases/string_tobytearray.kt` の既知ギャップ）→ KSP-660 で吸収
+- [ ] BUG-020: itableDynamic dispatch（`kk_itable_lookup_dynamic`、interface型パラメータ経由の呼び出し先slot解決に使用）が、コンパイラ生成クラス構築を経由しない hand-crafted Runtime オブジェクト（Comparator 系ファクトリ全般・`AutoCloseable { }`・`Uuid.LEXICAL_ORDER`）で `kk_object_register_itable_iface` 登録漏れにより失敗（`Virtual dispatch failed: method not found in vtable/itable`）。再現: `sortedWith(CASE_INSENSITIVE_ORDER)`、`sortedWith(Uuid.LEXICAL_ORDER)`、`fun f(c: AutoCloseable) { c.close() }` — PR #4836 open（commit `c8917b5068` で `RuntimeComparator.swift`/`RuntimeCollectionHOF.swift`/`RuntimeUuid.swift` に登録追加）
