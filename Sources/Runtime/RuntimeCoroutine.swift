@@ -2686,9 +2686,20 @@ public func kk_supervisor_scope_run(
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = scope
     }
+    var directThrow = 0
     let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation
+        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
     )
+    if directThrow != 0 {
+        // See kk_coroutine_scope_run: the block itself threw (as opposed to a
+        // child failing, which SupervisorJob semantics would otherwise isolate).
+        // The scope's own body failing still cancels children it already
+        // launched instead of leaving them orphaned.
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        outThrown?.pointee = directThrow
+        return 0
+    }
     let firstFailure = kk_coroutine_scope_wait(scopeHandle)
     if firstFailure != 0 {
         outThrown?.pointee = firstFailure
@@ -2711,7 +2722,19 @@ public func kk_supervisor_scope_run_with_cont(
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = scope
     }
-    let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
+    var directThrow = 0
+    let result = runSuspendEntryLoopWithContinuation(
+        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
+    )
+    if directThrow != 0 {
+        // See kk_coroutine_scope_run_with_cont / kk_supervisor_scope_run: propagate
+        // a direct throw from the block itself instead of letting it fall through
+        // as a plain return value.
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        outThrown?.pointee = directThrow
+        return 0
+    }
     let firstFailure = kk_coroutine_scope_wait(scopeHandle)
     if firstFailure != 0 {
         outThrown?.pointee = firstFailure
