@@ -267,6 +267,18 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // STDLIB-CORO-076: `CoroutineScope` is registered as an empty marker
+        // interface so extension functions declared as `fun CoroutineScope.foo()`
+        // (a common pattern for user-defined producer/consumer helpers) type-check.
+        // Builder blocks (runBlocking/launch/coroutineScope/...) do not yet carry
+        // this as their lambda receiver type, so such extensions only resolve when
+        // called with an explicit receiver.
+        _ = ensureInterfaceSymbol(
+            named: "CoroutineScope",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let jobSymbol = ensureClassSymbol(
             named: "Job",
             in: coroutinesPkg,
@@ -2053,6 +2065,44 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+
+        // STDLIB-CORO-078: `ReceiveChannel<T>` is the read-only view of `Channel<T>`
+        // that `produce { }` returns in real kotlinx.coroutines. Registered as a
+        // type alias (rather than a separate interface) so send/receive/close/
+        // isClosedForReceive/for-loop iteration resolve through the same Channel
+        // member lookup instead of duplicating it for a second symbol.
+        let receiveChannelName = interner.intern("ReceiveChannel")
+        let receiveChannelFQName = channelsPkg + [receiveChannelName]
+        if symbols.lookup(fqName: receiveChannelFQName) == nil {
+            let receiveChannelAliasSymbol = symbols.define(
+                kind: .typeAlias,
+                name: receiveChannelName,
+                fqName: receiveChannelFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            let receiveChannelTypeParamName = interner.intern("T")
+            let receiveChannelTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: receiveChannelTypeParamName,
+                fqName: receiveChannelFQName + [receiveChannelTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeAliasTypeParameters([receiveChannelTypeParamSymbol], for: receiveChannelAliasSymbol)
+            let receiveChannelTypeParamType = types.make(.typeParam(TypeParamType(
+                symbol: receiveChannelTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let receiveChannelUnderlyingType = types.make(.classType(ClassType(
+                classSymbol: channelSymbol,
+                args: [.invariant(receiveChannelTypeParamType)],
+                nullability: .nonNull
+            )))
+            symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
+        }
 
         registerSyntheticObjectProperty(
             ownerSymbol: dispatchersSymbol,

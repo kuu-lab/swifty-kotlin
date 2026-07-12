@@ -329,6 +329,19 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
                 RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_flow_collectLatest",
+            parameters: [
+                RuntimeABIParameter(name: "flowHandle", type: .intptr),
+                RuntimeABIParameter(name: "collectorFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "collectorEnvPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,

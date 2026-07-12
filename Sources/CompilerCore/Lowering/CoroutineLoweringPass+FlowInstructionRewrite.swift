@@ -422,6 +422,31 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
+                if callee == names.collectLatest, arguments.count == 2, symbol == nil,
+                   flowExprIDs.contains(arguments[0].rawValue)
+                {
+                    emitFlowCollectCall(
+                        symbol: nil, callee: names.kkFlowCollectLatest,
+                        handleExpr: arguments[0],
+                        arguments: [arguments[0], arguments[1], appendIntConstantInBody(0)],
+                        result: result, canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall
+                    )
+                    continue
+                }
+
+                if callee == names.collectLatest, arguments.count == 3, symbol == nil,
+                   flowExprIDs.contains(arguments[0].rawValue)
+                {
+                    emitFlowCollectCall(
+                        symbol: nil, callee: names.kkFlowCollectLatest,
+                        handleExpr: arguments[0], arguments: arguments,
+                        result: result, canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall
+                    )
+                    continue
+                }
+
                 if callee == names.toList, symbol == nil,
                    arguments.count == 1,
                    flowExprIDs.contains(arguments[0].rawValue)
@@ -736,6 +761,18 @@ extension CoroutineLoweringPass {
                 {
                     emitFlowCollectCall(
                         symbol: nil, callee: names.kkFlowCollect,
+                        handleExpr: receiver,
+                        arguments: [receiver, arguments[0], appendIntConstantInBody(0)],
+                        result: result, canThrow: canThrow, thrownResult: thrownResult
+                    )
+                    continue
+                }
+
+                if callee == names.collectLatest, arguments.count == 1,
+                   flowExprIDs.contains(receiver.rawValue)
+                {
+                    emitFlowCollectCall(
+                        symbol: nil, callee: names.kkFlowCollectLatest,
                         handleExpr: receiver,
                         arguments: [receiver, arguments[0], appendIntConstantInBody(0)],
                         result: result, canThrow: canThrow, thrownResult: thrownResult

@@ -26,6 +26,7 @@ struct FlowLoweringNames {
     let flow: InternedString
     let emit: InternedString
     let collect: InternedString
+    let collectLatest: InternedString
     let map: InternedString
     let filter: InternedString
     let take: InternedString
@@ -55,6 +56,7 @@ struct FlowLoweringNames {
     let kkFlowCreate: InternedString
     let kkFlowEmit: InternedString
     let kkFlowCollect: InternedString
+    let kkFlowCollectLatest: InternedString
     let kkFlowRetain: InternedString
     let kkFlowRelease: InternedString
     let kkFlowToList: InternedString
@@ -81,6 +83,7 @@ extension CoroutineLoweringPass {
         let asFlowName = ctx.interner.intern("asFlow")
         let emitName = ctx.interner.intern("emit")
         let collectName = ctx.interner.intern("collect")
+        let collectLatestName = ctx.interner.intern("collectLatest")
         let mapName = ctx.interner.intern("map")
         let filterName = ctx.interner.intern("filter")
         let takeName = ctx.interner.intern("take")
@@ -111,6 +114,7 @@ extension CoroutineLoweringPass {
         let kkFlowCreateName = ctx.interner.intern("kk_flow_create")
         let kkFlowEmitName = ctx.interner.intern("kk_flow_emit")
         let kkFlowCollectName = ctx.interner.intern("kk_flow_collect")
+        let kkFlowCollectLatestName = ctx.interner.intern("kk_flow_collectLatest")
         let kkFlowRetainName = ctx.interner.intern("kk_flow_retain")
         let kkFlowReleaseName = ctx.interner.intern("kk_flow_release")
         let kkFlowOfName = ctx.interner.intern("kk_flow_of")
@@ -125,6 +129,26 @@ extension CoroutineLoweringPass {
         let kkFlowFlatMapConcatName = ctx.interner.intern("kk_flow_flat_map_concat")
         let kkFlowFlatMapMergeName = ctx.interner.intern("kk_flow_flat_map_merge")
         let kkFlowFlatMapLatestName = ctx.interner.intern("kk_flow_flat_map_latest")
+
+        // Fallback for call results whose Sema-inferred type is Flow<T> even
+        // though the callee isn't a recognized builder name (e.g. a user
+        // function declared `fun f(): Flow<Int>`). Without this, such calls
+        // never enter flowExprIDs and downstream `.collect`/`.buffer`/etc.
+        // calls on them are left un-lowered, causing a link error.
+        let flowClassSymbol = ctx.sema?.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlinx"), ctx.interner.intern("coroutines"),
+            ctx.interner.intern("flow"), ctx.interner.intern("Flow"),
+        ])
+        func isFlowClassResultType(_ exprID: KIRExprID) -> Bool {
+            guard let flowClassSymbol,
+                  let sema = ctx.sema,
+                  let type = module.arena.exprType(exprID),
+                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type))
+            else {
+                return false
+            }
+            return classType.classSymbol == flowClassSymbol
+        }
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
@@ -238,6 +262,9 @@ extension CoroutineLoweringPass {
                 for instruction in function.body {
                     switch instruction {
                     case let .call(symbol, callee, arguments, result, _, _, _, _):
+                        if let result, !flowExprIDs.contains(result.rawValue), isFlowClassResultType(result) {
+                            if markFlowExpr(result) { changed = true }
+                        }
                         if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
                            arguments.count == 1,
                            symbol == nil
@@ -297,7 +324,7 @@ extension CoroutineLoweringPass {
                             if markFlowExpr(result) { changed = true }
                             continue
                         }
-                        if callee == collectName || callee == kkFlowCollectName,
+                        if callee == collectName || callee == kkFlowCollectName || callee == collectLatestName,
                            arguments.count == 2 || arguments.count == 3,
                            let flowHandleArg = arguments.first
                         {
@@ -330,6 +357,9 @@ extension CoroutineLoweringPass {
                         }
 
                     case let .virtualCall(_, callee, receiver, arguments, result, _, _, _):
+                        if !flowExprIDs.contains(receiver.rawValue), isFlowClassResultType(receiver) {
+                            if markFlowExpr(receiver) { changed = true }
+                        }
                         if callee == mapName || callee == filterName || callee == takeName ||
                             callee == catchName || callee == retryName || callee == retryWhenName ||
                             callee == onErrorReturnName || callee == onErrorResumeName,
@@ -353,7 +383,7 @@ extension CoroutineLoweringPass {
                             if markFlowExpr(result) { changed = true }
                             continue
                         }
-                        if callee == collectName,
+                        if callee == collectName || callee == collectLatestName,
                            arguments.count == 1,
                            flowExprIDs.contains(receiver.rawValue)
                         {
@@ -401,7 +431,7 @@ extension CoroutineLoweringPass {
                 case let .call(_, callee, _, _, _, _, _, _):
                     callee == flowName || callee == channelFlowName || callee == callbackFlowName ||
                         callee == flowOfName || callee == emptyFlowName ||
-                        callee == emitName || callee == collectName ||
+                        callee == emitName || callee == collectName || callee == collectLatestName ||
                         callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
@@ -414,6 +444,7 @@ extension CoroutineLoweringPass {
                         callee == kkFlowToListName || callee == kkFlowFirstName || callee == kkFlowSingleName
                 case let .virtualCall(_, callee, _, _, _, _, _, _):
                     callee == mapName || callee == filterName || callee == takeName || callee == collectName ||
+                        callee == collectLatestName ||
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
@@ -456,7 +487,7 @@ extension CoroutineLoweringPass {
                         markConsume(arguments[0])
                         continue
                     }
-                    if callee == collectName || callee == kkFlowCollectName,
+                    if callee == collectName || callee == kkFlowCollectName || callee == collectLatestName,
                        arguments.count == 2 || arguments.count == 3
                     {
                         markConsume(arguments[0])
@@ -474,7 +505,8 @@ extension CoroutineLoweringPass {
                 case let .virtualCall(_, callee, receiver, arguments, _, _, _, _):
                     if callee == mapName || callee == filterName || callee == takeName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName || callee == collectName,
+                        callee == onErrorReturnName || callee == onErrorResumeName || callee == collectName ||
+                        callee == collectLatestName,
                        arguments.count == 1
                     {
                         markConsume(receiver)
@@ -495,6 +527,7 @@ extension CoroutineLoweringPass {
                 flow: flowName,
                 emit: emitName,
                 collect: collectName,
+                collectLatest: collectLatestName,
                 map: mapName,
                 filter: filterName,
                 take: takeName,
@@ -524,6 +557,7 @@ extension CoroutineLoweringPass {
                 kkFlowCreate: kkFlowCreateName,
                 kkFlowEmit: kkFlowEmitName,
                 kkFlowCollect: kkFlowCollectName,
+                kkFlowCollectLatest: kkFlowCollectLatestName,
                 kkFlowRetain: kkFlowRetainName,
                 kkFlowRelease: kkFlowReleaseName,
                 kkFlowToList: kkFlowToListName,

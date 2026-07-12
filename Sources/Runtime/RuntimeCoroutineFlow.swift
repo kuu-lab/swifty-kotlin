@@ -906,6 +906,7 @@ private func runtimeFlowHasAdvancedSource(_ flow: RuntimeFlowHandle) -> Bool {
 private func runtimeFlowCollectLazy(
     _ flow: RuntimeFlowHandle,
     collectorFnPtr: Int,
+    collectorEnvPtr: Int,
     continuation: Int
 ) -> Int {
     let hasOnCompletion = flow.opChain.contains { $0.kind == .onCompletion }
@@ -914,7 +915,12 @@ private func runtimeFlowCollectLazy(
     // .emitter and .fixed sources.  Route them through runtimeFlowEvaluate so
     // that they produce values correctly.
     if !runtimeFlowHasErrorHandlers(flow.opChain) && !runtimeFlowHasAdvancedSource(flow) {
-        let retVal = runtimeFlowCollectStreaming(flow, collectorFnPtr: collectorFnPtr, continuation: continuation)
+        let retVal = runtimeFlowCollectStreaming(
+            flow,
+            collectorFnPtr: collectorFnPtr,
+            collectorEnvPtr: collectorEnvPtr,
+            continuation: continuation
+        )
         if hasOnCompletion {
             let streamingFailure: Int? = retVal != 0 ? retVal : nil
             if let handlerException = runtimeFlowFireCompletionHandlers(flow.opChain, failure: streamingFailure) {
@@ -928,6 +934,7 @@ private func runtimeFlowCollectLazy(
         let delivered = runtimeFlowDeliverValue(
             value,
             collectorFnPtr: collectorFnPtr,
+            collectorEnvPtr: collectorEnvPtr,
             continuation: continuation
         )
         if !delivered {
@@ -950,6 +957,7 @@ private func runtimeFlowCollectLazy(
 private func runtimeFlowCollectStreaming(
     _ flow: RuntimeFlowHandle,
     collectorFnPtr: Int,
+    collectorEnvPtr: Int,
     continuation: Int
 ) -> Int {
     let ops = flow.opChain
@@ -965,6 +973,7 @@ private func runtimeFlowCollectStreaming(
         let delivered = runtimeFlowDeliverValue(
             value,
             collectorFnPtr: collectorFnPtr,
+            collectorEnvPtr: collectorEnvPtr,
             continuation: continuation
         )
         return delivered && !runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters)
@@ -1123,7 +1132,7 @@ private func runtimeFlowCollectStreaming(
                 switch result {
                 case .emit(let value):
                     let delivered = runtimeFlowDeliverValue(
-                        value, collectorFnPtr: collectorFnPtr, continuation: continuation
+                        value, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation
                     )
                     if !delivered || runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
                         stop = true
@@ -1150,6 +1159,7 @@ private func runtimeFlowCollectStreaming(
             let delivered = runtimeFlowDeliverValue(
                 value,
                 collectorFnPtr: collectorFnPtr,
+                collectorEnvPtr: collectorEnvPtr,
                 continuation: continuation
             )
             if !delivered || runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
@@ -1179,6 +1189,7 @@ private func runtimeFlowCollectStreaming(
 private func runtimeFlowDeliverValue(
     _ value: Int,
     collectorFnPtr: Int,
+    collectorEnvPtr: Int,
     continuation: Int
 ) -> Bool {
     guard collectorFnPtr != 0 else {
@@ -1192,7 +1203,7 @@ private func runtimeFlowDeliverValue(
             to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
         var thrown = 0
-        _ = collector(0, value, &thrown)
+        _ = collector(collectorEnvPtr, value, &thrown)
         return thrown == 0
     } else {
         // Suspend collector ABI: (closureRaw, value, continuation, outThrown)
@@ -1204,7 +1215,7 @@ private func runtimeFlowDeliverValue(
         let cont = kk_coroutine_continuation_new(continuation)
         while true {
             var thrown = 0
-            let result = collector(0, value, cont, &thrown)
+            let result = collector(collectorEnvPtr, value, cont, &thrown)
             if thrown != 0 {
                 _ = kk_coroutine_state_exit(cont, 0)
                 return false
@@ -1302,7 +1313,7 @@ public func kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag: 
 }
 
 @_cdecl("kk_flow_collect")
-public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ continuation: Int) -> Int {
+public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
     }
@@ -1311,7 +1322,20 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ continua
     // emitted value through the operator chain on every collect call.
     // For flowOf-backed flows (fixedValues != nil), the fixed values are used
     // directly without running an emitter function.
-    return runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, continuation: continuation)
+    return runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
+}
+
+// `collectLatest` should cancel an in-flight collector invocation when a new
+// value arrives and only run the collector to completion for the last value.
+// The emitter/collector pipeline here delivers values synchronously (one
+// collector call fully returns before the next value is produced), so there
+// is no in-flight invocation to cancel; every delivered value already runs
+// to completion in emission order, same as `collect`. This keeps the final
+// collected/observed values correct while the true concurrent-cancellation
+// semantics remain unimplemented.
+@_cdecl("kk_flow_collectLatest")
+public func kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int) -> Int {
+    kk_flow_collect(flowHandle, collectorFnPtr, collectorEnvPtr, continuation)
 }
 
 @_cdecl("kk_flow_retain")

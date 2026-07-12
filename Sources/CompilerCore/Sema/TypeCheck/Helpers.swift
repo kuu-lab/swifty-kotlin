@@ -458,7 +458,7 @@ struct TypeCheckHelpers {
         case knownNames.emit:
             guard argumentCount == 1 else { return nil }
             return sema.types.unitType
-        case interner.intern("collect"):
+        case interner.intern("collect"), interner.intern("collectLatest"):
             guard argumentCount >= 1 else { return nil }
             return sema.types.unitType
         case interner.intern("map"), interner.intern("filter"), interner.intern("take"),

@@ -7,6 +7,7 @@ extension CoroutineLoweringPass {
         let intType: TypeID?
         let unitType: TypeID?
         let flowCollectCallee: InternedString
+        let flowCollectLatestCallee: InternedString
         let withContextCallee: InternedString
         let runtimeWithContextCallee: InternedString
         let withTimeoutCallee: InternedString
@@ -203,12 +204,12 @@ extension CoroutineLoweringPass {
                 continue
             }
 
-            if let collectInstruction = rewriteFlowCollectCall(
+            if let collectInstructions = rewriteFlowCollectCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
                 using: rewrite
             ) {
-                loweredBody.append(collectInstruction)
+                loweredBody.append(contentsOf: collectInstructions)
                 continue
             }
 
@@ -426,8 +427,8 @@ extension CoroutineLoweringPass {
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
-    ) -> KIRInstruction? {
-        guard call.callee == rewrite.flowCollectCallee,
+    ) -> [KIRInstruction]? {
+        guard call.callee == rewrite.flowCollectCallee || call.callee == rewrite.flowCollectLatestCallee,
               call.arguments.count == 3,
               let collectorSymbol = symbolReference(
                   for: call.arguments[1],
@@ -439,6 +440,7 @@ extension CoroutineLoweringPass {
             return nil
         }
 
+        var prefixInstructions: [KIRInstruction] = []
         let collectorEntryPoint = rewrite.module.arena.appendExpr(
             .symbolRef(loweredCollector.symbol),
             type: rewrite.intType
@@ -447,19 +449,84 @@ extension CoroutineLoweringPass {
             .intLiteral(Int64(loweredCollector.symbol.rawValue)),
             type: rewrite.intType
         )
+        // The collector lambda may capture outer variables (e.g. `collect {
+        // capturedList.add(it) }`). `call.arguments[1]` still refers to the
+        // original (pre-CPS) lambda expr, so its capture info is recoverable
+        // from the same KIRArena.callableValueInfo registry ordinary HOF
+        // lambdas use (see CallLowerer.splitCallableLambdaArgument). Without
+        // this, the runtime always invoked the collector with a null
+        // environment pointer and captured values were silently dropped.
+        let collectorEnvPtr = flowCollectorEnvironmentPointerExpr(
+            for: call.arguments[1],
+            using: rewrite,
+            into: &prefixInstructions
+        )
 
-        var rewrittenArguments = call.arguments
-        rewrittenArguments[1] = collectorEntryPoint
-        rewrittenArguments[2] = collectorFunctionID
-        return .call(
+        prefixInstructions.append(.call(
             symbol: call.symbol,
             callee: call.callee,
-            arguments: rewrittenArguments,
+            arguments: [call.arguments[0], collectorEntryPoint, collectorEnvPtr, collectorFunctionID],
             result: call.result,
             canThrow: call.canThrow,
             thrownResult: call.thrownResult,
             isSuperCall: call.isSuperCall
-        )
+        ))
+        return prefixInstructions
+    }
+
+    /// Recovers the closure-capture environment pointer for a Flow collector
+    /// lambda, matching the `(fnPtr, envPtr)` convention ordinary HOF callees
+    /// use (e.g. `kk_list_map`). Falls back to a null pointer when the lambda
+    /// captures nothing, and packs multiple captures into a closure object
+    /// the same way `CallLowerer.splitCallableLambdaArgument` does.
+    func flowCollectorEnvironmentPointerExpr(
+        for lambdaID: KIRExprID,
+        using rewrite: SuspendRewriteContext,
+        into instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let captureArguments = rewrite.module.arena.callableValueInfo(for: lambdaID)?.captureArguments,
+              !captureArguments.isEmpty
+        else {
+            let zeroExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            return zeroExpr
+        }
+
+        if captureArguments.count == 1 {
+            return captureArguments[0]
+        }
+
+        let kkObjectNew = rewrite.ctx.interner.intern("kk_object_new")
+        let kkArraySet = rewrite.ctx.interner.intern("kk_array_set")
+        let slotCount = Int64(2 + captureArguments.count)
+        let slotCountExpr = rewrite.module.arena.appendExpr(.intLiteral(slotCount), type: rewrite.intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+        let classIDExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+        let closureObjExpr = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: kkObjectNew,
+            arguments: [slotCountExpr, classIDExpr],
+            result: closureObjExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        for (captureIndex, captureArg) in captureArguments.enumerated() {
+            let fieldOffset = Int64(captureIndex + 2)
+            let offsetExpr = rewrite.module.arena.appendExpr(.intLiteral(fieldOffset), type: rewrite.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
+            let unusedResult = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: kkArraySet,
+                arguments: [closureObjExpr, offsetExpr, captureArg],
+                result: unusedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+        return closureObjExpr
     }
 
     func rewriteWithContextCall(
