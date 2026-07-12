@@ -960,7 +960,7 @@ extension CallTypeChecker {
                 let otherType = sema.bindings.exprTypes[args[0].expr]
                     ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
                 let otherElementType: TypeID
-                if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+                if let otherClassType = resolveClassType(otherType, sema: sema),
                    let firstArg = otherClassType.args.first
                 {
                     otherElementType = switch firstArg {

@@ -1453,8 +1453,7 @@ extension CallLowerer {
                         let knownNames = KnownCompilerNames(interner: interner)
                         let isSetArg: Bool = {
                             guard let argType,
-                                  case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-                                  let sym = sema.symbols.symbol(ct.classSymbol)
+                                  let (_, sym) = resolveClassTypeSymbol(argType, sema: sema)
                             else { return false }
                             return knownNames.isSetLikeSymbol(sym)
                         }()
@@ -2513,15 +2512,13 @@ extension CallLowerer {
         {
             let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
             let returnsList = boundType.map { resultType in
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                      let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
                 else { return false }
                 return interner.resolve(resultSymbol.name) == "List"
             } ?? false
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let receiverIsIterable = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
                 else { return false }
                 return receiverSymbol.fqName == [
                     interner.intern("kotlin"),
