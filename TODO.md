@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
+最終更新: 2026-07-15（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。PR #4837 の identity equality 関連を BUG-038/039 として追加）
 
 ---
 
@@ -780,4 +780,26 @@
 - [ ] BUG-034: PR #4814（XCTest→Swift Testing移行）で `.serialized` は正しく付与されているが、`tearDown`（`kk_runtime_force_reset()`）が約20テスト全てで `defer` 化されず消失（一次レビューでは見落とし、深掘り再検証で発見）— 対象 `Tests/RuntimeTests/RuntimeStringLastIndexOfAnyTests.swift`
 - [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
 - [ ] BUG-036: `kotlin.text.CASE_INSENSITIVE_ORDER` 等の合成 top-level プロパティが、モジュール初期化時にキャッシュされるはずの global を読まず、参照のたびに `kk_string_case_insensitive_order()` を再実行して新規インスタンスを生成する（`--emit kir` で使用箇所ごとに独立した `call` が発行され、cached global への `loadGlobal` が起きないことを確認済み。値としては動作するが参照同一性が崩れる: `val a = CASE_INSENSITIVE_ORDER; val b = CASE_INSENSITIVE_ORDER` は同一インスタンスになるべき）— PR #4835 で発見。testKotlinTextCaseInsensitiveOrderEdgeCases の itable dispatch 障害報告の再現調査中に判明（**当該パニック自体は現行 HEAD `981b96169c` では再現せず**: `--emit kir` 上 dispatch=itable[0:0] がランタイム登録と一致、`swift_test.sh` で4回連続 pass 確認済み。原因は調査当時の Xcode ツールチェイン不一致の疑い — 本件はその副産物として見つかった別問題）
-- [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-020 の再現性検証中に偶然発見
+- [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-038 の再現性検証中に偶然発見
+- [ ] BUG-038: `===`/`!==`（identity equality 演算子）が Lexer レベルで丸ごと未実装 — Sema の型検査以前の問題で、interface 型に限らず全ての型で発生。`Symbol` enum に3文字トークンが無いため `===` は貪欲マッチで `==`＋`=` に誤分割され、パーサが `=` 以降を静かに読み捨てる。型注釈なし文脈（`val x = a === b`）では黙って誤ったコンパイル結果（`Boolean` 期待箇所に生ポインタ値が入る）になり、明示的型注釈がある文脈でのみ `KSWIFTK-TYPE-0001`（Type constraint could not be satisfied）として顕在化する。最小再現:
+  ```kotlin
+  interface Foo { fun bar(): Int }
+  class FooImpl : Foo { override fun bar(): Int = 1 }
+  fun main() {
+      val a: Foo = FooImpl()
+      val b: Foo = a
+      val same: Boolean = (a === b)
+      println(same)
+  }
+  ```
+  修正: Lexer（`Symbol.tripleEqual`/`.notTripleEqual` 追加）→ Parser（`BinaryOp.identityEqual`/`.notIdentityEqual`、`==`/`!=` と同精度）→ Sema（`equals()` オーバーロード解決を経由せず直接 `Boolean` を束縛、`x === null` のスマートキャストも `==`/`!=` と同様に対応）→ Lowering（`kk_op_eq`/`kk_op_ne` — data object 識別比較で既に使われているのと同じプリミティブを再利用。String のみ内部表現が4ワードの flat 集約でこの ABI に載らないため、`==`/`!=` と同じ content equality にフォールバック — 既知の簡略化）。回帰防止に `Scripts/diff_cases/identity_equality_operators.kt` を新規追加（kotlinc 実測一致）。発見元: ユーザー報告（当初「interface 型のみ」「TODO.md に BUG-021 として記録済み」との想定だったが、調査の結果いずれも事実誤認と判明 — 記録は本エントリが初出）。PR [#4837](https://github.com/kuu-lab/swifty-kotlin/pull/4837)（マージ後に `[x]` 化）。
+- [ ] BUG-039: デフォルトの `Any.equals()`（ユーザーが `equals()` を override していないクラス、`data class` でもない）が参照同一性でなく構造的等価性で比較している疑い。フィールド値が同じ別インスタンス同士の `==` が、Kotlin 仕様上は `false`（デフォルト `Any.equals` は `===` 相当）のはずが `true` を返す。最小再現（kotlinc 実測で `false` を確認済み・kswiftc は `true` を返す）:
+  ```kotlin
+  class Plain(val n: Int)
+  fun main() {
+      val a = Plain(1)
+      val c = Plain(1)
+      println(a == c) // kotlinc: false / kswiftc: true
+  }
+  ```
+  推定原因（未確定・要調査）: `Sources/CompilerCore/Lowering/OperatorLoweringPass.swift` の `needsStructuralEquality` 判定経由で、参照型の `==`/`!=` が本来 list/set/map/boxed 値向けの `kk_structural_eq`（`Sources/Runtime/RuntimeCollectionHelpers.swift`、`runtimeValuesEqual` によるフィールド構造比較）にフォールバックしているケースがあり、Sema が `equals()` の `callBindings` を解決できない経路（`Any.equals()` 未オーバーライド時？）で誤って適用されている可能性。発見元: BUG-038 修正時の回帰検証中に偶発的に発見（2026-07-12）。

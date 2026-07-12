@@ -36,7 +36,7 @@ extension CallLowerer {
             )
         }
         let boundType: TypeID? = switch op {
-        case .equal, .notEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             boolType
         case .logicalAnd, .logicalOr:
             boolType
@@ -354,7 +354,12 @@ extension CallLowerer {
                 return nullStringID
             }
             switch op {
-            case .equal:
+            // `===`/`!==` fold into the same content-equality codegen as `==`/`!=`
+            // here: String is a "flat" by-value aggregate (data/length/byteCount/hash)
+            // in this runtime, not a heap reference, so there is no separate pointer
+            // identity to compare — `kk_op_eq`/`kk_op_ne` also cannot accept it
+            // (their ABI takes one word per operand, not a 4-word aggregate).
+            case .equal, .identityEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
@@ -366,7 +371,7 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
                 return result
-            case .notEqual:
+            case .notEqual, .notIdentityEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendTemporary(type: boolType)
@@ -564,6 +569,11 @@ extension CallLowerer {
             kirOp = .equal
         case .notEqual:
             kirOp = .notEqual
+        case .identityEqual, .notIdentityEqual:
+            // Always resolved earlier: builtinBinaryRuntimeCallee (kk_op_eq/kk_op_ne)
+            // for ordinary operands, or the string content-equality path above for
+            // String operands. Neither falls through to this raw KIRBinaryOp path.
+            preconditionFailure("=== / !== must be lowered before reaching the raw KIRBinaryOp path")
         case .lessThan:
             kirOp = .lessThan
         case .lessOrEqual:
