@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
+最終更新: 2026-07-14（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ。PR #4834 の Flow.collect 非suspendラムダ問題を BUG-038 として追補）
 
 ---
 
@@ -781,3 +781,4 @@
 - [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
 - [ ] BUG-036: `kotlin.text.CASE_INSENSITIVE_ORDER` 等の合成 top-level プロパティが、モジュール初期化時にキャッシュされるはずの global を読まず、参照のたびに `kk_string_case_insensitive_order()` を再実行して新規インスタンスを生成する（`--emit kir` で使用箇所ごとに独立した `call` が発行され、cached global への `loadGlobal` が起きないことを確認済み。値としては動作するが参照同一性が崩れる: `val a = CASE_INSENSITIVE_ORDER; val b = CASE_INSENSITIVE_ORDER` は同一インスタンスになるべき）— PR #4835 で発見。testKotlinTextCaseInsensitiveOrderEdgeCases の itable dispatch 障害報告の再現調査中に判明（**当該パニック自体は現行 HEAD `981b96169c` では再現せず**: `--emit kir` 上 dispatch=itable[0:0] がランタイム登録と一致、`swift_test.sh` で4回連続 pass 確認済み。原因は調査当時の Xcode ツールチェイン不一致の疑い — 本件はその副産物として見つかった別問題）
 - [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-020 の再現性検証中に偶然発見
+- [ ] BUG-038: PR #4834 で `Flow.collect`/`collectLatest` にローカル変数経由で渡した非suspendラムダ（最小再現: `val h = { v: Int -> println(v) }; flow.collect(h)`）が実行時 SIGSEGV。collector が CPS 変換されず（`suspend=false` のまま）、`kk_list_map` 等の通常コレクション HOF が使う `kk_hof_adapter` 生成機構（`CallLowerer+CollectionHOFMemberCalls.swift` の `addCollectionHOFClosureArguments`、`isCollectionHOFCallee` に `collect` が未登録）も Flow 側には未適用のため、`inline=true` のラムダシンボルへ直接参照が残る。直接インラインの `collect { ... }` は影響しない。PR #4834 では `rewriteFlowCollectCall` の非suspend collector 引数個数不一致（4引数中1個不足）は解消したが、inline 化そのものは未解決

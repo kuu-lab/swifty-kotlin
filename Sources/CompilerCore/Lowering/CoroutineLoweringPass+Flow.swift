@@ -440,6 +440,7 @@ extension CoroutineLoweringPass {
                         callee == debounceName || callee == sampleName || callee == delayEachName ||
                         callee == asFlowName || callee == toListName || callee == firstName || callee == singleName ||
                         callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName ||
+                        callee == kkFlowCollectLatestName ||
                         callee == kkFlowOfName || callee == kkFlowEmptyName || callee == kkFlowAsFlowName ||
                         callee == kkFlowToListName || callee == kkFlowFirstName || callee == kkFlowSingleName
                 case let .virtualCall(_, callee, _, _, _, _, _, _):

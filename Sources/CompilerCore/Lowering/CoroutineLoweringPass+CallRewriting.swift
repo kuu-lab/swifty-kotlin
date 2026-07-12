@@ -434,21 +434,61 @@ extension CoroutineLoweringPass {
                   for: call.arguments[1],
                   module: rewrite.module,
                   propagatedSymbols: symbolByExprRaw
-              ),
-              let loweredCollector = rewrite.loweredBySymbol[collectorSymbol]
+              )
         else {
             return nil
         }
 
         var prefixInstructions: [KIRInstruction] = []
-        let collectorEntryPoint = rewrite.module.arena.appendExpr(
-            .symbolRef(loweredCollector.symbol),
-            type: rewrite.intType
-        )
-        let collectorFunctionID = rewrite.module.arena.appendExpr(
-            .intLiteral(Int64(loweredCollector.symbol.rawValue)),
-            type: rewrite.intType
-        )
+        let collectorEntryPoint: KIRExprID
+        let collectorContinuationArg: KIRExprID
+        if let loweredCollector = rewrite.loweredBySymbol[collectorSymbol] {
+            // Suspend collector: its body contains a suspend call (e.g.
+            // `collect { delay(1); ... }`), so it was CPS-rewritten. Route
+            // through its suspend entry point; the runtime treats a nonzero
+            // fourth argument as the function ID used to build a new
+            // continuation for the suspend collector ABI.
+            collectorEntryPoint = rewrite.module.arena.appendExpr(
+                .symbolRef(loweredCollector.symbol),
+                type: rewrite.intType
+            )
+            collectorContinuationArg = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(loweredCollector.symbol.rawValue)),
+                type: rewrite.intType
+            )
+        } else {
+            // Non-suspend collector: its lambda body never contained a
+            // suspend call (e.g. `collect { println(it) }`, or a collector
+            // stored in a local `val` and passed by reference), so it was
+            // never CPS-rewritten and stays a plain `(closureRaw, value,
+            // outThrown) -> result` function. Invoke collectorSymbol
+            // directly and keep the fourth argument zero so the runtime
+            // takes its continuation==0 (non-suspend) branch instead of
+            // treating a nonexistent suspend-lowered counterpart as the
+            // entry point.
+            //
+            // BUG-038 (TODO.md): this still crashes when collectorSymbol
+            // refers to a lambda stored in a local `val` and passed by
+            // reference (`val h = { v: Int -> ... }; flow.collect(h)`),
+            // because such lambdas stay marked inline=true and are never
+            // materialized as an independently callable function. Ordinary
+            // collection HOFs (map/filter/...) avoid this via the
+            // kk_hof_adapter machinery in
+            // CallLowerer+CollectionHOFMemberCalls.swift, which Flow's
+            // `collect`/`collectLatest` do not go through (`collect` is not
+            // in `isCollectionHOFCallee`). A direct inline `collect { ... }`
+            // is unaffected: Kotlin's `collect` parameter type is always
+            // `suspend (T) -> Unit`, so such lambdas always take the
+            // suspend branch above.
+            collectorEntryPoint = rewrite.module.arena.appendExpr(
+                .symbolRef(collectorSymbol),
+                type: rewrite.intType
+            )
+            collectorContinuationArg = rewrite.module.arena.appendExpr(
+                .intLiteral(0),
+                type: rewrite.intType
+            )
+        }
         // The collector lambda may capture outer variables (e.g. `collect {
         // capturedList.add(it) }`). `call.arguments[1]` still refers to the
         // original (pre-CPS) lambda expr, so its capture info is recoverable
@@ -465,7 +505,7 @@ extension CoroutineLoweringPass {
         prefixInstructions.append(.call(
             symbol: call.symbol,
             callee: call.callee,
-            arguments: [call.arguments[0], collectorEntryPoint, collectorEnvPtr, collectorFunctionID],
+            arguments: [call.arguments[0], collectorEntryPoint, collectorEnvPtr, collectorContinuationArg],
             result: call.result,
             canThrow: call.canThrow,
             thrownResult: call.thrownResult,
