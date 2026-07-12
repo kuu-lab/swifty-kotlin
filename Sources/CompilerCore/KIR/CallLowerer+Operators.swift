@@ -384,7 +384,7 @@ extension CallLowerer {
             // aggregate (nullptr, 0, 0, 0) instead of a raw i64 null sentinel.
             func resolvedStringID(for id: KIRExprID, isNull: Bool) -> KIRExprID {
                 guard isNull else { return id }
-                let nullStringID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableStringType)
+                let nullStringID = arena.appendTemporary(type: nullableStringType)
                 instructions.append(.constValue(result: nullStringID, value: .null))
                 return nullStringID
             }
@@ -404,7 +404,7 @@ extension CallLowerer {
             case .notEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
-                let eqResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                let eqResult = arena.appendTemporary(type: boolType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_equals_flat"),

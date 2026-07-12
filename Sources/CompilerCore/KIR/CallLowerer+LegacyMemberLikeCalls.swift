@@ -76,25 +76,6 @@ extension CallLowerer {
             )
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
-        let isSourceBackedListFilterCall: Bool = {
-            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
-                  chosenCallee != .invalid,
-                  let symbol = sema.symbols.symbol(chosenCallee),
-                  symbol.kind == .function,
-                  symbol.declSite != nil,
-                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
-            else {
-                return false
-            }
-            let sourceBackedListFilterFQNames: Set<[InternedString]> = [
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filter")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNot")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNotNull")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIndexed")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstance")],
-            ]
-            return sourceBackedListFilterFQNames.contains(symbol.fqName)
-        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -660,7 +641,7 @@ extension CallLowerer {
                 var rhs = loweredArgIDs[0]
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -672,7 +653,7 @@ extension CallLowerer {
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -1168,7 +1149,14 @@ extension CallLowerer {
         }
 
         // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
-        if args.isEmpty, interner.resolve(calleeName) == "filterIsInstance", !isSourceBackedListFilterCall {
+        if args.isEmpty,
+           interner.resolve(calleeName) == "filterIsInstance",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from List<R> or Sequence<R>.
@@ -1186,13 +1174,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let runtimeCallee = isSequenceLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
-                ? "kk_sequence_filterIsInstance"
-                : "kk_list_filterIsInstance"
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(runtimeCallee),
+                callee: interner.intern("kk_sequence_filterIsInstance"),
                 arguments: [loweredReceiverID, tokenExpr],
                 result: result,
                 canThrow: false,
@@ -1202,7 +1186,14 @@ extension CallLowerer {
         }
 
         // filterIsInstanceTo<R>(destination) — encode type token from result type (STDLIB-021)
-        if args.count == 1, interner.resolve(calleeName) == "filterIsInstanceTo" {
+        if args.count == 1,
+           interner.resolve(calleeName) == "filterIsInstanceTo",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from MutableCollection<R>
@@ -1220,15 +1211,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let nonNullReceiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
-            let runtimeCallee = if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                interner.intern("kk_sequence_filterIsInstanceTo")
-            } else {
-                interner.intern("kk_list_filterIsInstanceTo")
-            }
             instructions.append(.call(
                 symbol: nil,
-                callee: runtimeCallee,
+                callee: interner.intern("kk_sequence_filterIsInstanceTo"),
                 arguments: [loweredReceiverID, loweredArgIDs[0], tokenExpr],
                 result: result,
                 canThrow: false,
@@ -1394,39 +1379,7 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toDouble" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toDouble_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toDoubleOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toDoubleOrNull_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toFloatOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toFloatOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1500,8 +1453,7 @@ extension CallLowerer {
                         let knownNames = KnownCompilerNames(interner: interner)
                         let isSetArg: Bool = {
                             guard let argType,
-                                  case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-                                  let sym = sema.symbols.symbol(ct.classSymbol)
+                                  let (_, sym) = resolveClassTypeSymbol(argType, sema: sema)
                             else { return false }
                             return knownNames.isSetLikeSymbol(sym)
                         }()
@@ -2560,15 +2512,13 @@ extension CallLowerer {
         {
             let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
             let returnsList = boundType.map { resultType in
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                      let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
                 else { return false }
                 return interner.resolve(resultSymbol.name) == "List"
             } ?? false
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let receiverIsIterable = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
                 else { return false }
                 return receiverSymbol.fqName == [
                     interner.intern("kotlin"),
@@ -2609,7 +2559,7 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
+                    let listExpr = arena.appendTemporary()
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_toList"),
@@ -3347,7 +3297,9 @@ extension CallLowerer {
             // StringBuilder member calls with 1 arg (STDLIB-255/256/257)
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.append {
+                // A spread single argument (`sb.append(*array)`) must fall through to the
+                // vararg-specific lowering below instead of being treated as one Any? value.
+                let runtimeCallee: String? = if calleeName == sbNames.append, args.first?.isSpread != true {
                     // Dispatch append(value) to the typed overload based on the argument type.
                     {
                         let argType = normalizedArgIDs.first.flatMap { arena.exprType($0) }
@@ -3938,13 +3890,28 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let intType = sema.types.make(.primitive(.int, .nonNull))
+                // Unboxed primitive elements (Boolean/Char/Float/Double/Int/Long/...) must be
+                // boxed to Any? before being stored in the packed vararg array — otherwise their
+                // raw bit patterns are misread by the runtime's generic element-to-string logic.
+                let boxedArgIDs = loweredArgIDs.enumerated().map { index, argID in
+                    if index < args.count, args[index].isSpread {
+                        return argID
+                    }
+                    return boxCollectionFactoryElementIfNeeded(
+                        argID,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
                 let packedArgs: KIRExprID
-                if loweredArgIDs.count == 1, args.first?.isSpread == true {
-                    packedArgs = loweredArgIDs[0]
+                if boxedArgIDs.count == 1, args.first?.isSpread == true {
+                    packedArgs = boxedArgIDs[0]
                 } else {
                     packedArgs = driver.callSupportLowerer.packVarargArguments(
-                        argIndices: Array(loweredArgIDs.indices),
-                        providedArguments: loweredArgIDs,
+                        argIndices: Array(boxedArgIDs.indices),
+                        providedArguments: boxedArgIDs,
                         spreadFlags: args.map(\.isSpread),
                         arena: arena,
                         interner: interner,

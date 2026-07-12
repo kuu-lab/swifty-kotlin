@@ -755,9 +755,7 @@ final class InlineLoweringPass: LoweringPass {
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
                 lowered.append(
                     .call(
@@ -778,9 +776,7 @@ final class InlineLoweringPass: LoweringPass {
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
                 lowered.append(
                     .virtualCall(
@@ -1136,9 +1132,7 @@ final class InlineLoweringPass: LoweringPass {
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
                 }
                 lowered.append(
                     .call(
@@ -1159,9 +1153,7 @@ final class InlineLoweringPass: LoweringPass {
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
                 }
                 lowered.append(
                     .virtualCall(
@@ -1420,6 +1412,61 @@ final class InlineLoweringPass: LoweringPass {
         return current
     }
 
+    /// Clones `source` into a fresh caller-scoped expression the first time it is
+    /// encountered within a single inline expansion, and returns that same clone
+    /// for every later occurrence of `source`. Used only for a call's
+    /// `thrownResult`, because that is the sole field where the callee's own KIR
+    /// intentionally reuses one physical expression -- a try/catch's shared
+    /// exception slot -- as the `thrownResult` of every protected call inside the
+    /// same try body (see ControlFlowLowerer.appendThrowAwareInstructions, which
+    /// rewrites each protected call's `thrownResult` to the same pre-allocated
+    /// `exceptionSlot`, while leaving `result` untouched). Cloning that slot
+    /// independently on each occurrence would fragment one physical register into
+    /// several disconnected ones, losing track of writes made through earlier
+    /// clones.
+    ///
+    /// `result` is deliberately NOT routed through this helper: it is always
+    /// cloned unconditionally (matching pre-existing behavior), because a call's
+    /// `result` is a freshly allocated, unique KIRExprID under the standard
+    /// ExprLowerer/CallLowerer/ControlFlowLowerer pipeline that produces every
+    /// inline-function and lambda body this pass expands -- the only other KIR
+    /// producers that intentionally share a `result` id across multiple calls
+    /// (e.g. the synthesized data-class `toString()` StringBuilder accumulator,
+    /// interface-delegation forwarding methods) always mark their function
+    /// `isInline: false` and are never lambda closures, so they are unreachable
+    /// from both `expandInlineCall` (gated on `isInline`) and `expandLambdaBody`
+    /// (reachable only through `resolveLambdaFunction`, which only resolves
+    /// genuine lambda closures).
+    private func cloneOrReuseExpr(
+        _ source: KIRExprID,
+        localExprMap: inout [KIRExprID: KIRExprID],
+        module: KIRModule,
+        typeSubstitution: InlineTypeSubstitution?,
+        ctx: KIRContext
+    ) -> KIRExprID {
+        if let existing = localExprMap[source] {
+            return existing
+        }
+        let cloned = cloneExpr(source, in: module.arena, typeSubstitution: typeSubstitution, ctx: ctx)
+        localExprMap[source] = cloned
+        return cloned
+    }
+
+    /// Lambda-body variant of `cloneOrReuseExpr(_:localExprMap:module:typeSubstitution:ctx:)`
+    /// (lambda expansion has no inline type substitution to apply).
+    private func cloneOrReuseExpr(
+        _ source: KIRExprID,
+        localExprMap: inout [KIRExprID: KIRExprID],
+        module: KIRModule
+    ) -> KIRExprID {
+        if let existing = localExprMap[source] {
+            return existing
+        }
+        let cloned = cloneExpr(source, in: module.arena)
+        localExprMap[source] = cloned
+        return cloned
+    }
+
     private func buildInlineTypeSubstitution(
         inlineTarget: KIRFunction,
         arguments: [KIRExprID],
@@ -1470,7 +1517,7 @@ final class InlineLoweringPass: LoweringPass {
             substitution[typeVar] = actual
 
         case let .classType(expectedClass):
-            guard case let .classType(actualClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)),
+            guard let actualClass = resolveClassType(actual, sema: sema),
                   expectedClass.classSymbol == actualClass.classSymbol
             else {
                 return
