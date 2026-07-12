@@ -5,14 +5,36 @@
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
 extension CollectionLiteralConstructionLoweringPass {
+    /// Resolves the box callee for a collection-literal element (`listOf`,
+    /// `setOf`, `arrayOf`, ... vararg elements). A value class with no
+    /// interface is unboxed to its underlying primitive elsewhere
+    /// (`ValueClassUnboxingPass`), so its *declared* type is still
+    /// `.classType` here; without resolving it to the underlying primitive
+    /// kind first, `BoxingCalleeTable` sees a non-primitive kind and skips
+    /// boxing entirely, storing the raw unboxed value directly in the
+    /// Any-typed backing array. That breaks any element access that goes
+    /// through the generic object model instead of the (elided) direct field
+    /// read — notably `Set` bucket placement, which hashes/compares elements
+    /// as objects. Mirrors `ABILoweringPass.resolveValueClassKind`, which
+    /// every other box/unbox decision site already goes through.
     func primitiveBoxCalleeName(
         for type: TypeID,
         types: TypeSystem,
+        symbols: SymbolTable?,
         interner: StringInterner
     ) -> InternedString? {
-        BoxingCalleeTable(interner: interner).boxCallee(
-            for: type,
-            types: types,
+        var kind = types.kind(of: type)
+        if case let .classType(classType) = kind,
+           classType.nullability == .nonNull,
+           let symbols,
+           let sym = symbols.symbol(classType.classSymbol),
+           sym.flags.contains(.valueType),
+           let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+        {
+            kind = types.kind(of: underlyingType)
+        }
+        return BoxingCalleeTable(interner: interner).boxCallee(
+            for: kind,
             requireNonNull: false
         )
     }
@@ -29,6 +51,7 @@ extension CollectionLiteralConstructionLoweringPass {
               let boxCallee = primitiveBoxCalleeName(
                   for: argumentType,
                   types: sema.types,
+                  symbols: sema.symbols,
                   interner: ctx.interner
               )
         else {

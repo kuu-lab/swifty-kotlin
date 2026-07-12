@@ -248,6 +248,13 @@ extension CallLowerer {
         return (array, count)
     }
 
+    // A value class with no interface is unboxed to its underlying primitive
+    // elsewhere (ValueClassUnboxingPass), so its *declared* type here is still
+    // `.classType` — resolve it to that underlying primitive kind first, or
+    // `BoxingCalleeTable` sees a non-primitive kind and skips boxing entirely,
+    // storing the raw unboxed value directly in the Any-typed backing array.
+    // Mirrors `ABILoweringPass.resolveValueClassKind` / the equivalent fix in
+    // `CollectionLiteralLoweringPass+FactoryPredicates.primitiveBoxCalleeName`.
     private func boxCollectionFactoryElementIfNeeded(
         _ argID: KIRExprID,
         sema: SemaModule,
@@ -255,12 +262,22 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let argType = arena.exprType(argID),
-              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: argType,
-                  types: sema.types,
-                  requireNonNull: false
-              )
+        guard let argType = arena.exprType(argID) else {
+            return argID
+        }
+        var kind = sema.types.kind(of: argType)
+        if case let .classType(classType) = kind,
+           classType.nullability == .nonNull,
+           let sym = sema.symbols.symbol(classType.classSymbol),
+           sym.flags.contains(.valueType),
+           let underlyingType = sema.symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+        {
+            kind = sema.types.kind(of: underlyingType)
+        }
+        guard let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+            for: kind,
+            requireNonNull: false
+        )
         else {
             return argID
         }

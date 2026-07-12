@@ -23,7 +23,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             guard case let .nominalType(nominal) = decl else { continue }
             guard let sym = symbols.symbol(nominal.symbol),
                   sym.flags.contains(.valueType),
-                  symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
+                  symbols.effectiveValueClassUnderlyingType(for: nominal.symbol) != nil
             else { continue }
             return true
         }
@@ -48,7 +48,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             guard case let .nominalType(nominal) = decl else { continue }
             guard let sym = symbols.symbol(nominal.symbol),
                   sym.flags.contains(.valueType),
-                  symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
+                  symbols.effectiveValueClassUnderlyingType(for: nominal.symbol) != nil
             else { continue }
 
             valueClassSymbols.insert(nominal.symbol)
@@ -91,8 +91,15 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// Returns true if the given expression has a type that is a non-null
-    /// value class instance.
+    /// Returns true if the given expression has a type that is a value class
+    /// instance. Nullable value-class-typed expressions are included: a
+    /// `kk_array_get_inbounds` property read only ever appears on a receiver
+    /// Kotlin's type checker has already proven non-null at that point (e.g.
+    /// the non-null branch of a safe call, or the result of `maxByOrNull`
+    /// right after its `jumpIfNotNull` guard) — the KIR type itself just
+    /// hasn't been narrowed. Requiring `.nonNull` here made those reads fall
+    /// through to the generic call fallback and crash on the unboxed raw
+    /// value instead of being rewritten to a plain copy.
     private func isValueClassExpr(
         _ expr: KIRExprID,
         arena: KIRArena,
@@ -101,7 +108,6 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     ) -> Bool {
         guard let type = arena.exprType(expr) else { return false }
         if case let .classType(classType) = types.kind(of: type),
-           classType.nullability == .nonNull,
            valueClassSymbols.contains(classType.classSymbol)
         {
             return true

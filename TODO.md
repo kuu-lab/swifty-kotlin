@@ -108,11 +108,11 @@
 - [x] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
 
 #### Diff skip 追跡（DEBT-TEST-005）
-> 2026-07-06 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 66 件（001:22 / 002:8 / 003:14 / 004:5 / 005:14 / 006:3）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
+> 2026-07-06 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。2026-07-12 時点の `DEBT-DIFF-*` タグ付き skip は 61 件（001:22 / 002:8 / 003:14 / 004:0（解消済み） / 005:14 / 006:3）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
 - [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
 - [ ] DEBT-DIFF-002: script-style diff cases の kotlinc JVM 起動 timeout / top-level execution parity を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。
 - [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。
-- [ ] DEBT-DIFF-004: value class の boxing / generics / collection / interface / interop parity を、Sema・KIR・Lowering・runtime ABI の責務別に分解して修正する。
+- [x] DEBT-DIFF-004: value class の boxing / generics / collection / interface / interop parity を、Sema・KIR・Lowering・runtime ABI の責務別に分解して修正する。5 ケース（`value_class_boxing_boundaries` / `value_class_generics` / `value_class_collections` / `value_class_interfaces` / `value_class_interop`）とも `SKIP-DIFF` を解除し通常 diff で green。最後に残っていた根本原因は Runtime ABI 側: `runtimeAnyHashCode` に `RuntimeObjectBox` ケースが無く、boxed value class（interface 実装で box されたまま残るもの）の `Any.hashCode()` が pointer-identity ハッシュへフォールバックし、`==` は true でも `hashCode()` が食い違う equals/hashCode 契約違反があった（data class の `hashCode()` 合成にも同型の不具合があり合わせて修正）。詳細: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) DEBT-DIFF-004 節。
 - [ ] DEBT-DIFF-005: common stdlib surface gap による skip（BigInteger、Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。
 - [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
 

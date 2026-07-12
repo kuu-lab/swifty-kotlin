@@ -968,6 +968,33 @@ public final class SymbolTable {
         valueClassUnderlyingTypes[symbol]
     }
 
+    /// Whether a value class directly implements at least one interface.
+    ///
+    /// Such a value class must keep its full boxed representation (vtable /
+    /// itable registered via `kk_object_new`, same as a regular class) rather
+    /// than being unboxed to its bare underlying primitive: an unboxed
+    /// primitive has no itable to dispatch through when the value is later
+    /// used as the interface type. Value classes are `final` in Kotlin, so
+    /// checking direct supertypes is sufficient — there is no deeper
+    /// interface-inheritance chain to walk.
+    public func valueClassImplementsInterface(_ symbol: SymbolID) -> Bool {
+        directSupertypes(for: symbol).contains { self.symbol($0)?.kind == .interface }
+    }
+
+    /// Returns `symbol`'s underlying primitive type only when it's safe to
+    /// treat the value class as unboxed — i.e. it has a recorded underlying
+    /// type AND implements no interface. Prefer this over
+    /// `valueClassUnderlyingType(for:)` at every box/unbox decision site
+    /// (`ValueClassUnboxingPass`, `resolveValueClassKind`, runtime type-check
+    /// token classification) so they all agree on which value classes stay
+    /// boxed; a mismatch between sites reintroduces the box/unbox corruption
+    /// this method was added to prevent.
+    public func effectiveValueClassUnderlyingType(for symbol: SymbolID) -> TypeID? {
+        guard let underlying = valueClassUnderlyingTypes[symbol] else { return nil }
+        guard !valueClassImplementsInterface(symbol) else { return nil }
+        return underlying
+    }
+
     public func setSealedSubclasses(_ subclasses: [SymbolID], for symbol: SymbolID) {
         sealedSubclassesStorage[symbol] = subclasses
     }

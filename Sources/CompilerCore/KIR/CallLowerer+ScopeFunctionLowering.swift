@@ -380,7 +380,7 @@ extension CallLowerer {
             let closeFQName = closeableFQName + [closeName]
             let closeSymbol = sema.symbols.lookup(fqName: closeFQName)
             let closeDispatch: KIRDispatchKind? = closeSymbol.flatMap { sym in
-                resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema)
+                resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             }
             if let closeDispatch, let closeSymbol {
                 instructions.append(.virtualCall(

@@ -129,6 +129,19 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
+    // and other user-defined objects reached via Any.hashCode() — must stay
+    // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
+    // equality by classID + elements). Without this, equal-by-content boxed
+    // instances compared with `==` reported equal but had different
+    // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
+    if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        var hash = Int(truncatingIfNeeded: objBox.classID)
+        for element in objBox.elements {
+            hash = 31 &* hash &+ kk_any_hashCode(element, 0)
+        }
+        return hash
+    }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
 }
 

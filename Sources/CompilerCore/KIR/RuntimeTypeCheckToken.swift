@@ -134,7 +134,22 @@ enum RuntimeTypeCheckToken {
         case .primitive(.char, _):      category = .char
         case .unit:                     category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
-        case let .classType(classType): category = .nominal(classType.classSymbol)
+        case let .classType(classType):
+            // A value class that keeps no interface (see
+            // effectiveValueClassUnderlyingType) is unboxed to its underlying
+            // primitive/String by ValueClassUnboxingPass and ABILoweringPass,
+            // so `is`/`as` against it must check the same underlying kind —
+            // otherwise kk_op_is compares a nominalBase token (expecting a
+            // kk_object_new'd instance or RuntimeThrowableBox) against a bare
+            // boxed primitive and always reports a mismatch.
+            if let sym = sema.symbols.symbol(classType.classSymbol),
+               sym.flags.contains(.valueType),
+               let underlyingType = sema.symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+            {
+                category = classify(type: underlyingType, sema: sema).category
+            } else {
+                category = .nominal(classType.classSymbol)
+            }
         default:                        category = .unknown
         }
         return RuntimeTypeDescriptor(category: category, nullable: nullable)

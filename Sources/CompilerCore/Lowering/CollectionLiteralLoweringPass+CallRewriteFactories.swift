@@ -83,6 +83,7 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {
@@ -314,6 +315,7 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {

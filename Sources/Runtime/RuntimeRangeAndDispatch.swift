@@ -550,6 +550,13 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
+    // `for (x in arrayOf(...))` reaches this generic for-loop entry point same
+    // as List; without this branch an array falls through to the range-box
+    // guard below, gets treated as an invalid range, and the loop silently
+    // iterates zero times (kk_range_hasNext sees no RuntimeRangeIteratorBox).
+    if runtimeArrayBox(from: rangeRaw) != nil {
+        return kk_list_iterator(rangeRaw)
+    }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
     }
