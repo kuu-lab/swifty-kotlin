@@ -444,6 +444,24 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
     invalidContainerPanic(#function, "mutable collection")
 }
 
+@_cdecl("kk_mutable_collection_add")
+public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
+    if let list = runtimeListBox(from: collectionRaw) {
+        var values = list.values
+        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        list.values = values
+        return kk_box_bool(1)
+    }
+    if let set = runtimeSetBox(from: collectionRaw) {
+        if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
+            return kk_box_bool(0)
+        }
+        set.elements.append(elem)
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(0)
+}
+
 @_cdecl("kk_mutable_collection_addAll")
 public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: elementsRaw) else {

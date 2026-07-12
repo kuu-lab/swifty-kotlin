@@ -308,6 +308,17 @@ extension DataFlowSemaPhase {
             args: [.out(keyType), .out(valueType)],
             nullability: .nonNull
         )))
+        // Map<K, V> is declared with K invariant (only V is `out`, see
+        // registerSyntheticMapStub). `receiverType` above widens K to `out` so these
+        // members can be called on already-projected receivers, but that widened shape
+        // must never leak into a RETURN type: callers expecting the exact `Map<K, V>`
+        // (e.g. a data class `copy()` parameter) would then reject it as a supertype,
+        // not a match. Use `selfMapType` for any member that hands back `Map<K, V>` as-is.
+        let selfMapType = types.make(.classType(ClassType(
+            classSymbol: mapInterfaceSymbol,
+            args: [.invariant(keyType), .out(valueType)],
+            nullability: .nonNull
+        )))
         let entryType = registerSyntheticMapEntryStub(
             symbols: symbols,
             types: types,
@@ -524,7 +535,7 @@ extension DataFlowSemaPhase {
             )))
             let mapRType = types.make(.classType(ClassType(
                 classSymbol: mapInterfaceSymbol,
-                args: [.out(keyType), .out(rType)],
+                args: [.invariant(keyType), .out(rType)],
                 nullability: .nonNull
             )))
             registerMember(
@@ -558,7 +569,7 @@ extension DataFlowSemaPhase {
             )))
             let mapRType = types.make(.classType(ClassType(
                 classSymbol: mapInterfaceSymbol,
-                args: [.out(rType), .out(valueType)],
+                args: [.invariant(rType), .out(valueType)],
                 nullability: .nonNull
             )))
             registerMember(
@@ -669,7 +680,7 @@ extension DataFlowSemaPhase {
             name: "filter",
             externalLinkName: "kk_map_filter",
             parameterTypes: [filterLambdaType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .inlineFunction]
         )
@@ -677,7 +688,7 @@ extension DataFlowSemaPhase {
             name: "filterNot",
             externalLinkName: "kk_map_filterNot",
             parameterTypes: [filterLambdaType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .inlineFunction]
         )
@@ -685,7 +696,7 @@ extension DataFlowSemaPhase {
             name: "filterKeys",
             externalLinkName: "kk_map_filterKeys",
             parameterTypes: [filterKeyLambdaType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .inlineFunction]
         )
@@ -693,7 +704,7 @@ extension DataFlowSemaPhase {
             name: "filterValues",
             externalLinkName: "kk_map_filterValues",
             parameterTypes: [filterValueLambdaType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .inlineFunction]
         )
@@ -759,7 +770,7 @@ extension DataFlowSemaPhase {
             name: "plus",
             externalLinkName: "kk_map_plus",
             parameterTypes: [pairType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .operatorFunction]
         )
@@ -768,7 +779,7 @@ extension DataFlowSemaPhase {
             name: "minus",
             externalLinkName: "kk_map_minus",
             parameterTypes: [keyType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
             flags: [.synthetic, .operatorFunction]
         )
@@ -798,7 +809,7 @@ extension DataFlowSemaPhase {
             name: "withDefault",
             externalLinkName: "kk_map_withDefault",
             parameterTypes: [withDefaultLambdaType],
-            returnType: receiverType,
+            returnType: selfMapType,
             typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
         )
 

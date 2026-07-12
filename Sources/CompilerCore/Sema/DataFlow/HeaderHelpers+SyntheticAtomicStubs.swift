@@ -186,6 +186,37 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        // Directly-constructible java.util.concurrent.atomic.AtomicInteger, backed by the
+        // same kk_atomic_int_* box as kotlin.concurrent.AtomicInt so that code importing
+        // java.util.concurrent.atomic.AtomicInteger directly (not via .asJavaAtomic()) works.
+        let javaAtomicPkg = ensureAtomicPackage(
+            path: ["java", "util", "concurrent", "atomic"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicScalarFamily(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicInteger",
+            constructorLinkName: "kk_atomic_int_create",
+            valueType: intType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "kk_atomic_int",
+            includeArithmetic: true,
+            includeGetAndUpdate: true,
+            includeFetchAndUpdateAlias: true,
+            includeIncrementAndGetAlias: true,
+            includeGetAndIncrementAlias: true,
+            includeGetAndDecrementAlias: true,
+            includeGetAndSetAlias: true,
+            includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
+            includeAddAndGetAlias: true,
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+
         registerAtomicAsJavaAtomicFunction(
             packageFQName: atomicsPkg,
             receiverPackageFQName: concurrentPkg,

@@ -61,7 +61,15 @@ extension DeclTypeChecker {
         )
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx)
-        typeCheckSecondaryConstructors(classDecl.secondaryConstructors, ctx: classCtx, ownerSymbol: symbol, hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax)
+        typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckSecondaryConstructors(
+            classDecl.secondaryConstructors,
+            ctx: classCtx,
+            solver: solver,
+            diagnostics: diagnostics,
+            ownerSymbol: symbol,
+            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax
+        )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckClassLikeMembers(
             memberFunctions: classDecl.memberFunctions,

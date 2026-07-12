@@ -321,22 +321,6 @@ extension CallLowerer {
                 {
                     return collectionIterator
                 }
-                if callArgumentCount == 1,
-                   (externalLinkName == "kk_op_step"
-                    || externalLinkName == "kk_uint_step"
-                    || externalLinkName == "kk_ulong_step")
-                {
-                    if externalLinkName == "kk_ulong_step"
-                        || sema.bindings.isULongRangeExpr(receiverExpr)
-                        || nonNullReceiverType == sema.types.ulongType
-                    {
-                        return interner.intern("kk_ulong_range_step")
-                    }
-                    if nonNullReceiverType == sema.types.longType {
-                        return interner.intern("kk_long_range_step")
-                    }
-                    return interner.intern("kk_range_step")
-                }
                 if externalLinkName == "kk_list_binarySearch" {
                     // STDLIB-547: When the element-based binarySearch overload was
                     // recovered but the call actually has a HOF lambda argument,

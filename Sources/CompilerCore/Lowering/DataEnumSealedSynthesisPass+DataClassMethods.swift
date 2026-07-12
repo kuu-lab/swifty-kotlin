@@ -735,6 +735,14 @@ extension DataEnumSealedSynthesisPass {
         let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
 
         var body: [KIRInstruction] = []
+        // Freshly synthesized function body, so label numbers only need to be
+        // unique within it — safe to start from 0 (mirrors the equals()
+        // synthesis below).
+        var nextLabel: Int32 = 0
+        func allocateLabel() -> Int32 {
+            defer { nextLabel += 1 }
+            return nextLabel
+        }
 
         // STDLIB-DATA-014: If data class inherits from another class, start with super.toString()
         let explicitSuperclass = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner)
@@ -853,21 +861,51 @@ extension DataEnumSealedSynthesisPass {
 
             // Convert to string via kk_any_to_string using the same tag convention
             // as Any.toString lowering.
-            let anyTag = anyToStringTag(for: propType, sema: sema)
+            let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
             let tagExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
 
             let propStr = module.arena.appendTemporary(type: stringType
             )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_any_to_string"),
-                arguments: [propValue, tagExpr],
-                result: propStr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // Nullable Float?/Double?/ULong? properties need an explicit null
+            // guard before kk_any_to_string: tags 5/6/7 are decoded before the
+            // null-sentinel check (their in-range values can share Int.min's
+            // bit pattern), so an actually-null property would otherwise
+            // render as -0.0/a large ULong instead of "null" (see
+            // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
+            let propIsNullable = sema.types.makeNonNullable(propType) != propType
+            if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
+                let nonNullLabel = allocateLabel()
+                let endLabel = allocateLabel()
+                let nullStr = interner.intern("null")
+                let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                body.append(.copy(from: nullStrExpr, to: propStr))
+                body.append(.jump(endLabel))
+                body.append(.label(nonNullLabel))
+                let innerPropStr = module.arena.appendTemporary(type: stringType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [propValue, tagExpr],
+                    result: innerPropStr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                body.append(.copy(from: innerPropStr, to: propStr))
+                body.append(.label(endLabel))
+            } else {
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [propValue, tagExpr],
+                    result: propStr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
 
             body.append(.call(
                 symbol: nil,

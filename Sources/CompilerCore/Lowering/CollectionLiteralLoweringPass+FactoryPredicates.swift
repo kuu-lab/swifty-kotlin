@@ -5,38 +5,22 @@
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
 extension CollectionLiteralConstructionLoweringPass {
-    /// Resolves the box callee for a collection-literal element (`listOf`,
-    /// `setOf`, `arrayOf`, ... vararg elements). A value class with no
-    /// interface is unboxed to its underlying primitive elsewhere
-    /// (`ValueClassUnboxingPass`), so its *declared* type is still
-    /// `.classType` here; without resolving it to the underlying primitive
-    /// kind first, `BoxingCalleeTable` sees a non-primitive kind and skips
-    /// boxing entirely, storing the raw unboxed value directly in the
-    /// Any-typed backing array. That breaks any element access that goes
-    /// through the generic object model instead of the (elided) direct field
-    /// read — notably `Set` bucket placement, which hashes/compares elements
-    /// as objects. Mirrors `ABILoweringPass.resolveValueClassKind`, which
-    /// every other box/unbox decision site already goes through.
+    /// Looks up the primitive boxing callee for `type`, resolving a value
+    /// class to its underlying primitive first (see `resolveValueClassKind`)
+    /// so `Meters` boxes exactly like the `Int` it wraps — matching
+    /// `ABILoweringPass`'s typeParam boxing boundary
+    /// (`typeParamBoxingBoundaryCallees`), which every other reference-type
+    /// boxing boundary in this pass is documented to mirror. A value class
+    /// implementing an interface stays boxed instead (see
+    /// `effectiveValueClassUnderlyingType`), so it never reaches this path.
     func primitiveBoxCalleeName(
         for type: TypeID,
         types: TypeSystem,
-        symbols: SymbolTable?,
+        symbols: SymbolTable? = nil,
         interner: StringInterner
     ) -> InternedString? {
-        var kind = types.kind(of: type)
-        if case let .classType(classType) = kind,
-           classType.nullability == .nonNull,
-           let symbols,
-           let sym = symbols.symbol(classType.classSymbol),
-           sym.flags.contains(.valueType),
-           let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
-        {
-            kind = types.kind(of: underlyingType)
-        }
-        return BoxingCalleeTable(interner: interner).boxCallee(
-            for: kind,
-            requireNonNull: false
-        )
+        let kind = resolveValueClassKind(types.kind(of: type), types: types, symbols: symbols)
+        return BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
     }
 
     func boxedBuildStringTextArgumentIfNeeded(
