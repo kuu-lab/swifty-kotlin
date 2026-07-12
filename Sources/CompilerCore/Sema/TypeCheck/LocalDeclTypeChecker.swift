@@ -112,6 +112,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markULongRangeExpr(id)
                     sema.bindings.markULongRangeSymbol(localSymbol)
                 }
+                if sema.bindings.isFloatingPointRangeExpr(initializer) {
+                    sema.bindings.markFloatingPointRangeExpr(id)
+                    sema.bindings.markFloatingPointRangeSymbol(localSymbol)
+                }
             }
         }
         if let initializer, sema.bindings.isFlowExpr(initializer) {

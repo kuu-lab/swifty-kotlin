@@ -536,6 +536,9 @@ extension ExprTypeChecker {
             if sema.bindings.isULongRangeSymbol(local.symbol) {
                 sema.bindings.markULongRangeExpr(id)
             }
+            if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
+                sema.bindings.markFloatingPointRangeExpr(id)
+            }
             if sema.bindings.isFlowSymbol(local.symbol) {
                 sema.bindings.markFlowExpr(id)
                 if let flowElementType = sema.bindings.flowElementType(forSymbol: local.symbol) {

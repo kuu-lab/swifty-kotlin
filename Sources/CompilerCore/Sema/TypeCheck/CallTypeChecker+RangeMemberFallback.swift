@@ -22,6 +22,31 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+        if sema.bindings.isFloatingPointRangeExpr(receiverID),
+           let floatingPointResult = tryRangeMembershipFallback(
+            memberName: memberName,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+           )
+        {
+            sema.bindings.bindExprType(id, type: floatingPointResult)
+            return floatingPointResult
+        }
+        if let receiverType = sema.bindings.exprType(for: receiverID),
+           driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: interner),
+           let openEndResult = tryRangeMembershipFallback(
+            memberName: memberName,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+           )
+        {
+            sema.bindings.bindExprType(id, type: openEndResult)
+            return openEndResult
+        }
         guard isSupportedRangeMember(memberName),
               isValidRangeMemberArity(memberName, argCount: args.count)
         else {
@@ -147,17 +172,36 @@ extension CallTypeChecker {
         return finalType
     }
 
+    private func tryRangeMembershipFallback(
+        memberName: String,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        switch memberName {
+        case "contains":
+            guard args.count == 1 else { return nil }
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        case "isEmpty":
+            guard args.isEmpty else { return nil }
+        default:
+            return nil
+        }
+        let resultType = ctx.sema.types.booleanType
+        return safeCall ? ctx.sema.types.makeNullable(resultType) : resultType
+    }
+
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
         let rangeMembers: Set = [
-            "start", "end", "endInclusive", "endExclusive", "first", "last", "count", "contains",
-            "iterator",
+            "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
             "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "forEach", "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
             "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
             "any", "all", "none",
             "chunked", "windowed",
-            "reversed", "step", "isEmpty", "sum", "iterator",
+            "reversed", "step", "sum",
             "random",
             "take", "drop", "average", "sorted",
         ]
@@ -166,7 +210,7 @@ extension CallTypeChecker {
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "count", "start", "end", "endInclusive", "endExclusive", "iterator", "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "reversed", "isEmpty", "sum", "average", "sorted":
+        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "reversed", "sum", "average", "sorted":
             argCount == 0
         case "random":
             argCount == 0 || argCount == 1
@@ -174,7 +218,7 @@ extension CallTypeChecker {
             argCount == 0 || argCount == 1
         case "first", "last":
             argCount == 0 || argCount == 1
-        case "contains", "forEach", "map", "mapIndexed", "mapNotNull",
+        case "forEach", "map", "mapIndexed", "mapNotNull",
              "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed",
              "find", "findLast", "any", "all", "none",
              "take", "drop":
@@ -251,12 +295,10 @@ extension CallTypeChecker {
             return sema.types.intType
         case "sum":
             return elementType
-        case "contains", "isEmpty", "any", "all", "none":
+        case "any", "all", "none":
             return sema.types.booleanType
         case "forEach":
             return sema.types.unitType
-        case "iterator":
-            return rangeMemberIteratorType(elementType: elementType, sema: sema, interner: interner)
         case "toList":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
         case "toIntArray":
@@ -346,21 +388,6 @@ extension CallTypeChecker {
         }
         return sema.types.make(.classType(ClassType(
             classSymbol: listSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberIteratorType(
-        elementType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let iteratorSymbol = sema.symbols.lookupByShortName(interner.intern("Iterator")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: iteratorSymbol,
             args: [.out(elementType)],
             nullability: .nonNull
         )))

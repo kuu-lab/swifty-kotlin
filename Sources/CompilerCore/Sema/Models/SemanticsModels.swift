@@ -1109,12 +1109,14 @@ public final class BindingTable {
     public private(set) var charRangeExprIDs: Set<ExprID> = []
     public private(set) var uintRangeExprIDs: Set<ExprID> = []
     public private(set) var ulongRangeExprIDs: Set<ExprID> = []
+    public private(set) var floatingPointRangeExprIDs: Set<ExprID> = []
     public private(set) var flowExprIDs: Set<ExprID> = []
     public private(set) var collectionSymbolIDs: Set<SymbolID> = []
     public private(set) var rangeSymbolIDs: Set<SymbolID> = []
     public private(set) var charRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var uintRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
@@ -1276,6 +1278,14 @@ public final class BindingTable {
         ulongRangeExprIDs.contains(expr)
     }
 
+    public func markFloatingPointRangeExpr(_ expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+    }
+
+    public func isFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        floatingPointRangeExprIDs.contains(expr)
+    }
+
     public func markFlowExpr(_ expr: ExprID) {
         flowExprIDs.insert(expr)
     }
@@ -1339,6 +1349,14 @@ public final class BindingTable {
 
     public func isULongRangeSymbol(_ symbol: SymbolID) -> Bool {
         ulongRangeSymbolIDs.contains(symbol)
+    }
+
+    public func markFloatingPointRangeSymbol(_ symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+    }
+
+    public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        floatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func markFlowSymbol(_ symbol: SymbolID) {
