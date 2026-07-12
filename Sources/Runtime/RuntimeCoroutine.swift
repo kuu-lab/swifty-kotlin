@@ -2313,10 +2313,15 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
         // any non-zero boxed value (string, integer box, etc.) that happens to
         // be registered would otherwise be misidentified as an exception.
         let thrownException = capturedContState?.thrownException ?? 0
-        if thrownException != 0, let handler = exceptionHandler {
-            handler.handler(thrownException)
-            // Fire-and-forget with handler; do not propagate the exception.
-            _ = job.complete(with: 0)
+        if thrownException != 0 {
+            // The handler (if any) is an additional notification side-channel,
+            // matching CoroutineExceptionHandler semantics -- it does not change
+            // the job's own completion state. Without a handler, the exception
+            // must still fail the job instead of being silently discarded.
+            if let handler = exceptionHandler {
+                handler.handler(thrownException)
+            }
+            _ = job.completeExceptionally(with: thrownException)
             return
         }
         _ = job.complete(with: result)
