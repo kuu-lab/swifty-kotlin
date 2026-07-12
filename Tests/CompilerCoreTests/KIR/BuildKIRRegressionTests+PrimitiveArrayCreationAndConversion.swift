@@ -93,10 +93,11 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // MARK: - Lambda constructors → kk_array_new + kk_array_set
+    // MARK: - Lambda constructors → kk_array_new_checked + kk_array_set
 
-    /// `IntArray(3) { it * 2 }` must lower to a `kk_array_new` call followed
-    /// by a loop that fills elements via `kk_array_set`.
+    /// `IntArray(3) { it * 2 }` must lower to a `kk_array_new_checked` call
+    /// (which validates the size and throws `NegativeArraySizeException` for
+    /// negative sizes) followed by a loop that fills elements via `kk_array_set`.
     @Test func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
         let source = """
         fun make() = IntArray(3) { it * 2 }
@@ -116,8 +117,8 @@ extension BuildKIRRegressionTests {
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
             #expect(
-                callNames.contains("kk_array_new"),
-                "IntArray(n) { init } must emit kk_array_new; got: \(callNames)"
+                callNames.contains("kk_array_new_checked"),
+                "IntArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
             )
             #expect(
                 callNames.contains("kk_array_set"),
@@ -126,8 +127,8 @@ extension BuildKIRRegressionTests {
 
             let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
             #expect(
-                throwFlags["kk_array_new"]?.allSatisfy { $0 == false } == true,
-                "kk_array_new inside constructor must be non-throwing"
+                throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
+                "kk_array_new_checked inside constructor must be throwing (NegativeArraySizeException)"
             )
         }
     }
@@ -153,12 +154,86 @@ extension BuildKIRRegressionTests {
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
             #expect(
-                callNames.contains("kk_array_new"),
-                "ByteArray(n) { init } must emit kk_array_new; got: \(callNames)"
+                callNames.contains("kk_array_new_checked"),
+                "ByteArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
             )
             #expect(
                 callNames.contains("kk_array_set"),
                 "ByteArray(n) { init } must emit kk_array_set; got: \(callNames)"
+            )
+        }
+    }
+
+    // MARK: - Size-only constructors → kk_array_new_checked (no init loop)
+
+    /// `ByteArray(8)` (no init lambda) must lower to a bare `kk_array_new_checked`
+    /// call with no fill loop, and must never fall through to a call named
+    /// after the array type itself (the array type name is not a linkable
+    /// symbol, which previously caused an undefined-symbol link error).
+    @Test func testByteArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let source = """
+        fun make() = ByteArray(8)
+        fun main(): Int {
+            val arr = make()
+            return arr.size
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+            #expect(
+                callNames.contains("kk_array_new_checked"),
+                "ByteArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+            )
+            #expect(
+                !callNames.contains("kk_array_set"),
+                "ByteArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+            )
+            #expect(
+                !callNames.contains("ByteArray"),
+                "ByteArray(n) (size-only) must not fall through to an unresolved 'ByteArray' call; got: \(callNames)"
+            )
+        }
+    }
+
+    /// `IntArray(3)` (no init lambda) exercises the same size-only path for
+    /// a different primitive width, guarding against per-type regressions.
+    @Test func testIntArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let source = """
+        fun make() = IntArray(3)
+        fun main(): Int {
+            val arr = make()
+            return arr.size
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+            #expect(
+                callNames.contains("kk_array_new_checked"),
+                "IntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+            )
+            #expect(
+                !callNames.contains("kk_array_set"),
+                "IntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+            )
+            #expect(
+                !callNames.contains("IntArray"),
+                "IntArray(n) (size-only) must not fall through to an unresolved 'IntArray' call; got: \(callNames)"
             )
         }
     }

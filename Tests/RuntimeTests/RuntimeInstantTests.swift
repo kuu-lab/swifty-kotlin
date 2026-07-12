@@ -48,8 +48,8 @@ final class RuntimeInstantTests: XCTestCase {
 
         let duration = kk_instant_until(start, end)
 
-        XCTAssertEqual(kk_duration_inWholeSeconds(duration), 2)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(duration), 2_000)
+        XCTAssertEqual(durationInWholeSeconds(duration), 2)
+        XCTAssertEqual(durationInWholeMilliseconds(duration), 2_000)
     }
 
     func testInstantDistantPropertiesUseKotlinThresholds() {

@@ -213,6 +213,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         list.elements
     } else if let set = runtimeSetBox(from: listRaw) {
         set.elements
+    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        array.elements
     } else {
         []
     }
@@ -508,6 +510,24 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
         return
     }
     invalidContainerPanic(#function, "mutable collection")
+}
+
+@_cdecl("kk_mutable_collection_add")
+public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
+    if let list = runtimeListBox(from: collectionRaw) {
+        var values = list.values
+        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        list.values = values
+        return kk_box_bool(1)
+    }
+    if let set = runtimeSetBox(from: collectionRaw) {
+        if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
+            return kk_box_bool(0)
+        }
+        set.elements.append(elem)
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(0)
 }
 
 @_cdecl("kk_mutable_collection_addAll")

@@ -186,10 +186,11 @@ extension KIRLoweringDriver {
         }
         let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: interfaceDecl.memberFunctions,
-            memberProperties: [],
+            memberProperties: interfaceDecl.memberProperties,
             nestedClasses: interfaceDecl.nestedClasses,
             nestedObjects: ifaceNestedObjects,
-            shared: shared
+            shared: shared,
+            isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         var declIDs = [kirID]

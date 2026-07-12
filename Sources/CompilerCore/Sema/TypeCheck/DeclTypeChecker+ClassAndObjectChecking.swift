@@ -61,7 +61,15 @@ extension DeclTypeChecker {
         )
 
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx)
-        typeCheckSecondaryConstructors(classDecl.secondaryConstructors, ctx: classCtx, ownerSymbol: symbol, hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax)
+        typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckSecondaryConstructors(
+            classDecl.secondaryConstructors,
+            ctx: classCtx,
+            solver: solver,
+            diagnostics: diagnostics,
+            ownerSymbol: symbol,
+            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax
+        )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckClassLikeMembers(
             memberFunctions: classDecl.memberFunctions,
@@ -237,22 +245,13 @@ extension DeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
 
-        for declID in memberFunctions {
-            guard let decl = ast.arena.decl(declID),
-                  case let .funDecl(function) = decl,
-                  let symbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
-            }
-            typeCheckFunctionDecl(
-                function,
-                symbol: symbol,
-                ctx: ctx.with(currentDeclSymbol: symbol),
-                solver: solver,
-                diagnostics: diagnostics
-            )
-        }
-
+        // Properties are type-checked before function bodies so that member
+        // functions referencing a sibling property via implicit `this` (e.g.
+        // `items[k]` inside a method of the class that declares `items`) see
+        // the property's real inferred type instead of the header-collection
+        // placeholder (`Any?` for properties without an explicit type
+        // annotation). `typeCheckPropertyDecl` overwrites that placeholder
+        // with the real type, so it must run first.
         for declID in memberProperties {
             guard let decl = ast.arena.decl(declID),
                   case let .propertyDecl(property) = decl,
@@ -263,6 +262,22 @@ extension DeclTypeChecker {
             typeCheckBoundPropertyDecl(
                 property,
                 declID: declID,
+                symbol: symbol,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                solver: solver,
+                diagnostics: diagnostics
+            )
+        }
+
+        for declID in memberFunctions {
+            guard let decl = ast.arena.decl(declID),
+                  case let .funDecl(function) = decl,
+                  let symbol = sema.bindings.declSymbols[declID]
+            else {
+                continue
+            }
+            typeCheckFunctionDecl(
+                function,
                 symbol: symbol,
                 ctx: ctx.with(currentDeclSymbol: symbol),
                 solver: solver,

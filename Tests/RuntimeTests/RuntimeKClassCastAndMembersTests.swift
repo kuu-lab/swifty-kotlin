@@ -230,6 +230,23 @@ final class RuntimeKClassCastAndMembersTests: XCTestCase {
         )
     }
 
+    func testCastExceptionIsTypedClassCastExceptionBox() {
+        var thrown = 0
+        _ = kk_kclass_cast(runtimeNullSentinelInt, 42, &thrown)
+        guard thrown != 0,
+              let ptr = UnsafeMutableRawPointer(bitPattern: thrown),
+              let box = tryCast(ptr, to: RuntimeThrowableBox.self)
+        else {
+            XCTFail("Expected a RuntimeThrowableBox")
+            return
+        }
+        XCTAssertTrue(
+            runtimeThrowableBoxHasExactType(box, RuntimeClassCastExceptionBox.self),
+            "kk_kclass_cast should throw a typed RuntimeClassCastExceptionBox so " +
+                "catch-clause type discrimination works (not the untyped base box)"
+        )
+    }
+
     func testCastWithNilOutThrown() {
         // Should not crash when outThrown is nil.
         let result = kk_kclass_cast(runtimeNullSentinelInt, 42, nil)

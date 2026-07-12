@@ -188,6 +188,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Expression nesting exceeds the maximum supported depth."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-TYPE-DEPTH",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Type nesting exceeds the maximum supported depth."
+        ),
     ]
 
     // MARK: - Semantic analysis pass (SEMA)

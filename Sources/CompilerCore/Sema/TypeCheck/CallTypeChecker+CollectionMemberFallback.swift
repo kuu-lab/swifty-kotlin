@@ -492,10 +492,15 @@ extension CallTypeChecker {
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
-        guard let root = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types) else {
+        let roots = driver.helpers.allNominalSymbols(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard !roots.isEmpty else {
             return nil
         }
-        var queue: [SymbolID] = [root]
+        var queue: [SymbolID] = roots
         var visited: Set<SymbolID> = []
         while !queue.isEmpty {
             let owner = queue.removeFirst()
@@ -573,22 +578,6 @@ extension CallTypeChecker {
                    })
                 {
                     return comparatorMatch
-                }
-            }
-            if memberName == interner.intern("nextInt"),
-               argCount == 1,
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_until" }),
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_rangeObject" }),
-               let firstArgExpr = argExprs.first
-            {
-                let firstArgType = sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType
-                let isIntRangeArg = sema.bindings.isRangeExpr(firstArgExpr)
-                    || nominalRangeElementType(for: firstArgType, sema: sema, interner: interner) == sema.types.intType
-                let targetLinkName = isIntRangeArg ? "kk_random_nextInt_rangeObject" : "kk_random_nextInt_until"
-                if let match = allCandidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == targetLinkName
-                }) {
-                    return match
                 }
             }
             if memberName == interner.intern("addAll"),
@@ -947,6 +936,7 @@ extension CallTypeChecker {
         if mutableCollectionMembers.contains(memberName) {
             return isMutableListReceiver
                 || isMutableSetReceiver
+                || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                 || (
                     memberName == interner.intern("addAll")
                         && isMutableCollectionReceiver
@@ -1106,6 +1096,7 @@ extension CallTypeChecker {
             return (
                 isMutableListReceiver
                     || isMutableSetReceiver
+                    || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                     || (
                         memberName == interner.intern("addAll")
                             && isMutableCollectionReceiver
@@ -1565,9 +1556,18 @@ extension CallTypeChecker {
                     interner.intern("collections"),
                     interner.intern("Map"),
                 ]) {
+                    // Map.Entry<out K, out V> declares K covariantly, but the enclosing
+                    // Map<K, V> declares K invariant. Reusing keyArg's `.out` projection
+                    // as-is here would make this reconstructed type a strict supertype of
+                    // Map<K, V>, which callers expecting the exact type (e.g. a data class
+                    // copy() parameter) would then reject. Project K back to `.invariant`.
+                    let keyType: TypeID = switch keyArg {
+                    case let .invariant(t), let .out(t), let .in(t): t
+                    case .star: sema.types.anyType
+                    }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: mapSymbol,
-                        args: [keyArg, valueArg],
+                        args: [.invariant(keyType), valueArg],
                         nullability: .nonNull
                     )))
                 }
@@ -2721,11 +2721,46 @@ extension CallTypeChecker {
         return nil
     }
 
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule,
+        visitedTypeParams: inout Set<SymbolID>
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        let nonNullType = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNullType) {
+        case let .classType(classType):
+            guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                return []
+            }
+            return [(classType, symbol)]
+        case let .intersection(parts):
+            return parts.flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        case let .typeParam(typeParam):
+            guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                return []
+            }
+            return sema.symbols.typeParameterUpperBounds(for: typeParam.symbol).flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        default:
+            return []
+        }
+    }
+
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        var visitedTypeParams: Set<SymbolID> = []
+        return collectionFallbackClassTypes(type, sema: sema, visitedTypeParams: &visitedTypeParams)
+    }
+
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-        else {
+        guard let (classType, symbol) = collectionFallbackClassTypes(receiverType, sema: sema).first else {
             return sema.types.anyType
         }
         if knownNames.isMapLikeSymbol(symbol),

@@ -13,13 +13,18 @@ private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 public class Uuid private constructor(
     public val mostSignificantBits: Long,
     public val leastSignificantBits: Long,
-) {
+) : Comparable<Uuid> {
     public companion object {
         public const val SIZE_BITS: Int = 128
         public const val SIZE_BYTES: Int = 16
 
         public val NIL: Uuid = fromLongs(0L, 0L)
 
+        @Deprecated(
+            "Use naturalOrder<Uuid>() instead",
+            ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"])
+        )
+        @DeprecatedSinceKotlin(warningSince = "2.1", errorSince = "2.4")
         public val LEXICAL_ORDER: Comparator<Uuid> = __kk_uuid_lexicalOrder()
 
         public fun random(): Uuid = __kk_uuid_random()
@@ -55,9 +60,6 @@ public class Uuid private constructor(
             if (hex == null) return null
             return parseHexBodyOrNull(hex!!)
         }
-
-        public fun nameUUIDFromBytes(name: ByteArray): Uuid =
-            __kk_uuid_nameUUIDFromBytes(name)
 
         public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
             __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
@@ -161,8 +163,8 @@ public class Uuid private constructor(
         return sb.toString()
     }
 
-    public fun toLongs(): Pair<Long, Long> =
-        Pair(mostSignificantBits, leastSignificantBits)
+    public inline fun <T> toLongs(action: (Long, Long) -> T): T =
+        action(mostSignificantBits, leastSignificantBits)
 
     public fun toByteArray(): ByteArray {
         val bytes = ByteArray(SIZE_BYTES) { 0 }
@@ -170,25 +172,24 @@ public class Uuid private constructor(
         val lsb = leastSignificantBits
         var i = 0
         while (i < 8) {
-            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toInt()
+            bytes[i] = ((msb ushr (56 - i * 8)) and 0xffL).toByte()
             i += 1
         }
         while (i < 16) {
-            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toInt()
+            bytes[i] = ((lsb ushr (56 - (i - 8) * 8)) and 0xffL).toByte()
             i += 1
         }
         return bytes
     }
 
-    public fun version(): Int =
-        ((mostSignificantBits ushr 12) and 0x0fL).toInt()
-
-    public fun variant(): Int {
-        val topThreeBits = ((leastSignificantBits ushr 61) and 0x07L).toInt()
-        if (topThreeBits < 4) return 0
-        if (topThreeBits < 6) return 2
-        if (topThreeBits == 6) return 6
-        return 7
+    public override fun compareTo(other: Uuid): Int {
+        val msbSelf = mostSignificantBits.toULong()
+        val msbOther = other.mostSignificantBits.toULong()
+        if (msbSelf != msbOther) return if (msbSelf < msbOther) -1 else 1
+        val lsbSelf = leastSignificantBits.toULong()
+        val lsbOther = other.leastSignificantBits.toULong()
+        if (lsbSelf != lsbOther) return if (lsbSelf < lsbOther) -1 else 1
+        return 0
     }
 
     private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {
@@ -204,11 +205,65 @@ public class Uuid private constructor(
 @KsSymbolName("__kk_uuid_random")
 private external fun __kk_uuid_random(): Uuid
 
-@KsSymbolName("__kk_uuid_nameUUIDFromBytes")
-private external fun __kk_uuid_nameUUIDFromBytes(name: ByteArray): Uuid
-
 @KsSymbolName("__kk_uuid_fromLongs")
 private external fun __kk_uuid_fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid
 
 @KsSymbolName("__kk_uuid_lexicalOrder")
 private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
+
+// java.util.UUID interop needs a native bridge to read a foreign UUID
+// representation; every other kotlin.uuid extension below is pure Kotlin
+// built on top of Uuid's own mostSignificantBits/leastSignificantBits/fromLongs.
+@KsSymbolName("__kk_uuid_toKotlinUuid")
+private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
+
+private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
+    if (offset < 0 || offset + 16 > array.size) {
+        throw IndexOutOfBoundsException(
+            "offset $offset is out of bounds for array of size ${array.size}"
+        )
+    }
+    var msb = 0L
+    var i = 0
+    while (i < 8) {
+        msb = (msb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        i += 1
+    }
+    var lsb = 0L
+    i = 8
+    while (i < 16) {
+        lsb = (lsb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        i += 1
+    }
+    return Uuid.fromLongs(msb, lsb)
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.getUuid(offset: Int): Uuid = readUuidFromBytes(this, offset)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.uuid(at: Int): Uuid = readUuidFromBytes(this, at)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteArray.putUuid(at: Int, uuid: Uuid) {
+    if (at < 0 || at + 16 > this.size) {
+        throw IndexOutOfBoundsException(
+            "at $at is out of bounds for array of size ${this.size}"
+        )
+    }
+    val msb = uuid.mostSignificantBits
+    val lsb = uuid.leastSignificantBits
+    var i = 0
+    while (i < 8) {
+        this[at + i] = ((msb ushr (56 - i * 8)) and 0xFFL).toByte()
+        i += 1
+    }
+    i = 0
+    while (i < 8) {
+        this[at + 8 + i] = ((lsb ushr (56 - i * 8)) and 0xFFL).toByte()
+        i += 1
+    }
+}

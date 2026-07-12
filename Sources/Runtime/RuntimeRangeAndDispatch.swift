@@ -282,7 +282,7 @@ func runtimeSignedRangeLastMatch(
 
 func runtimeRandomIndex(count: Int, randomRaw: Int?) -> Int {
     if let randomRaw {
-        return kk_random_nextInt_until(randomRaw, count, nil)
+        return runtimeRandomNextIntBelow(randomRaw, count)
     }
     return Int.random(in: 0 ..< count)
 }
@@ -358,7 +358,7 @@ func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> 
 // MARK: - Range.random(Random) helpers (rejection sampling; STDLIB-RANGE-RANDOM-002)
 
 func runtimeRandomBits(from randomRaw: Int) -> UInt64 {
-    UInt64(bitPattern: Int64(kk_random_nextLong(randomRaw)))
+    runtimeRandomNextBits64(randomRaw)
 }
 
 func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int) -> UInt64 {
@@ -548,6 +548,13 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
         return rangeRaw
     }
     if runtimeListBox(from: rangeRaw) != nil {
+        return kk_list_iterator(rangeRaw)
+    }
+    // Raw arrays (IntArray, ByteArray, Array<T>, ...) reach this generic fallback
+    // when the for-loop's iterable has no compile-time-resolved iterator (e.g. a
+    // generic Iterable<T> parameter). The exact-type check excludes RuntimeObjectBox,
+    // a RuntimeArrayBox subclass used for ordinary class instances.
+    if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
         return kk_list_iterator(rangeRaw)
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {

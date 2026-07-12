@@ -349,12 +349,22 @@ extension CallLowerer {
         return sema.types.makeNonNullable(elementType) == sema.types.make(.primitive(.char, .nonNull))
     }
 
+    /// Checks the fully-qualified name (not just the simple name) so that
+    /// `java.util.Random` — a distinct, real compiled class since KSP-466's
+    /// java.util.Random redesign (Sources/CompilerCore/Stdlib/kotlin/random/
+    /// JavaUtilRandom.kt) — never matches here even though it shares the
+    /// simple name "Random" with kotlin.random.Random.
     func isRandomType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
         guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else { return false }
-        return symbol.name == interner.intern("Random")
+        let randomFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("random"),
+            interner.intern("Random"),
+        ]
+        return symbol.fqName == randomFQName
     }
 }

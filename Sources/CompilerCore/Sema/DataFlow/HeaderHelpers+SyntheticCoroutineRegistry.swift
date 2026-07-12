@@ -315,6 +315,62 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-499 Stage 2: give the Flow family real generic type parameters
+        // (previously `args: []` on every ClassType use, with the element type
+        // tracked only in the Sema side-tables `flowElementTypesByExpr`/`BySymbol`
+        // — see SemanticsModels.swift). Flow/SharedFlow/StateFlow are read-only
+        // and covariant (`Flow<out T>` in kotlinx.coroutines); MutableSharedFlow/
+        // MutableStateFlow expose mutation (`emit`, `value =`) and are invariant.
+        // Pattern mirrors `registerSyntheticIterableStub` in
+        // HeaderHelpers+SyntheticIterableRegistry.swift.
+        func declareFlowFamilyTypeParameter(
+            owner: SymbolID,
+            ownerFQName: [InternedString],
+            variance: TypeVariance
+        ) -> SymbolID {
+            let typeParamName = interner.intern("T")
+            let typeParamFQName = ownerFQName + [typeParamName]
+            let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
+                existing
+            } else {
+                symbols.define(
+                    kind: .typeParameter,
+                    name: typeParamName,
+                    fqName: typeParamFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+            }
+            types.setNominalTypeParameterSymbols([typeParamSymbol], for: owner)
+            types.setNominalTypeParameterVariances([variance], for: owner)
+            return typeParamSymbol
+        }
+        let flowTypeParamSymbol = declareFlowFamilyTypeParameter(
+            owner: flowInterfaceSymbol,
+            ownerFQName: flowPkg + [interner.intern("Flow")],
+            variance: .out
+        )
+        let sharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
+            owner: sharedFlowSymbol,
+            ownerFQName: flowPkg + [interner.intern("SharedFlow")],
+            variance: .out
+        )
+        let stateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
+            owner: stateFlowSymbol,
+            ownerFQName: flowPkg + [interner.intern("StateFlow")],
+            variance: .out
+        )
+        let mutableSharedFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
+            owner: mutableSharedFlowSymbol,
+            ownerFQName: flowPkg + [interner.intern("MutableSharedFlow")],
+            variance: .invariant
+        )
+        let mutableStateFlowTypeParamSymbol = declareFlowFamilyTypeParameter(
+            owner: mutableStateFlowSymbol,
+            ownerFQName: flowPkg + [interner.intern("MutableStateFlow")],
+            variance: .invariant
+        )
         let dispatcherSymbol = ensureClassSymbol(
             named: "CoroutineDispatcher",
             in: coroutinesPkg,
@@ -361,29 +417,35 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // KSP-499 Stage 2: use each class's own type parameter as the receiver
+        // "self type" (matching `iterableReceiverType` in
+        // HeaderHelpers+SyntheticIterableRegistry.swift) instead of a raw,
+        // argument-less ClassType. This is the generic *declaration* shape used
+        // as an owner/receiver/return type placeholder throughout this file —
+        // callers substitute concrete element types at actual call sites.
         let flowRawType = types.make(.classType(ClassType(
             classSymbol: flowInterfaceSymbol,
-            args: [],
+            args: [.out(types.make(.typeParam(TypeParamType(symbol: flowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let sharedFlowRawType = types.make(.classType(ClassType(
             classSymbol: sharedFlowSymbol,
-            args: [],
+            args: [.out(types.make(.typeParam(TypeParamType(symbol: sharedFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let stateFlowRawType = types.make(.classType(ClassType(
             classSymbol: stateFlowSymbol,
-            args: [],
+            args: [.out(types.make(.typeParam(TypeParamType(symbol: stateFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let mutableSharedFlowType = types.make(.classType(ClassType(
             classSymbol: mutableSharedFlowSymbol,
-            args: [],
+            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableSharedFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let mutableStateFlowType = types.make(.classType(ClassType(
             classSymbol: mutableStateFlowSymbol,
-            args: [],
+            args: [.invariant(types.make(.typeParam(TypeParamType(symbol: mutableStateFlowTypeParamSymbol, nullability: .nonNull))))],
             nullability: .nonNull
         )))
         let dispatcherType = types.make(.classType(ClassType(
@@ -2405,6 +2467,27 @@ extension DataFlowSemaPhase {
             name: "availablePermits",
             propertyType: types.intType,
             externalLinkName: "kk_semaphore_availablePermits",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Semaphore.withPermit(action: () -> T): T
+        // Suspend-style helper that acquires a permit, runs action, then releases it.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: semaphoreSymbol,
+            ownerType: semaphoreType,
+            name: "withPermit",
+            externalLinkName: "kk_semaphore_withPermit",
+            returnType: types.anyType,
+            parameters: [(
+                name: "action",
+                type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+            )],
             symbols: symbols,
             interner: interner
         )
