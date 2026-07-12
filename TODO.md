@@ -336,9 +336,10 @@
   - 対象: `compareBy`×2, `compareByDescending`×2, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`
   - 削除: `RuntimeComparator.swift` の対応 `kk_comparator_*`（trampoline 含む）/ `HeaderHelpers+SyntheticComparatorStubs.swift` の同登録 / `CallLowerer+StdlibComparisons.swift` の同 case
   - 注意: Comparator SAM ディスパッチ対応が前提（未対応ならブロッカーとして報告）/ diff: `comparisons_edge_cases.kt`（既存）
-- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）— KSP-476 で完遂
-  - ブリッジ残留: `kk_uuid_random`（エントロピー）と `kk_uuid_nameUUIDFromBytes`（MD5）は `__kk_` 降格。パース/整形/ビット抽出は Kotlin 化
-  - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存）
+- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray` 等）— KSP-476 で完遂
+  - ブリッジ残留: `kk_uuid_random`（エントロピー）は `__kk_` 降格で継続使用。`kk_uuid_nameUUIDFromBytes`（MD5）も `__kk_` 降格したが、下記訂正により呼び出し元の `Uuid.nameUUIDFromBytes()` を削除したため現在は孤立ブリッジ（`RuntimeUuidBridgeTests.swift` 等 Runtime層のテストからのみ到達、orphan-abi-spec-backlog と同種の parked 表面）
+  - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存、2026-07-09 に SKIP-DIFF (DEBT-DIFF-001) 解除して実 parity 対象へ復帰）
+  - 訂正（2026-07-09）: 当初スコープの `version()`/`variant()`/`nameUUIDFromBytes()` は実際の `kotlin.uuid.Uuid` には存在せず、`java.util.UUID` との混同に基づく誤ったスコープだったため撤回・削除した（kotlinc 2.4.0 の `kotlin-stdlib-sources.jar` で裏取り済み）。`toLongs()` も `(): Pair<Long, Long>` ではなく実際は `inline fun <T> toLongs(action: (Long, Long) -> T): T`（コールバック形式）が正しいシグネチャだったため修正。あわせて `Uuid` に `Comparable<Uuid>` を実装し、`LEXICAL_ORDER` を実際の `@Deprecated` + `@DeprecatedSinceKotlin(warningSince="2.1", errorSince="2.4")` に合わせた。残課題（`mostSignificantBits`/`leastSignificantBits` の internal 化、`toULongs`/`toUByteArray`/`fromUByteArray`/`fromULongs`/`toHexDashString`/`generateV4`/`generateV7*` の追加）は KSP-507 に切り出し。同じ `version`/`variant`/`nameUUIDFromBytes` 混同は KSP-476（#4605）にも独立に混入していたため、あわせてマージ時に是正（KSP-476 の項参照）。並行実装との統合経緯は KSP-476 参照
   - 手順: T
 - [ ] KSP-311: StringBuilder を配線する（クラス + `append`系/`insert`/`delete`系/`reverse`/`toString` 等 34 関数）
   - 注意: コンストラクタは `CallSupportLowerer` 経由。可変内部バッファは `__kk_` ブリッジ最小集合（new/append_obj/toString/length など）に絞り、型別 append/insert/delete 系を Kotlin 化
@@ -495,10 +496,22 @@
 
 - [x] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
-  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
+  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
     残存ブリッジは `random`/`fromLongs`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の5個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
-    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop）も同様にブリッジ維持（renamed）。
+    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop、実 API）も同様にブリッジ維持（renamed）。
     本タスクはコアクラス部分（KSP-310 相当）を並行実装した #4575 とのマージで完遂 — 実コンストラクタ設計は #4575 を採用し、`ByteArray` 拡張3関数 + `toKotlinUuid` 改名を本 PR の差分として上乗せした。
+  - 訂正（2026-07-09）: `version`/`variant` は KSP-310 と同根の誤り（`java.util.UUID` との混同）と判明したため撤回・削除。`LEXICAL_ORDER` は実 API では `@Deprecated`（`naturalOrder<Uuid>()` へ置換）だったため合わせて修正済み（詳細は KSP-310 参照）
+- [ ] KSP-507: kotlin.uuid.Uuid の実 API 未実装分を追加する（KSP-310 訂正のフォローアップ）
+  - 対象: `mostSignificantBits`/`leastSignificantBits` を `public` から `@PublishedApi internal` へ変更（KSwiftK がバンドル stdlib とユーザーコード間のモジュール境界可視性を実際に強制するか未検証のため、まず spike で確認する）
+  - 対象: `toULongs`, `toUByteArray`, `fromUByteArray`, `fromULongs`, `toHexDashString`, `generateV4()` を追加
+  - 対象外（別途再調査してから着手）: `generateV7()` / `generateV7NonMonotonicAt()` は `kotlin.concurrent.atomics.AtomicLong` と `kotlin.time.Clock`/`Instant` に依存。Atomics サポートの有無が未確認、Clock/Instant も KSP-472 で部分配線のみのため、実現可能性を先に確認する
+  - 前提: KSP-309（Comparators 配線、`naturalOrder`）が未着手のため、`naturalOrder<Uuid>()` を使う置き換え例は現状 `Uuid.compareTo()` 直接呼び出しで代替中
+  - ブロッカー候補（2026-07-09 発見、要再調査）: `toLongs`/`toULongs` と同型の `inline fun <T> foo(action: (X, Y) -> T): T` パターンで、ラムダ本体が (a) 引数をそのまま返す恒等関数（`{ m, l -> m }`）→ `KSWIFTK-TYPE-0001: Conflicting bounds ... T is not a subtype of Long` で失敗、(b) `Uuid.fromLongs(m, l)` や `Pair(m, l)` のようなネストしたコンストラクタ/コンパニオン呼び出し → `KSWIFTK-SEMA-0002/0003` で失敗、(c) `Boolean` を直接返す（`{ m, _ -> (...).toInt() == 4 }`）→ コンパイル・実行は成功するが文字列補間時に `true`/`false` ではなく `1`/`0` を出力（プリミティブが `T` を経由してボックス化される際の unboxing 不整合と推測、[[primitive-autoboxing-mutable-collection-add]] や [[comparison-unboxing-peer-type]] と同系統）。`toLongs` 自体は `m + l` のような二項演算のみを返す形（ジェネリック呼び出しの外側で比較・再構築する）であれば安全に動作することを確認済み（`Scripts/diff_cases/uuid_basic.kt` 参照）。`toULongs`/`toUByteArray` 等を実装する際は同じ制約に当たる可能性が高く、Sema/TypeCheck の型変数解決（`CallTypeChecker` 系）と ABI Lowering のプリミティブ boxing 経路の両方を先に調査すること
+- [ ] KSP-508: `ByteArray.getUuid`/`uuid`/`putUuid` を実 API（`ByteBuffer.getUuid`/`putUuid`）に置き換える（2026-07-09 マージ時発見、要再調査）
+  - 問題: KSP-476（#4605）が実装した `kotlin.uuid.ByteArray.getUuid(offset)` / `ByteArray.uuid(at)` / `ByteArray.putUuid(at, uuid)` は実際の `kotlin.uuid` パッケージには存在しない。kotlinc 2.4.0 の `kotlin-stdlib-sources.jar`（`jvmMain/kotlin/uuid/UuidJVM.kt`）で裏取りした実 API は `java.nio.ByteBuffer` の拡張関数 `ByteBuffer.getUuid()` / `ByteBuffer.getUuid(index: Int)` / `ByteBuffer.putUuid(uuid): ByteBuffer` / `ByteBuffer.putUuid(index, uuid): ByteBuffer`（いずれも `@SinceKotlin("2.4")` `@WasExperimental(ExperimentalUuidApi::class)`）であり、`ByteArray` ではなく `ByteBuffer` がレシーバ。`version`/`variant`/`nameUUIDFromBytes` と同型の「実 API 未確認のまま実装」ミス
+  - 影響範囲: `Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt`（`ByteArray.getUuid/uuid/putUuid` 拡張・`readUuidFromBytes` ヘルパ）/ `Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+Uuid.swift`（`testUuidByteArrayExtensionsAndJavaInteropLowerThroughKotlinSource`）/ `Tests/CompilerCoreTests/Sema/UuidGetUuidSemaTests.swift` / `Tests/CompilerCoreTests/Sema/UuidPutUuidSemaTests.swift` / `Tests/CompilerCoreTests/Sema/UuidAPISurfaceInventoryTests.swift`（`getUuid`/`uuid`/`putUuid` 3エントリ）
+  - 確認済み（2026-07-09、kotlinc-jvm 2.4.0 で実測）: `Scripts/diff_cases/uuid_put_uuid.kt` は SKIP-DIFF が付いておらず現在 diff_kotlinc.sh の実 parity 対象だが、実 kotlinc は `import kotlin.uuid.uuid` を `unresolved reference 'uuid'`、`buf.putUuid(0, original)` を「`fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer` に receiver type mismatch」で拒否し、確実にコンパイル失敗する。CLAUDE.md の「リファクタ PR 必須ゲート」（`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` を green にする）を満たそうとすると即座に踏むアクティブな既知バグ
+  - 対応方針（未着手、要検討）: (a) `ByteArray.getUuid/uuid/putUuid` を撤去し `ByteBuffer.getUuid/putUuid` を新規実装（`java.nio.ByteBuffer` interop の有無を先に確認 — 無ければブロッカー）、(b) 撤去のみでこの PR 時点では未配線として KSP-310/476 のスコープから正式に除外、のいずれか。影響範囲が広いため本 PR（マージコンフリクト解消）の対象外とし、別 PR に切り出す
 
 #### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
 

@@ -204,6 +204,18 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
         var hash = Int(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
+            // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
+            // tag, so a raw (unboxed) Boolean field hashes as tag 0 here — its
+            // 0/1 value — instead of tag 2's Kotlin-standard 1231/1237. That
+            // mismatches the compiler-synthesized data-class hashCode() (which
+            // does know each field's declared type; see
+            // appendSyntheticDataClassHashCodeIfNeeded), so the same instance's
+            // hashCode() can differ between a direct call and this Any-erased
+            // fallback for a Boolean field. A real fix needs per-field type
+            // tags stored alongside RuntimeObjectBox's elements (a broader
+            // change to object allocation), tracked as a follow-up rather than
+            // rushed here; equal-by-content instances still hash equally to
+            // each other through this same fallback path.
             hash = 31 &* hash &+ kk_any_hashCode(element, 0)
         }
         return hash

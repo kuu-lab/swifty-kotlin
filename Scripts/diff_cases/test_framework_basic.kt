@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-001): kotlin.test requires kotlin-test.jar in the JVM kotlinc reference classpath.
 package testframework
 
 import kotlin.test.After

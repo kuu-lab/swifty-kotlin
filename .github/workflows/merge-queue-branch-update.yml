@@ -1,0 +1,50 @@
+name: Merge Queue Branch Update
+
+# GitHub's merge queue tests each PR against a temporary
+# gh-readonly-queue/<base>/pr-<number>-<sha> branch (a merge_group event) and
+# silently drops the PR from the queue if that check fails -- the PR branch
+# itself is never touched or notified beyond a queue-removal comment. When
+# the failure is caused by drift from master rather than a bug in the PR, the
+# fix is to merge master into the branch and let CI run again, which
+# otherwise requires the author to notice the removal and click "Update
+# branch" by hand. This workflow automates that step.
+#
+# Deliberately does not check out PR code: workflow_run runs with the
+# definition from master, but the job below only reads the merge-queue branch
+# name and calls the REST API, keeping the attack surface minimal for a job
+# that holds a write-scoped token.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-branch:
+    name: Update PR branch after merge queue failure
+    if: github.event.workflow_run.event == 'merge_group' && github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve PR number from merge queue branch name
+        id: pr
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          # GitHub names the temporary merge-queue branch
+          # gh-readonly-queue/<base>/pr-<number>-<sha>.
+          if [[ "$HEAD_BRANCH" =~ ^gh-readonly-queue/[^/]+/pr-([0-9]+)- ]]; then
+            echo "number=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Could not parse a PR number out of head_branch '$HEAD_BRANCH'; skipping." >&2
+            exit 1
+          fi
+      - name: Merge latest master into the PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          gh api --method PUT "repos/${{ github.repository }}/pulls/${PR_NUMBER}/update-branch"
