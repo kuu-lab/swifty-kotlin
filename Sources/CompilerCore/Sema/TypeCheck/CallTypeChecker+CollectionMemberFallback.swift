@@ -85,6 +85,11 @@ extension CallTypeChecker {
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionReceiver
                 || isSequenceReceiver
+                // Array factories intentionally stay out of the generic
+                // collection-expression marker so List-only extensions do not
+                // receive an Array runtime representation. Keep the safe
+                // conversion members available from their static Array type.
+                || (isArrayReceiver && (memberName == "asSequence" || memberName == "asIterable"))
                 || isIterableWindowedTransformCall
                 || isIterableChunkedTransformCall
                 || isIterableFirstNotNullOfCall
