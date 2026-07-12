@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
+最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ。全ソース監査で判明した frontend / lowering / backend / runtime / driver / LSP の再現済みバグを BUG-036〜125 として追補）
 
 ---
 
@@ -744,6 +744,8 @@
 
 ### バグバックログ（BUG-NNN。CLAUDE.md「バグ報告ルール」2026-07-10 制定の初回バックフィル。PR 状態は 2026-07-10 時点）
 
+> 採番注記（2026-07-13）: `BUG-020〜035` は open PR #4839 で予約済みのため、本監査の追補は `BUG-036` から開始する。
+
 - [x] BUG-001: 明示レシーバ経由の複合代入/inc/dec が無反映（`c.i += 1` が no-op）— **修正済み** PR #4633 / commit `7bf2787a08`
 - [ ] BUG-002: 初期化ラムダなし `ByteArray(size)` 系コンストラクタがリンクエラー — PR #4615 open（関連 #4621）
 - [ ] BUG-003: `ByteArray(負サイズ){init}` が例外でなく空配列を返す — PR #4619 open（NegativeArraySizeException 化）
@@ -781,3 +783,453 @@
 - [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
 - [ ] BUG-036: `kotlin.text.CASE_INSENSITIVE_ORDER` 等の合成 top-level プロパティが、モジュール初期化時にキャッシュされるはずの global を読まず、参照のたびに `kk_string_case_insensitive_order()` を再実行して新規インスタンスを生成する（`--emit kir` で使用箇所ごとに独立した `call` が発行され、cached global への `loadGlobal` が起きないことを確認済み。値としては動作するが参照同一性が崩れる: `val a = CASE_INSENSITIVE_ORDER; val b = CASE_INSENSITIVE_ORDER` は同一インスタンスになるべき）— PR #4835 で発見。testKotlinTextCaseInsensitiveOrderEdgeCases の itable dispatch 障害報告の再現調査中に判明（**当該パニック自体は現行 HEAD `981b96169c` では再現せず**: `--emit kir` 上 dispatch=itable[0:0] がランタイム登録と一致、`swift_test.sh` で4回連続 pass 確認済み。原因は調査当時の Xcode ツールチェイン不一致の疑い — 本件はその副産物として見つかった別問題）
 - [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-020 の再現性検証中に偶然発見
+- [ ] BUG-038: raw string の単純テンプレート `$name` が展開されず、文字列 `$name` のまま出力される
+  - 根拠: `Sources/CompilerCore/Lexer/KotlinLexer+Strings.swift` の raw string scanner は `${...}` だけを認識し、通常文字列にある `$name` 分岐を持たない
+  - 最小再現: `fun main() { val x = 42; println("""value=$x"""); println("""value=${x + 1}""") }`
+  - 期待/実際: kotlinc は `value=42` / `value=43`、KSwiftK は `value=$x` / `value=43`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-039: `obj.f` と `obj.f()` の構文差が AST で消失し、メソッドを括弧なしで呼べる一方、非関数プロパティも括弧付きで呼べてしまう
+  - 根拠: `BuildASTPhase+ExpressionParserPostfix.swift` が括弧の有無を保存せず、両方を空引数の `memberCall` にする
+  - 最小再現: `class C { fun answer(): Int = 42 }; fun main() { println(C().answer) }` および `class H(val answer: Int); fun main() { println(H(42).answer()) }`
+  - 期待/実際: kotlinc は両方を構文/型エラーにするが、KSwiftK は両方ともコンパイルして `42` を出力する
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-040: integer literal の contextual typing と suffix なし decimal の Long 昇格がなく、`Long` 文脈の正当なリテラルを拒否する
+  - 根拠: `BuildASTPhase+ExpressionParserPrimary.swift` は decimal を Long 昇格せず、`ExprTypeChecker.swift` は `expectedType` を無視して int literal を常に Int に束縛する
+  - 最小再現: `fun takesLong(x: Long) = x; fun main() { val a: Long = 1; println(takesLong(2147483648)) }`
+  - 期待/実際: kotlinc は受理するが、KSwiftK は initializer / call の型エラー
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-041: stable な final `val` member property を null check 後も smart cast できない
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/Analysis.swift` の smart-cast 対象解決が local/value parameter に限定され、stable member property を扱わない
+  - 最小再現: `class Box(val text: String?) { fun len(): Int { if (text != null) return text.length; return 0 } }`
+  - 期待/実際: kotlinc は受理するが、KSwiftK は `text.length` を viable overload なしと誤診断
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-042: `UByte` / `UShort` を誤って `Number` の subtype として受理する
+  - 根拠: `Sources/CompilerCore/Sema/TypeSystem/Subtyping.swift` の Number 特例が `.ubyte` / `.ushort` まで列挙している
+  - 最小再現: `fun main() { val n: Number = 255u.toUByte(); println(n) }`
+  - 期待/実際: kotlinc は initializer type mismatch、KSwiftK は成功して `255`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-043: 兄弟 nominal 型の LUB が共通 superclass でなく `Any` へ退化する
+  - 根拠: `Sources/CompilerCore/Sema/TypeSystem/Subtyping.swift` の LUB は同一型等の特例以外で nominal ancestor を探索しない
+  - 最小再現: `open class Base { fun value() = 7 }; class L: Base(); class R: Base(); fun choose(b: Boolean) = if (b) L() else R(); fun main() { println(choose(true).value()) }`
+  - 期待/実際: kotlinc は `Base` と推論して `7`、KSwiftK は `Unresolved member function 'value'`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-044: catch parameter の fully-qualified type を保持できず、`kotlin.Throwable` を未解決型 `kotlin` として扱う
+  - 根拠: `CatchClause` が `TypeRefID` でなく単一 `InternedString` を持ち、`BuildASTPhase+ExpressionParserControlFlow.swift` が先頭 identifier しか取得しない
+  - 最小再現: `fun main() { val x = try { 1 } catch (e: kotlin.Throwable) { 2 }; println(x) }`
+  - 期待/実際: kotlinc は受理するが、KSwiftK は `KSWIFTK-SEMA-0085: Unresolved exception type 'kotlin'`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-045: catch parameter が `Throwable` subtype かを検証せず、`catch (e: Int)` を受理する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ControlFlowTypeChecker.swift` は catch 型を解決するだけで Throwable subtype constraint を課さない
+  - 最小再現: `fun main() { val x = try { 1 } catch (e: Int) { 2 }; println(x) }`
+  - 期待/実際: kotlinc は throwable type mismatch、KSwiftK は成功して `1`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-046: receiver 必須の user extension `run` が unrelated な top-level stdlib `run` を誤って shadow する
+  - 根拠: `CallTypeChecker+SyntheticDispatchHelpers.swift` の `isShadowedByUserDefinedRun` は receiver/signature を見ず、全 non-synthetic `run` を shadow とする
+  - 最小再現: `fun <R> String.run(block: String.() -> R): R = block(); fun main() { println(run { 42 }) }`
+  - 期待/実際: kotlinc は `42`、KSwiftK は viable overload なしと誤診断
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-047: constraint のない generic type parameter を call site で推論済み扱いし、型引数なしの呼び出しを受理する
+  - 根拠: `Sources/CompilerCore/Sema/Resolution/Resolution+Inference.swift` は parameter/return type に現れない未推論 type parameter を意図的に無視する
+  - 最小再現: `fun <T> produceNumber(): Int = 1; fun main() { println(produceNumber()) }`
+  - 期待/実際: kotlinc は `cannot infer type for type parameter T`、KSwiftK は成功して `1`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-048: local type annotation が explicit import scope を無視し、同じ short name の型を登録順で選ぶ
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/Helpers.swift` が nominal type を global `lookupByShortName(...).sorted().first` で解決する
+  - 最小再現: `a.kt: package a; class Item(val n: Int)` / `b.kt: package b; class Item(val s: String)` / `main.kt: import b.Item; fun main() { val x: Item = Item("ok"); println(x.s) }`
+  - 期待/実際: kotlinc は `b.Item` を選び `ok`、KSwiftK は先に登録された `a.Item` を選んで constructor/member 解決エラー
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-049: `Byte` / `Short` / `UByte` / `UShort` の `++` が型幅でラップせず 64-bit 値のまま増える
+  - 根拠: `IntegerNarrowingPass.swift` の arithmetic narrowing が `.int` / `.uint` に限られ、小幅型が同じ基底型へ潰れる
+  - 最小再現: `fun main() { var b: Byte = 127; b++; var s: Short = 32767; s++; var ub: UByte = UByte.MAX_VALUE; ub++; var us: UShort = UShort.MAX_VALUE; us++; println("$b,$s,$ub,$us") }`
+  - 期待/実際: `-128,-32768,0,0` / `128,32768,256,65536`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-050: UInt の `shl` / `shr` が shift distance の 32-bit mask と結果の UInt narrowing を行わない
+  - 根拠: `IntegerNarrowingPass.swift` の shift rename は `.int` / `.long` のみで、generic backend は素の 64-bit LLVM shift を発行する
+  - 最小再現: `fun main() { println(1u shl 32); println(UInt.MAX_VALUE shl 1); println(0x80000000u shr 32) }`
+  - 期待/実際: `1 / 4294967294 / 2147483648` に対し `4294967296 / 8589934590 / 0`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-051: boxed signed/unsigned integer の実行時型識別が崩れ、UInt と Int（ULong と Long 等）が相互に `is` / `as?` 成功する
+  - 根拠: `BoxingCalleeTable.swift` が Int/UInt/UByte/UShort を同じ `kk_box_int`、Long/ULong を同じ `kk_box_long` へ割り当てる
+  - 最小再現: `fun check(x: Any) { println(x is UInt); println(x is Int); println(x as? UInt) }; fun main() { check(1u); check(1) }`
+  - 期待/実際: `1u is Int == false` かつ `1 is UInt == false` / KSwiftK は両方 `true` で cast も成功
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-052: ユーザー定義 `String.windowed` が resolved symbol を無視した stdlib KIR 特例に横取りされる（KSP-411 関連）
+  - 根拠: `CallLowerer+LegacyMemberLikeCalls.swift` が名前と receiver 型だけで `kk_string_windowed_flat` を発行する
+  - 最小再現: `fun String.windowed(size: Int, step: Int): String = "custom:$this:$size:$step"; fun main() { println("abcd".windowed(2, 1)) }`
+  - 期待/実際: `custom:abcd:2:1` / `null`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-053: 明示 receiver 経由の custom setter への通常代入が property 名の未定義シンボルへ lowering される
+  - 根拠: `CallLowerer+MemberAssignment.swift` の plain member assignment は custom setter helper を使わず、binding 不在時に property 名を callee にする
+  - 最小再現: `class Box { var x: Int = 1 set(value) { field = value + 1 } }; fun main() { val b = Box(); b.x = 3; println(b.x) }`
+  - 期待/実際: `4` / `KSWIFTK-LINK-0001: Undefined symbol "_x"`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-054: List `single` / `singleOrNull` の predicate overload が crash または overload 解決不能になる（KSP-424 関連）
+  - 根拠: `HeaderHelpers+SyntheticListAggregateMembers.swift` の arity-0 synthetic 登録が predicate overload を隠している
+  - 最小再現: `fun main() { println(listOf(1, 2).single { it == 2 }); println(listOf(1, 2).singleOrNull { it == 2 }) }`
+  - 期待/実際: どちらも `2` / `single` は SIGBUS (exit 138)、`singleOrNull` は viable overload なしと unresolved `it`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-055: 4 要素 LLVM target triple の environment separator を消し、`x86_64-unknown-linux-gnu` を `x86_64-unknown-linuxgnu` に変形する
+  - 根拠: `CLIParser.parseTargetTriple` が第4要素を常に `osVersion` とし、`CodegenRuntimeSupport` / `NativeEmitter` が `os` と separator なしで連結する
+  - 最小再現: `.build/debug/kswiftc --target x86_64-unknown-linux-gnu --emit llvm Scripts/diff_cases/hello.kt -o /tmp/linux.ll`
+  - 期待/実際: IR `target triple = "x86_64-unknown-linux-gnu"` / `"x86_64-unknown-linuxgnu"`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-056: requested target machine の作成失敗時に無診断で host target へ置換し、誤 architecture の object を成功扱いで生成する
+  - 根拠: `NativeEmitter.emitObject` は requested triple の target machine が nil なら `LLVMGetDefaultTargetTriple` で再試行する
+  - 最小再現: `.build/debug/kswiftc --target notarealarch-unknown-notarealos --emit object Scripts/diff_cases/hello.kt -o /tmp/bad.o`
+  - 期待/実際: unsupported target 診断と non-zero exit / exit 0 で host arm64 Mach-O
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-057: `--emit kir -o out.kir` が指定先でなく `out.kir.kir` を生成し、incremental cache の artifact path とも不一致になる
+  - 根拠: `CompilerDriver.emitKIRDump` は常に `outputPath + ".kir"`、`IncrementalCompilationCache.outputArtifactPath` は既存 extension を保持する
+  - 最小再現: `.build/debug/kswiftc --emit kir -o /tmp/out.kir Scripts/diff_cases/hello.kt`
+  - 期待/実際: `/tmp/out.kir` / 指定先は存在せず `/tmp/out.kir.kir` が生成される
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-058: `equals` を override していない通常 class の `==` が参照同一性でなく全 field の構造比較になる（KSP-423 関連）
+  - 根拠: `RuntimeCollectionHelpers.runtimeValuesEqual` が全 `RuntimeObjectBox` を class ID + elements で比較し、data class と通常 class を区別しない
+  - 最小再現: `class Box(val x: Int); fun main() { println(Box(1) == Box(1)) }`
+  - 期待/実際: `false` / `true`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-059: `AtomicReference.compareAndSet` が参照同一性でなく `equals` を使い、equal-but-distinct expected で成功する（KSP-671 関連）
+  - 根拠: `Sources/Runtime/RuntimeAtomic.swift` の CAS 判定が `runtimeValuesEqual` を呼ぶ
+  - 最小再現: `class B(val x: Int) { override fun equals(o: Any?) = o is B && o.x == x }; fun main() { val a = B(1); println(kotlin.concurrent.atomics.AtomicReference(a).compareAndSet(B(1), B(2))) }`（ExperimentalAtomicApi opt-in）
+  - 期待/実際: `false` / `true`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-060: 構造的に等しい List の hash が pointer 依存で、equals/hash 契約違反により `distinct` / `Set` が重複を保持する
+  - 根拠: `RuntimeElementKey.==` は `runtimeValuesEqual`、hash は collection を pointer hash に落とす `kk_any_hashCode` を使う
+  - 最小再現: `fun main() { val a = listOf(1, 2); val b = listOf(1, 2); println(a == b); println(listOf(a, b).distinct().size); println(setOf(a, b).size) }`
+  - 期待/実際: `true / 1 / 1` / `true / 2 / 2`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-061: String の `length` と添字が UTF-8 byte 数 / Unicode scalar / UTF-16 で不整合
+  - 根拠: `NativeEmitter+EmissionConstants.swift` と `RuntimeStringArray.swift` は length を UTF-8 byte 数、`RuntimeStringQuery.swift` は添字を Unicode scalar で扱う
+  - 最小再現: `fun main() { val s = "😀"; println(s.length); println(s[0].code) }`
+  - 期待/実際: Kotlin UTF-16 の `2 / 55357` / KSwiftK は `4 / 128512`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-062: Array utility が負サイズ・負添字を例外にせず clamp / 無視する（KSP-658 関連）
+  - 根拠: `RuntimeArrayDequeAndUtility.swift` が `copyOf` size、`copyInto` offsets、`sliceArray` indices を clamp/skip する
+  - 最小再現: `fun main() { val a = arrayOf(1, 2); println(a.copyOf(-1).size); val d = arrayOf(9, 9); a.copyInto(d, destinationOffset = -1); println(d.toList()); println(a.sliceArray(listOf(-1, 0)).toList()) }`
+  - 期待/実際: 各操作が例外 / `0`, `[1, 2]`, `[1]`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-063: `binarySearch` / `binarySearchBy` が不正な検索範囲を例外にせず clamp して検索成功する（KSP-423/433/659 関連）
+  - 根拠: `RuntimeCollectionHelpers.swift`、`RuntimeCollectionHOF.swift`、`RuntimeCollectionHOFArray.swift` の検索実装が from/to index を clamp する
+  - 最小再現: `fun main() { println(arrayOf(1, 2).binarySearch(1, fromIndex = -1, toIndex = 2)) }`
+  - 期待/実際: `IndexOutOfBoundsException` / `0`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-064: Range HOF の負 count / 0 size が例外でなく空配列または全要素を返す（KSP-453〜455 関連）
+  - 根拠: `RuntimeRangeSharedHOF.swift` の `take` / `drop` / `chunked` が invalid argument の outThrown を返さない
+  - 最小再現: `fun main() { println((1..3).take(-1)); println((1..3).drop(-1)); println((1..3).chunked(0)) }`
+  - 期待/実際: 3操作とも IllegalArgumentException / `[]`, `[1, 2, 3]`, `[]`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-065: `Sequence.plus` が構築時に両 upstream を全走査し、遅延評価と後段 short-circuit を破る（KSP-443 関連）
+  - 根拠: `Sources/Runtime/RuntimeSequence.swift` の plus 実装が両入力へ直ちに `evaluateSequence` を呼ぶ
+  - 最小再現: `fun main() { val a = sequenceOf(1, 2).onEach { println("seen:$it") }; val b = a + sequenceOf(3); println("built"); println(b.first()) }`
+  - 期待/実際: `built` の後に `seen:1` / 構築時に `seen:1`, `seen:2` を出してから `built`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-066: `Delegates.notNull()` の未初期化 read が catch 可能な IllegalStateException でなくプロセストラップになる（KSP-491 関連）
+  - 根拠: `RuntimeDelegates.kk_notNull_get_value` は outThrown のない ABI のため `runtimeStructuredPanic` を呼ぶ
+  - 最小再現: `import kotlin.properties.Delegates; var value: String by Delegates.notNull(); fun main() { try { println(value) } catch (e: IllegalStateException) { println("caught") } }`
+  - 期待/実際: `caught` / Trace/BPT trap (exit 133)
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-067: `BigInteger.toInt()` / `toLong()` が範囲外値の下位 32/64 bit でなく 0 を返す
+  - 根拠: `RuntimeBigInteger.swift` が decimal string を `Int` / `Int64` へ変換し、overflow 時に `?? 0`
+  - 最小再現: `import java.math.BigInteger; fun main() { println(BigInteger("4294967297").toInt()); println(BigInteger("18446744073709551617").toLong()) }`
+  - 期待/実際: `1 / 1` / `0 / 0`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-068: `Double.NaN.seconds` が IllegalArgumentException でなく `Duration.ZERO` になる（KSP-471 完了範囲の回帰）
+  - 根拠: `RuntimeDuration.swift` の Double→nanoseconds 変換が NaN に 0 を返し、bridge がそのまま box 化する
+  - 最小再現: `import kotlin.time.Duration.Companion.seconds; fun main() { try { println(Double.NaN.seconds.inWholeNanoseconds) } catch (e: Throwable) { println("throw") } }`
+  - 期待/実際: `throw` / `0`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-069: 未定義の Duration 算術（opposite infinity 加算、zero duration の 0 除算）が例外でなく値を生成する（KSP-471 完了範囲の回帰）
+  - 根拠: `RuntimeDuration.swift` は opposite infinity を拒否せず飽和加算し、ゼロ除算を常に符号付き infinity にする
+  - 最小再現: `import kotlin.time.Duration; fun main() { println(Duration.INFINITE + (-Duration.INFINITE)); println(Duration.ZERO / 0) }`
+  - 期待/実際: 両方 IllegalArgumentException / `0ns` と infinite
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-070: referential equality `===` / `!==` の token/AST/operator 対応がなく、`===` が Bool でなく左オペランドの生オブジェクトを返す
+  - 根拠: `TokenModel.swift`、`KotlinLexer+Symbols.swift`、`BuildASTPhase+ExpressionParser.swift` に referential equality operator が存在しない
+  - 最小再現: `class Box; fun main() { val v = Box(); println(v === v); println(v === Box()) }`
+  - 期待/実際: `true / false` / 両方同じ `<object 0x…>`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-071: JSON diagnostic の LSP character が UTF-16 code unit でなく Unicode scalar 基準になり、astral scalar 後の位置がずれる
+  - 根拠: `DiagnosticEngine.renderDiagnosticJSON` が scalar-based `SourceManager.lineColumn` を使い、既存の `lspPosition` を使わない
+  - 最小再現: `fun main() { val s = "😀"; missing }` を `-Xdiagnostics json` でコンパイル
+  - 期待/実際: `missing` の start/end character `27/34` / `26/33`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-072: CR-only 改行を Lexer は改行扱いするが SourceManager は行として数えず、診断行が崩れる
+  - 根拠: `KotlinLexer.consumeLineBreakTrivia` は CR/CRLF/LF 対応だが、`SourceManager.computeLineStartOffsets` は LF (`0x0A`) のみ
+  - 最小再現: bytes `fun main() {\r    missing\r}\r` を `-Xdiagnostics json` でコンパイル
+  - 期待/実際: `missing` は line 1, character 4 / line 0, character 17
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-073: LSP の expression range 終端を包含扱いし、式直後の空白/改行位置でも直前式の hover を返す
+  - 根拠: `Sources/LSPServer/PositionResolver.swift` が half-open な SourceRange に `offset <= end` を使う
+  - 最小再現: `fun main() {\n    val answer = 42\n}\n` を開き、line 1 / UTF-16 character 19（`42` の直後）へ `textDocument/hover`
+  - 期待/実際: `null` / `Int` hover（range character 17..<19）
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-074: LSP が単純な top-level function reference にも hover/definition を返せず、常に `null` になる
+  - 根拠: `HoverFeature` / `DefinitionFeature` は `PositionResolver` が選んだ単一の最内 ExprID の binding だけを調べ、呼び出し側 expression へフォールバックしない。既存 `FeatureTests` も location が返った場合だけ assert して nil を許容する
+  - 最小再現: `fun helper(): Int = 1\nfun main() { helper() }\n` を開き、call-site の `helper` へ `textDocument/hover` / `textDocument/definition`
+  - 期待/実際: `helper: Int` と宣言位置 / 両 request とも `result: null`
+  - 発見元タスク ID: `SOURCE_AUDIT_2026_07_13`
+- [ ] BUG-075: `--emit library` が `moduleName` を JSON escape せず埋め込み、`"` を含むモジュール名で壊れた `manifest.json` を生成する
+  - 根拠: `Sources/KSwiftKCLI/CLIParser.swift` は `-m` 値を無検証で受理し、`Sources/CompilerBackend/CodegenPhase.swift:166-179` は manifest を生文字列補間で組み立てて `moduleName` / object path をそのまま JSON へ埋め込む
+  - 最小再現: `fun main() { println("ok") }` を `kswiftc --emit library -m 'Bad"Name' hello.kt -o badname.kklib` でビルド
+  - 期待/実際: 有効な JSON manifest を生成 / `"moduleName": "Bad"Name"` を含む壊れた JSON が生成され、直後の import でも `Invalid JSON in .../manifest.json` になる
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-076: `.kklib` manifest の target 互換判定が `osVersion` を落としており、異なる OS version 向け library を同一 target として受理する
+  - 根拠: `Sources/CompilerBackend/CodegenPhase.swift:166`、`Sources/CompilerCore/Sema/Models/LibraryMetadataCache.swift:29-50`、`Sources/CompilerCore/Sema/DataFlow/LibraryDiscovery.swift:211-218` がすべて `arch-vendor-os` だけを比較し、`TargetTriple.osVersion` を無視する
+  - 最小再現: `fun greeting(): String = "lib-ok"` を `--emit library --target arm64-apple-ios-18.0` で `versioned-lib.kklib` 化し、`fun main() { println(greeting()) }` を `--emit object --target arm64-apple-ios-17.0 -I versioned-lib.kklib` でコンパイル
+  - 期待/実際: より新しい deployment target の object を `KSWIFTK-LIB-0013` で拒否 / manifest target が両方 `arm64-apple-ios` になり、version 差分を検出せず object 生成まで進む
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-077: LSP が initialize 前や shutdown 後でも通常 request を通常処理し、プロトコル state error を返さない
+  - 根拠: `Sources/LSPServer/Server.swift` は `initialized` / `shuttingDown` を request dispatch の gate に使っておらず、`textDocument/*` を常にハンドラへ流す
+  - 最小再現: `textDocument/documentSymbol` を initialize 前に送る、または `initialize` → `shutdown` 後に再度 `textDocument/documentSymbol` を送る
+  - 期待/実際: `ServerNotInitialized` / `InvalidRequest` error / `[]` や通常 symbol 配列を返す
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-078: `Int.toString(radix)` が不正 radix を `2..36` に clamp し、`IllegalArgumentException` を投げない
+  - 根拠: `Sources/Runtime/RuntimeStringArray.swift:368-372` が `radix` を `max(2, min(36, radix))` で丸めてから `String(value, radix:)` を呼ぶ
+  - 最小再現: `fun main() { try { println(42.toString(1)) } catch (e: IllegalArgumentException) { println("iae") } }`
+  - 期待/実際: `IllegalArgumentException` / `101010`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-079: 通常 identifier として無効な `$` や emoji を lexer が受理してしまう
+  - 根拠: `Sources/CompilerCore/Lexer/KotlinLexer+Utilities.swift` の `isIdentifierStart` が `$` と非 ASCII byte を広く許可している
+  - 最小再現: `fun main() { val $x = 42; val 😀 = 7; println($x + 😀) }`
+  - 期待/実際: Kotlin parser error / `49`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-080: 10 進整数 literal の先頭ゼロを parser が拒否せず通常の数値として解釈する
+  - 根拠: `Sources/CompilerCore/Lexer/KotlinLexer+Literals.swift` の decimal literal 処理に leading-zero rejection がない
+  - 最小再現: `fun main() { println(0123) }`
+  - 期待/実際: Kotlin lexer error / `123`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-081: astral scalar を 1 文字の `Char` literal として受理してしまう
+  - 根拠: `Sources/CompilerCore/Lexer/KotlinLexer+Literals.swift` が Unicode scalar 単位で char literal を数えており UTF-16 code unit 数を見ていない
+  - 最小再現: `fun main() { println('😀'.code) }`
+  - 期待/実際: `Too many characters in a character literal` / `128512`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-082: `infix` でない member/extension function でも中置記法で呼び出せてしまう
+  - 根拠: `Sources/CompilerCore/AST/BuildASTPhase+ExpressionParser.swift` が任意の identifier を中置 call へ変換し、解決後も宣言の `infix` modifier を検証しない
+  - 最小再現: `fun Int.combine(other: Int) = this + other; fun main() { println(20 combine 22) }`
+  - 期待/実際: Kotlin parser/semantic error / `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-083: `operator` と互換でない関数宣言にも modifier を付けられてしまう
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/BodyAnalysis.swift` と `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` が operator 対象制約を検証していない
+  - 最小再現: `operator fun Int.combine(other: Int) = this + other; fun main() { println(20.combine(22)) }`
+  - 期待/実際: Kotlin semantic error / `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-084: 解決不能な non-alias import が未使用だと無視され、コンパイル成功してしまう
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ScopeBuilder.swift` は alias import だけ解決空を診断し、通常 import は package/symbol が見つからなくても無診断で続行する
+  - 最小再現: `import no.such.pkg.Value; fun main() { println(42) }`
+  - 期待/実際: `Unresolved reference` / 正常に `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-085: 初期化子も getter もない top-level property が compile を通り、read すると 0 初期化値を返してしまう
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/DeclTypeChecker.swift` が top-level property の必須初期化を検証していない
+  - 最小再現: `val answer: Int; fun main() { println(answer) }`
+  - 期待/実際: `Property must be initialized` / `0`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-086: nominal generic 型の型引数個数・upper bound・declaration-site variance を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/Helpers.swift` の nominal type 解決は `resolvedArgs` を作るだけで、宣言側 type parameter との arity / bound / variance 照合なしに `ClassType` を生成する
+  - 最小再現: `class Box<T : Number>; class Producer<out T>; fun main() { val a: Box<Int, String>? = null; val b: Box<String>? = null; val c: Producer<in String>? = null; println(a); println(b); println(c) }`
+  - 期待/実際: 型引数過多・bound 違反・projection conflict をすべて type error / すべて受理し `null`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13` / `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-087: LSP analyzer が open document をファイル単位で個別解析し、同一 workspace 内の別ファイル宣言を unresolved にしてしまう
+  - 根拠: `Sources/LSPServer/Analyzer.swift` が request 対象 document だけを `inputs` にして解析し、store 内の他 open document を同一 compilation unit に束ねない
+  - 最小再現: `a.kt` に `fun helper() = 42`、`b.kt` に `fun main() { println(helper()) }` を別々に open して `b.kt` diagnostics を要求する
+  - 期待/実際: diagnostics なし / `helper` に unresolved diagnostic
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-088: LSP `textDocument/documentSymbol` の `selectionRange` が宣言名ではなく宣言全体 range になっている
+  - 根拠: `Sources/LSPServer/Features/DocumentSymbolFeature.swift` が `selectionRange` に name token ではなく symbol 全体の `lspRange` をそのまま使っている
+  - 最小再現: `fun greet(name: String): String {\n    return name\n}\n` を開いて `documentSymbol`
+  - 期待/実際: `selectionRange` は `greet` 識別子だけ / `range` と同じ 0:0..2:1
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-089: LSP definition/hover が `untitled:` など非 file URI の文書でも結果 URI を強制的に `file://` 化して壊す
+  - 根拠: `Sources/LSPServer/Analyzer.swift` は doc URI から path 文字列を作り、`Sources/LSPServer/Conversions.swift` がそれを常に `DocumentURI.uri(fromPath:)` へ流す
+  - 最小再現: `untitled:round2` を URI にして `fun answer() = 42\nfun main() { answer() }\n` を開き、call-site の `answer` へ `textDocument/definition`
+  - 期待/実際: 元の `untitled:` URI を返す / `file:///.../untitled%3Around2` の bogus URI を返す
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-090: LSP が malformed params を `-32602 Invalid params` にせず `null` / `[]` を通常 result として返す
+  - 根拠: `Sources/LSPServer/Server.swift` の request handlers が decode 失敗時に JSON-RPC error へ変換せず `nil` や空配列を返す
+  - 最小再現: `initialize` 後に `textDocument/hover` へ `{}`、`textDocument/documentSymbol` へ `{}` を送る
+  - 期待/実際: `code = -32602` error / `result: null` や `result: []`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-091: `.kklib` metadata が空白や backtick を含む識別子を encode/decode できず、import 時に解決不能になる
+  - 根拠: `Sources/CompilerCore/Sema/Models/MetadataSerializer.swift` の encoder が record を space 区切り 1 行テキストで保存し、decoder 側も空白分割している
+  - 最小再現: library 側 `fun \`hello world\`(): Int = 42` を `--emit library`、consumer 側 `fun main() { println(\`hello world\`()) }`
+  - 期待/実際: import 成功して `42` / imported symbol が壊れて unresolved reference
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-092: incremental compilation cache が参照 `.kklib` の内容変更を fingerprint に含めず、古い library 実装で再利用してしまう
+  - 根拠: `Sources/CompilerCore/Driver/IncrementalCompilationCache.swift` が current fingerprints に source inputs と option 文字列しか使わず、library contents/manifest/metadata/object の hash を見ていない
+  - 最小再現: `lib.kklib` の `fun value() = 1` で app を `-Xfrontend incremental` build 後、同じ path の library を `fun value() = 2` へ更新して app を incremental rebuild
+  - 期待/実際: 再コンパイルされて `2` / cache hit で古い `1`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-093: imported function metadata から parameter name / default 引数 / vararg 情報が落ち、library 越し呼び出しが壊れる
+  - 根拠: imported callable signature が parameter types しか復元せず、name/default/vararg flags を保持していない
+  - 最小再現: library 側で `fun greet(name: String = "world") = name`、`fun total(vararg values: Int) = values.size` を公開し、consumer 側で `greet()` / `greet(name = "K")` / `total(1, 2)` を呼ぶ
+  - 期待/実際: 各 call が同一 module 時と同様に成功 / default・名前付き・vararg の各 call が `No viable overload`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-094: imported generic function / generic class が型パラメータ情報を失い、library 越しには利用不能になる
+  - 根拠: metadata import が function/class type parameter list を復元しておらず、generic signature を non-generic として扱う
+  - 最小再現: library 側 `fun <T> identity(value: T): T = value` と `class Box<T>(val value: T)` を公開し、consumer 側で `identity(7)` や `Box<Int>(7)` を使う
+  - 期待/実際: 正常に `7` / `No viable overload` や constructor/type resolve failure
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-095: imported class constructor が symbol table に載らず、通常 class を library 越しに `Ctor(...)` できない
+  - 根拠: imported callable metadata の適用が `.constructor` kind を処理していない
+  - 最小再現: library 側 `class Plain(val value: Int)`、consumer 側 `fun main() { println(Plain(7).value) }`
+  - 期待/実際: `7` / `No viable overload` で constructor 解決失敗
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-096: imported declaration の `open` / `operator` など modifier flag が欠落し、継承や演算子解決が library 越しに壊れる
+  - 根拠: metadata record/import が `open` / `abstract` / `operator` などの宣言属性を保存・復元していない
+  - 最小再現: library 側 `open class Base { open fun value() = 1 }` と `operator fun String.minus(other: String) = this + other`、consumer 側で subclass 化や `"a" - "b"` を試す
+  - 期待/実際: 継承と演算子呼び出しが通る / `Cannot inherit from final` や operator 解決失敗
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-097: imported top-level property が mutable/initializer 情報を失い、`var` が再代入不能になり read も 0 初期値化する
+  - 根拠: property metadata import が mutability と storage binding を復元しておらず、external top-level property を detached な read-only symbol として扱う
+  - 最小再現: library 側 `var sharedCounter: Int = 1`、consumer 側 `fun main() { println(sharedCounter); sharedCounter = 2 }`
+  - 期待/実際: `1` を読み `2` へ更新可能 / read は `0`、assignment は `Val cannot be reassigned`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-098: self-generated `.kklib` を import するだけで `KSWIFTK-LIB-0004` 警告が大量発生する
+  - 根拠: exported nominal layout と importer 側の期待がずれており、`LibraryLayout.applyImportedNominalLayout` が vtable/metadata symbol を未知フィールドとして警告する
+  - 最小再現: 単純な library `fun greeting() = "hi"` を `--emit library` し、consumer から `println(greeting())` をビルド
+  - 期待/実際: 警告なし / import 成功しても `Unknown metadata field/vtable symbol` 警告が多数出る
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-099: `arrayOfNulls(size)` が負サイズを例外にせず空配列として返す
+  - 根拠: `Sources/Runtime/RuntimeArrayBasics.swift` の `kk_array_of_nulls` が `max(0, length)` を使っている
+  - 最小再現: `fun main() { try { println(arrayOfNulls<String>(-1).size) } catch (e: NegativeArraySizeException) { println("negative") } }`
+  - 期待/実際: `NegativeArraySizeException` / `0`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-100: `List` の境界チェック系 API が例外を投げず値を丸めるか黙って捨てる
+  - 根拠: `Sources/Runtime/RuntimeCollections.swift` の `get` / `removeAt` / `subList` / `slice` 実装が out-of-bounds や逆順境界を sentinel/clamp で処理している
+  - 最小再現: `fun main() { try { println(listOf(1, 2).get(9)) } catch (e: Throwable) { println("get-throw") }; try { println(mutableListOf(1, 2).removeAt(9)) } catch (e: Throwable) { println("remove-throw") }; try { println(listOf(1, 2, 3).subList(-1, 2)) } catch (e: Throwable) { println("sub-throw") }; try { println(listOf(1, 2, 3).slice(1..9)) } catch (e: Throwable) { println("slice-throw") } }`
+  - 期待/実際: `get` / `removeAt` / `subList` / `slice` がそれぞれ例外 / `0`, `0`, `[1, 2]`, `[2, 3]`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-101: collection / sequence / String HOF が不正 count・size・step を `IllegalArgumentException` にせず clamp する
+  - 根拠: `Sources/Runtime/RuntimeCollectionHOFMaxMin.swift`、`Sources/Runtime/RuntimeSequence.swift`、`Sources/Runtime/RuntimeCollectionHOF.swift`、`Sources/Runtime/RuntimeStringHOF.swift` が `dropLast(-1)` / `take(-1)` / `chunked(0)` / `windowed(step = 0)` を空結果や 1 へ丸めて処理する
+  - 最小再現: `fun main() { println(listOf(1, 2).dropLast(-1)); println(sequenceOf(1, 2).take(-1).toList()); println(listOf(1, 2).chunked(0)); println("abc".windowed(2, step = 0, partialWindows = true)) }`
+  - 期待/実際: 4 操作とも `IllegalArgumentException` / `[1, 2]`, `[]`, `[[1], [2]]`, `[ab, bc, c]`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13` / `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-102: `String.toFloatOrNull()` が Kotlin では無効な lowercase `nan` / `inf` / `+inf` を受理してしまう
+  - 根拠: `Sources/Runtime/RuntimeStringConversion.swift` が strict validation を通さず Swift `Float(...)` にフォールバックする
+  - 最小再現: `fun main() { println("nan".toFloatOrNull()); println("inf".toFloatOrNull()); println("+inf".toFloatOrNull()) }`
+  - 期待/実際: 3 つとも `null` / `NaN`, `Infinity`, `Infinity`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-103: `coerceIn` の invalid range が catch 可能な `IllegalArgumentException` でなく process trap になる
+  - 根拠: `Sources/Runtime/RuntimeNumericBitManip.swift` が range 不正時に Swift `precondition` を使っている
+  - 最小再現: `fun main() { try { println(5.coerceIn(10, 0)) } catch (e: IllegalArgumentException) { println("iae") } }`
+  - 期待/実際: `iae` / `Trace/BPT trap` で異常終了
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-104: built-in iterator の `next()` が終端後に `NoSuchElementException` でなく `0` を返す
+  - 根拠: `Sources/Runtime/RuntimeCollections.swift` などの iterator 実装が exhausted state を例外化せずゼロ値を返す
+  - 最小再現: `fun main() { val it = listOf(7).iterator(); println(it.next()); try { println(it.next()) } catch (e: NoSuchElementException) { println("exhausted") } }`
+  - 期待/実際: `7` の後に `exhausted` / `7` の後に `0`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
+- [ ] BUG-105: erased generic 型への `is` check を compile error でなく warning だけで実行する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ExprTypeChecker.swift` は non-star type argument 付き `is` に `KSWIFTK-SEMA-ERASED-TYPE` warning を出すだけで、そのまま Bool 型として受理する
+  - 最小再現: `fun main() { val value: Any = listOf("x"); println(value is List<String>) }`
+  - 期待/実際: `cannot check for instance of erased type` で compile error / warning のみで build し `true`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-106: Kotlin が禁止する unrelated な型同士の `==` / `!=` を受理する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ExprTypeChecker+BinaryAndFlowInference.swift` は equality operand の型互換性を制約に加えず常に Boolean 型を返す
+  - 最小再現: `fun main() { println(1 == "1") }`
+  - 期待/実際: `operator '==' cannot be applied to 'Int' and 'String'` / build 成功し `false`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-107: 再代入も capture もされない effectively-stable local `var` を smart cast できない
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/Analysis.swift` は mutable flag のある local を実際の書き換え有無に関係なく一律 unstable と判定する
+  - 最小再現: `fun length(value: String?): Int { var copy = value; if (copy != null) return copy.length; return 0 }; fun main() { println(length("abc")) }`
+  - 期待/実際: smart cast し build 成功、`3` / `copy.length` が `No viable overload`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-108: terminating `if` branch 後の smart cast と definite initialization を surviving branch へ伝搬しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ControlFlowTypeChecker.swift` が `Nothing` branch を除外せず両 branch の初期化を必須とし、終了 branch の裏側 flow state も `if` 後へ反映しない
+  - 最小再現: `fun f(x: String?): Int { if (x == null) return 0; return x.length }; fun g(flag: Boolean): Int { val n: Int; if (flag) n = 42 else return -1; return n }`
+  - 期待/実際: 両関数とも build 成功 / `x.length` の nullable error と `n must be initialized`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-109: `do-while` の一部経路だけで代入した `val` をループ後に初期化済みと誤判定する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ControlFlowTypeChecker.swift` は loop body のどこかで initialized になると path を考慮せず外側 locals へ伝搬する
+  - 最小再現: `fun choose(flag: Boolean): Int { val answer: Int; do { if (flag) break; answer = 42 } while (false); return answer }; fun main() { println(choose(true)) }`
+  - 期待/実際: `answer must be initialized` / build 成功し未代入経路で `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-110: 結果を使わない statement 文脈の non-exhaustive `when` まで誤って拒否する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ControlFlowTypeChecker+WhenInference.swift` は結果値が必要かを見ず、すべての subject 付き `when` に exhaustiveness error を出す
+  - 最小再現: `fun main() { when (42) { 42 -> println("matched") } }`
+  - 期待/実際: statement として受理し `matched` / `Non-exhaustive when expression`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-111: `when` subject と branch condition の型互換性を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ControlFlowTypeChecker+WhenInference.swift` は condition を単独 infer するだけで subject type との equality compatibility constraint を追加しない
+  - 最小再現: `fun main() { when (42) { "42" -> println("wrong"); else -> println("right") } }`
+  - 期待/実際: incompatible `Int` / `String` で compile error / build 成功し `right`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-112: `throw` operand が `Throwable` subtype かを検証しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ExprTypeChecker.swift` は throw operand を expected type なしで infer し、型に関わらず expression 全体を `Nothing` にする
+  - 最小再現: `fun choose(flag: Boolean): Int { if (flag) throw 42; return 7 }; fun main() { println(choose(false)) }`
+  - 期待/実際: `Int, but Throwable was expected` / build 成功し `7`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-113: non-inline lambda が function boundary を形成せず、non-local `return` と外側 loop への `break` / `continue` を受理する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ExprTypeChecker+NameLambdaAndCallableRefInference.swift` が lambda body へ outer `loopDepth` 等をそのまま渡し、inline/non-inline boundary も検証しない
+  - 最小再現: `fun call(block: () -> Int) = block(); fun answer(): Int = call { return 42 }` および `fun invoke(block: () -> Unit) = block(); fun main() { while (true) { invoke { break } } }`
+  - 期待/実際: non-local control flow を compile error / build は成功し、`return` は `42`、`break` は外側 loop を抜けず hang
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-114: Elvis operator の RHS を short-circuit せず eager 評価する
+  - 根拠: `Sources/CompilerCore/KIR/CallLowerer+Operators.swift` が先に lowering 済みの lhs/rhs 値を `kk_op_elvis` へ渡すため、null 判定前に RHS side effect が実行される
+  - 最小再現: `fun fallback(): String { println("fallback"); return "wrong" }; fun main() { println("value" ?: fallback()) }`
+  - 期待/実際: `value` だけ / `fallback` の後に `value`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-115: subclass 内から arbitrary base receiver 経由で protected member へアクセスできてしまう
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/VisibilityChecker.swift` は enclosing class が owner の subclass かだけを見て、explicit receiver に必要な subtype 制約を確認しない
+  - 最小再現: `open class Base { protected fun secret() = 42 }; class Child : Base() { fun reveal(other: Base) = other.secret() }; fun main() { println(Child().reveal(Base())) }`
+  - 期待/実際: protected access error / build 成功し `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-116: 同一 file 内の private top-level class constructor 使用を誤って拒否する
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/VisibilityChecker.swift` は parent 付き private constructor に file-private 規則を適用せず、enclosing class 一致だけを求める
+  - 最小再現: `private class Hidden(val value: Int); private fun reveal(): Hidden = Hidden(42); fun main() { println(reveal().value) }`
+  - 期待/実際: 同一 file なので受理し `42` / `Cannot access 'Hidden': it is private`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-117: concrete class の abstract overload 実装要件を signature でなく name だけで集約する
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/Inheritance.swift` が abstract members と overrides を `InternedString` name の Set/Dictionary で管理する
+  - 最小再現: `abstract class Base { abstract fun convert(v: Int): Int; abstract fun convert(v: String): Int }; class Child : Base() { override fun convert(v: Int) = v }; fun main() { println(Child().convert(42)) }`
+  - 期待/実際: String overload 未実装で compile error / concrete class として受理し `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-118: `override` target を name-only で判定し、parameter 型や suspend の signature mismatch を受理する
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift` の `validateOverrideTarget` は `findInheritedMember(named:)` で同名 member が見つかれば成功扱いする
+  - 最小再現: `open class Base { open fun convert(v: Int) = v; open fun value() = 1 }; class Child : Base() { override fun convert(v: String) = v.length; override suspend fun value() = 42 }`
+  - 期待/実際: 両方 `overrides nothing` / signature 違反のまま build 成功
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-119: return type を推論する override の covariance を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift` は明示 return annotation のない override の return compatibility check を skip する
+  - 最小再現: `open class Base { open fun value(): String = "base" }; class Child : Base() { override fun value() = 42 }; fun main() { println(Child().value()) }`
+  - 期待/実際: override return type mismatch / build 成功し `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-120: override の visibility・property mutability・default argument 規則を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift` は same-module `internal` narrowing を許可し、`var` → `val` と override 側 default value も拒否しない
+  - 最小再現: `open class Base { open var x = 1; open fun f(n: Int = 1) = n }; class Child : Base() { override val x = 42; internal override fun f(n: Int = 2) = n }`
+  - 期待/実際: visibility weakening・`var` の `val` override・override 側 default をすべて compile error / すべて受理
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-121: interface delegation expression の型を delegated interface と照合しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/DeclTypeChecker+ClassAndObjectChecking.swift` は delegate expression を expected type なしで infer するだけで subtype constraint を追加しない
+  - 最小再現: `interface Value { fun value(): Int }; class Wrong; class Wrapper(delegate: Wrong) : Value by delegate; fun main() { Wrapper(Wrong()); println(42) }`
+  - 期待/実際: `Wrong, but Value was expected` / build 成功し `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-122: primary constructor parameter が 0 個の data class を受理する
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift` は存在する parameter が `val` / `var` かだけを確認し、1 個以上という条件を持たない
+  - 最小再現: `data class Empty(); fun main() { println(Empty()) }`
+  - 期待/実際: `data class must have at least one primary constructor parameter` / build 成功し `Empty()`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-123: overload resolution が使用した default parameter 数を specificity に入れず ambiguity にする
+  - 根拠: `Sources/CompilerCore/Sema/Resolution/Resolution.swift` の specificity 比較は parameter type / receiver / generic count / vararg だけで default parameter 使用数を比較しない
+  - 最小再現: `fun choose(v: Int) = "one:$v"; fun choose(v: Int, extra: Int = 0) = "two:${v + extra}"; fun main() { println(choose(42)) }`
+  - 期待/実際: default を使わない overload を選び `one:42` / `Ambiguous overload resolution`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-124: expected type のない overloaded callable reference を ambiguity にせず先頭 symbol へ決め打ちする
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/Helpers+CallableTargetsAndSubtypeChecks.swift` が `expectedType == nil` のとき candidate の `sorted.first` を返す
+  - 最小再現: `fun convert(v: Int) = v + 1; fun convert(v: String) = v + "!"; fun main() { val function = ::convert; println(function(41)) }`
+  - 期待/実際: overload ambiguity で compile error / Int overload へ決め打ちし `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-125: explicit member assignment が value 型・`val`・setter visibility を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/TypeCheck/ExprTypeChecker.swift` は receiver/value を infer し property symbol を bind するだけで、value subtype・mutability・setter access の制約を課さない
+  - 最小再現: `class A(var x: Int); fun main() { if (false) A(1).x = "wrong" }` / `class B(val x: Int); fun main() { val b = B(1); b.x = 2 }` / `class C { var x: Int = 1\nprivate set }; fun main() { C().x = 2 }`
+  - 期待/実際: 型不一致・`val` 代入・private setter をすべて compile error / すべて受理し、`val` も書き換える
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-126: vararg への spread argument で array element 型の互換性を検証しない
+  - 根拠: `Sources/CompilerCore/Sema/Resolution/Resolution.swift` が spread → vararg の type constraint を明示的に skip する
+  - 最小再現: `fun total(vararg values: Int) = values.size; fun main() { if (false) total(*arrayOf("wrong")); println(42) }`
+  - 期待/実際: `Array<String>` と Int vararg の mismatch / build 成功し `42`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND3_2026_07_13`
+- [ ] BUG-127: built-in `Set` / `Map` から継承した `Any.hashCode()` を解決できない
+  - 根拠: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSetStubs.swift` / `HeaderHelpers+SyntheticMapStubs.swift` の合成 interface に Any member 継承経路がなく、collection member lookup も `hashCode` へ fallback しない
+  - 最小再現: `fun main() { val s = setOf(1, 2); val m = mapOf(1 to "a"); println(s.hashCode()); println(m.hashCode()) }`
+  - 期待/実際: 両方の hash 値を出力 / 両方 `Unresolved member function 'hashCode'`
+  - 発見元タスク ID: `SOURCE_AUDIT_ROUND2_2026_07_13`
