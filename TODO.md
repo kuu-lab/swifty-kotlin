@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備 8 件を BUG-020〜027 として追補）
+最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020〜027 は tearDown 消失系、028〜035 は深掘り再検証で判明した `.serialized` 欠落系）
 
 ---
 
@@ -763,3 +763,11 @@
 - [ ] BUG-025: PR #4825（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeUuidBridgeTests.swift`
 - [ ] BUG-026: PR #4827（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失（131テストの最大規模ファイル）— 対象 `Tests/RuntimeTests/RuntimeCollectionHOFTests.swift`
 - [ ] BUG-027: PR #4828（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeListIteratorTests.swift`
+- [ ] BUG-028: PR #4769（XCTest→Swift Testing移行）で `kk_system_gc()` を呼び実際にGCを起動するテストなのに `@Suite` に `.serialized` が付与されず、`RuntimeTestIsolationSupport.swift` の `IsolatedRuntimeXCTestCase`（GC専用排他）相当の保護も使われない — デフォルト並列実行下で他テストのオブジェクトを巻き込んで破棄しうる。対象 `Tests/RuntimeTests/RuntimeMemoryTests.swift`（同型バグ: BUG-029/030/031/032/033/035。2026-07-13 オープンPR一括レビュー（深掘り再検証）で発見）
+- [ ] BUG-029: PR #4793（XCTest→Swift Testing移行）で `kk_locale_setDefault`/`kk_locale_getDefault` によりプロセスグローバルな `runtimeLocaleState.defaultLocaleBox` を書き換え・復元するテストなのに `.serialized` が付与されず、並列実行下で復元順序のレースが起こりうる — 対象 `Tests/RuntimeTests/RuntimeStringLocaleTests.swift`
+- [ ] BUG-030: PR #4796（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeStringInternTests.swift`
+- [ ] BUG-031: PR #4807（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeCollectionMapIndexedNotNullToTests.swift`
+- [ ] BUG-032: PR #4810（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` に加え `__kk_secure_random_get_instance()` シングルトンにも依存）— 対象 `Tests/RuntimeTests/RuntimeSecureRandomTests.swift`
+- [ ] BUG-033: PR #4813（XCTest→Swift Testing移行）で `.serialized` 欠落と `tearDown`（`kk_runtime_force_reset()`）消失が両方発生する二重不備 — 対象 `Tests/RuntimeTests/RuntimeRegexNamedGroupTests.swift`
+- [ ] BUG-034: PR #4814（XCTest→Swift Testing移行）で `.serialized` は正しく付与されているが、`tearDown`（`kk_runtime_force_reset()`）が約20テスト全てで `defer` 化されず消失（一次レビューでは見落とし、深掘り再検証で発見）— 対象 `Tests/RuntimeTests/RuntimeStringLastIndexOfAnyTests.swift`
+- [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
