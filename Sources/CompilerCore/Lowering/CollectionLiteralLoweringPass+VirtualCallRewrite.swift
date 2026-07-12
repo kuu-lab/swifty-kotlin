@@ -10,6 +10,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     }
 
     func rewriteVirtualCallInstruction(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         arguments: [KIRExprID],
@@ -58,6 +59,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         ) { return true }
 
         if rewriteSequenceVirtualCall(
+            symbol: symbol,
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,

@@ -852,9 +852,35 @@ extension CallTypeChecker {
         // Use the companion type as implicit receiver when the candidates were
         // redirected from the owner class to its companion object.
         let effectiveReceiverType = companionReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
+        // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
+        // normal candidate lookup already resolved one of these names to that
+        // source declaration, the synthetic collection-member fallback below
+        // must not discard it — Kotlin-source candidates take priority over
+        // the synthetic shortcut so chosenCallee binds to the real
+        // declaration and its require() executes.
+        //
+        // Excludes calls with a trailing HOF lambda (chunked(size) { ... },
+        // windowed(size, step) { ... }): tryCollectionMemberFallback below
+        // derives the transform overload's result element type from the
+        // lambda body's inferred return type (see
+        // CallTypeChecker+CollectionMemberFallback.swift), which the generic
+        // overload resolver cannot reproduce and fails with conflicting type
+        // variable bounds. Those overloads keep going through the synthetic
+        // fallback and their require() bypass is tracked separately.
+        let hasTrailingLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed"]
+        let hasSourceBackedCandidate = !hasTrailingLambdaArg
+            && sourceBackedCollectionMemberNames.contains(interner.resolve(calleeName))
+            && candidates.contains { candidateID in
+                guard let symbol = sema.symbols.symbol(candidateID), symbol.declSite != nil else {
+                    return false
+                }
+                return (sema.symbols.externalLinkName(for: candidateID) ?? "").isEmpty
+            }
         // Synthetic collection members need to short-circuit before the generic
         // overload resolver so their trailing-lambda expectations stay concrete.
-        if let fallbackType = tryCollectionMemberFallback(
+        if !hasSourceBackedCandidate, let fallbackType = tryCollectionMemberFallback(
             id,
             calleeName: calleeName,
             isClassNameReceiver: isClassNameReceiver,
