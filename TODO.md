@@ -794,6 +794,7 @@
   ```
   修正: Lexer（`Symbol.tripleEqual`/`.notTripleEqual` 追加）→ Parser（`BinaryOp.identityEqual`/`.notIdentityEqual`、`==`/`!=` と同精度）→ Sema（`equals()` オーバーロード解決を経由せず直接 `Boolean` を束縛、`x === null` のスマートキャストも `==`/`!=` と同様に対応）→ Lowering（`kk_op_eq`/`kk_op_ne` — data object 識別比較で既に使われているのと同じプリミティブを再利用。String のみ内部表現が4ワードの flat 集約でこの ABI に載らないため、`==`/`!=` と同じ content equality にフォールバック — 既知の簡略化）。回帰防止に `Scripts/diff_cases/identity_equality_operators.kt` を新規追加（kotlinc 実測一致）。発見元: ユーザー報告（当初「interface 型のみ」「TODO.md に BUG-021 として記録済み」との想定だったが、調査の結果いずれも事実誤認と判明 — 記録は本エントリが初出）。PR [#4837](https://github.com/kuu-lab/swifty-kotlin/pull/4837)（マージ後に `[x]` 化）。
 - [ ] BUG-039: デフォルトの `Any.equals()`（ユーザーが `equals()` を override していないクラス、`data class` でもない）が参照同一性でなく構造的等価性で比較している疑い。フィールド値が同じ別インスタンス同士の `==` が、Kotlin 仕様上は `false`（デフォルト `Any.equals` は `===` 相当）のはずが `true` を返す。最小再現（kotlinc 実測で `false` を確認済み・kswiftc は `true` を返す）:
+- [ ] BUG-039: デフォルトの `Any.equals()`（ユーザーが `equals()` を override していないクラス、`data class` でもない）が参照同一性でなく構造的等価性で比較している疑い。フィールド値が同じ別インスタンス同士の `==` が、Kotlin 仕様上は `false`（デフォルト `Any.equals` は `===` 相当）のはずが `true` を返す。最小再現（kotlinc 実測で `false` を確認済み・kswiftc は `true` を返す）:
   ```kotlin
   class Plain(val n: Int)
   fun main() {
