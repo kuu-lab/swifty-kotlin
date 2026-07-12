@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): requires org.slf4j jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no synthetic org.slf4j.* stub yet; classpath injection (verified 2026-07-09) only fixes the kotlinc reference side. See docs/diff-skip-inventory.md
 import org.slf4j.LoggerFactory
 
 class MyService {
