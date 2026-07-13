@@ -80,7 +80,9 @@ public fun CharSequence.lines(): List<String> {
 }
 
 public fun String.lineSequence(): Sequence<String> {
-    return this.__kk_string_lineSequence()
+    // Normalize platform line endings before splitting so the public helper
+    // stays source-backed instead of dispatching to the legacy runtime entry.
+    return this.replace("\r\n", "\n").replace("\r", "\n").splitToSequence("\n")
 }
 
 public fun CharSequence.lineSequence(): Sequence<String> {

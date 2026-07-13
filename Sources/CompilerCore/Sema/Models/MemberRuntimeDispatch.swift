@@ -398,8 +398,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
         case ("lines", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lines_flat")
-        case ("lineSequence", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lineSequence_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):

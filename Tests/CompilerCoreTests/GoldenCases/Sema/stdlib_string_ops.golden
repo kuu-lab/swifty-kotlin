@@ -198,9 +198,9 @@ expr e@57:29#1 memberCall recv=e@57:29 callee=isBlank args=[] type=Boolean call=
 expr e@59:32 string(x) type=String
 expr e@59:32#1 memberCall recv=e@59:32 callee=isNotBlank args=[] type=Boolean call=kotlin.text.isNotBlank
 expr e@61:24 string(hello) type=String
-expr e@61:24#1 memberCall recv=e@61:24 callee=first args=[] type=Char call=kotlin.text.first#1
+expr e@61:24#1 memberCall recv=e@61:24 callee=first args=[] type=Char call=kotlin.text.first#0
 expr e@63:31 string() type=String
-expr e@63:31#1 memberCall recv=e@63:31 callee=firstOrNull args=[] type=Char? call=kotlin.text.firstOrNull#1
+expr e@63:31#1 memberCall recv=e@63:31 callee=firstOrNull args=[] type=Char? call=kotlin.text.firstOrNull#0
 expr e@65:34 string(abc
 def) type=String
 expr e@65:59 string(  ) type=String
