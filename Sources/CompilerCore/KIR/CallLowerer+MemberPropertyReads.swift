@@ -427,23 +427,31 @@ extension CallLowerer {
         _ exprID: ExprID,
         receiverExpr: ExprID,
         args: [CallArgument],
-        ast: ASTModule,
+        ast _: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The receiver may itself be a qualified member-access chain (e.g. the
+        // `Base64.PaddingOption` prefix of `Base64.PaddingOption.ABSENT`, where
+        // `PaddingOption` is nested inside `Base64`), not just a bare name
+        // reference. `identifierSymbol` already carries the resolved nominal
+        // type regardless of the receiver expression's AST shape.
         guard args.isEmpty,
-              sema.bindings.callBindings[exprID] == nil,
-              let receiverExprNode = ast.arena.expr(receiverExpr),
-              case .nameRef = receiverExprNode,
               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr),
-              let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
+              let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
+              receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass
         else {
             return nil
         }
-        guard receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass,
-              let valueSymbolID = sema.bindings.identifierSymbol(for: exprID),
-              let valueSymbol = sema.symbols.symbol(valueSymbolID)
+        // A qualified static member (enum entry, nested object, const val) is
+        // sometimes bound via `identifierSymbol` and sometimes via a 0-arg
+        // `CallBinding` (the same resolution path ordinary property reads use)
+        // depending on how the type checker resolved the member — both carry
+        // the same target symbol, so accept either.
+        guard let valueSymbolID = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+            let valueSymbol = sema.symbols.symbol(valueSymbolID)
         else {
             return nil
         }

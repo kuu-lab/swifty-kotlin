@@ -1,4 +1,3 @@
-// KSWIFTK_DIFF_IGNORE (DEBT-DIFF-005) - Sequence flatten not yet implemented
 fun main() {
     // Sequence flatten edge cases
     println("=== Sequence flatten edge cases ===")

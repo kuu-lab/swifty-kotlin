@@ -94,14 +94,7 @@ extension ABIMismatchTests {
         "kk_list_toTypedArray",
         "kk_list_union",
         "kk_list_unzip",
-        "kk_list_windowed",
-        "kk_list_windowed_default",
-        "kk_list_windowed_partial",
-        "kk_list_windowed_transform",
         "kk_list_withIndex",
-        "kk_list_zip",
-        "kk_list_zipWithNext",
-        "kk_list_zipWithNextTransform",
         "kk_map_withDefault",
         "kk_mutable_list_removeFirst",
         "kk_mutable_list_removeFirstOrNull",
@@ -374,34 +367,6 @@ extension ABIMismatchTests {
         "kk_json_encodeToString",
     ]
 
-    // MARK: Base64 (kotlin.io.encoding)
-    private static let base64StubLinkNames: Set<String> = [
-        "kk_base64_decode_default",
-        "kk_base64_decode_instance",
-        "kk_base64_decode_mime",
-        "kk_base64_decode_urlsafe",
-        "kk_base64_decodeFromByteArray_default",
-        "kk_base64_decodeFromByteArray_instance",
-        "kk_base64_decodeFromByteArray_mime",
-        "kk_base64_decodeFromByteArray_urlsafe",
-        "kk_base64_encode_default",
-        "kk_base64_encode_instance",
-        "kk_base64_encode_mime",
-        "kk_base64_encode_urlsafe",
-        "kk_base64_encodeToByteArray_default",
-        "kk_base64_encodeToByteArray_instance",
-        "kk_base64_encodeToByteArray_mime",
-        "kk_base64_encodeToByteArray_urlsafe",
-        "kk_base64_padding_absent",
-        "kk_base64_padding_absent_optional",
-        "kk_base64_padding_present",
-        "kk_base64_padding_present_optional",
-        "kk_base64_withPadding_default",
-        "kk_base64_withPadding_instance",
-        "kk_base64_withPadding_mime",
-        "kk_base64_withPadding_urlsafe",
-    ]
-
     // MARK: KotlinVersion
     private static let kotlinVersionStubLinkNames: Set<String> = [
         "kk_kotlin_version_compareTo",
@@ -450,7 +415,6 @@ extension ABIMismatchTests {
         result.formUnion(concurrentStubLinkNames)
         result.formUnion(readWriteLockStubLinkNames)
         result.formUnion(jsonSerializationStubLinkNames)
-        result.formUnion(base64StubLinkNames)
         result.formUnion(kotlinVersionStubLinkNames)
         result.formUnion(urlStubLinkNames)
         result.formUnion(kotlinIOWriterBufferedStubLinkNames)

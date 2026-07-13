@@ -216,69 +216,34 @@ extension CallLowerer {
                 return result
             }
         }
-        // STDLIB-561/562: Sequence plus/minus operators
-        // For plus:
-        //   - If RHS is a collection, pass directly (kk_sequence_plus handles
-        //     sequence/list/array handles).
-        //   - If RHS is a single element, wrap it in a single-element sequence
-        //     first so the runtime ABI always receives a collection handle,
-        //     eliminating the ambiguity where an element value could collide
-        //     with a live runtime handle.
-        // For minus: only handle the single-element case (non-collection RHS).
-        //   Collection-removal (Sequence.minus(Iterable)) is not yet supported
-        //   at the ABI level; return the LHS unchanged to avoid falling through
-        //   to the generic arithmetic path (kk_op_sub).
-        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
-        // deduplicate logic across CallLowerer+Operators, CallRewrite, and
-        // VirtualCallRewrite (see PR #460 review).
+        // STDLIB-561/562: Sequence plus/minus operators.
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
+            let callees = SequencePlusMinusRuntimeCallees(interner: interner)
             if op == .add {
-                let effectiveRHS: KIRExprID
-                if sema.bindings.isCollectionExpr(rhs) {
-                    // RHS is already a collection handle; pass directly.
-                    effectiveRHS = rhsID
-                } else {
-                    // Wrap single element in a one-element sequence so the
-                    // runtime always receives a collection handle.
-                    let wrappedExpr = arena.appendTemporary(type: nil
-                    )
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_of_single"),
-                            arguments: [rhsID],
-                            result: wrappedExpr,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
-                    effectiveRHS = wrappedExpr
-                }
-                instructions.append(
-                    .call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_plus"),
-                        arguments: [lhsID, effectiveRHS],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    )
+                emitSequencePlusMinusRewrite(
+                    operation: .plus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
                 )
                 return result
             }
             if op == .subtract {
-                if !sema.bindings.isCollectionExpr(rhs) {
-                    // Single-element removal: emit kk_sequence_minus.
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_minus"),
-                            arguments: [lhsID, rhsID],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
+                let rewriteResult = emitSequencePlusMinusRewrite(
+                    operation: .minus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
+                )
+                if case .emitted = rewriteResult {
                     return result
                 }
                 // Collection-removal is not yet supported at the ABI level.

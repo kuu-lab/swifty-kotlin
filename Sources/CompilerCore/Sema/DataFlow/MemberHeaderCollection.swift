@@ -38,6 +38,44 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let unitType = types.unitType
 
+        // Nested class/object symbols must exist before sibling member
+        // signatures are resolved, since a function's parameter/return type
+        // may reference a type nested in this same body (e.g. `PaddingOption`
+        // nested in `Base64`, referenced by `withPadding(option: PaddingOption)`).
+        for declID in members.nestedClasses {
+            collectNestedClassOrInterfaceHeader(
+                declID: declID,
+                ownerFQName: ownerFQName,
+                ownerSymbol: ownerSymbol,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: scope,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
+        for declID in members.nestedObjects {
+            collectNestedObjectHeader(
+                declID: declID,
+                ownerFQName: ownerFQName,
+                ownerSymbol: ownerSymbol,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: scope,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+
         for declID in members.functions {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(funDecl) = decl
@@ -459,40 +497,6 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(ownerSymbol, for: delegateStorageSymbol)
                 symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: memberSymbol)
             }
-        }
-
-        for declID in members.nestedClasses {
-            collectNestedClassOrInterfaceHeader(
-                declID: declID,
-                ownerFQName: ownerFQName,
-                ownerSymbol: ownerSymbol,
-                sourceFileID: sourceFileID,
-                ctx: ctx,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                bindings: bindings,
-                scope: scope,
-                diagnostics: diagnostics,
-                interner: interner
-            )
-        }
-
-        for declID in members.nestedObjects {
-            collectNestedObjectHeader(
-                declID: declID,
-                ownerFQName: ownerFQName,
-                ownerSymbol: ownerSymbol,
-                sourceFileID: sourceFileID,
-                ctx: ctx,
-                ast: ast,
-                symbols: symbols,
-                types: types,
-                bindings: bindings,
-                scope: scope,
-                diagnostics: diagnostics,
-                interner: interner
-            )
         }
     }
 

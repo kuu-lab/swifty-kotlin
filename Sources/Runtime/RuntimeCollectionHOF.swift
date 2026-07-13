@@ -1477,12 +1477,12 @@ public func kk_list_groupByTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: Int, _ cl
     return destRaw
 }
 
-@_cdecl("kk_list_zip")
-public func kk_list_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
-    guard let lhsBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    guard let rhsBox = runtimeListBox(from: otherRaw) else { invalidContainerPanic(#function, "list") }
-    let lhs = lhsBox.elements
-    let rhs = rhsBox.elements
+// MARK: - ListWindowChunk private bridges (KSP-307)
+
+@_cdecl("__kk_list_zip")
+public func kk_list_bridge_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    guard let lhs = runtimeCollectionOrArrayElements(from: listRaw) else { invalidContainerPanic(#function, "collection") }
+    guard let rhs = runtimeCollectionOrArrayElements(from: otherRaw) else { invalidContainerPanic(#function, "collection") }
     let count = min(lhs.count, rhs.count)
     var pairs: [Int] = []
     pairs.reserveCapacity(count)
@@ -1492,22 +1492,160 @@ public func kk_list_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
-@_cdecl("kk_list_zip_transform")
-public func kk_list_zip_transform(_ listRaw: Int, _ otherRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let lhsBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    guard let rhsBox = runtimeListBox(from: otherRaw) else { invalidContainerPanic(#function, "list") }
-    let lhs = lhsBox.elements
-    let rhs = rhsBox.elements
+@_cdecl("__kk_list_zip_transform")
+public func kk_list_bridge_zip_transform(
+    _ listRaw: Int,
+    _ otherRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let lhs = runtimeCollectionOrArrayElements(from: listRaw) else { invalidContainerPanic(#function, "collection") }
+    guard let rhs = runtimeCollectionOrArrayElements(from: otherRaw) else { invalidContainerPanic(#function, "collection") }
     let count = min(lhs.count, rhs.count)
-    var result: [Int] = []
-    result.reserveCapacity(count)
+    var results: [Int] = []
+    results.reserveCapacity(count)
     for index in 0 ..< count {
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: lhs[index], rhs: rhs[index], outThrown: &thrown)
+        let transformed = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: lhs[index],
+            rhs: rhs[index],
+            outThrown: &thrown
+        )
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        results.append(maybeUnbox(transformed))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: results))
+}
+
+@_cdecl("__kk_list_chunked")
+public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int) -> Int {
+    guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
+    let clampedSize = max(1, size)
+    var chunks: [Int] = []
+    var i = 0
+    while i < elements.count {
+        let end = min(i + clampedSize, elements.count)
+        let chunk = Array(elements[i ..< end])
+        chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
+        i = end
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: chunks))
+}
+
+@_cdecl("__kk_list_chunked_transform")
+public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
+    let clampedSize = max(1, size)
+    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + clampedSize - 1) / clampedSize
+    var result: [Int] = []
+    result.reserveCapacity(estimatedChunks)
+    var i = 0
+    while i < elements.count {
+        let end = min(i + clampedSize, elements.count)
+        let chunk = Array(elements[i ..< end])
+        let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
+        i = end
     }
     return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+@_cdecl("__kk_list_windowed")
+public func kk_list_bridge_windowed(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
+    let clampedSize = max(1, size)
+    let clampedStep = max(1, step)
+    let partial = partialWindows != 0
+    var windows: [Int] = []
+    var i = 0
+    while i < elements.count {
+        let end = min(i + clampedSize, elements.count)
+        if !partial && end - i < clampedSize { break }
+        let window = Array(elements[i ..< end])
+        windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
+        i += clampedStep
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: windows))
+}
+
+@_cdecl("__kk_list_windowed_transform")
+public func kk_list_bridge_windowed_transform(
+    _ listRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
+    let clampedSize = max(1, size)
+    let clampedStep = max(1, step)
+    let partial = partialWindows != 0
+    var result: [Int] = []
+    var i = 0
+    while i < elements.count {
+        let end = min(i + clampedSize, elements.count)
+        if !partial && end - i < clampedSize { break }
+        let window = Array(elements[i ..< end])
+        let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: windowList,
+            outThrown: &thrown
+        )
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        result.append(maybeUnbox(transformed))
+        i += clampedStep
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+@_cdecl("__kk_list_zipWithNext")
+public func kk_list_bridge_zipWithNext(_ listRaw: Int) -> Int {
+    guard let elems = runtimeCollectionOrArrayElements(from: listRaw) else { invalidContainerPanic(#function, "collection") }
+    guard elems.count >= 2 else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    var pairs: [Int] = []
+    pairs.reserveCapacity(elems.count - 1)
+    for i in 0 ..< elems.count - 1 {
+        pairs.append(kk_pair_new(elems[i], elems[i + 1]))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: pairs))
+}
+
+@_cdecl("__kk_list_zipWithNextTransform")
+public func kk_list_bridge_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let elems = runtimeCollectionOrArrayElements(from: listRaw) else { invalidContainerPanic(#function, "collection") }
+    guard elems.count >= 2 else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    var results: [Int] = []
+    results.reserveCapacity(elems.count - 1)
+    for i in 0 ..< elems.count - 1 {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: elems[i], rhs: elems[i + 1], outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        results.append(maybeUnbox(result))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
 @_cdecl("kk_list_unzip")
@@ -2063,123 +2201,6 @@ public func kk_list_flatten(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
-@_cdecl("kk_list_chunked")
-public func kk_list_chunked(_ listRaw: Int, _ size: Int) -> Int {
-    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elements = _listBox.elements
-    let clampedSize = max(1, size)
-    var chunks: [Int] = []
-    var i = 0
-    while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        let chunk = Array(elements[i ..< end])
-        chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
-        i = end
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: chunks))
-}
-
-@_cdecl("kk_list_chunked_transform")
-public func kk_list_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elements = _listBox.elements
-    let clampedSize = max(1, size)
-    let estimatedChunks = elements.isEmpty ? 0 : (elements.count + clampedSize - 1) / clampedSize
-    var result: [Int] = []
-    result.reserveCapacity(estimatedChunks)
-    var i = 0
-    while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        let chunk = Array(elements[i ..< end])
-        let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
-        var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
-        i = end
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
-}
-
-@_cdecl("kk_list_windowed_default")
-public func kk_list_windowed_default(_ listRaw: Int, _ size: Int) -> Int {
-    return kk_list_windowed(listRaw, size, 1)
-}
-
-@_cdecl("kk_list_windowed")
-public func kk_list_windowed(_ listRaw: Int, _ size: Int, _ step: Int) -> Int {
-    guard let elements = runtimeCollectionElements(from: listRaw) else {
-        invalidContainerPanic(#function, "collection")
-    }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
-    var windows: [Int] = []
-    var i = 0
-    while i + clampedSize <= elements.count {
-        let window = Array(elements[i ..< (i + clampedSize)])
-        windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += clampedStep
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: windows))
-}
-
-@_cdecl("kk_list_windowed_partial")
-public func kk_list_windowed_partial(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    guard let elements = runtimeCollectionElements(from: listRaw) else {
-        invalidContainerPanic(#function, "collection")
-    }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
-    let partial = partialWindows != 0
-    var windows: [Int] = []
-    var i = 0
-    while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
-        let window = Array(elements[i ..< end])
-        windows.append(registerRuntimeObject(RuntimeListBox(elements: window)))
-        i += clampedStep
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: windows))
-}
-
-@_cdecl("kk_list_windowed_transform")
-public func kk_list_windowed_transform(
-    _ listRaw: Int,
-    _ size: Int,
-    _ step: Int,
-    _ partialWindows: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements else {
-        invalidContainerPanic(#function, "collection")
-    }
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
-    let partial = partialWindows != 0
-    var result: [Int] = []
-    var i = 0
-    while i < elements.count {
-        let end = min(i + clampedSize, elements.count)
-        if !partial && end - i < clampedSize { break }
-        let window = Array(elements[i ..< end])
-        let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
-        var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: windowList,
-            outThrown: &thrown
-        )
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        result.append(maybeUnbox(transformed))
-        i += clampedStep
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
-}
-
 @_cdecl("kk_list_indexOf")
 public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
     if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
@@ -2643,41 +2664,6 @@ public func kk_list_partition(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
     let matchingList = registerRuntimeObject(RuntimeListBox(elements: matching))
     let nonMatchingList = registerRuntimeObject(RuntimeListBox(elements: nonMatching))
     return kk_pair_new(matchingList, nonMatchingList)
-}
-
-// MARK: - zipWithNext (STDLIB-316 List)
-
-@_cdecl("kk_list_zipWithNext")
-public func kk_list_zipWithNext(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elems = list.elements
-    guard elems.count >= 2 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    var pairs: [Int] = []
-    pairs.reserveCapacity(elems.count - 1)
-    for i in 0 ..< elems.count - 1 {
-        pairs.append(kk_pair_new(elems[i], elems[i + 1]))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: pairs))
-}
-
-@_cdecl("kk_list_zipWithNextTransform")
-public func kk_list_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elems = list.elements
-    guard elems.count >= 2 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    var results: [Int] = []
-    results.reserveCapacity(elems.count - 1)
-    for i in 0 ..< elems.count - 1 {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: elems[i], rhs: elems[i + 1], outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        results.append(maybeUnbox(result))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
 // MARK: - MutableList in-place sort (STDLIB-205)

@@ -1,6 +1,6 @@
 # Refactoring Metrics
 
-Baseline refreshed on 2026-07-10 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
+Baseline refreshed on 2026-07-12 for the RF-GOV-002 state that publishes `Scripts/loc_report.sh` as a CI artifact.
 
 ## LoC Guard
 
@@ -14,21 +14,21 @@ Output:
 
 ```tsv
 metric	scope	value
-loc_by_directory	.	968
-loc_by_directory	.github	680
-loc_by_directory	Scripts	22317
-loc_by_directory	Sources	329616
-loc_by_directory	Stdlib	3732
-loc_by_directory	Tests	229772
-loc_by_directory	docs	3093
-loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	95073
-loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	35256
-header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	79078
-call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	4058
-kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	2
-kk_literal_count	Swift/Kotlin sources	17532
-interner_resolve_literal_comparison_count	Swift sources	711
-typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	104
+loc_by_directory	.	2695
+loc_by_directory	.github	737
+loc_by_directory	Scripts	22591
+loc_by_directory	Sources	328534
+loc_by_directory	Stdlib	3617
+loc_by_directory	Tests	231961
+loc_by_directory	docs	3472
+loc_by_path_prefix	Sources/CompilerCore/Sema/DataFlow	93496
+loc_by_path_prefix	Sources/CompilerCore/Sema/TypeCheck	35644
+header_helpers_synthetic_total_lines	Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift	77223
+call_lowerer_legacy_total_lines	Sources/CompilerCore/KIR/CallLowerer+Legacy*.swift	4028
+kir_lowering_todo_fixme_count	Sources/CompilerCore/{KIR,Lowering}/*.swift	0
+kk_literal_count	Swift/Kotlin sources	17199
+interner_resolve_literal_comparison_count	Swift sources	716
+typecheck_interner_resolve_literal_comparison_count	Sources/CompilerCore/Sema/TypeCheck	105
 ```
 
 Notes:
@@ -42,12 +42,12 @@ CI publishes the same TSV from the `refactoring-metrics` job as artifact `refact
 
 ## KIR + Lowering TODO/FIXME Triage
 
-RF3/RF4 後の `KIR + Lowering` 実測では、残存 marker は 4 件でした。RF-LOWER-002 の `CollectionLiteralLoweringPass+PreScan.swift` 単純名分類 TODO は即修正し、guard metric の現在値は 3 件です。
+RF3/RF4 後の `KIR + Lowering` 実測では、残存 marker は 4 件でした。RF-LOWER-002 の `CollectionLiteralLoweringPass+PreScan.swift` 単純名分類 TODO、RF-LOWER-003 の sequence plus/minus 共通化、DEBT-KIR-001 の safe-call virtual dispatch 再有効化は修正済みで、guard metric の現在値は 0 件です。
 
 | Classification | Count | Items |
 |---|---:|---|
-| Immediate fix | 1 | `CollectionLiteralLoweringPass+PreScan.swift` の stdlib type 判定を FQN ベースへ変更 |
-| Taskized | 3 | RF-LOWER-003 の sequence plus/minus 共通化 2 件、DEBT-KIR-001 の safe-call virtual dispatch 再有効化 1 件 |
+| Resolved | 4 | `CollectionLiteralLoweringPass+PreScan.swift` の stdlib type 判定を FQN ベースへ変更、RF-LOWER-003 の sequence plus/minus 共通化 2 件、DEBT-KIR-001 の safe-call virtual dispatch 再有効化 1 件 |
+| Taskized | 0 | なし |
 | Delete | 0 | 削除のみで閉じられる marker はなし |
 
 ## jscpd Guard
