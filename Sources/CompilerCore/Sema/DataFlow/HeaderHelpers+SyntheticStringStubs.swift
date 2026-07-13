@@ -175,17 +175,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // lowercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
         // uppercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
 
@@ -2499,59 +2488,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_onEachIndexed",
             receiverType: stringType,
             parameters: [("action", intCharToUnitType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-144: String.trim (predicate overload) ---
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,

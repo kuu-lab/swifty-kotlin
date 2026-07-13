@@ -14,6 +14,20 @@
 
 import Foundation
 
+func runtimeStringTrimWhitespace(_ strRaw: Int, trimLeading: Bool, trimTrailing: Bool) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    if trimLeading && trimTrailing {
+        return runtimeMakeStringRaw(source.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    if trimLeading {
+        return runtimeMakeStringRaw(String(source.drop { $0.isWhitespace }))
+    }
+    if trimTrailing {
+        return runtimeMakeStringRaw(String(source.reversed().drop { $0.isWhitespace }.reversed()))
+    }
+    return strRaw
+}
+
 func runtimeStringTrimWithPredicate(
     _ strRaw: Int,
     _ fnPtr: Int,
@@ -74,31 +88,6 @@ func runtimeStringTrimWithPredicate(
 @_cdecl("kk_string_intern")
 public func kk_string_intern(_ strRaw: Int) -> Int {
     return strRaw
-}
-
-@_cdecl("kk_string_trim")
-public func kk_string_trim(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-    return runtimeMakeStringRaw(trimmed)
-}
-
-@_cdecl("kk_string_trim_predicate")
-public func kk_string_trim_predicate(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringTrimWithPredicate(
-        strRaw,
-        fnPtr,
-        closureRaw,
-        outThrown,
-        trimLeading: true,
-        trimTrailing: true,
-        context: "trim predicate"
-    )
 }
 
 @_cdecl("kk_string_lowercase")
