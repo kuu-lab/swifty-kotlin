@@ -201,49 +201,11 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenComparator", expected: "[1:20, 1:30, 2:10, 2:40]\n")
     }
 
-    func testCodegenCompilesNullableCompareByNullsFirstAndLast() throws {
-        let source = """
-        fun main() {
-            val values = listOf(14, null, 3, null, 25, 17, 4)
-            println(values.sortedWith(compareBy<Int?> { it }.nullsFirst()))
-            println(values.sortedWith(compareBy<Int?> { it }.nullsLast()))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "NullableCompareByNullsFirstLast",
-            expected:
-                """
-                [null, null, 3, 4, 14, 17, 25]
-                [3, 4, 14, 17, 25, null, null]
-                """
-                + "\n"
-        )
-    }
-
-    func testCodegenCompilesTopLevelNullsFirstAndLastComparatorWrappers() throws {
-        let source = """
-        fun main() {
-            val values = listOf(14, null, 3, null, 25, 17, 4)
-            println(values.sortedWith(nullsFirst(compareBy<Int> { it })))
-            println(values.sortedWith(nullsLast(compareBy<Int> { it })))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "TopLevelNullsFirstLastComparatorWrappers",
-            expected:
-                """
-                [null, null, 3, 4, 14, 17, 25]
-                [3, 4, 14, 17, 25, null, null]
-                """
-                + "\n"
-        )
-    }
-
-    func testCodegenCompilesComparatorCompositionEdgeCases() throws {
+    // Keep the nullable comparator scenarios in this existing XCTest method.
+    // CodegenBackendIntegrationTests is already a large XCTestCase, and Swift's
+    // generated discovery array can otherwise exceed the type-checker time limit
+    // when several methods are added.
+    func testCodegenCompilesComparatorCompositionAndNullOrderingEdgeCases() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
 
@@ -263,6 +225,12 @@ extension CodegenBackendIntegrationTests {
 
             val words = listOf("pear", "fig", "apple")
             println(words.sortedWith(reverseOrder()))
+
+            val nullableValues = listOf(14, null, 3, null, 25, 17, 4)
+            println(nullableValues.sortedWith(compareBy<Int?> { it }.nullsFirst()))
+            println(nullableValues.sortedWith(compareBy<Int?> { it }.nullsLast()))
+            println(nullableValues.sortedWith(nullsFirst(compareBy<Int> { it })))
+            println(nullableValues.sortedWith(nullsLast(compareBy<Int> { it })))
         }
         """
 
@@ -274,6 +242,10 @@ extension CodegenBackendIntegrationTests {
                 [1:30, 1:20, 2:40, 2:10]
                 [2:10, 2:40, 1:20, 1:30]
                 [pear, fig, apple]
+                [null, null, 3, 4, 14, 17, 25]
+                [3, 4, 14, 17, 25, null, null]
+                [null, null, 3, 4, 14, 17, 25]
+                [3, 4, 14, 17, 25, null, null]
                 """
                 + "\n"
         )
