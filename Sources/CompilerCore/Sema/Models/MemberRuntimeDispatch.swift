@@ -404,8 +404,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
-        case ("singleOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_singleOrNull_flat")
         case ("zipWithNext", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_zipWithNext_flat")
         case ("asSequence", 0):

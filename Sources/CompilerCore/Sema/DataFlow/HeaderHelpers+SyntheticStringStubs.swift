@@ -1576,74 +1576,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-190: first / last / single / firstOrNull / lastOrNull ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "first",
-            externalLinkName: "kk_string_first_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "last",
-            externalLinkName: "kk_string_last_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "single",
-            externalLinkName: "kk_string_single_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "firstOrNull",
-            externalLinkName: "kk_string_firstOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastOrNull",
-            externalLinkName: "kk_string_lastOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-TEXT-FN-044: String.random() / String.random(Random) ---
 
         registerSyntheticStringExtensionFunction(
@@ -2475,6 +2407,26 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lineSequence",
+            externalLinkName: "kk_string_lineSequence_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: sequenceStringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
