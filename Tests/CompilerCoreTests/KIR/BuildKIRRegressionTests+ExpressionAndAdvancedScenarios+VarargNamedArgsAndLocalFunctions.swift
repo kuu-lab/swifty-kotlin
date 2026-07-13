@@ -272,17 +272,12 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testPrimitiveArrayFactoryElementsAreNotBoxed() throws {
-        // doubleArrayOf(vararg elements: Double): DoubleArray and arrayOf(vararg
-        // elements: T): Array<T> both share the "kk_array_of" backend, and neither
-        // reads its array back through a boxing-aware path (unlike List<T>, whose
-        // kk_list_* consumers unbox automatically). Boxing here would corrupt
-        // indexed reads like arrayOf(1.5, 2.5)[0], so both stay unboxed.
+    @Test func testPrimitiveArrayFactoryElementsUseTheirDeclaredElementType() throws {
+        // Specialized primitive factories keep their raw primitive elements, while
+        // generic arrayOf<T> must box them before storing into its Any-erased array.
         let source = """
-        fun main() {
-            doubleArrayOf(1.5, 2.5)
-            arrayOf(1.5, 2.5)
-        }
+        fun doubleArrayFactory() = doubleArrayOf(1.5, 2.5)
+        fun genericArrayFactory() = arrayOf(1.5, 2.5)
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
@@ -291,9 +286,23 @@ extension BuildKIRRegressionTests {
             #expect(!(ctx.diagnostics.hasError), "Expected doubleArrayOf/arrayOf calls to compile without errors.")
 
             let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callNames.contains("kk_box_double"), "Expected doubleArrayOf/arrayOf's raw Double elements NOT to be boxed, got: \(callNames)")
+            let doubleArrayCalls = extractCallees(
+                from: try findKIRFunctionBody(named: "doubleArrayFactory", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            )
+            let genericArrayCalls = extractCallees(
+                from: try findKIRFunctionBody(named: "genericArrayFactory", in: module, interner: ctx.interner),
+                interner: ctx.interner
+            )
+            #expect(
+                !doubleArrayCalls.contains("kk_box_double"),
+                "Expected doubleArrayOf's raw Double elements NOT to be boxed, got: \(doubleArrayCalls)"
+            )
+            let genericBoxDoubleCount = genericArrayCalls.filter { $0 == "kk_box_double" }.count
+            #expect(
+                genericBoxDoubleCount == 2,
+                "Expected arrayOf<Double> to box each erased element, got: \(genericArrayCalls)"
+            )
         }
     }
 
