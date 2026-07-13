@@ -97,10 +97,9 @@ public open class Random internal constructor(
         return result
     }
 
-    // Keep both operands as Long.  The mixed Long + Int overload currently
-    // resolves through an invalid dispatch path in KSwiftK and can recurse
-    // indefinitely when Random.Default is used.
-    public open fun nextLong(): Long = nextInt().toLong().shl(32) + (nextInt().toLong() and 0xFFFF_FFFFL)
+    // Keep both operands as Long to preserve Kotlin's sign extension of the
+    // low Int when composing the 64-bit result.
+    public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt().toLong()
 
     public open fun nextLong(until: Long): Long = nextLong(0L, until)
 
