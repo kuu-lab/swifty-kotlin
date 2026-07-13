@@ -47,7 +47,15 @@ extension DataFlowSemaPhase {
         let floatType = types.make(.primitive(.float, .nonNull))
         let doubleType = types.make(.primitive(.double, .nonNull))
         let nullableStringType = types.makeNullable(stringType)
-        registerStringBuilderConstructors(symbols: symbols, interner: interner, kotlinTextPkg: kotlinTextPkg, sbSymbol: sbSymbol, sbType: sbType, stringType: stringType)
+        registerStringBuilderConstructors(
+            symbols: symbols,
+            interner: interner,
+            kotlinTextPkg: kotlinTextPkg,
+            sbSymbol: sbSymbol,
+            sbType: sbType,
+            stringType: stringType,
+            intType: intType
+        )
 
         // append(Any?): StringBuilder
         registerStringBuilderMemberFunction(
@@ -505,7 +513,8 @@ extension DataFlowSemaPhase {
         kotlinTextPkg: [InternedString],
         sbSymbol: SymbolID,
         sbType: TypeID,
-        stringType: TypeID
+        stringType: TypeID,
+        intType: TypeID
     ) {
         let ownerFQName = kotlinTextPkg + [interner.intern("StringBuilder")]
         registerStringBuilderConstructor(
@@ -520,6 +529,15 @@ extension DataFlowSemaPhase {
         registerStringBuilderConstructor(
             parameterTypes: [stringType],
             externalLinkName: "kk_string_builder_new_from_string_flat",
+            ownerSymbol: sbSymbol,
+            ownerFQName: ownerFQName,
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderConstructor(
+            parameterTypes: [intType],
+            externalLinkName: "kk_string_builder_new_with_capacity",
             ownerSymbol: sbSymbol,
             ownerFQName: ownerFQName,
             returnType: sbType,

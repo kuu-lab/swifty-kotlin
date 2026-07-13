@@ -2379,13 +2379,13 @@ final class CallTypeChecker {
             }
 
             switch name {
-            case "emptyList", "listOf", "mutableListOf":
+            case "emptyList", "listOf", "mutableListOf", "arrayListOf":
                 if let expectedType = expectedCollectionType(withArity: 1) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
                 let elementType = explicitTypeArgs.first
                     ?? (argTypes.isEmpty ? sema.types.nothingType : sema.types.lub(argTypes))
-                let resultType = name == "mutableListOf"
+                let resultType = name == "mutableListOf" || name == "arrayListOf"
                     ? makeSyntheticMutableListType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -2400,28 +2400,43 @@ final class CallTypeChecker {
                     )
                 return (resultType, [elementType])
 
-            case "emptySet", "setOf", "mutableSetOf":
+            case "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf":
                 if let expectedType = expectedCollectionType(withArity: 1) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
+                let elementTypes = name == "setOfNotNull"
+                    ? argTypes.compactMap { type -> TypeID? in
+                        type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
+                    }
+                    : argTypes
                 let elementType = explicitTypeArgs.first
-                    ?? (argTypes.isEmpty ? sema.types.nothingType : sema.types.lub(argTypes))
-                let resultType = name == "mutableSetOf"
-                    ? makeSyntheticMutableSetType(
+                    ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
+                let resultType: TypeID
+                if name == "linkedSetOf" {
+                    resultType = makeSyntheticLinkedHashSetType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         elementType: elementType
                     )
-                    : makeSyntheticSetType(
+                } else if name == "mutableSetOf" || name == "hashSetOf" {
+                    resultType = makeSyntheticMutableSetType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         elementType: elementType
                     )
+                } else {
+                    resultType = makeSyntheticSetType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                }
                 return (resultType, [elementType])
 
-            case "emptyMap", "mapOf", "mutableMapOf":
+            case "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 if let expectedType = expectedCollectionType(withArity: 2) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
@@ -2437,15 +2452,15 @@ final class CallTypeChecker {
                     keyType = sema.types.nothingType
                     valueType = sema.types.nothingType
                 }
-                let resultType = name == "mutableMapOf"
-                    ? makeSyntheticMutableMapType(
+                let resultType = name == "mapOf" || name == "emptyMap"
+                    ? makeSyntheticMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         keyType: keyType,
                         valueType: valueType
                     )
-                    : makeSyntheticMapType(
+                    : makeSyntheticMutableMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,

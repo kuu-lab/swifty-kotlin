@@ -63,20 +63,26 @@ extension DataFlowSemaPhase {
         register(name: "emptyList", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptyList")
         register(name: "listOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptyList")
         register(name: "listOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
+        register(name: "arrayListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
         register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_list_of")
         register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
 
         register(name: "emptySet", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptySet")
         register(name: "setOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptySet")
         register(name: "setOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
+        register(name: "setOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of_not_null")
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_set_of")
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
+        register(name: "hashSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
+        register(name: "linkedSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
 
         register(name: "emptyMap", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_emptyMap")
         register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_emptyMap")
         register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
         register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_map_of")
         register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
+        register(name: "hashMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
+        register(name: "linkedMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
     }
 
     // MARK: - Collection Type Aliases (STDLIB-560)

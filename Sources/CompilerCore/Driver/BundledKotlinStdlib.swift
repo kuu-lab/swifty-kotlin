@@ -12,6 +12,19 @@ enum BundledKotlinStdlib {
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("kk_list_of")
+private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
+
+public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    for (element in elements) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
+
 public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
     var count = 0
     var i = 0
