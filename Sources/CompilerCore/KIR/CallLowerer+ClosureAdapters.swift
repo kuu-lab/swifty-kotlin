@@ -813,23 +813,22 @@ extension CallLowerer {
                 let selector = makeCollectionHOFSelectorArgument(
                     loweredArgID: loweredArguments[argumentIndex],
                     argExprID: originalArgs[argumentIndex].expr,
->>>>>>> 6bf8e8c733 (Expand fixed-arity comparator selector closures)
-                 sema: sema,
-                 arena: arena,
-                 interner: interner,
-                 instructions: &instructions
-             )
-                 expanded.append(selector.loweredArgID)
-                 expanded.append(makeClosureRawOrBoxedArgument(
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                expanded.append(selector.loweredArgID)
+                expanded.append(makeClosureRawOrBoxedArgument(
                     callableInfo: selector.callableInfo,
                     sema: sema,
                     arena: arena,
                     interner: interner,
                     instructions: &instructions
                 ))
-             }
-             return expanded
-         }
+            }
+            return expanded
+        }
 
         // compareBy(vararg selectors): pack selector (fnPtr, closureRaw) pairs into a runtime array.
         if externalLinkName == "kk_comparator_from_multi_selectors_vararg", loweredArguments.count >= 4 {
