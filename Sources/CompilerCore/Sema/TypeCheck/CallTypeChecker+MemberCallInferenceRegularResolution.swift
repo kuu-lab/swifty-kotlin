@@ -294,6 +294,32 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            // `Owner.Nested` and `Owner.Nested()` parse to the identical
+            // zero-arg `.memberCall` node — there is no AST signal for
+            // whether call syntax was written. This is only unambiguous when
+            // no valid constructor-call reading could exist in the first
+            // place: enum class constructors are always implicitly private
+            // (never callable from outside the enum body) and `object`
+            // declarations have no constructor at all, so a nested enum/object
+            // reference must be the bare type/nested-owner (needed e.g. for
+            // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
+            // further static member access). A nested `class`, in contrast,
+            // may have a genuine public zero-arg constructor (e.g.
+            // `Outer.Builder()`), so it falls through to constructor
+            // resolution below, preserving the pre-existing behavior.
+            if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
+               let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+            {
+                let nestedType = sema.types.make(.classType(ClassType(
+                    classSymbol: nestedOwner,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
+                sema.bindings.bindExprType(id, type: nestedType)
+                return nestedType
+            }
             let nestedCtorFQName = owner.fqName + [calleeName, interner.intern("<init>")]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
@@ -379,18 +405,6 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-            }
-            if args.isEmpty,
-               let nestedOwner = nestedOwnerSymbols.first
-            {
-                let nestedType = sema.types.make(.classType(ClassType(
-                    classSymbol: nestedOwner,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
-                sema.bindings.bindExprType(id, type: nestedType)
-                return nestedType
             }
         }
 

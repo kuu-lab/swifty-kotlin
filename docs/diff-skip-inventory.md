@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-09
+最終更新: 2026-07-10
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -26,8 +26,9 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-002 | 7 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
-| DEBT-DIFF-005 | 16 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-005 | 15 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-007 | 1 | 他の gap に masking されていた kswiftc 単体の Sema gap（Int literal→Long widening 不足、`import ... as Alias` 型未解決） | 各 gap を個別 issue に分解して実装後、通常 diff へ戻す |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -112,7 +113,6 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | 領域 | cases | 判定 | 次アクション |
 | --- | --- | --- | --- |
 | `java.math.BigInteger` | `big_integer.kt` | Java interop surface gap | BigInteger を対象に残すなら Java interop task、対象外なら target-out backlog |
-| Sequence common API | `flatten_sequence_edge_cases.kt` | `Sequence.flatten` 実装 gap | `Stdlib/kotlin/sequences` / runtime sequence bridge の実装後に通常 diff へ |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
 | Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
@@ -120,7 +120,6 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | ByteArray helpers | `string_tobytearray.kt` | `joinToString` / `contentEquals` Sema gap | ByteArray extension stubs + runtime helpers の task に分割 |
 | File/use | `file_use_edge_cases.kt` | `Closeable.use` と `java.io.File` surface | `use` common helperと JVM file interop を分離 |
 | Duration/time | `duration_operations.kt`, `experimental_time_edge_cases.kt` | formatting / timing-sensitive output | `Duration.toString` parity と monotonic time test determinism を分離 |
-| Instant API surface | `instant_basic.kt` | kswiftc の synthetic Instant stub が `nanoOfSecond`/`until()` という実 API に無い名前を使っている（正しくは `nanosecondsOfSecond` / `Instant` 同士の `minus` 演算子）。加えて JVM kotlinc 側にも `import kotlin.time.*` + `Instant` 参照で `Duration.Companion.seconds` が unresolved になる別の compiler quirk がある（明示 import で回避可能） | `HeaderHelpers+SyntheticInstantStubs.swift` の名前を実 API に合わせて修正し、テストの import を明示化してから通常 diff へ戻す |
 | Math/comparator | `math_trig_functions.kt`, `comparator_composition_edge_cases.kt` | math function / comparator API gap | math runtime ABI、Comparator composition API に分ける |
 | ByteArray UUID bridge | `uuid_put_uuid.kt` | kswiftc の `ByteArray.putUuid`/`ByteArray.uuid`/`ByteArray.getUuid` は `HeaderHelpers+SyntheticUuidStubs.swift` の bridge-only synthetic 拡張。実 Kotlin stdlib には同名だが `java.nio.ByteBuffer` 版（JVM専用、Kotlin 2.4〜）しか無く、`ByteArray` レシーバ版も top-level の `uuid()` も存在しないため JVM kotlinc は receiver type mismatch / unresolved reference で compile error になる | `ByteArray` 版を kswiftc 独自 surface として残すなら candidate-only test へ移す。real API 互換を狙うなら `ByteBuffer` 受け口への設計変更が必要 |
 

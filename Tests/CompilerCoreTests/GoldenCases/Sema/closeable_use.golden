@@ -22,7 +22,7 @@ expr e@12:5 localDecl r mutable=0 type=_ init=e@12:13 type=Unit ref=__local_0.r
 expr e@13:5 name(r) type=golden.sema.MyResource ref=__local_0.r
 expr e@13:21 string(using) type=String
 expr e@13:13 call callee=e@13:13#1 args=[_:e@13:21] type=Unit call=kotlin.io.println#1
-expr e@13:11 lambda params=[] body=e@13:13 label=use type=(golden.sema.MyResource) -> Any
+expr e@13:11 lambda params=[] body=e@13:13 label=use type=(golden.sema.MyResource) -> Any?
 expr e@13:5#1 memberCall recv=e@13:5 callee=use args=[_:e@13:11] type=Unit
 expr e@17:13 call callee=e@17:13#1 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
 expr e@17:5 localDecl r mutable=0 type=_ init=e@17:13 type=Unit ref=__local_1.r
