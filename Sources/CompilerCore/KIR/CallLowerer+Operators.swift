@@ -1101,27 +1101,12 @@ extension CallLowerer {
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
         // Derive element type from the receiver's array type.
-        // Mirrors TypeCheckHelpers.arrayElementType logic but also checks
-        // the value expression type as a heuristic for non-IntArray receivers.
         let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
-        let isStringElement: Bool = {
-            guard let recvType = receiverBoundType,
-                  case let .classType(classType) = sema.types.kind(of: recvType)
-            else {
-                return false
-            }
-            // Prefer the explicit element type from type arguments, if present.
-            if let firstArg = classType.args.first {
-                let elementType: TypeID? = switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: nil
-                }
-                if let elementType {
-                    return elementType == stringType
-                }
-            }
-            return false
-        }()
+        let receiverElementType = receiverBoundType.flatMap {
+            TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
+        }
+        let isStringElement = receiverElementType == stringType
+        let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
         } else {
@@ -1129,8 +1114,8 @@ extension CallLowerer {
             case .plusAssign: "kk_op_add"
             case .minusAssign: "kk_op_sub"
             case .timesAssign: "kk_op_mul"
-            case .divAssign: "kk_op_div"
-            case .modAssign: "kk_op_mod"
+            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
             }
         }
         instructions.append(.call(

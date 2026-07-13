@@ -10,7 +10,7 @@ import XCTest
 /// exhibit the bug because it is always zero-extended into the shared 64-bit
 /// container. This is the same root-cause family as the ULong comparison/
 /// toString sign-misinterpretation bug.
-extension CodegenBackendIntegrationTests {
+final class UnsignedDivisionAndModuloCodegenTests: CodegenBackendTestSupport {
     func testUnsignedDivisionAndModuloHighBitSetULong() throws {
         let source = """
         fun main() {
@@ -94,6 +94,27 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(
             source,
             moduleName: "UnsignedCompoundAssignDivisionAndModulo",
+            expected: """
+            8831859731738578045
+            90
+            """ + "\n"
+        )
+    }
+
+    func testUnsignedArrayElementCompoundAssignDivisionAndModulo() throws {
+        let source = """
+        fun main() {
+            val values = ulongArrayOf(17663719463477156090uL)
+            values[0] /= 2uL
+            println(values[0])
+            values[0] = 17663719463477156090uL
+            values[0] %= 1000uL
+            println(values[0])
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedArrayElementCompoundAssignDivisionAndModulo",
             expected: """
             8831859731738578045
             90
