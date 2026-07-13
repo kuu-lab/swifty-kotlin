@@ -111,7 +111,6 @@ final class LoadSourcesPhase: CompilerPhase {
     private static let excludedBundledStdlibFiles: Set<String> = [
         "kotlin/ResultExtensions",
         "kotlin/collections/CollectionFactories",
-        "kotlin/collections/ListWindowChunk",
         "kotlin/logging/AdvancedLogger",
         "kotlin/ranges/RangeIterators",
         "kotlin/reflect/KClassAnnotationRegistration",
