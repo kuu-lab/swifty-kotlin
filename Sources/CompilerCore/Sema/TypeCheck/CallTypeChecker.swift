@@ -2379,12 +2379,17 @@ final class CallTypeChecker {
             }
 
             switch name {
-            case "emptyList", "listOf", "mutableListOf", "arrayListOf":
+            case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf":
                 if let expectedType = expectedCollectionType(withArity: 1) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
+                let elementTypes = name == "listOfNotNull"
+                    ? argTypes.compactMap { type -> TypeID? in
+                        type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
+                    }
+                    : argTypes
                 let elementType = explicitTypeArgs.first
-                    ?? (argTypes.isEmpty ? sema.types.nothingType : sema.types.lub(argTypes))
+                    ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
                 let resultType = name == "mutableListOf" || name == "arrayListOf"
                     ? makeSyntheticMutableListType(
                         symbols: sema.symbols,
