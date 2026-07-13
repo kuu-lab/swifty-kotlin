@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-10
+最終更新: 2026-07-11
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -18,17 +18,27 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 - 依存 jar だけで解けるものは、case directive または harness option で classpath / java flags を注入して通常 diff に戻す。
 - `KSWIFTK_DIFF_IGNORE` は古い別名として扱う。新規 skip は `SKIP-DIFF (DEBT-DIFF-xxx): reason` に統一する。
 
+## run_case の compile exit code 一致判定について（2026-07-08）
+
+2026-07-08 以前の `run_case`（`Scripts/diff_kotlinc.sh`）は、reference（kotlinc）と candidate（kswiftc）の**両方がコンパイルに失敗**し、かつ **exit code が偶然一致**した場合、コンパイルエラーの内容を一切比較せず無条件で `PASS` と判定していた。実行結果（stdout）比較は `ref_compile_exit == 0 && cand_compile_exit == 0` の分岐内でのみ行われるため、両方失敗のケースはそもそもこの比較に到達しない。
+
+この結果、reference と candidate が全く無関係な理由で失敗しているだけのケースが「PASS」として長期間見過ごされていた。実例: `random_extended.kt` は kotlinc 側が非標準 API（`Random.nextFloat(until)`）呼び出しで exit 1、kswiftc 側は無関係な `nextBytes` の実装バグで exit 1 となり、exit code が一致するため PASS 扱いになっていた（分離後: [`random_nextfloat_range_overloads.kt`](../Scripts/diff_cases/random_nextfloat_range_overloads.kt) / [`random_nextbytes.kt`](../Scripts/diff_cases/random_nextbytes.kt)）。
+
+2026-07-08 の修正で、`ref_compile_exit != 0 && cand_compile_exit != 0 && ref_compile_exit == cand_compile_exit` の場合は無条件で `FAIL` として扱うよう変更した（`ref`/`cand` 双方の compile stderr は artifact の `compile_stderr.diff` に保存されるため、個別に原因を切り分けられる）。この変更により新たに顕在化した「両方失敗」ケースは DEBT-DIFF-007 として棚卸しした。
+
 ## 現在値
+
+件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'DEBT-DIFF-[0-9]{3}' -N | sort | uniq -c`）に同期する。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 22 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
-| DEBT-DIFF-002 | 7 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
+| DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
+| DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
-| DEBT-DIFF-005 | 15 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
-| DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
-| DEBT-DIFF-007 | 1 | 他の gap に masking されていた kswiftc 単体の Sema gap（Int literal→Long widening 不足、`import ... as Alias` 型未解決） | 各 gap を個別 issue に分解して実装後、通常 diff へ戻す |
+| DEBT-DIFF-005 | 12 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-006 | 4 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-007 | 76 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -165,26 +175,11 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | `variance_generics.kt` | Sema variance checking gap | variance type checker の実装後に通常 diff へ戻す。実装前は Sema golden / diagnostic case として固定 |
 | `math_rounding_functions.kt` | math API ではなく boxed `Double` iteration lowering bug | List<Double> iteration unboxing の最小再現を別 case 化し、math 関数 case から分離 |
 
-## 既知の限界: 両側コンパイル失敗時の exit code 一致による偽陽性
+## DEBT-DIFF-007: compile-exit parity fix により顕在化した両失敗ケース
 
-`Scripts/diff_kotlinc.sh` の `run_case()`（719行目付近）は、compile 失敗を次の条件でのみ mismatch として検出する。
+`run_case()` は、reference と candidate がともに失敗し同じ非ゼロ終了コードを返しても、無条件に `FAIL` とするよう修正済みである。これにより顕在化した76件を、原因の個別確認が終わるまで `SKIP-DIFF (DEBT-DIFF-007)` として隔離する。
 
-```bash
-if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
-  ok=0
-  echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
-fi
-```
-
-stdout 比較ブロック（735行目以降）は `ref_compile_exit -eq 0 && cand_compile_exit -eq 0` を前提に実行される。つまり **reference (kotlinc) と candidate (kswiftc) が両方ともコンパイルに失敗し、かつ exit code がたまたま一致していれば、実際のエラーメッセージの内容や個数を一切比較せずに "PASS" と報告される**。この場合プログラムは一度も実行されず、`ref_run.stdout` / `cand_run.stdout` は 0 バイトのまま残る。DEBT-DIFF-006 の `error_type_inference.kt`（117行目）で触れている「stderr parity を厳密比較しない」設計上のギャップと同根だが、こちらは `SKIP-DIFF` マーカーの無い通常運用ケースでも無警告で発生し得る点でより見落としやすい。
-
-**実例:** `math_exp_log_functions.kt`（skip マーカー無し）は、トップレベル `log(E)`（Kotlin の `kotlin.math.log` は単項オーバーロードが無く `log(x, base)` の2引数版のみ）と `pow(2.0, 3.0)`（トップレベル `pow` 自体が存在せず `Double.pow()` 拡張関数のみ）という、そもそも invalid な Kotlin コードを含んでいた。kotlinc 側は `no value passed for parameter 'base'` + `unresolved reference 'pow'` の4エラー、kswiftc 側は `KSWIFTK-SEMA-0002: No viable overload found for call` の2エラーを出し、内容も個数も異なるが exit code（非ゼロ）が一致したため "PASS" と表示されていた。`ln(E)` / `2.0.pow(3.0)` 等の正しい API 呼び出しへ修正して初めて両者が実行され、`exp(1.0)` で JVM `Math.exp` と macOS system libm の1 ULP差（後述の対処と同種の既知差異）が新たに検出された。
-
-**対処:**
-- "PASS" 表示だけで安心せず、疑わしいケースは `--keep-temp` を付けて `<tmp_dir>/ref_run.stdout` / `cand_run.stdout`（`.norm` ではなく raw ファイル）のバイト数を直接確認する。0 バイトなら未実行 = コンパイル失敗の可能性が高い。
-- トップレベル関数呼び出し（`log(x)`, `pow(x,y)` 等）を書く diff_cases は、拡張関数 vs トップレベル関数・引数個数を実際の Kotlin 言語仕様で事前に確認する。
-- 三角関数・双曲線関数・exp/log 系の生の `Double` 値を `println()` する設計は、JVM 側の実装詳細（intrinsic / fdlibm）依存の1 ULP差で偽陰性/偽陽性双方になり得る。`Scripts/diff_cases/float_precision.kt` の手法（`println(abs(actual - expected) < 1e-9)` のように真偽値/許容誤差判定を出力する）に倣うのが対処であり、kswiftc 側の exp/log 実装を JVM 互換に作り替える必要はない。
-- 両側失敗時の stderr 内容/個数比較を `run_case()` へ追加する改修は未着手。同種の「両側失敗 + exit code 一致」が他の `diff_cases` にも潜んでいる可能性があり、棚卸しも未着手。
+対象は diagnostic parity、enum/data class/interface/variance、common stdlib・テスト入力、Flow、reflection/metadata、JVM・時間・UUID、finally exception routing に分類する。各ケースのマーカーを起点に、diagnostic golden、実装owner、またはtarget専用runnerのいずれかへ移してからskipを解除する。
 
 ## 解除手順
 
