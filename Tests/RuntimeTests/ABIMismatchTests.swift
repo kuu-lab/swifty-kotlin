@@ -671,6 +671,16 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
+    func testKKStringIndentSourceBridgeSignatures() throws {
+        let trimMargin = try requireSpec("__kk_string_trimMargin")
+        XCTAssertEqual(trimMargin.returnType, .intptr)
+        XCTAssertEqual(trimMargin.parameters.map(\.type), [
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+        ])
+    }
+
     func testKKStringIndentFlatSignatures() throws {
         let receiverOnlyNames = [
             "kk_string_trimIndent_flat",
