@@ -1993,11 +1993,11 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendByteArrayCall("kk_string_toByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_toByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
         appendByteArrayCall("kk_string_byteInputStream_flat", [textExpr])
         appendByteArrayCall("kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
@@ -2029,16 +2029,16 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_toByteArray",
-            "kk_string_toByteArray_charset",
-            "kk_string_encodeToByteArray",
-            "kk_string_encodeToByteArray_range",
-            "kk_string_encodeToByteArray_charset",
+        let flatPrefixes = [
+            "kk_string_toByteArray": "__kk_string_toByteArray_flat",
+            "kk_string_toByteArray_charset": "__kk_string_toByteArray_charset_flat",
+            "kk_string_encodeToByteArray": "__kk_string_encodeToByteArray_flat",
+            "kk_string_encodeToByteArray_range": "__kk_string_encodeToByteArray_range_flat",
+            "kk_string_encodeToByteArray_charset": "__kk_string_encodeToByteArray_charset_flat",
         ]
-        for rawName in rawNames {
+        for (rawName, flatName) in flatPrefixes {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String byte-array call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
         }
         let removedRawStringStreamNames = ["", "_charset"].map {
             ["kk", "string", "byteInputStream"].joined(separator: "_") + $0

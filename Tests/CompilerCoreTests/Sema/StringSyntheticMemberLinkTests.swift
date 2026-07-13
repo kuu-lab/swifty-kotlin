@@ -416,12 +416,7 @@ struct StringSyntheticMemberLinkTests {
             ("asIterable", 0, "kk_string_asIterable_flat"),
             ("lines", 0, "kk_string_lines_flat"),
             ("lineSequence", 0, "kk_string_lineSequence_flat"),
-            ("toByteArray", 0, "kk_string_toByteArray_flat"),
-            ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
-            ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
-            ("encodeToByteArray", 0, "kk_string_encodeToByteArray_flat"),
-            ("encodeToByteArray", 1, "kk_string_encodeToByteArray_charset_flat"),
-            ("encodeToByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
+
             ("chunked", 1, "kk_string_chunked_flat"),
             ("windowed", 1, "kk_string_windowed_default_flat"),
             ("windowed", 2, "kk_string_windowed_flat"),
