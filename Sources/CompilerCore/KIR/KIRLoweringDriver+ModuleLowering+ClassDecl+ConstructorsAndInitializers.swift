@@ -291,9 +291,9 @@ extension KIRLoweringDriver {
         // type exposes a `provideDelegate` operator, wrap
         // the initial value in a provideDelegate call;
         // otherwise store the delegate value directly.
-        if let delegateExpr = prop.delegateExpression {
+        if prop.delegateExpression != nil {
             emitDelegatePropertyInitializer(
-                delegateExpr: delegateExpr,
+                propertyDecl: prop,
                 propSymbol: propSymbol,
                 sema: sema,
                 arena: arena,
@@ -385,6 +385,7 @@ extension KIRLoweringDriver {
                     delegation: delegation,
                     ctorFQName: ctorFQName,
                     ownerSymbol: ownerSymbol,
+                    ctorSymbol: ctorSymbol,
                     sema: sema,
                     arena: arena,
                     compilationCtx: compilationCtx,
@@ -407,7 +408,7 @@ extension KIRLoweringDriver {
     }
 
     private func emitDelegatePropertyInitializer(
-        delegateExpr: ExprID,
+        propertyDecl: PropertyDecl,
         propSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
@@ -415,7 +416,22 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) {
+        guard let delegateExpr = propertyDecl.delegateExpression else { return }
         let delegateStorageSym = sema.symbols.delegateStorageSymbol(for: propSymbol)
+        let delegateKind = StdlibDelegateKind.detect(
+            delegateExpr: delegateExpr, ast: shared.ast, interner: shared.interner
+        )
+
+        guard delegateKind == .custom else {
+            emitStdlibDelegatePropertyInitializer(
+                delegateKind: delegateKind, propertyDecl: propertyDecl,
+                propSymbol: propSymbol, delegateStorageSym: delegateStorageSym,
+                sema: sema, arena: arena, shared: shared,
+                compilationCtx: compilationCtx, body: &body
+            )
+            return
+        }
+
         let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
         let delegateExprType = sema.bindings.exprType(for: delegateExpr)
         let hasProvideDelegate = checkHasProvideDelegate(
@@ -435,6 +451,75 @@ extension KIRLoweringDriver {
             let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
             body.append(.copy(from: valueToStore, to: fieldRef))
         }
+    }
+
+    /// Initializes a member delegate property backed by a stdlib delegate
+    /// factory (`lazy`, `Delegates.observable/vetoable/notNull`).
+    ///
+    /// Unlike a custom delegate expression, these factories split their
+    /// argument across two AST fields — `delegateExpression` (the initial
+    /// value, for observable/vetoable) and `delegateBody` (the trailing
+    /// lambda) — so they cannot be lowered by evaluating `delegateExpression`
+    /// alone; doing so silently drops the callback/initializer lambda.
+    private func emitStdlibDelegatePropertyInitializer(
+        delegateKind: StdlibDelegateKind,
+        propertyDecl: PropertyDecl,
+        propSymbol: SymbolID,
+        delegateStorageSym: SymbolID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        guard let storageSym = delegateStorageSym else { return }
+        let interner = shared.interner
+        let delegateType = sema.types.anyType
+        let createResult: KIRExprID
+
+        switch delegateKind {
+        case .lazy:
+            let lambdaFnPtr = lowerDelegateLambdaBody(
+                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                paramCount: 0, shared: shared, emit: &body
+            )
+            let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+            let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
+            body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
+            createResult = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil, callee: interner.intern("kk_lazy_create"),
+                arguments: [lambdaFnPtr, modeExpr],
+                result: createResult, canThrow: false, thrownResult: nil
+            ))
+        case .observable, .vetoable:
+            let initialValueExpr = lowerDelegateInitialValue(
+                delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &body
+            )
+            let callbackFnPtr = lowerDelegateLambdaBody(
+                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                paramCount: 3, shared: shared, emit: &body
+            )
+            let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
+            createResult = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil, callee: interner.intern(runtimeFnName),
+                arguments: [initialValueExpr, callbackFnPtr],
+                result: createResult, canThrow: false, thrownResult: nil
+            ))
+        case .notNull:
+            createResult = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil, callee: interner.intern("kk_notNull_create"),
+                arguments: [],
+                result: createResult, canThrow: false, thrownResult: nil
+            ))
+        case .custom:
+            preconditionFailure("emitStdlibDelegatePropertyInitializer must not be called for .custom")
+        }
+
+        let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
+        body.append(.copy(from: createResult, to: fieldRef))
     }
 
     private func emitProvideDelegateCall(
@@ -595,7 +680,7 @@ extension KIRLoweringDriver {
 
     // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
-    /// Emits `kk_kfunction_create` / `kk_kproperty_stub_create` calls for each
+    /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
     /// declared non-synthetic member of a class, followed by
     /// `kk_kclass_register_member` to attach them to the KClass handle.
     /// Called from `synthesizeConstructorReflectionInitializer` so that
@@ -671,7 +756,7 @@ extension KIRLoweringDriver {
                 let kpropResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kproperty_stub_create"),
+                    callee: interner.intern("__kk_kproperty_stub_create"),
                     arguments: [propNameExpr, propTypeExpr],
                     result: kpropResult,
                     canThrow: false,

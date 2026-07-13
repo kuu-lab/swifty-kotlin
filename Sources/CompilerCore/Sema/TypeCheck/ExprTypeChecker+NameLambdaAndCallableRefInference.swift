@@ -224,6 +224,28 @@ extension ExprTypeChecker {
             return sema.types.unitType
         }
 
+        // Members declared on a supertype are never found by
+        // `cachedScopeLookup`: a `ClassMemberScope`'s parent is the
+        // enclosing *lexical* scope (file/package), not the superclass's
+        // scope, so scope lookup never walks the inheritance chain. Plain
+        // reads and simple `=` reassignment already resolve inherited
+        // properties through the inheritance-aware `lookupMemberProperty`
+        // (see resolveImplicitReceiverMember above); reuse it here so that
+        // `inheritedField += 1` resolves the same member, taking priority
+        // over lexically scope-visible candidates just like
+        // inferNameRefExpr does for plain reads.
+        var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID)?
+        if let receiverType = ctx.implicitReceiverType,
+           let member = driver.helpers.lookupMemberProperty(
+               named: name,
+               receiverType: sema.types.makeNonNullable(receiverType),
+               sema: sema
+           ),
+           let memberSymbol = ctx.cachedSymbol(member.symbol)
+        {
+            implicitReceiverMember = (memberSymbol, member.type)
+        }
+
         // Fall back to scope-visible property lookup for compound assignments
         // like `counter += 1` where `counter` is a top-level var or a member
         // property accessed via implicit receiver (inside a class/object
@@ -233,15 +255,19 @@ extension ExprTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        if let propSymbol = candidates.first(where: { sym in
+        let scopeVisibleProperty = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = sema.symbols.symbol(parentID) else { return true }
             return parentSym.kind == .package || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
-        }) {
+        })
+        if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
-            let propType = sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
+            if implicitReceiverMember != nil {
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+            }
+            let propType = implicitReceiverMember?.type ?? sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
                 op: op,
@@ -351,6 +377,117 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: sema.types.errorType)
         return sema.types.errorType
+    }
+
+    /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
+    /// or `this.box.n += value`. Mirrors `inferCompoundAssignExpr`'s operator-overload
+    /// resolution (`plusAssign` then binary-operator fallback) but resolves the
+    /// left-hand side as a member property on `receiverExpr` instead of a bare name.
+    func inferMemberCompoundAssignExpr(
+        _ id: ExprID,
+        op: CompoundAssignOp,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        valueExpr: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID {
+        let sema = ctx.sema
+        let interner = ctx.interner
+
+        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        guard let propResult = driver.helpers.lookupMemberProperty(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sema: sema
+        ) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Unresolved reference '\(interner.resolve(calleeName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+        let propType = propResult.type
+        let propSymbol = sema.symbols.symbol(propResult.symbol)
+
+        if let resolvedType = bindCompoundAssignmentOperatorCall(
+            exprID: id,
+            op: op,
+            receiverType: propType,
+            valueType: valueType,
+            range: range,
+            ctx: ctx,
+            requireUnitReturn: true
+        ) {
+            if propSymbol?.flags.contains(.mutable) == true,
+               let binaryFallback = bindCompoundAssignmentOperatorCall(
+                   exprID: id,
+                   op: op,
+                   receiverType: propType,
+                   valueType: valueType,
+                   range: range,
+                   ctx: ctx,
+                   requireUnitReturn: false,
+                   emitDiagnostics: false,
+                   bindCall: false
+               ),
+               binaryFallback != sema.types.errorType
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0302",
+                    "Assignment operator is ambiguous because both '\(interner.resolve(operatorFunctionNames(for: op, interner: interner)[0]))' and the corresponding binary operator are applicable.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            return resolvedType
+        }
+
+        if let resolvedType = bindCompoundAssignmentOperatorCall(
+            exprID: id,
+            op: op,
+            receiverType: propType,
+            valueType: valueType,
+            range: range,
+            ctx: ctx,
+            requireUnitReturn: false
+        ) {
+            if resolvedType == sema.types.errorType || propSymbol?.flags.contains(.mutable) != true {
+                if propSymbol?.flags.contains(.mutable) != true, resolvedType != sema.types.errorType {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0014",
+                        "Val cannot be reassigned.",
+                        range: range
+                    )
+                }
+                return resolvedType == sema.types.errorType ? resolvedType : sema.types.errorType
+            }
+            sema.bindings.bindExprType(id, type: sema.types.unitType)
+            return sema.types.unitType
+        }
+
+        // Primitive/builtin fallback (Int/Char/String arithmetic via `kk_op_*` or
+        // string concat at KIR-lowering time). Unlike a bare local, a property's
+        // declared type doesn't get narrowed per-assignment, so there is nothing
+        // to propagate back into `locals` here.
+        if propSymbol?.flags.contains(.mutable) != true {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0014",
+                "Val cannot be reassigned.",
+                range: range
+            )
+        }
+        sema.bindings.bindExprType(id, type: sema.types.unitType)
+        return sema.types.unitType
     }
 
     func inferNameRefExpr(

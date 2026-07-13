@@ -180,11 +180,18 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // `object` member properties never reach this point: they're always
+        // intercepted earlier by `tryLowerObjectMemberPropertyRead`, which
+        // reads them from their global slot via `loadGlobal` (mirroring how
+        // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
+        // Restricting this guard to `.class`/`.interface` keeps the read and
+        // write sides symmetric instead of relying on call-order to keep a
+        // dead `.object` field-offset arm harmless.
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+              ownerInfo.kind == .class || ownerInfo.kind == .interface
         else {
             return nil
         }
@@ -204,7 +211,7 @@ extension CallLowerer {
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
@@ -393,23 +400,31 @@ extension CallLowerer {
         _ exprID: ExprID,
         receiverExpr: ExprID,
         args: [CallArgument],
-        ast: ASTModule,
+        ast _: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The receiver may itself be a qualified member-access chain (e.g. the
+        // `Base64.PaddingOption` prefix of `Base64.PaddingOption.ABSENT`, where
+        // `PaddingOption` is nested inside `Base64`), not just a bare name
+        // reference. `identifierSymbol` already carries the resolved nominal
+        // type regardless of the receiver expression's AST shape.
         guard args.isEmpty,
-              sema.bindings.callBindings[exprID] == nil,
-              let receiverExprNode = ast.arena.expr(receiverExpr),
-              case .nameRef = receiverExprNode,
               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr),
-              let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
+              let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
+              receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass
         else {
             return nil
         }
-        guard receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass,
-              let valueSymbolID = sema.bindings.identifierSymbol(for: exprID),
-              let valueSymbol = sema.symbols.symbol(valueSymbolID)
+        // A qualified static member (enum entry, nested object, const val) is
+        // sometimes bound via `identifierSymbol` and sometimes via a 0-arg
+        // `CallBinding` (the same resolution path ordinary property reads use)
+        // depending on how the type checker resolved the member — both carry
+        // the same target symbol, so accept either.
+        guard let valueSymbolID = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+            let valueSymbol = sema.symbols.symbol(valueSymbolID)
         else {
             return nil
         }

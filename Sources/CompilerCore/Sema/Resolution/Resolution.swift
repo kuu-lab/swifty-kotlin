@@ -31,6 +31,43 @@ extension OverloadResolver {
         )
     }
 
+    /// Derives a partial type-variable substitution for `signature`'s type
+    /// parameters using only the argument positions present in
+    /// `knownArgumentTypes`. Used to seed a lambda argument's expected type with
+    /// type-parameter bindings already inferred from the call's other
+    /// (non-lambda) arguments, before the lambda literal itself is type-checked
+    /// (see `lambdaLiteralExpectedType` in `CallTypeChecker+LambdaReturnTypeOverload.swift`).
+    /// A missing key in the result means that type parameter could not be
+    /// constrained from the known arguments — callers must treat it as
+    /// "unconstrained", not as an error.
+    func probeArgumentTypeSubstitution(
+        signature: FunctionSignature,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        knownArgumentTypes: [Int: TypeID],
+        typeSystem: TypeSystem,
+        blameRange: SourceRange? = nil
+    ) -> [TypeVarID: TypeID] {
+        guard !typeVarBySymbol.isEmpty, !knownArgumentTypes.isEmpty else {
+            return [:]
+        }
+        var constraints: [VariableConstraint] = []
+        for (index, argType) in knownArgumentTypes {
+            guard index >= 0, index < signature.parameterTypes.count else { continue }
+            constraints.append(contentsOf: decomposeSubtypeConstraint(
+                subtype: argType,
+                supertype: signature.parameterTypes[index],
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem,
+                blameRange: blameRange
+            ))
+        }
+        guard !constraints.isEmpty else { return [:] }
+        let varsToSolve = usedTypeVariables(from: constraints)
+        guard !varsToSolve.isEmpty else { return [:] }
+        let solution = ConstraintSolver().solve(vars: varsToSolve, constraints: constraints, typeSystem: typeSystem)
+        return solution.isSuccess ? solution.substitution : [:]
+    }
+
     public func resolveCall(
         candidates: [SymbolID],
         call: CallExpr,
@@ -200,7 +237,13 @@ extension OverloadResolver {
             }
         }
 
-        if let expectedType {
+        // Kotlin's Unit-coercion rule: a call whose result is used where Unit is
+        // expected (e.g. the trailing expression of a `(T) -> Unit` lambda body,
+        // such as `also { it.append(x) }`) does not need its return type to be
+        // Unit — the value is simply discarded. Skip the return-type constraint
+        // in that case so overload candidates aren't rejected solely because
+        // none of them happen to return Unit.
+        if let expectedType, expectedType != ctx.types.unitType {
             let returnDecomposed = decomposeSubtypeConstraint(
                 subtype: signature.returnType,
                 supertype: expectedType,

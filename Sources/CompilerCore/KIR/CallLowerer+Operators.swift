@@ -15,6 +15,26 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let boolType = sema.types.booleanType
+        // `&&` / `||` must short-circuit: rhs may only be evaluated once lhs's
+        // value doesn't already pin down the result. The generic path below
+        // evaluates both operands unconditionally before combining them, which
+        // is correct for ordinary binary operators but would run rhs's side
+        // effects/exceptions even when they must not fire, so these two get
+        // their own control-flow lowering instead of falling through.
+        if op == .logicalAnd || op == .logicalOr {
+            return lowerShortCircuitLogicalExpr(
+                op: op,
+                lhs: lhs,
+                rhs: rhs,
+                boolType: boolType,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let boundType: TypeID? = switch op {
         case .equal, .notEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             boolType
@@ -196,69 +216,34 @@ extension CallLowerer {
                 return result
             }
         }
-        // STDLIB-561/562: Sequence plus/minus operators
-        // For plus:
-        //   - If RHS is a collection, pass directly (kk_sequence_plus handles
-        //     sequence/list/array handles).
-        //   - If RHS is a single element, wrap it in a single-element sequence
-        //     first so the runtime ABI always receives a collection handle,
-        //     eliminating the ambiguity where an element value could collide
-        //     with a live runtime handle.
-        // For minus: only handle the single-element case (non-collection RHS).
-        //   Collection-removal (Sequence.minus(Iterable)) is not yet supported
-        //   at the ABI level; return the LHS unchanged to avoid falling through
-        //   to the generic arithmetic path (kk_op_sub).
-        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
-        // deduplicate logic across CallLowerer+Operators, CallRewrite, and
-        // VirtualCallRewrite (see PR #460 review).
+        // STDLIB-561/562: Sequence plus/minus operators.
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
+            let callees = SequencePlusMinusRuntimeCallees(interner: interner)
             if op == .add {
-                let effectiveRHS: KIRExprID
-                if sema.bindings.isCollectionExpr(rhs) {
-                    // RHS is already a collection handle; pass directly.
-                    effectiveRHS = rhsID
-                } else {
-                    // Wrap single element in a one-element sequence so the
-                    // runtime always receives a collection handle.
-                    let wrappedExpr = arena.appendTemporary(type: nil
-                    )
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_of_single"),
-                            arguments: [rhsID],
-                            result: wrappedExpr,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
-                    effectiveRHS = wrappedExpr
-                }
-                instructions.append(
-                    .call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_plus"),
-                        arguments: [lhsID, effectiveRHS],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    )
+                emitSequencePlusMinusRewrite(
+                    operation: .plus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
                 )
                 return result
             }
             if op == .subtract {
-                if !sema.bindings.isCollectionExpr(rhs) {
-                    // Single-element removal: emit kk_sequence_minus.
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_minus"),
-                            arguments: [lhsID, rhsID],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
+                let rewriteResult = emitSequencePlusMinusRewrite(
+                    operation: .minus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
+                )
+                if case .emitted = rewriteResult {
                     return result
                 }
                 // Collection-removal is not yet supported at the ABI level.
@@ -302,20 +287,14 @@ extension CallLowerer {
             if rhsExprType == stringType || rhsExprType == nullableStringType {
                 effectiveRHS = rhsID
             } else {
-                let tag = anyFallbackTag(for: rhsExprType ?? sema.types.anyType, sema: sema)
-                let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
-                instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendTemporary(type: stringType
+                effectiveRHS = emitAnyToStringWithNullGuard(
+                    valueID: rhsID,
+                    valueType: rhsExprType ?? sema.types.anyType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [rhsID, tagExpr],
-                    result: converted,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                effectiveRHS = converted
             }
             // Similarly coerce LHS if it is not a String (e.g. Any + String).
             let lhsExprType = sema.bindings.exprTypes[lhs]
@@ -323,20 +302,14 @@ extension CallLowerer {
             if lhsExprType == stringType || lhsExprType == nullableStringType {
                 effectiveLHS = lhsID
             } else {
-                let tag = anyFallbackTag(for: lhsExprType ?? sema.types.anyType, sema: sema)
-                let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
-                instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendTemporary(type: stringType
+                effectiveLHS = emitAnyToStringWithNullGuard(
+                    valueID: lhsID,
+                    valueType: lhsExprType ?? sema.types.anyType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [lhsID, tagExpr],
-                    result: converted,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                effectiveLHS = converted
             }
             instructions.append(
                 .call(
@@ -376,7 +349,7 @@ extension CallLowerer {
             // aggregate (nullptr, 0, 0, 0) instead of a raw i64 null sentinel.
             func resolvedStringID(for id: KIRExprID, isNull: Bool) -> KIRExprID {
                 guard isNull else { return id }
-                let nullStringID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableStringType)
+                let nullStringID = arena.appendTemporary(type: nullableStringType)
                 instructions.append(.constValue(result: nullStringID, value: .null))
                 return nullStringID
             }
@@ -396,7 +369,7 @@ extension CallLowerer {
             case .notEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
-                let eqResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                let eqResult = arena.appendTemporary(type: boolType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_equals_flat"),
@@ -460,6 +433,39 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_op_\(prefix)\(suffix)"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
+        // Unsigned-aware path for UInt/ULong/UByte/UShort relational operators.
+        // builtinBinaryRuntimeCallee below maps <,<=,>,>= to kk_op_lt/le/gt/ge,
+        // which reinterpret both operands as signed Int64 — wrong for ULong once
+        // the value's high bit is set (any ULong >= 2^63, e.g. UInt64.MAX_VALUE),
+        // since e.g. `17663719463477156090uL > 5uL` would compare a negative
+        // signed reinterpretation against 5. Route unsigned operands through the
+        // dedicated kk_op_u{lt,le,gt,ge} entry points, which compare the raw bit
+        // pattern via UInt(bitPattern:) instead.
+        switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            let unsignedTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                              ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
+                let suffix: String = switch op {
+                case .lessThan: "ult"
+                case .lessOrEqual: "ule"
+                case .greaterThan: "ugt"
+                case .greaterOrEqual: "uge"
+                default: fatalError("Unreachable: switch only reached for relational ops")
+                }
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_\(suffix)"),
                     arguments: [lhsID, rhsID],
                     result: result,
                     canThrow: false,
@@ -627,6 +633,60 @@ extension CallLowerer {
             preconditionFailure("Bitwise/shift binary operators must be lowered through member-call special handling")
         }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
+        return result
+    }
+
+    /// Lowers `&&`/`||` with proper short-circuit control flow.
+    ///
+    /// `lhs && rhs` behaves like `if (lhs) rhs else false`; `lhs || rhs`
+    /// behaves like `if (lhs) true else rhs`. Either way, rhs is only lowered
+    /// (and its instructions only emitted) behind a branch that is skipped
+    /// once lhs already equals `shortCircuitsOn` (false for `&&`, true for
+    /// `||`), matching the desugarings above.
+    private func lowerShortCircuitLogicalExpr(
+        op: BinaryOp,
+        lhs: ExprID,
+        rhs: ExprID,
+        boolType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let lhsID = driver.lowerExpr(
+            lhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let shortCircuitsOn = op == .logicalOr
+        let shortCircuitLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let result = arena.appendTemporary(type: boolType)
+        let shortCircuitLiteral = arena.appendExpr(.boolLiteral(shortCircuitsOn), type: boolType)
+        instructions.append(.constValue(result: shortCircuitLiteral, value: .boolLiteral(shortCircuitsOn)))
+        instructions.append(.jumpIfEqual(lhs: lhsID, rhs: shortCircuitLiteral, target: shortCircuitLabel))
+        let rhsID = driver.lowerExpr(
+            rhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if !driver.controlFlowLowerer.isTerminatedExpr(rhsID, arena: arena, sema: sema) {
+            instructions.append(.copy(from: rhsID, to: result))
+            instructions.append(.jump(endLabel))
+        }
+        instructions.append(.label(shortCircuitLabel))
+        instructions.append(.copy(from: shortCircuitLiteral, to: result))
+        instructions.append(.label(endLabel))
         return result
     }
 

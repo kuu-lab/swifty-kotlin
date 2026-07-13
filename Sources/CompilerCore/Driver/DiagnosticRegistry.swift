@@ -188,6 +188,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Expression nesting exceeds the maximum supported depth."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-TYPE-DEPTH",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Type nesting exceeds the maximum supported depth."
+        ),
     ]
 
     // MARK: - Semantic analysis pass (SEMA)
@@ -499,6 +505,18 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .warning,
             summary: "Synthetic stdlib stub duplicates a bundled Kotlin source declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0103",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Property delegate type is missing a 'getValue' operator function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0104",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Mutable property delegate type is missing a 'setValue' operator function."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-TAILREC",

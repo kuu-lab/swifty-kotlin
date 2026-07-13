@@ -892,25 +892,25 @@ public func kk_string_toByteOrNull_flat(
     kk_string_toByteOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-@_cdecl("kk_string_toFloat_flat")
-public func kk_string_toFloat_flat(
+@_cdecl("__kk_string_toFloat_flat")
+public func __kk_string_toFloat_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+    __kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
 }
 
-@_cdecl("kk_string_toFloatOrNull_flat")
-public func kk_string_toFloatOrNull_flat(
+@_cdecl("__kk_string_toFloatOrNull_flat")
+public func __kk_string_toFloatOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 @_cdecl("kk_string_toSortedSet_flat")
@@ -1351,7 +1351,7 @@ public func kk_string_replace_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_replace(
+        runtimeStringReplace(
             kk_string_from_flat(data, length, byteCount, hash),
             kk_string_from_flat(oldData, oldLength, oldByteCount, oldHash),
             kk_string_from_flat(newData, newLength, newByteCount, newHash)
@@ -1375,7 +1375,7 @@ public func kk_string_replace_char_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_replace_char(kk_string_from_flat(data, length, byteCount, hash), oldCharRaw, newCharRaw),
+        runtimeStringReplaceChar(kk_string_from_flat(data, length, byteCount, hash), oldCharRaw, newCharRaw),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1402,7 +1402,7 @@ public func kk_string_replace_ignoreCase_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_replace_ignoreCase(
+        runtimeStringReplaceIgnoreCase(
             kk_string_from_flat(data, length, byteCount, hash),
             kk_string_from_flat(oldData, oldLength, oldByteCount, oldHash),
             kk_string_from_flat(newData, newLength, newByteCount, newHash),
@@ -1428,7 +1428,7 @@ public func kk_string_replace_char_ignoreCase_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_replace_char_ignoreCase(
+        runtimeStringReplaceCharIgnoreCase(
             kk_string_from_flat(data, length, byteCount, hash),
             oldCharRaw,
             newCharRaw,

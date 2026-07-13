@@ -68,22 +68,22 @@ public func kk_int_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
 
 @_cdecl("kk_uint_to_int")
 public func kk_uint_to_int(_ value: Int) -> Int {
-    value
+    Int(Int32(truncatingIfNeeded: value))
 }
 
 @_cdecl("kk_ulong_to_int")
 public func kk_ulong_to_int(_ value: Int) -> Int {
-    value
+    Int(Int32(truncatingIfNeeded: value))
 }
 
 @_cdecl("kk_int_to_uint")
 public func kk_int_to_uint(_ value: Int) -> Int {
-    value
+    Int(UInt32(truncatingIfNeeded: value))
 }
 
 @_cdecl("kk_long_to_uint")
 public func kk_long_to_uint(_ value: Int) -> Int {
-    value
+    Int(UInt32(truncatingIfNeeded: value))
 }
 
 @_cdecl("kk_int_to_long")

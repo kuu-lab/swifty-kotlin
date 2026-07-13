@@ -29,11 +29,14 @@ struct IntConversionMemberCallTests {
 
             for memberName in expectedTypes.keys {
                 let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
-                        guard case let .memberCall(_, callee, _, _, _) = expr else {
+                    firstExprID(in: ast) { exprID, expr in
+                        guard case let .memberCall(_, callee, _, _, _) = expr,
+                              ctx.interner.resolve(callee) == memberName,
+                              let range = ast.arena.exprRange(exprID)
+                        else {
                             return false
                         }
-                        return ctx.interner.resolve(callee) == memberName
+                        return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                     },
                     "Expected a call expression for \(memberName)"
                 )

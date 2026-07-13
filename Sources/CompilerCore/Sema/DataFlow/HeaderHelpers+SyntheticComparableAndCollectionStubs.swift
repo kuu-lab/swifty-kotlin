@@ -234,12 +234,6 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol
         )
 
-        registerIterableWindowedTransformMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
-        )
         registerIterablePlusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
@@ -314,6 +308,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             listInterfaceSymbol: listInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 

@@ -2,7 +2,7 @@
 import RuntimeABI
 
 /// Synthetic stubs for `Sequence` terminal operators (`toSet`, `toMap`,
-/// `groupBy`, `maxOrNull`, `minOrNull`, `flatten`, `take`, `drop`,
+/// `groupBy`, `maxOrNull`, `minOrNull`, `take`, `drop`,
 /// `windowed`, etc.) backed by STDLIB-470.
 ///
 /// Split out from `HeaderHelpers+SyntheticTODOAndIOStubs.swift` to keep
@@ -1585,52 +1585,14 @@ extension DataFlowSemaPhase {
                     isSuspend: false,
                     nullability: .nonNull
                 )))
-                let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          signature.receiverType == receiverType,
-                          signature.parameterTypes == [transformType],
-                          signature.returnType == sequenceRType
-                    else { return false }
-                    return true
-                }
-                guard !alreadyRegistered else { return }
-
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: memberName,
-                    fqName: memberFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .operatorFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_sequence_flatMap", for: memberSymbol)
-
-                let transformName = interner.intern("transform")
-                let transformSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: transformName,
-                    fqName: memberFQName + [transformName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: transformSymbol)
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [transformType],
-                        returnType: sequenceRType,
-                        canThrow: true,
-                        valueParameterSymbols: [transformSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false],
-                        typeParameterSymbols: [typeParamSymbol, rSymbol],
-                        typeParameterUpperBoundsList: [[], []],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
+                registerSequenceOverloadedMemberStub(
+                    named: "flatMap",
+                    externalLinkName: "kk_sequence_flatMap",
+                    receiverType: receiverType,
+                    parameters: [("transform", transformType)],
+                    returnType: sequenceRType,
+                    additionalTypeParameterSymbols: [rSymbol],
+                    canThrow: true
                 )
             }
 
@@ -1715,51 +1677,14 @@ extension DataFlowSemaPhase {
                     isSuspend: false,
                     nullability: .nonNull
                 )))
-                let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID),
-                          signature.parameterTypes.count == 1,
-                          let parameterType = signature.parameterTypes.first
-                    else { return false }
-                    return parameterType == transformType
-                }
-                guard !alreadyRegistered else { return }
-
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: memberName,
-                    fqName: memberFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .operatorFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_sequence_flatMapIndexed", for: memberSymbol)
-
-                let transformName = interner.intern("transform")
-                let transformSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: transformName,
-                    fqName: memberFQName + [transformName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: transformSymbol)
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [transformType],
-                        returnType: sequenceRType,
-                        canThrow: true,
-                        valueParameterSymbols: [transformSymbol],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false],
-                        typeParameterSymbols: [typeParamSymbol, rSymbol],
-                        typeParameterUpperBoundsList: [[], []],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
+                registerSequenceOverloadedMemberStub(
+                    named: "flatMapIndexed",
+                    externalLinkName: "kk_sequence_flatMapIndexed",
+                    receiverType: receiverType,
+                    parameters: [("transform", transformType)],
+                    returnType: sequenceRType,
+                    additionalTypeParameterSymbols: [rSymbol],
+                    canThrow: true
                 )
             }
 
@@ -3252,20 +3177,6 @@ extension DataFlowSemaPhase {
                 typeParameterUpperBounds: minComparableElementBounds
             )
         }
-
-        // flatten(): Sequence<T>
-        registerSequenceMemberStub(
-            named: "flatten",
-            externalLinkName: "kk_sequence_flatten",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: types.anyType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
 
         // forEach(action: (T) -> Unit): Unit
         registerSequenceMemberStub(

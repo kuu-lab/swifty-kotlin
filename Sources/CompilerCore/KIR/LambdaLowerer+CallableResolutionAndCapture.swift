@@ -302,7 +302,7 @@ extension LambdaLowerer {
             return checkStringTemplateParts(parts, check: check)
         case let .localDecl(_, _, _, initializer, _, _):
             return initializer.map(check) ?? false
-        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign:
+        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
             return checkAssignmentChildren(expr, check: check)
         case let .inExpr(lhs, rhs, _),
              let .notInExpr(lhs, rhs, _):
@@ -360,6 +360,8 @@ extension LambdaLowerer {
             check(receiver) || indices.contains(where: check) || check(value)
         case let .indexedCompoundAssign(_, receiver, indices, value, _):
             check(receiver) || indices.contains(where: check) || check(value)
+        case let .memberCompoundAssign(_, receiver, _, value, _):
+            check(receiver) || check(value)
         default:
             false
         }

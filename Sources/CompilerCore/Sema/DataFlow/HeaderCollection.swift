@@ -207,7 +207,8 @@ extension DataFlowSemaPhase {
                 fqName: fqName,
                 declSite: declaration.range,
                 visibility: declaration.visibility,
-                flags: declaration.flags
+                flags: declaration.flags,
+                isExtensionProperty: newIsExtensionProperty
             )
         }
         symbols.setSourceFileID(file.fileID, for: symbol)
@@ -952,6 +953,14 @@ extension DataFlowSemaPhase {
             return ["kotlin", "Result"].map { interner.intern($0) }
         case "__bundled_kotlin/uuid/Uuid.kt":
             return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        case "__bundled_java/math/BigDecimal.kt":
+            return ["java", "math", "BigDecimal"].map { interner.intern($0) }
+        case "__bundled_java/math/BigInteger.kt":
+            return ["java", "math", "BigInteger"].map { interner.intern($0) }
+        case "__bundled_kotlin/random/Random.kt":
+            return ["kotlin", "random", "Random"].map { interner.intern($0) }
+        case "__bundled_kotlin/random/JavaUtilRandom.kt":
+            return ["java", "util", "Random"].map { interner.intern($0) }
         default:
             return nil
         }

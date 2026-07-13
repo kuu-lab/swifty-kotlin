@@ -421,8 +421,6 @@ struct ListSyntheticMemberLinkTests {
                 "maxBy": "kk_list_maxBy",
                 "minOfWithOrNull": "kk_list_minOfWithOrNull",
                 "maxOfOrNull": "kk_list_maxOfOrNull",
-                "filterNotTo": "kk_list_filterNotTo",
-                "filterNotNullTo": "kk_list_filterNotNullTo",
                 "find": "kk_list_find",
             ]
 
@@ -612,7 +610,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFilterIsInstanceToUsesRuntimeExternalLink() throws {
+    func testListFilterIsInstanceToBindsBundledSource() throws {
         let source = """
         fun collect(values: List<Any>, dest: MutableList<String>) {
             values.filterIsInstanceTo(dest)
@@ -632,7 +630,8 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "filterIsInstanceTo"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstanceTo")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
             #expect(sema.bindings.isCollectionExpr(callExpr), "Expected filterIsInstanceTo result to be tracked as a collection expression")
         }
     }
@@ -988,7 +987,9 @@ struct ListSyntheticMemberLinkTests {
         fun probe(values: List<Int>) {
             values.first()
             values.firstOrNull()
+            values.firstOrNull { it > 1 }
             values.lastOrNull()
+            values.lastOrNull { it < 3 }
         }
         """
 
@@ -999,28 +1000,40 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let nullableIntType = sema.types.makeNullable(sema.types.intType)
-            let expectedMembers: [(memberName: String, externalLinkName: String?, expectedType: TypeID)] = [
-                ("first", nil, sema.types.intType),
-                ("firstOrNull", "kk_list_firstOrNull", nullableIntType),
-                ("lastOrNull", "kk_list_lastOrNull", nullableIntType),
+            let expectedTerminalCalls: [(memberName: String, expectedType: TypeID)] = [
+                ("first", sema.types.intType),
+                ("firstOrNull", nullableIntType),
+                ("lastOrNull", nullableIntType),
             ]
 
-            for (memberName, externalLinkName, expectedType) in expectedMembers {
+            for (memberName, expectedType) in expectedTerminalCalls {
                 // Use lastExprID rather than firstExprID: bundled stdlib sources
                 // (injected before the fixture's own source) may already contain
                 // calls to the same member name, which would otherwise shadow the
                 // fixture's own call site.
                 let callExpr = try #require(lastExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.isEmpty
                 })
-                if let externalLinkName {
-                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
-                }
                 #expect(sema.bindings.exprTypes[callExpr] == expectedType, "Expected \(memberName) to return the expected element type")
                 #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to avoid collection-expression marking")
+            }
+
+            for memberName in ["firstOrNull", "lastOrNull"] {
+                let predicateCall = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.count == 1
+                })
+                guard case let .memberCall(_, _, _, args, _) = ast.arena.expr(predicateCall),
+                      let predicateArg = args.first?.expr
+                else {
+                    Issue.record("Expected \(memberName)(predicate) call to keep its lambda argument")
+                    continue
+                }
+                #expect(sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be marked for HOF lowering")
+                #expect(sema.bindings.exprTypes[predicateCall] == nullableIntType, "Expected \(memberName)(predicate) to return nullable element type")
+                #expect(!(sema.bindings.isCollectionExpr(predicateCall)), "Expected \(memberName)(predicate) result to avoid collection-expression marking")
             }
         }
     }
@@ -1115,8 +1128,12 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "last"
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                guard ctx.interner.resolve(callee) == "last" else { return false }
+                // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                // List<String>.last() internally; exclude bundled call sites
+                // so this finds the user's Collection<Int>.last() call.
+                return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let type = try #require(sema.bindings.exprType(for: callExpr))
             #expect(sema.types.kind(of: type) == .primitive(.int, .nonNull))
@@ -1508,6 +1525,11 @@ struct ListSyntheticMemberLinkTests {
                 let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
                 #expect(signature.parameterTypes.count == expected.parameterCount)
             }
+
+            let addSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("add")]))
+            #expect(sema.symbols.externalLinkName(for: addSymbol) == "kk_mutable_collection_add")
+            let addAllSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("addAll")]))
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_collection_addAll")
 
             let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
             let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))

@@ -110,7 +110,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListZipWithNextOverloadsToCollectionRuntimeCalls() throws {
+    func testBuildKIRKeepsListZipWithNextOverloadsSourceBacked() throws {
         let source = """
         fun main(values: List<Int>) {
             values.zipWithNext()
@@ -126,9 +126,10 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_zipWithNext"))
-            XCTAssertTrue(callNames.contains("kk_list_zipWithNextTransform"))
-            XCTAssertFalse(callNames.contains("zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNext"))
+            XCTAssertTrue(callNames.contains("__kk_list_zipWithNextTransform"))
+            XCTAssertFalse(callNames.contains("kk_list_zipWithNext"))
+            XCTAssertFalse(callNames.contains("kk_list_zipWithNextTransform"))
         }
     }
 
@@ -152,7 +153,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListZipToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersListZipToPrivateBridge() throws {
         let source = """
         fun main(left: List<Int>, right: List<String>) {
             left.zip(right)
@@ -167,8 +168,9 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_zip"))
+            XCTAssertTrue(callNames.contains("__kk_list_zip"))
             XCTAssertFalse(callNames.contains("zip"))
+            XCTAssertFalse(callNames.contains("kk_list_zip"))
         }
     }
 
@@ -404,7 +406,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListWindowedToCollectionRuntimeCalls() throws {
+    func testBuildKIRLowersListWindowedToPrivateBridge() throws {
         let source = """
         fun main(values: List<Int>) {
             values.windowed(3)
@@ -421,10 +423,11 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_windowed_default"))
-            XCTAssertTrue(callNames.contains("kk_list_windowed"))
-            XCTAssertTrue(callNames.contains("kk_list_windowed_partial"))
+            XCTAssertTrue(callNames.contains("__kk_list_windowed"))
             XCTAssertFalse(callNames.contains("windowed"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed_default"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed"))
+            XCTAssertFalse(callNames.contains("kk_list_windowed_partial"))
         }
     }
 
@@ -590,7 +593,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             XCTAssertNil(throwFlags["kk_string_repeat_flat"])
             XCTAssertNil(throwFlags["kk_string_repeat"])
             XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
         }
     }
 
@@ -611,12 +614,14 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new"))
+            // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
+            // negative size), not bare kk_array_new.
+            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
             XCTAssertTrue(callNames.contains("kk_array_set"))
             XCTAssertTrue(callNames.contains("kk_array_get"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_new"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
         }
@@ -639,12 +644,12 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new"))
+            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
             XCTAssertTrue(callNames.contains("kk_array_set"))
             XCTAssertTrue(callNames.contains("kk_array_get"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_new"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
         }
@@ -680,7 +685,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_new"))
+            XCTAssertTrue(callNames.contains("kk_array_new_checked"))
             XCTAssertTrue(callNames.contains("kk_array_set"))
             XCTAssertTrue(callNames.contains("kk_array_get"))
 

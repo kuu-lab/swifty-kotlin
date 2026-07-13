@@ -2982,7 +2982,9 @@ final class CallTypeChecker {
             )
             if let calleeName {
                 let resolvedName = interner.resolve(calleeName)
-                if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName) {
+                if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName),
+                   !KnownCompilerNames.arrayFactoryFunctionNames.contains(resolvedName)
+                {
                     sema.bindings.markCollectionExpr(id)
                 }
             }
@@ -3177,7 +3179,9 @@ final class CallTypeChecker {
         if let calleeName {
             let name = interner.resolve(calleeName)
             if KnownCompilerNames.stdlibCollectionFactoryNames.contains(name) {
-                sema.bindings.markCollectionExpr(id)
+                if !KnownCompilerNames.arrayFactoryFunctionNames.contains(name) {
+                    sema.bindings.markCollectionExpr(id)
+                }
                 let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                       expectedType != sema.types.errorType,
                                                       case let .classType(expectedClassType) = sema.types.kind(of: expectedType)

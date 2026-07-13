@@ -223,7 +223,7 @@ extension KIRLoweringDriver {
         )
         declIDs.append(arena.appendDecl(.global(KIRGlobal(symbol: delegateStorageSymbol, type: delegateType))))
         delegateStorageSymbolByPropertySymbol[symbol] = delegateStorageSymbol
-        let delegateKind = detectDelegateKind(
+        let delegateKind = StdlibDelegateKind.detect(
             delegateExpr: propertyDecl.delegateExpression,
             ast: shared.ast, interner: shared.interner
         )

@@ -268,7 +268,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceFirstRangeRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceFirstSourceBackedAndEmitsFlatRangeRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
             val value = "abcabc"
@@ -292,20 +292,22 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
-                "kk_string_replaceFirst",
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
+
+            let flatNames = [
                 "kk_string_replaceRange",
                 "kk_string_removeRange",
                 "kk_string_removeRange_range",
             ]
-            for rawName in rawNames {
+            for rawName in flatNames {
                 XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String range call: \(rawName)")
                 XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String range call: \(rawName)_flat")
             }
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceCharIgnoreCaseRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceCharIgnoreCaseSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
             println("hello world".replace('l', 'r'))
@@ -327,14 +329,14 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            let sourceBackedNames = [
                 "kk_string_replace_char",
                 "kk_string_replace_ignoreCase",
                 "kk_string_replace_char_ignoreCase",
             ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String replace call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String replace call: \(rawName)_flat")
+            for rawName in sourceBackedNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw source-backed String replace call: \(rawName)")
+                XCTAssertFalse(ir.contains("@\(rawName)_flat"), "Unexpected flat source-backed String replace call: \(rawName)_flat")
             }
         }
     }
@@ -962,19 +964,19 @@ extension CodegenBackendIntegrationTests {
         appendParsingCall("kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
         appendParsingCall("kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
         appendParsingCall("kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
-        appendParsingCall("kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
-        appendParsingCall("kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
+        appendParsingCall("__kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
+        appendParsingCall("__kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
         appendParsingCall("kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
         appendParsingCall("kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
-        appendParsingCall("kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
-        appendParsingCall("kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
+        appendParsingCall("__kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
+        appendParsingCall("__kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
         appendParsingCall("kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
         appendParsingCall("kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToUByte_flat", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
@@ -1025,19 +1027,19 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toUShortOrNull_radix",
             "kk_string_toUIntOrNull_radix",
             "kk_string_toULongOrNull_radix",
-            "kk_string_toDouble",
-            "kk_string_toDoubleOrNull",
+            "__kk_string_toDouble",
+            "__kk_string_toDoubleOrNull",
             "kk_string_toLong",
             "kk_string_toLongOrNull",
-            "kk_string_toFloat",
-            "kk_string_toFloatOrNull",
+            "__kk_string_toFloat",
+            "__kk_string_toFloatOrNull",
             "kk_string_toShort",
             "kk_string_toShortOrNull",
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
-            "kk_string_toBigDecimal",
-            "kk_string_toBigInteger",
+            "__kk_string_toBigDecimal",
+            "__kk_string_toBigInteger",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")

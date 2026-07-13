@@ -68,17 +68,9 @@ struct StringSyntheticMemberLinkTests {
 
         let expected: [String: String] = [
             "trim": "kk_string_trim_flat",
-            "replace": "kk_string_replace_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
-            "toDouble": "kk_string_toDouble",
-            "hexToShort": "kk_string_hexToShort_flat",
-            "hexToUByte": "kk_string_hexToUByte_flat",
-            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
-            "hexToUInt": "kk_string_hexToUInt_flat",
-            "hexToULong": "kk_string_hexToULong_flat",
-            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -182,21 +174,15 @@ struct StringSyntheticMemberLinkTests {
                 .contains("kk_string_plus"),
             "String?.plus(other: Any?) should link to kk_string_plus"
         )
-        // STDLIB-TEXT-FN-055: replace overloads
+        // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
+        let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
         #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_flat"),
-            "String.replace(Char, Char) should link to kk_string_replace_char_flat"
-        )
-        #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_ignoreCase_flat"),
-            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase_flat"
-        )
-        #expect(
-            externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_ignoreCase_flat"),
-            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase_flat"
+            !replaceLinks.contains("kk_string_replace_flat")
+                && !replaceLinks.contains("kk_string_replace_char_flat")
+                && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
+                && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
+                && !replaceLinks.contains("kk_string_replace_regex"),
+            "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
         )
     }
 
@@ -333,30 +319,33 @@ struct StringSyntheticMemberLinkTests {
             "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
         )
         #expect(
-            externalLink(
-                for: "toDoubleOrNull",
-                receiverType: sema.types.stringType,
-                parameterCount: 0,
-                sema: sema,
-                interner: interner
-            ) == "kk_string_toDoubleOrNull",
-            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+            !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
+                .contains("__kk_string_toDoubleOrNull"),
+            "String.toDoubleOrNull should be source-backed and not have a direct external link"
         )
         #expect(
-            externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
-            "String.toBigDecimal should link to kk_string_toBigDecimal"
+            externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
         )
         #expect(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
-            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+            externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
         )
         #expect(
-            externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
-            "String.toBigInteger should link to kk_string_toBigInteger"
+            externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
         )
         #expect(
-            externalLink(for: "toBigIntegerOrNull", sema: sema, interner: interner) == "kk_string_toBigIntegerOrNull",
-            "String.toBigIntegerOrNull should link to kk_string_toBigIntegerOrNull"
+            externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
         )
     }
 
@@ -1949,7 +1938,9 @@ struct StringSyntheticMemberLinkTests {
                 }
                 return exprID
             }
-            #expect(callExprIDs.count == 2, "Expected two decodeToString range calls")
+            // 2 user calls, plus 1 in bundled Base64.kt's decode(ByteArray)
+            // overload (`source.decodeToString()`, KSP-482).
+            #expect(callExprIDs.count == 3, "Expected two decodeToString range calls plus the bundled Base64 call")
 
             // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
             // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have

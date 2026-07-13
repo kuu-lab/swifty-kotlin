@@ -240,6 +240,37 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DurationStableParseIsoString", expected: "93784\nfalse\ntrue\n")
     }
 
+    // KSP-471: Duration.Companion.parse/parseIsoString are Kotlin source (Duration.kt)
+    // wrappers around the canThrow __kk_duration_parse/__kk_duration_parseIsoString
+    // bridges. Verify the thrown exception actually propagates out of the Kotlin
+    // source wrapper (not just the native bridge, which RuntimeDurationTests already
+    // covers directly).
+    func testDurationStableParseAndParseIsoStringThrowOnInvalidInput() throws {
+        let source = """
+        import kotlin.time.Duration
+
+        fun main() {
+            try {
+                Duration.parse("not a duration")
+            } catch (e: IllegalArgumentException) {
+                println("iae-parse")
+            }
+            try {
+                Duration.parseIsoString("not iso")
+            } catch (e: IllegalArgumentException) {
+                println("iae-parseIsoString")
+            }
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableParseThrows",
+            expected: "iae-parse\niae-parseIsoString\ndone\n"
+        )
+    }
+
     func testDurationStableDoubleReceiverExtensionProperties() throws {
         let source = """
         import kotlin.time.Duration.Companion.days

@@ -12,7 +12,6 @@ import XCTest
 //   - vetoable(): callback fires *before* change (pre-condition); partial-reject sequences;
 //     no callback when fnPtr == 0; veto preserves old value across multiple attempts
 //   - lazy: publication mode initializes only once when winner is determined by race
-//   - kk_delegate_get_value / kk_delegate_set_value generic shims: dispatch to correct box type
 //   - kk_kproperty_stub: name/returnType metadata available inside callbacks
 
 // MARK: - Module-level callback state (C function pointers cannot capture context)
@@ -141,16 +140,6 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
                        "notNull must store integer 0 (not confuse it with nil)")
     }
 
-    // MARK: - notNull generic shim (kk_delegate_get_value / kk_delegate_set_value)
-
-    func testNotNullViaGenericShimGetSet() {
-        let handle = kk_notNull_create()
-        _ = kk_delegate_set_value(handle, 0, 0, 99, nil)
-        let result = kk_delegate_get_value(handle, 0, 0, nil)
-        XCTAssertEqual(result, 99,
-                       "kk_delegate_get_value shim should dispatch to notNull box")
-    }
-
     // MARK: - observable(): callback fires AFTER the change
 
     func testObservableCallbackFiresAfterChange() {
@@ -207,18 +196,6 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_observable_set_value(handle, 42)  // no-op value but callback still fires
         let count = gEdgeState.withLock { $0.observableCallCount }
         XCTAssertEqual(count, 1, "Observable callback fires even when old == new")
-    }
-
-    // observable generic shim
-    func testObservableViaGenericShimGetSet() {
-        let cbPtr = unsafeBitCast(observableEdgeCapture, to: Int.self)
-        let handle = kk_observable_create(100, cbPtr)
-        gEdgeState.withLock { $0.observableHandleRef = handle }
-
-        _ = kk_delegate_set_value(handle, 0, 0, 200, nil)
-        XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 200)
-        let count = gEdgeState.withLock { $0.observableCallCount }
-        XCTAssertEqual(count, 1, "Generic shim must trigger observable callback")
     }
 
     // MARK: - vetoable(): callback fires BEFORE the change
@@ -305,25 +282,6 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(count, 3, "Vetoable callback fires once per set attempt")
     }
 
-    // vetoable generic shim
-    func testVetoableViaGenericShimAccept() {
-        let cbPtr = unsafeBitCast(vetoableEdgeCapture, to: Int.self)
-        let handle = kk_vetoable_create(0, cbPtr)
-        gEdgeState.withLock { $0.vetoableHandleRef = handle }
-
-        _ = kk_delegate_set_value(handle, 0, 0, 55, nil)
-        XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 55)
-    }
-
-    func testVetoableViaGenericShimReject() {
-        let cbPtr = unsafeBitCast(vetoableEdgeReject, to: Int.self)
-        let handle = kk_vetoable_create(7, cbPtr)
-
-        _ = kk_delegate_set_value(handle, 0, 0, 99, nil)
-        XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 7,
-                       "Generic shim veto should keep original value")
-    }
-
     // MARK: - lazy: value is frozen after first evaluation
 
     func testLazyValueIsFrozenAfterInit() {
@@ -354,15 +312,6 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(value, 0, "Lazy must store integer 0 as a valid initialized value")
         XCTAssertEqual(kk_lazy_is_initialized(handle), 1,
                        "Lazy should be marked initialized even when initializer returned 0")
-    }
-
-    func testLazyGenericShimReturnsValue() {
-        let init77: KKThunkEntryPoint = { _ in 77 }
-        let fnPtr = unsafeBitCast(init77, to: Int.self)
-        let handle = kk_lazy_create(fnPtr, 1)
-
-        let value = kk_delegate_get_value(handle, 0, 0, nil)
-        XCTAssertEqual(value, 77, "kk_delegate_get_value shim must dispatch to lazy box")
     }
 
     // MARK: - KProperty stub metadata
@@ -422,12 +371,6 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
     }
 
     // MARK: - Invalid handle robustness
-
-    func testAllDelegateShimsHandleZeroHandleGracefully() {
-        // kk_delegate_get_value and kk_delegate_set_value with handle == 0.
-        XCTAssertEqual(kk_delegate_get_value(0, 0, 0, nil), 0)
-        XCTAssertEqual(kk_delegate_set_value(0, 0, 0, 42, nil), 0)
-    }
 
     func testObservableSetValueWithInvalidHandleReturnsZero() {
         XCTAssertEqual(kk_observable_set_value(0, 99), 0)

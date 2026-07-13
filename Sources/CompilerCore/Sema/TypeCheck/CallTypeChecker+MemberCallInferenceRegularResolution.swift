@@ -294,6 +294,32 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            // `Owner.Nested` and `Owner.Nested()` parse to the identical
+            // zero-arg `.memberCall` node — there is no AST signal for
+            // whether call syntax was written. This is only unambiguous when
+            // no valid constructor-call reading could exist in the first
+            // place: enum class constructors are always implicitly private
+            // (never callable from outside the enum body) and `object`
+            // declarations have no constructor at all, so a nested enum/object
+            // reference must be the bare type/nested-owner (needed e.g. for
+            // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
+            // further static member access). A nested `class`, in contrast,
+            // may have a genuine public zero-arg constructor (e.g.
+            // `Outer.Builder()`), so it falls through to constructor
+            // resolution below, preserving the pre-existing behavior.
+            if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
+               let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+            {
+                let nestedType = sema.types.make(.classType(ClassType(
+                    classSymbol: nestedOwner,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
+                sema.bindings.bindExprType(id, type: nestedType)
+                return nestedType
+            }
             let nestedCtorFQName = owner.fqName + [calleeName, interner.intern("<init>")]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
@@ -379,18 +405,6 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-            }
-            if args.isEmpty,
-               let nestedOwner = nestedOwnerSymbols.first
-            {
-                let nestedType = sema.types.make(.classType(ClassType(
-                    classSymbol: nestedOwner,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
-                sema.bindings.bindExprType(id, type: nestedType)
-                return nestedType
             }
         }
 
@@ -501,6 +515,23 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: propType)
                         return propType
                     }
+
+                    // Fall back to a Companion-scoped extension property
+                    // (e.g. `val Duration.Companion.ZERO: Duration`) written as
+                    // Kotlin source at package scope with the Companion as receiver.
+                    let compTypeForExt = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                    if let extensionPropertyType = resolveExtensionPropertyGetter(
+                        id: id,
+                        calleeName: calleeName,
+                        range: range,
+                        receiverType: compTypeForExt,
+                        expectedType: expectedType,
+                        ctx: ctx
+                    ) {
+                        sema.bindings.bindExprType(receiverID, type: compTypeForExt)
+                        sema.bindings.bindExprType(id, type: extensionPropertyType)
+                        return extensionPropertyType
+                    }
                 }
 
                 // Then try companion function candidates
@@ -515,8 +546,28 @@ extension CallTypeChecker {
                     }
                     companionCandidates.append(candidate)
                 }
+                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                if companionCandidates.isEmpty {
+                    // Fall back to Companion-scoped extension functions
+                    // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
+                    // written as Kotlin source at package scope. These are resolved
+                    // via scope lookup (like ordinary extension functions), not the
+                    // direct-member FQName lookup above.
+                    companionCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate),
+                              symbol.kind == .function,
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let recv = signature.receiverType
+                        else { return false }
+                        return extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionTypeForExtensionLookup,
+                            declaredReceiver: recv,
+                            sema: sema
+                        )
+                    }
+                }
                 if !companionCandidates.isEmpty {
-                    companionReceiverType = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                    companionReceiverType = companionTypeForExtensionLookup
                     // Re-bind receiver expression to companion type so KIR
                     // lowering passes the companion singleton (not the owner
                     // class) as the first argument to the companion function.

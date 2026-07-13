@@ -29,6 +29,11 @@ FORCE_RUN_SKIPPED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
+# kotlinc -script bundles JVM startup + compilation + execution into a single
+# process, so it belongs on the COMPILE_TIMEOUT scale, not RUN_TIMEOUT (which
+# assumes a fast pre-compiled binary). Resolved after arg parsing so it can
+# default to the final COMPILE_TIMEOUT (post --compile-timeout override).
+SCRIPT_TIMEOUT="${DIFF_SCRIPT_TIMEOUT:-}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
 LLDB_BIN="${LLDB_BIN:-lldb}"
 
@@ -53,6 +58,10 @@ Options:
                      Per-compiler timeout (default: \$DIFF_COMPILE_TIMEOUT or 120)
   --run-timeout <seconds>
                      Per-program timeout (default: \$DIFF_RUN_TIMEOUT or 10)
+  --script-timeout <seconds>
+                     Timeout for script-style (script_*.kt) reference cases,
+                     which bundle kotlinc JVM startup + compile + run into one
+                     process (default: \$DIFF_SCRIPT_TIMEOUT, else --compile-timeout)
   --keep-temp        Keep per-test temporary directories
   --report <path>    Write TSV report (case, status, artifact_dir)
   --artifact-root <path>
@@ -165,6 +174,14 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       RUN_TIMEOUT="$1"
+      ;;
+    --script-timeout)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--script-timeout requires an argument" >&2
+        exit 1
+      fi
+      SCRIPT_TIMEOUT="$1"
       ;;
     --keep-temp)
       KEEP_TEMP=1
@@ -348,6 +365,15 @@ if ! [[ "$RUN_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+# Default to the (possibly --compile-timeout-overridden) COMPILE_TIMEOUT, since
+# script mode's dominant cost is JVM startup + compilation, not execution.
+SCRIPT_TIMEOUT="${SCRIPT_TIMEOUT:-$COMPILE_TIMEOUT}"
+
+if ! [[ "$SCRIPT_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "script timeout must be a positive integer: $SCRIPT_TIMEOUT" >&2
+  exit 1
+fi
+
 if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
@@ -421,6 +447,7 @@ if (( DIFF_SHARD_COUNT > 1 )); then
 fi
 echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
+echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
 echo "Target: $TARGET"
@@ -539,6 +566,7 @@ result: $result_label
 artifact_dir: $destination
 compile_timeout_seconds: $COMPILE_TIMEOUT
 run_timeout_seconds: $RUN_TIMEOUT
+script_timeout_seconds: $SCRIPT_TIMEOUT
 ref_compile_exit: $ref_compile_exit
 candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
@@ -591,6 +619,15 @@ get_diff_line_pattern() {
 get_kotlinc_extra_flags() {
   local kt_file="$1"
   grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
+}
+
+# Extract extra JVM flags (e.g. -ea) from // JAVA_FLAGS: directives in the test
+# file. These are passed to the `java` invocation that runs the reference jar,
+# before -cp/-jar so they are parsed as JVM options rather than program args.
+# Format: // JAVA_FLAGS: <flags>
+get_java_extra_flags() {
+  local kt_file="$1"
+  grep -E '^[[:space:]]*//[[:space:]]*JAVA_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*JAVA_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
 # Normalize stdout: replace lines matching pattern with placeholder for diff.
@@ -650,16 +687,19 @@ run_case() {
   local kotlinc_extra_flags
   kotlinc_extra_flags="$(get_kotlinc_extra_flags "$kt_file")"
 
+  local java_extra_flags
+  java_extra_flags="$(get_java_extra_flags "$kt_file")"
+
   if [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
     local script_exit=0
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
     else
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
     fi
     if [[ $script_exit -eq 124 ]]; then
       # Timeout in script mode is a runtime timeout, not a compile timeout
@@ -686,16 +726,20 @@ run_case() {
           echo "Missing Main-Class in reference jar manifest." >"$ref_run_stderr"
         else
           if needs_stdin_eof "$kt_file"; then
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            # shellcheck disable=SC2086
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           else
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            # shellcheck disable=SC2086
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           fi
         fi
       else
         if needs_stdin_eof "$kt_file"; then
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         else
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         fi
       fi
     fi
@@ -732,6 +776,15 @@ run_case() {
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
+  # Matching non-zero compile exits short-circuit the run/stdout comparison
+  # below, so this "passes" without either side ever executing. The match is
+  # necessary but not sufficient evidence of equivalent behavior — both
+  # compilers reject their own input for possibly unrelated reasons (stderr is
+  # not diffed). Flag it so a green run isn't mistaken for verified parity.
+  if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
+    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not imply matching failure reasons (stderr is not diffed) — this PASS is inconclusive, not verified parity"
+  fi
+
   if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
     if [[ $ref_run_exit -ne $cand_run_exit ]]; then
       ok=0
@@ -739,7 +792,11 @@ run_case() {
     fi
     if [[ $ref_run_exit -eq 124 ]]; then
       ok=0
-      echo "  ref run timed out after ${RUN_TIMEOUT}s"
+      if [[ $is_script -eq 1 ]]; then
+        echo "  ref script (compile+run) timed out after ${SCRIPT_TIMEOUT}s"
+      else
+        echo "  ref run timed out after ${RUN_TIMEOUT}s"
+      fi
     fi
     if [[ $cand_run_exit -eq 124 ]]; then
       ok=0

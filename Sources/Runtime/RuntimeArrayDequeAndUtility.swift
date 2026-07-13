@@ -382,6 +382,23 @@ public func kk_array_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
     return kk_box_bool(1)
 }
 
+@_cdecl("kk_byteArray_contentEquals")
+public func kk_byteArray_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw), let other = runtimeArrayBox(from: otherRaw) else {
+        return kk_box_bool(0)
+    }
+    if array.elements.count != other.elements.count {
+        return kk_box_bool(0)
+    }
+    for i in 0 ..< array.elements.count {
+        // swiftlint:disable:next for_where
+        if Int8(truncatingIfNeeded: array.elements[i]) != Int8(truncatingIfNeeded: other.elements[i]) {
+            return kk_box_bool(0)
+        }
+    }
+    return kk_box_bool(1)
+}
+
 private func runtimeCollectionStringPointer(_ value: String) -> UnsafeMutableRawPointer {
     let utf8 = Array(value.utf8)
     return utf8.withUnsafeBufferPointer { buffer in

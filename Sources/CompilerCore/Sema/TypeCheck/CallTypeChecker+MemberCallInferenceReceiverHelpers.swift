@@ -333,8 +333,8 @@ extension CallTypeChecker {
             return nil
         }
         guard let continuationSymbol = ctx.sema.symbols.lookup(fqName: knownNames.kotlinContinuationFQName),
-              case let .classType(classType) = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(receiverType)),
-              classType.classSymbol == continuationSymbol
+              let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: ctx.sema),
+              receiverSymbol.id == continuationSymbol
         else {
             return nil
         }
@@ -349,7 +349,7 @@ extension CallTypeChecker {
 
         var expectedArgType: TypeID = ctx.sema.types.anyType
         if calleeName == knownNames.resume,
-           case let .classType(classType) = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(receiverType)),
+           let classType = resolveClassType(receiverType, sema: ctx.sema),
            let continuationArg = classType.args.first
         {
             switch continuationArg {
@@ -359,7 +359,7 @@ extension CallTypeChecker {
                 expectedArgType = ctx.sema.types.anyType
             }
         } else if calleeName == knownNames.resumeWith,
-                  case let .classType(classType) = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(receiverType)),
+                  let classType = resolveClassType(receiverType, sema: ctx.sema),
                   let continuationArg = classType.args.first,
                   let resultSymbol = ctx.sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Result")])
         {

@@ -6,7 +6,8 @@ extension MemberLowerer {
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext? = nil
+        compilationCtx: CompilationContext? = nil,
+        isInterfaceContext: Bool = false
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         lowerMemberDecls(
             memberFunctions: memberFunctions,
@@ -18,7 +19,8 @@ extension MemberLowerer {
             arena: shared.arena,
             interner: shared.interner,
             propertyConstantInitializers: shared.propertyConstantInitializers,
-            compilationCtx: compilationCtx
+            compilationCtx: compilationCtx,
+            isInterfaceContext: isInterfaceContext
         )
     }
 
@@ -70,7 +72,10 @@ extension MemberLowerer {
         case .notNull:
             interner.intern("kk_notNull_get_value")
         case .custom:
-            interner.intern("kk_custom_delegate_get_value")
+            // Dispatches via `symbol: customGetValueSymbol` below (a direct call to the
+            // resolved user-defined operator), so this name is only used for KIR dumps/LLVM
+            // instruction naming, never for runtime symbol lookup.
+            interner.intern("getValue")
         }
         let setValueName: InternedString = switch delegateKind {
         case .lazy:
@@ -82,7 +87,7 @@ extension MemberLowerer {
         case .notNull:
             interner.intern("kk_notNull_set_value")
         case .custom:
-            interner.intern("kk_custom_delegate_set_value")
+            interner.intern("setValue")
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
@@ -116,7 +121,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [],
+                    ) : [delegateHandleExprID],
                     result: resultExprID,
                     canThrow: notNullThrows,
                     thrownResult: thrownExprID
@@ -150,7 +155,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [valueExprID],
+                    ) : [delegateHandleExprID, valueExprID],
                     result: resultExprID,
                     canThrow: false,
                     thrownResult: nil
@@ -248,7 +253,7 @@ extension MemberLowerer {
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_kproperty_stub_create"),
+                callee: interner.intern("__kk_kproperty_stub_create"),
                 arguments: [propertyNameExprID, returnTypeExprID],
                 result: kPropertyExprID,
                 canThrow: false,

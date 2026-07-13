@@ -762,5 +762,36 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinOutput(source, moduleName: "ArrayContentDeepEquals", expected: "true\nfalse\nfalse\ntrue\nfalse\n")
     }
+
+    // KSP-481 follow-up: `for (i in 0 until n)` used to leave `i` typed as Any
+    // (see testCodegenForLoopUntilRangeExplicitIntType), which made ByteArray's
+    // indexed `get(index: Int)` unresolvable and surfaced as a TYPE-0001 error
+    // pointing at both operands of `a[i] != b[i]`. Locks in that indexing +
+    // comparison combination now that the loop variable is correctly typed Int.
+    func testByteArrayElementNotEqualsInsideUntilRangeLoop() throws {
+        let source = """
+        fun main() {
+            val a = byteArrayOf(1, 2, 3, 4)
+            val b = byteArrayOf(1, 2, 3, 4)
+            var match = true
+            for (i in 0 until a.size) {
+                if (a[i] != b[i]) {
+                    match = false
+                }
+            }
+            println(match)
+
+            val c = byteArrayOf(1, 2, 3, 5)
+            var match2 = true
+            for (i in 0 until a.size) {
+                if (a[i] != c[i]) {
+                    match2 = false
+                }
+            }
+            println(match2)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "ByteArrayElementNotEqualsInsideUntilRangeLoop", expected: "true\nfalse\n")
+    }
 }
 

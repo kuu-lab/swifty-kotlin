@@ -109,7 +109,10 @@ extension DataFlowSemaPhase {
             }
             guard !alreadyRegistered else { return }
             let sourceBackedFilterNames: Set<InternedString> = [
+                interner.intern("filter"),
                 interner.intern("filterNot"),
+                interner.intern("filterNotNull"),
+                interner.intern("filterIndexed"),
                 interner.intern("filterIsInstance"),
             ]
             if sourceBackedFilterNames.contains(memberName),
@@ -214,64 +217,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [listPredicateType],
             externalLinkName: "kk_list_find",
             returnTypeOverride: types.makeNullable(listTypeParamType)
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNot"),
-            memberFQName: listFQName + [interner.intern("filterNot")],
-            parameterTypes: [listPredicateType],
-            externalLinkName: "kk_list_filterNot"
-        )
-
-        let destinationCollectionType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterTo"),
-            memberFQName: listFQName + [interner.intern("filterTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotTo"),
-            memberFQName: listFQName + [interner.intern("filterNotTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            ],
-            externalLinkName: "kk_list_filterNotTo",
-            returnTypeOverride: destinationCollectionType
-        )
-        let indexedPredicateType = types.make(.functionType(FunctionType(
-            params: [types.intType, listTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIndexedTo"),
-            memberFQName: listFQName + [interner.intern("filterIndexedTo")],
-            parameterTypes: [
-                destinationCollectionType,
-                indexedPredicateType,
-            ],
-            externalLinkName: "kk_list_filterIndexedTo",
-            returnTypeOverride: destinationCollectionType
         )
 
         let mapToTypeParamName = interner.intern("R")
@@ -530,153 +475,6 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: [listTypeParamSymbol, flatMapIndexedToTypeParamSymbol]
         )
 
-        let filterIsInstanceTypeParamName = interner.intern("R")
-        let filterIsInstanceTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstance"), filterIsInstanceTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceResultType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(filterIsInstanceTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstance"),
-            memberFQName: listFQName + [interner.intern("filterIsInstance")],
-            parameterTypes: [],
-            externalLinkName: "kk_list_filterIsInstance",
-            returnTypeOverride: filterIsInstanceResultType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-
-        let filterIsInstanceToTypeParamName = interner.intern("R")
-        let filterIsInstanceToTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: filterIsInstanceToTypeParamName,
-            fqName: listFQName + [interner.intern("filterIsInstanceTo"), filterIsInstanceToTypeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let filterIsInstanceToTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: filterIsInstanceToTypeParamSymbol, nullability: .nonNull
-        )))
-        let filterIsInstanceToDestinationType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(filterIsInstanceToTypeParamType)],
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: interner.intern("filterIsInstanceTo"),
-            memberFQName: listFQName + [interner.intern("filterIsInstanceTo")],
-            parameterTypes: [filterIsInstanceToDestinationType],
-            externalLinkName: "kk_list_filterIsInstanceTo",
-            returnTypeOverride: filterIsInstanceToDestinationType,
-            typeParameterSymbols: [listTypeParamSymbol, filterIsInstanceToTypeParamSymbol],
-            reifiedTypeParameterIndices: [1]
-        )
-        registerMemberOverload(
-            memberName: interner.intern("filterNotNullTo"),
-            memberFQName: listFQName + [interner.intern("filterNotNullTo")],
-            parameterTypes: [destinationCollectionType],
-            externalLinkName: "kk_list_filterNotNullTo",
-            returnTypeOverride: destinationCollectionType
-        )
-
-        // chunked(size: Int): List<List<E>> and windowed(size: Int, step: Int): List<List<E>>
-        // These return List<List<E>>, not List<E>.
-        let listOfListReturnType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listReturnType)],
-            nullability: .nonNull
-        )))
-
-        registerMemberOverload(
-            memberName: interner.intern("chunked"),
-            memberFQName: listFQName + [interner.intern("chunked")],
-            parameterTypes: [types.intType],
-            externalLinkName: "kk_list_chunked",
-            returnTypeOverride: listOfListReturnType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("windowed"),
-            memberFQName: listFQName + [interner.intern("windowed")],
-            parameterTypes: [types.intType],
-            externalLinkName: "kk_list_windowed_default",
-            returnTypeOverride: listOfListReturnType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("windowed"),
-            memberFQName: listFQName + [interner.intern("windowed")],
-            parameterTypes: [types.intType, types.intType],
-            externalLinkName: "kk_list_windowed",
-            returnTypeOverride: listOfListReturnType
-        )
-        registerMemberOverload(
-            memberName: interner.intern("windowed"),
-            memberFQName: listFQName + [interner.intern("windowed")],
-            parameterTypes: [types.intType, types.intType, types.booleanType],
-            externalLinkName: "kk_list_windowed_partial",
-            returnTypeOverride: listOfListReturnType
-        )
-
-        // STDLIB-COL-WIN-001: windowed(size, step, partialWindows, transform)
-        // The transform overload erases R at the ABI level, so it returns List<Any>.
-        do {
-            let windowedTransformName = interner.intern("windowed")
-            let windowedTransformFQName = listFQName + [windowedTransformName]
-            let existingWindowedOverloads = symbols.lookupAll(fqName: windowedTransformFQName)
-            let hasFourParamWindowed = existingWindowedOverloads.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes.count == 4
-            }
-            if !hasFourParamWindowed {
-                let invariantListType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSymbol,
-                    args: [.invariant(listTypeParamType)],
-                    nullability: .nonNull
-                )))
-                let transformType = types.make(.functionType(FunctionType(
-                    params: [invariantListType],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                let listOfAnyReturnType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSymbol,
-                    args: [.out(types.anyType)],
-                    nullability: .nonNull
-                )))
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: windowedTransformName,
-                    fqName: windowedTransformFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_list_windowed_transform", for: memberSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [types.intType, types.intType, types.booleanType, transformType],
-                        returnType: listOfAnyReturnType,
-                        typeParameterSymbols: [listTypeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],
@@ -741,62 +539,6 @@ extension DataFlowSemaPhase {
                     for: sym
                 )
             }
-        }
-
-        // chunked(size, transform) — HOF overload (STDLIB-548)
-        // The transform receives a List<T> chunk and returns R. Since R is erased at the
-        // runtime ABI level, we model the return type as List<Any> (not List<T>) to avoid
-        // mis-typing calls where the transform changes element types.
-        let chunkedTransformName = interner.intern("chunked")
-        let chunkedTransformFQName = listFQName + [chunkedTransformName]
-        // Only register if there isn't already a 2-param overload for "chunked".
-        // The 1-arg overload registered above shares the same fqName; check
-        // existing overloads by parameter count to avoid duplicate 2-param symbols.
-        let existingChunkedOverloads = symbols.lookupAll(fqName: chunkedTransformFQName)
-        let hasTwoParamChunked = existingChunkedOverloads.contains { symID in
-            guard let sig = symbols.functionSignature(for: symID) else { return false }
-            return sig.parameterTypes.count == 2
-        }
-        if !hasTwoParamChunked {
-            // Use invariant List<T> (not List<out T>) for the transform parameter
-            // to avoid variance violations when the lambda is in contravariant position.
-            let invariantListType = types.make(.classType(ClassType(
-                classSymbol: listInterfaceSymbol,
-                args: [.invariant(listTypeParamType)],
-                nullability: .nonNull
-            )))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [invariantListType],
-                returnType: types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            // Return type is List<Any> since the transform can change element types (R != T).
-            let listOfAnyReturnType = types.make(.classType(ClassType(
-                classSymbol: listInterfaceSymbol,
-                args: [.out(types.anyType)],
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: chunkedTransformName,
-                fqName: chunkedTransformFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_chunked_transform", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [types.intType, transformType],
-                    returnType: listOfAnyReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
         }
 
         // distinctBy (HOF, selector lambda)

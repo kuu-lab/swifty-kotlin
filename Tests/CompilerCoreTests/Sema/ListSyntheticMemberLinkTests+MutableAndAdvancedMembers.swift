@@ -284,8 +284,12 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "joinToString"
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                guard ctx.interner.resolve(callee) == "joinToString" else { return false }
+                // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                // List<String>.joinToString(...) internally; exclude bundled
+                // call sites so this finds the user's Sequence.joinToString(...).
+                return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
@@ -1333,8 +1337,12 @@ extension ListSyntheticMemberLinkTests {
                 let ast = try #require(ctx.ast)
                 let sema = try #require(ctx.sema)
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "addAll"
+                    guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                    guard ctx.interner.resolve(callee) == "addAll" else { return false }
+                    // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                    // MutableList<String>.addAll(...) internally; exclude
+                    // bundled call sites so this finds the user's call.
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
@@ -1383,8 +1391,12 @@ extension ListSyntheticMemberLinkTests {
                 let ast = try #require(ctx.ast)
                 let sema = try #require(ctx.sema)
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "addAll"
+                    guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                    guard ctx.interner.resolve(callee) == "addAll" else { return false }
+                    // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                    // MutableList<String>.addAll(...) internally; exclude
+                    // bundled call sites so this finds the user's call.
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
@@ -1999,7 +2011,9 @@ extension ListSyntheticMemberLinkTests {
             })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_zip")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            let fileID = try #require(sema.symbols.sourceFileID(for: chosenCallee))
+            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListWindowChunk.kt")
 
             let callType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(listType) = sema.types.kind(of: callType) else {

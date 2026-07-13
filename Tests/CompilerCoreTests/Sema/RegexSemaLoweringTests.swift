@@ -190,8 +190,13 @@ struct RegexSemaLoweringTests {
 
             let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "replace"
+                    guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                    guard ctx.interner.resolve(callee) == "replace" else { return false }
+                    // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
+                    // String.replace(String, String) internally, and bundled
+                    // stdlib is scanned before user source; exclude it so this
+                    // finds the user's Regex.replace(...) call.
+                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
                 },
                 "Expected .replace(...) member call"
             )
@@ -481,7 +486,7 @@ struct RegexSemaLoweringTests {
 
     // MARK: - 9. KIR lowering: String.split(Regex) and String.contains(Regex)
 
-    @Test func testStringSplitWithRegexLowersToInternalStringSplitRegexBridge() throws {
+    @Test func testStringSplitWithRegexUsesSourceBackedWrapper() throws {
         let source = """
         fun test() {
             val r = Regex("\\\\s+")
@@ -494,7 +499,11 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("__kk_string_split_regex_flat"), Comment(rawValue: "KIR must contain __kk_string_split_regex_flat; found: \(callees)"))
+            #expect(callees.contains("split"), Comment(rawValue: "KIR must call the source-backed split wrapper; found: \(callees)"))
+            #expect(
+                !callees.contains("kk_string_split_regex_flat"),
+                Comment(rawValue: "User KIR should not directly lower split(Regex) to runtime; found: \(callees)")
+            )
         }
     }
 
