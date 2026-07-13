@@ -98,6 +98,7 @@
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
 - [x] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` の compiler-generated plain `yield()` producer（range-loop 内 `yield` を含む）は CPS lowering の suspend point として扱い、`kk_*_builder_build_coro` 経由で専用 producer thread を使わない経路へ移行済み。`yieldAll` と legacy direct ABI callback 用の `Thread` fallback は互換経路として維持する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
+- [x] DEBT-CORO-004: `CoroutineExceptionHandler` 付き `launch` が例外を handler に通知した後も job を exceptional completion として扱い、`join()` が正常完了値を返さなかった。最小再現: `runBlocking { val handler = CoroutineExceptionHandler { _, _ -> }; val job = launch(handler) { error("boom") }; job.join() }`。発見元: PR #4730。handler ありは例外を消費して正常完了、handler なしは failed job として保持するよう修正済み
 
 ### KIR / Lowering
 - [x] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift` の vtable dispatch gate を解除。`kk_alloc` / `KTypeInfo` vtable は raw heap object fallback として残しつつ、既存 `kk_object_new` ベースの class/object/object-literal allocation は itable と同型の object-local vtable method registry を登録し、`kk_vtable_lookup` が override 実装を取得できるようにした。`VirtualDispatchTests` と backend 実行テストで open-class / safe-call 経路を検証済み

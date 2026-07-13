@@ -279,6 +279,22 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(joinResult, 0, "Exception handler should consume the exception; job completes with 0")
     }
 
+    /// Without a CoroutineExceptionHandler, an uncaught exception must remain visible
+    /// as an exceptional job completion instead of being reported as normal success.
+    func testExceptionWithoutHandlerFailsJob() {
+        let entryRaw = unsafeBitCast(
+            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let functionID = 8814
+        let jobHandle = kk_kxmini_launch_with_exception_handler(entryRaw, functionID, 0)
+        XCTAssertNotEqual(jobHandle, 0)
+
+        let joinResult = kk_job_join(jobHandle, 0)
+        XCTAssertNotEqual(joinResult, 0, "An uncaught exception without a handler must fail the job")
+        XCTAssertEqual(kk_job_is_failed(jobHandle), 1)
+    }
+
     // MARK: - Test 6: launch_with_dispatcher uses the specified dispatcher
 
     /// kk_kxmini_launch_with_dispatcher should run the coroutine and return a job handle
