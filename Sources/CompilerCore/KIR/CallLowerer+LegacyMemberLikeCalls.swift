@@ -95,6 +95,24 @@ extension CallLowerer {
             ]
             return sourceBackedListFilterFQNames.contains(symbol.fqName)
         }()
+        let isSourceBackedMemberCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            guard sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) else {
+                return false
+            }
+            let sourceBackedStringMemberNames: Set<String> = ["split", "replace", "replaceFirst"]
+            return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
+                && (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -1250,6 +1268,9 @@ extension CallLowerer {
             return tableDrivenStringMember
         }
 
+        // Migrated source-backed members must lower through their Kotlin body;
+        // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
+        if !isSourceBackedMemberCall {
         // String stdlib: nullable-receiver 0-arg methods (NULL-002)
         // isNullOrEmpty/isNullOrBlank pass the raw (potentially null) receiver pointer to C runtime.
         if args.isEmpty {
@@ -1416,7 +1437,7 @@ extension CallLowerer {
                 if calleeStr == "toFloatOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("__kk_string_toFloatOrNull"),
+                        callee: interner.intern("__kk_string_toFloatOrNull_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -3870,6 +3891,7 @@ extension CallLowerer {
                 ))
                 return result
             }
+        }
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
