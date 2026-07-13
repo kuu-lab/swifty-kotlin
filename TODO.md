@@ -742,3 +742,4 @@
 - [ ] BUG-017: `lazy()`/`lazy(mode)` の戻り値型が `kotlin.properties.Lazy`（`lazyOf` と本家は `kotlin.Lazy`）→ KSP-681 で修正
 - [ ] BUG-018: `kotlin.reflect.full.createInstance` が宣言のみで呼ぶとリンクエラー確定 → KSP-682 で判断
 - [ ] BUG-019: `ByteArray.joinToString`/`contentEquals` が未スタブ（`Scripts/diff_cases/string_tobytearray.kt` の既知ギャップ）→ KSP-660 で吸収
+- [ ] BUG-020: `sequence { for (i in 1..5) { yield(i * i) } }` が CPS sequence-builder 経路で最初の要素しか返さない（再現: `Scripts/diff_cases/sequence_lazy_eval.kt` / `CodegenBackendIntegrationTests.testSequenceBuilderRangeLoopYieldUsesCPSProducer`）。`CoroutineLoweringPass+CallRewriting.swift` が内部 continuation 生成と direct-suspend relay を含む adapter を `kk_sequence_builder_build_coro` へ通すと発生。発見元: PR #4733 の CI failure。修正: PR #4733。

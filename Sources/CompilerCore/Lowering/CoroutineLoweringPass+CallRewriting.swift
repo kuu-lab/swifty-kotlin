@@ -832,7 +832,11 @@ extension CoroutineLoweringPass {
 
         let producer: (original: SymbolID, lowered: LoweredSuspendFunction, entryPoint: SymbolID)?
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           let innerProducer = sequenceBuilderInnerProducer(from: loweredTarget.symbol, using: rewrite),
+           let innerProducer = sequenceBuilderInnerProducer(
+               from: loweredTarget.symbol,
+               symbolByExprRaw: symbolByExprRaw,
+               using: rewrite
+           ),
            let builderThunk = rewrite.sequenceBuilderThunkByOriginalSymbol[innerProducer.original]
         {
             producer = (
@@ -921,9 +925,44 @@ extension CoroutineLoweringPass {
 
     private func sequenceBuilderInnerProducer(
         from loweredAdapterSymbol: SymbolID,
+        symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> (original: SymbolID, lowered: LoweredSuspendFunction)? {
         var candidates: [(original: SymbolID, lowered: LoweredSuspendFunction)] = []
+
+        func appendProducer(for entryPointSymbol: SymbolID) {
+            if let producer = rewrite.launcherThunkByOriginalSymbol.first(where: {
+                $0.value.symbol == entryPointSymbol
+            }),
+               let lowered = rewrite.loweredBySymbol[producer.key]
+            {
+                if !candidates.contains(where: { $0.original == producer.key }) {
+                    candidates.append((original: producer.key, lowered: lowered))
+                }
+                return
+            }
+
+            if let producer = rewrite.sequenceBuilderThunkByOriginalSymbol.first(where: {
+                $0.value.symbol == entryPointSymbol
+            }),
+               let lowered = rewrite.loweredBySymbol[producer.key]
+            {
+                if !candidates.contains(where: { $0.original == producer.key }) {
+                    candidates.append((original: producer.key, lowered: lowered))
+                }
+                return
+            }
+
+            if let producer = rewrite.loweredBySymbol.first(where: {
+                $0.value.symbol == entryPointSymbol
+            })
+            {
+                if !candidates.contains(where: { $0.original == producer.key }) {
+                    candidates.append((original: producer.key, lowered: producer.value))
+                }
+            }
+        }
+
         for decl in rewrite.module.arena.declarations {
             guard case let .function(function) = decl,
                   function.symbol == loweredAdapterSymbol
@@ -940,6 +979,20 @@ extension CoroutineLoweringPass {
                 default:
                     callee = nil
                 }
+
+                if callee == rewrite.directSuspendCallCallee,
+                   case let .call(_, _, arguments, _, _, _, _, _) = instruction,
+                   let entryPointExpr = arguments.first,
+                   let entryPointSymbol = symbolReference(
+                       for: entryPointExpr,
+                       module: rewrite.module,
+                       propagatedSymbols: symbolByExprRaw
+                   )
+                {
+                    appendProducer(for: entryPointSymbol)
+                    continue
+                }
+
                 guard let callee,
                       let producer = rewrite.originalByLoweredName[callee],
                       producer.lowered.symbol != loweredAdapterSymbol
