@@ -509,10 +509,13 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringTrimPredicatePointerABIRemoved() {
+    func testKKStringTrimPointerABIRemoved() {
         let legacyNames = [
+            "kk_string_trim",
             "kk_string_trim_predicate",
+            "kk_string_trimStart",
             "kk_string_trimStart_predicate",
+            "kk_string_trimEnd",
             "kk_string_trimEnd_predicate",
         ]
         for legacyName in legacyNames {

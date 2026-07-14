@@ -463,6 +463,28 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
+                // Synthetic singleton objects with an externalLinkName (e.g.
+                // kotlinx.coroutines.NonCancellable) resolve to a runtime handle via a
+                // direct zero-argument call, bypassing the eager module-init allocation
+                // used for real `object` declarations (which real objects need for their
+                // own stored state, but a synthetic native-backed singleton doesn't).
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .object,
+                   let externalLinkName = sema.symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty
+                {
+                    let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern(externalLinkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                 instructions.append(.constValue(result: id, value: .symbolRef(symbol)))
                 return id

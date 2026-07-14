@@ -91,7 +91,11 @@ public func kk_string_trim_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trim(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: true,
+            trimTrailing: true
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -112,7 +116,15 @@ public func kk_string_trim_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trim_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: true,
+            trimTrailing: true,
+            context: "trim predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1077,7 +1089,11 @@ public func kk_string_trimStart_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimStart(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: true,
+            trimTrailing: false
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1098,7 +1114,15 @@ public func kk_string_trimStart_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimStart_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: true,
+            trimTrailing: false,
+            context: "trimStart predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1116,7 +1140,11 @@ public func kk_string_trimEnd_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimEnd(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: false,
+            trimTrailing: true
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1137,7 +1165,15 @@ public func kk_string_trimEnd_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimEnd_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: false,
+            trimTrailing: true,
+            context: "trimEnd predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash

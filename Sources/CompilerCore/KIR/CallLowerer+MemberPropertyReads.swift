@@ -63,7 +63,7 @@ extension CallLowerer {
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets
         {
-            let runtimeCallee = interner.intern("kk_charset_\(interner.resolve(info.name).lowercased())")
+            let runtimeCallee = interner.intern("__kk_charset_\(interner.resolve(info.name).lowercased())")
             let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
