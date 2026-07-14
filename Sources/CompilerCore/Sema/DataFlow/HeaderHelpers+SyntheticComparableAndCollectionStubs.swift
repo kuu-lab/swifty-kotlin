@@ -234,6 +234,14 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol
         )
 
+        registerIterableFilterMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
+
         registerIterableWindowedTransformMember(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,

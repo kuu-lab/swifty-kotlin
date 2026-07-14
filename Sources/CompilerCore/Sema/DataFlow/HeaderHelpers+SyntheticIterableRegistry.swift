@@ -1285,6 +1285,68 @@ extension DataFlowSemaPhase {
 ///
 /// Consolidated here with the Iterable type registry for RF-STUB-005.
 extension DataFlowSemaPhase {
+    /// Register the runtime-backed `Iterable<E>.filter(predicate)` bridge.
+    ///
+    /// `List.filter` is compiled from Kotlin source and therefore cannot serve
+    /// as the implementation for a receiver whose static type is only
+    /// `Iterable<E>`. The sequence runtime bridge accepts the collection handles
+    /// used by the compiler's Iterable fallback path.
+    func registerIterableFilterMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        iterableInterfaceSymbol: SymbolID,
+        listInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
+    ) {
+        guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
+              let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
+        else { return }
+
+        let memberName = interner.intern("filter")
+        let memberFQName = iterableFQName + [memberName]
+        let elementType = types.make(.typeParam(TypeParamType(
+            symbol: iterableTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: iterableInterfaceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+        let predicateType = types.make(.functionType(FunctionType(
+            params: [elementType],
+            returnType: types.booleanType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let returnType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+
+        _ = registerSyntheticMemberFunctionStub(
+            name: memberName,
+            memberFQName: memberFQName,
+            ownerSymbol: iterableInterfaceSymbol,
+            ownerFQName: iterableFQName,
+            receiverType: receiverType,
+            parameterTypes: [predicateType],
+            parameterNames: ["predicate"],
+            returnType: returnType,
+            externalLinkName: "kk_sequence_filter",
+            flags: [.synthetic, .inlineFunction],
+            typeParameterSymbols: [iterableTypeParamSymbol],
+            classTypeParameterCount: 1,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
     /// runtime we delegate to `kk_iterable_asSequence` which handles any
     /// collection handle (List, Set, Array) via `runtimeCollectionElements`.
     func registerIterableAsSequenceMember(

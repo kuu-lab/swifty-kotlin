@@ -805,6 +805,7 @@ extension CallTypeChecker {
             interner.intern("indexOfLast"),
             interner.intern("count"),
             interner.intern("iterator"),
+            interner.intern("filter"),
             interner.intern("filterNotNull"),
             interner.intern("filterIsInstanceTo"),
             interner.intern("filterNotNullTo"),
@@ -984,6 +985,7 @@ extension CallTypeChecker {
 
         let collectionReturningMembers: Set = [
             interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("filterNotNull"), interner.intern("requireNoNulls"),
+            interner.intern("filter"),
             interner.intern("filterIsInstanceTo"), interner.intern("reduceTo"),
             interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"),
@@ -1056,6 +1058,8 @@ extension CallTypeChecker {
              interner.intern("toMutableList"), interner.intern("sum"), interner.intern("average"),
              interner.intern("requireNoNulls"):
             return argCount == 0
+        case interner.intern("filter"):
+            return argCount == 1
         case interner.intern("joinToString"):
             return (0 ... 3).contains(argCount)
         case interner.intern("shuffled"):
@@ -1295,6 +1299,14 @@ extension CallTypeChecker {
             interner: interner
            ) {
             return resultType
+        }
+        if memberName == interner.intern("filter") {
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
         }
         let intReturningMembers: Set = [
             interner.intern("size"),
@@ -2311,6 +2323,7 @@ extension CallTypeChecker {
             return surfaceExpectation
         }
         let boolOneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("count"),
             interner.intern("first"),
             interner.intern("last"),
@@ -2322,6 +2335,7 @@ extension CallTypeChecker {
         ]
         let knownNames = KnownCompilerNames(interner: interner)
         let oneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("sortedBy"),
             interner.intern("count"),
             interner.intern("first"),
