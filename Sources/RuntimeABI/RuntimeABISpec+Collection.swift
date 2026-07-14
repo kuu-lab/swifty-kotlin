@@ -1029,6 +1029,16 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_byteArray_contentEquals",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "otherRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_contentDeepEquals",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
