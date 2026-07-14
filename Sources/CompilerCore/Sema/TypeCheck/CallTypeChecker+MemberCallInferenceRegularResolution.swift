@@ -117,7 +117,19 @@ extension CallTypeChecker {
             }
         }
 
-        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? lookupReceiverType
+        let rangeSourceMemberLookupType: TypeID? = if !isSuperCall,
+                                                      isBundledRangeSourceMember(calleeName, interner: interner)
+        {
+            sourceLevelRangeMemberLookupType(
+                receiverExpr: receiverID,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
 
         // Detect class-name receiver: when the receiver is a name reference to
         // a class/interface/enumClass symbol, only companion members should be
@@ -294,6 +306,32 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            // `Owner.Nested` and `Owner.Nested()` parse to the identical
+            // zero-arg `.memberCall` node — there is no AST signal for
+            // whether call syntax was written. This is only unambiguous when
+            // no valid constructor-call reading could exist in the first
+            // place: enum class constructors are always implicitly private
+            // (never callable from outside the enum body) and `object`
+            // declarations have no constructor at all, so a nested enum/object
+            // reference must be the bare type/nested-owner (needed e.g. for
+            // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
+            // further static member access). A nested `class`, in contrast,
+            // may have a genuine public zero-arg constructor (e.g.
+            // `Outer.Builder()`), so it falls through to constructor
+            // resolution below, preserving the pre-existing behavior.
+            if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
+               let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+            {
+                let nestedType = sema.types.make(.classType(ClassType(
+                    classSymbol: nestedOwner,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
+                sema.bindings.bindExprType(id, type: nestedType)
+                return nestedType
+            }
             let nestedCtorFQName = owner.fqName + [calleeName, interner.intern("<init>")]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
@@ -379,18 +417,6 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-            }
-            if args.isEmpty,
-               let nestedOwner = nestedOwnerSymbols.first
-            {
-                let nestedType = sema.types.make(.classType(ClassType(
-                    classSymbol: nestedOwner,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
-                sema.bindings.bindExprType(id, type: nestedType)
-                return nestedType
             }
         }
 
@@ -568,13 +594,21 @@ extension CallTypeChecker {
             // companion fallback via collectMemberFunctionCandidates.
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
                 (qualifiedSuperType != nil ? [qualifiedSuperType!] : supertypeSymbols) : nil
-            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            let rangeSourceCandidates = rangeSourceMemberLookupType.map {
+                collectRangeSourceExtensionCandidates(
+                    named: calleeName,
+                    receiverType: $0,
+                    sema: sema,
+                    interner: interner
+                )
+            } ?? []
+            let memberCandidates = rangeSourceCandidates.isEmpty ? driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
                 allowedOwnerSymbols: allowedOwnerSymbols,
                 interner: interner
-            )
+            ) : rangeSourceCandidates
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -817,7 +851,7 @@ extension CallTypeChecker {
 
         // Use the companion type as implicit receiver when the candidates were
         // redirected from the owner class to its companion object.
-        let effectiveReceiverType = companionReceiverType ?? lookupReceiverType
+        let effectiveReceiverType = companionReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
         // Synthetic collection members need to short-circuit before the generic
         // overload resolver so their trailing-lambda expectations stay concrete.
         if let fallbackType = tryCollectionMemberFallback(
@@ -1303,10 +1337,180 @@ extension CallTypeChecker {
         }
 
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        // `Deferred.await()` resolves here as a normal candidate (the synthetic
+        // member declared in HeaderHelpers+SyntheticCoroutineRegistry.swift), whose
+        // signature hardcodes `Any` since `Deferred` has no class-level type
+        // parameter. Narrow it using the element type tracked by
+        // `coroutineBuilderNarrowedReturnType` for the `async {}` call that
+        // produced this receiver.
+        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
+            deferredAwaitResultType(receiverID: receiverID, fallback: returnType, ast: ast, sema: sema)
+        } else {
+            returnType
+        }
         if isSuperCall { sema.bindings.markSuperCall(id) }
-        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        let finalType = safeCall ? sema.types.makeNullable(adjustedReturnType) : adjustedReturnType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
+    }
+
+    private func isBundledRangeSourceMember(
+        _ calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        switch interner.resolve(calleeName) {
+        case "contains", "isEmpty", "iterator":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func sourceLevelRangeMemberLookupType(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let rangeKind = sourceLevelRangeMemberReceiverKind(
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) else {
+            return nil
+        }
+
+        let typeName: String
+        switch rangeKind {
+        case .intRange:
+            typeName = "IntRange"
+        case .longRange:
+            typeName = "LongRange"
+        case .charRange:
+            typeName = "CharRange"
+        case .uintRange:
+            typeName = "UIntRange"
+        case .ulongRange:
+            typeName = "ULongRange"
+        case .intProgression:
+            typeName = "IntProgression"
+        case .longProgression:
+            typeName = "LongProgression"
+        case .charProgression:
+            typeName = "CharProgression"
+        case .uintProgression:
+            typeName = "UIntProgression"
+        case .ulongProgression:
+            typeName = "ULongProgression"
+        case .iterable, .list, .set, .collection, .map, .sequence, .string, .charSequence:
+            return nil
+        }
+
+        guard let symbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern(typeName),
+        ]) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func sourceLevelRangeMemberReceiverKind(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> MemberDispatchReceiverKind? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
+            switch interner.resolve(symbol.name) {
+            case "IntRange":
+                return .intRange
+            case "LongRange":
+                return .longRange
+            case "CharRange":
+                return .charRange
+            case "UIntRange":
+                return .uintRange
+            case "ULongRange":
+                return .ulongRange
+            case "IntProgression":
+                return .intProgression
+            case "LongProgression":
+                return .longProgression
+            case "CharProgression":
+                return .charProgression
+            case "UIntProgression":
+                return .uintProgression
+            case "ULongProgression":
+                return .ulongProgression
+            default:
+                return nil
+            }
+        }
+
+        guard sema.bindings.isRangeExpr(receiverExpr) else {
+            return nil
+        }
+        if sema.bindings.isFloatingPointRangeExpr(receiverExpr) {
+            return nil
+        }
+        if sema.bindings.isCharRangeExpr(receiverExpr) {
+            return .charRange
+        }
+        if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
+            return .ulongRange
+        }
+        if sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType {
+            return .uintRange
+        }
+        if nonNullReceiverType == sema.types.longType {
+            return .longRange
+        }
+        if nonNullReceiverType == sema.types.intType {
+            return .intRange
+        }
+        return nil
+    }
+
+    private func collectRangeSourceExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let rangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        guard let rangesPackageSymbol = sema.symbols.lookup(fqName: rangesFQName) else {
+            return []
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        return sema.symbols.lookupAll(fqName: rangesFQName + [calleeName])
+            .filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      sema.symbols.parentSymbol(for: candidate) == rangesPackageSymbol,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            .sorted { $0.rawValue < $1.rawValue }
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

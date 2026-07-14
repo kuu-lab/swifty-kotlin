@@ -112,6 +112,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markULongRangeExpr(id)
                     sema.bindings.markULongRangeSymbol(localSymbol)
                 }
+                if sema.bindings.isFloatingPointRangeExpr(initializer) {
+                    sema.bindings.markFloatingPointRangeExpr(id)
+                    sema.bindings.markFloatingPointRangeSymbol(localSymbol)
+                }
             }
         }
         if let initializer, sema.bindings.isFlowExpr(initializer) {
@@ -121,6 +125,10 @@ final class LocalDeclTypeChecker {
                 sema.bindings.bindFlowElementType(flowElementType, forExpr: id)
                 sema.bindings.bindFlowElementType(flowElementType, forSymbol: localSymbol)
             }
+        }
+        if let initializer, let deferredElementType = sema.bindings.deferredElementType(forExpr: initializer) {
+            sema.bindings.bindDeferredElementType(deferredElementType, forExpr: id)
+            sema.bindings.bindDeferredElementType(deferredElementType, forSymbol: localSymbol)
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
