@@ -107,7 +107,7 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
             }
         }
     }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
 }
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid

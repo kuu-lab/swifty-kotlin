@@ -160,11 +160,8 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_list_joinToString"
-            || externalLinkName == "kk_array_joinToString"
-            || externalLinkName == "kk_byteArray_joinToString"
-            || externalLinkName == "kk_iterable_joinTo"
-            || externalLinkName == "kk_iterable_joinToString"
+           externalLinkName == "kk_iterable_joinTo"
+            || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
@@ -450,7 +447,7 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_byteArray_toKString")
+           loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
                 normalized.defaultMask,
@@ -460,36 +457,6 @@ extension CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArguments
             )
-        }
-        if loweredCallee == interner.intern("kk_list_windowed_transform") {
-            let originalArgumentCount = finalArguments.count
-            if originalArgumentCount >= 3 {
-                let lambdaArgIndex = originalArgumentCount - 1
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[lambdaArgIndex],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments[lambdaArgIndex] = fnPtrExpr
-                finalArguments.append(envPtrExpr)
-            }
-            if originalArgumentCount == 3 {
-                // `windowed(size, transform)` expands to `windowed(size, 1, false, transform)`.
-                let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
-                instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(oneExpr, at: 2)
-                finalArguments.insert(zeroExpr, at: 3)
-            } else if originalArgumentCount == 4 {
-                // `windowed(size, step, transform)` expands to
-                // `windowed(size, step, false, transform)`.
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(zeroExpr, at: 3)
-            }
         }
         if loweredCallee == interner.intern("kk_list_joinToString_transform")
             || loweredCallee == interner.intern("kk_iterable_joinToString_transform")

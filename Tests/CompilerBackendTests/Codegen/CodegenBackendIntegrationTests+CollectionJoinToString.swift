@@ -63,7 +63,7 @@ extension CodegenBackendIntegrationTests {
                 [1,2,3]
 
                 <a>-<bb>-<ccc>
-                <1, 2, 3>
+                <a, bb, ccc>
                 caught: boom
                 """ + "\n"
         )

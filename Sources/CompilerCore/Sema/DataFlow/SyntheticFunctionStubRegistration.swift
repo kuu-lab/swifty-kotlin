@@ -239,12 +239,16 @@ func registerSyntheticMemberFunctionStub(
         return nil
     }
 
+    let retainedRuntimeBridge = BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(
+        BundledMemberKey(ownerFQName: ownerFQName, name: name, arity: parameterTypes.count),
+        interner: interner
+    )
     if shouldSkipSyntheticStub(
         bundledIndex: bundledIndex,
         ownerFQName: ownerFQName,
         name: name,
         arity: parameterTypes.count
-    ) {
+    ), !retainedRuntimeBridge {
         skipStats?.recordSkip(
             ownerFQName: ownerFQName,
             name: name,
