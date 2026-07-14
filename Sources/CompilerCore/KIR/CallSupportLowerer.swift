@@ -261,6 +261,7 @@ final class CallSupportLowerer {
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
+        var boxedArguments = providedArguments
 
         var argIndicesByParameter: [Int: [Int]] = [:]
         for (argIndex, paramIndex) in callBinding.parameterMapping {
@@ -304,28 +305,25 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
-                // arrayOf<T>() erases T to Any, so primitives must be boxed to preserve type
-                // identity for `is`/filterIsInstance; concrete-element factories (intArrayOf,
-                // etc.) share this externalLinkName but have a non-type-param element type.
-                let elementTypeIsErased: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[0]) {
-                    true
-                } else {
-                    false
-                }
-                let effectiveArguments = elementTypeIsErased
-                    ? boxPrimitiveVarargArguments(
-                        providedArguments,
-                        argIndices: argIndices,
-                        spreadFlags: spreadFlags,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    : providedArguments
+                // `arrayOf<T>` erases T to Any at runtime, so primitive elements must
+                // be boxed before storage. intArrayOf/longArrayOf/etc. share this same
+                // "kk_array_of" external link name but declare a concrete primitive
+                // element type (native storage); boxNonSpreadVarargArguments only boxes
+                // when the element type is a boxing boundary (Any/classType/typeParam),
+                // so those are left as raw storage.
+                boxNonSpreadVarargArguments(
+                    argIndices,
+                    in: &boxedArguments,
+                    elementType: signature.parameterTypes[0],
+                    spreadFlags: spreadFlags,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 packedArray = packVarargArguments(
                     argIndices: argIndices,
-                    providedArguments: effectiveArguments,
+                    providedArguments: boxedArguments,
                     spreadFlags: spreadFlags,
                     listifyResult: false,
                     arena: arena,
@@ -365,27 +363,19 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
-                    // sequenceOf<T>/atomicArrayOf<T> erase T to Any like arrayOf<T>, so box
-                    // primitives here too; concrete-element varargs (e.g. intArrayOf) must not be boxed.
-                    let elementTypeIsErased: Bool = if case .typeParam = sema.types.kind(of: signature.parameterTypes[paramIndex]) {
-                        true
-                    } else {
-                        false
-                    }
-                    let effectiveArguments = (preserveArrayVarargs && elementTypeIsErased)
-                        ? boxPrimitiveVarargArguments(
-                            providedArguments,
-                            argIndices: argIndices,
-                            spreadFlags: spreadFlags,
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        : providedArguments
+                    boxNonSpreadVarargArguments(
+                        argIndices,
+                        in: &boxedArguments,
+                        elementType: signature.parameterTypes[paramIndex],
+                        spreadFlags: spreadFlags,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     let packed = packVarargArguments(
                         argIndices: argIndices,
-                        providedArguments: effectiveArguments,
+                        providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
                         arena: arena,
@@ -425,39 +415,64 @@ final class CallSupportLowerer {
         return NormalizedCallResult(arguments: normalized, defaultMask: mask)
     }
 
-    /// Boxes primitive-typed vararg elements so they can be stored in an
-    /// `Any`-erased array slot (e.g. `arrayOf<T>`'s backing array). Spread
-    /// arguments are passed through unchanged since they already reference an
-    /// existing collection rather than a scalar value.
-    private func boxPrimitiveVarargArguments(
-        _ providedArguments: [KIRExprID],
-        argIndices: [Int],
+    /// Boxes non-spread primitive arguments when the vararg's declared element type is Any/reference/type-param — e.g. `printAll(vararg items: Any)` — but not for a concrete-primitive element type like `IntArray`'s `intArrayOf(vararg elements: Int)`, which needs raw storage.
+    func boxNonSpreadVarargArguments(
+        _ argIndices: [Int],
+        in arguments: inout [KIRExprID],
+        elementType: TypeID,
         spreadFlags: [Bool],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
-    ) -> [KIRExprID] {
-        let boxingTable = BoxingCalleeTable(interner: interner)
-        var boxed = providedArguments
-        for idx in argIndices {
-            if idx < spreadFlags.count, spreadFlags[idx] {
-                continue
-            }
-            guard let argType = arena.exprType(providedArguments[idx]),
-                  let boxCallee = boxingTable.boxCallee(for: argType, types: sema.types, requireNonNull: false)
-            else {
-                continue
-            }
-            boxed[idx] = emitNonThrowingCall(
-                callee: boxCallee,
-                arg: providedArguments[idx],
-                resultType: sema.types.anyType,
+    ) {
+        guard varargElementTypeIsBoxingBoundary(sema.types.kind(of: elementType)) else {
+            return
+        }
+        for argIndex in argIndices {
+            guard argIndex < arguments.count else { continue }
+            let isSpread = argIndex < spreadFlags.count && spreadFlags[argIndex]
+            guard !isSpread else { continue }
+            arguments[argIndex] = boxVarargElementIfNeeded(
+                arguments[argIndex],
+                sema: sema,
                 arena: arena,
-                into: &instructions
+                interner: interner,
+                instructions: &instructions
             )
         }
-        return boxed
+    }
+
+    private func varargElementTypeIsBoxingBoundary(_ elementKind: TypeKind) -> Bool {
+        if case .any = elementKind { return true }
+        if case .classType = elementKind { return true }
+        if case .typeParam = elementKind { return true }
+        return false
+    }
+
+    private func boxVarargElementIfNeeded(
+        _ argID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let argType = arena.exprType(argID),
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: argType,
+                  types: sema.types,
+                  requireNonNull: false
+              )
+        else {
+            return argID
+        }
+        return emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argID,
+            resultType: sema.types.anyType,
+            arena: arena,
+            into: &instructions
+        )
     }
 
     func packVarargArguments(

@@ -2190,7 +2190,7 @@ final class CallTypeChecker {
         // (non-lambda) and the second is a lambda, treat it as the block argument.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard let name = coroutineLauncherName,
-                  ["runBlocking", "launch", "async", "coroutineScope"].contains(name)
+                  ["runBlocking", "launch", "async", "coroutineScope", "supervisorScope"].contains(name)
             else { return nil }
             if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
                case .lambdaLiteral = firstArgExpr {
@@ -2887,7 +2887,20 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            let adjustedReturnType: TypeID = if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
+            let adjustedReturnType: TypeID = if let coroutineLauncherName,
+                let launcherIndex = coroutineLauncherLambdaArgIndex,
+                ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
+                args.indices.contains(launcherIndex)
+            {
+                coroutineBuilderNarrowedReturnType(
+                    id: id,
+                    launcherName: coroutineLauncherName,
+                    lambdaArgExpr: args[launcherIndex].expr,
+                    fallback: returnType,
+                    ast: ast,
+                    sema: sema
+                )
+            } else if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
                 switch externalLinkName {
                 case "kk_emptyList":
                     if let expectedType, expectedType != sema.types.errorType,
@@ -2982,7 +2995,9 @@ final class CallTypeChecker {
             )
             if let calleeName {
                 let resolvedName = interner.resolve(calleeName)
-                if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName) {
+                if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName),
+                   !KnownCompilerNames.arrayFactoryFunctionNames.contains(resolvedName)
+                {
                     sema.bindings.markCollectionExpr(id)
                 }
             }
@@ -3177,7 +3192,9 @@ final class CallTypeChecker {
         if let calleeName {
             let name = interner.resolve(calleeName)
             if KnownCompilerNames.stdlibCollectionFactoryNames.contains(name) {
-                sema.bindings.markCollectionExpr(id)
+                if !KnownCompilerNames.arrayFactoryFunctionNames.contains(name) {
+                    sema.bindings.markCollectionExpr(id)
+                }
                 let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                       expectedType != sema.types.errorType,
                                                       case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
