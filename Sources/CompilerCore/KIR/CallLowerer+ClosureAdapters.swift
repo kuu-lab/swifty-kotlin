@@ -730,65 +730,6 @@ extension CallLowerer {
             )
         }
 
-        if externalLinkName == "kk_comparator_from_selector_primitive"
-            || externalLinkName == "kk_comparator_from_selector_primitive_descending",
-           loweredArguments.count == 1
-        {
-            var finalArgs = makeClosureThunkExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let selectorType = sema.bindings.exprType(for: originalArgs[0].expr) ?? sema.types.anyType
-            let primitiveKindRaw: Int32 = switch sema.types.kind(of: sema.types.makeNonNullable(selectorType)) {
-            case let .functionType(functionType):
-                switch sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)) {
-                case .primitive(.int, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-                    0
-                case .primitive(.long, _):
-                    1
-                case .primitive(.uint, _):
-                    2
-                case .primitive(.ulong, _):
-                    3
-                case .primitive(.boolean, _):
-                    4
-                case .primitive(.char, _):
-                    5
-                case .primitive(.float, _):
-                    6
-                case .primitive(.double, _):
-                    7
-                default:
-                    0
-                }
-            default:
-                0
-            }
-            let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveKindRaw)), type: sema.types.intType)
-            instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveKindRaw))))
-            finalArgs.append(kindExpr)
-            return finalArgs
-        }
-
-        if externalLinkName == "kk_comparator_from_comparator_selector" ||
-            externalLinkName == "kk_comparator_from_comparator_selector_descending",
-           loweredArguments.count == 2
-        {
-            return makeClosureThunkExpandedArguments(
-                prefixArguments: [loweredArguments[0]],
-                loweredArgID: loweredArguments[1],
-                argExprID: originalArgs[1].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-        }
-
         // Fixed-arity comparator factories take one (fnPtr, closureRaw) pair
         // per selector. The selector expressions are lowered as ordinary
         // arguments first, so expand them here before emitting the ABI call.

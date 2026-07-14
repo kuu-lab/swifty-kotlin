@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
+最終更新: 2026-07-15（PR #4571 の CI 修理で判明した KSP-309 後の stale runtime-link literal を BUG-036 として追補）
 
 ---
 
@@ -777,3 +777,4 @@
 - [ ] BUG-033: PR #4813（XCTest→Swift Testing移行）で `.serialized` 欠落と `tearDown`（`kk_runtime_force_reset()`）消失が両方発生する二重不備 — 対象 `Tests/RuntimeTests/RuntimeRegexNamedGroupTests.swift`
 - [ ] BUG-034: PR #4814（XCTest→Swift Testing移行）で `.serialized` は正しく付与されているが、`tearDown`（`kk_runtime_force_reset()`）が約20テスト全てで `defer` 化されず消失（一次レビューでは見落とし、深掘り再検証で発見）— 対象 `Tests/RuntimeTests/RuntimeStringLastIndexOfAnyTests.swift`
 - [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
+- [ ] BUG-036: KSP-309 の Comparator / Result source migration 後、KIR に旧 runtime external-link literal（`kk_comparator_*` 10件 / `kk_result_*` 7件）が残り、`RuntimeABIExternalLinkValidationTests.testKIRHardcodedRuntimeLinkNamesExistInRuntimeABI` が CI の CompilerCoreTests shard 1/3 で失敗する — 再現ケース `Scripts/diff_cases/comparator_basic.kt`、発見元 KSP-309 / PR #4571 — 修正 PR #4571
