@@ -977,5 +977,57 @@ extension LoweringABIAndPropertyRegressionTests {
             "loadGlobal for computed property should be rewritten"
         )
     }
+
+    @Test
+    func testTopLevelBackedGetterReadUsesAccessor() throws {
+        let source = """
+        package test
+
+        var doubled: Int = 5
+            get() = field * 2
+
+        fun readDoubled(): Int {
+            return doubled
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module = try #require(ctx.kir, "KIR module not available")
+        let sema = try #require(ctx.sema, "Sema module not available")
+        let interner = ctx.interner
+        let doubledName = interner.intern("doubled")
+        let propertySymbol = try #require(
+            sema.symbols.allSymbols().first {
+                $0.kind == .property && $0.name == doubledName
+            },
+            "top-level backed property symbol not found"
+        )
+        let getterSymbol = SyntheticSymbolScheme
+            .propertyGetterAccessorSymbol(for: propertySymbol.id)
+        let readerName = interner.intern("readDoubled")
+        let reader = try #require(
+            findAllKIRFunctions(in: module).first { $0.name == readerName },
+            "readDoubled function not found"
+        )
+
+        let hasGetterCall = reader.body.contains { instruction in
+            if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
+                return symbol == getterSymbol && arguments.isEmpty
+            }
+            return false
+        }
+        #expect(hasGetterCall,
+                      "Read of a top-level backed property should invoke its getter")
+
+        let hasPropertyLoad = reader.body.contains { instruction in
+            if case let .loadGlobal(_, symbol) = instruction {
+                return symbol == propertySymbol.id
+            }
+            return false
+        }
+        #expect(!hasPropertyLoad,
+                      "Top-level backed getter reads must not load the property global directly")
+    }
 }
 #endif
