@@ -34,7 +34,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
-| DEBT-DIFF-003 | 14 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割 |
+| DEBT-DIFF-003 | 12 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
 | DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
 | DEBT-DIFF-005 | 12 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 4 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
@@ -90,8 +90,9 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | 領域 | cases | owner |
 | --- | --- | --- |
 | base suspend / withContext / exception | `coroutine_base_edge_cases.kt`, `coroutine_context_switching.kt`, `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
-| cancellation / lifecycle | `coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_scope_lifecycle.kt` | cancellation semantics を `STDLIB-CORO-001` の残課題として切る |
-| structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task。詳細調査結果と残ブロッカーは下記「structured concurrency / Deferred / Supervisor 詳細」節を参照 |
+| cancellation（解除済み） | ~~`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`~~ | `currentCoroutineContext()`/`ensureActive()`/`NonCancellable`/`CoroutineContext.isActive` を追加し、`withTimeoutOrNull` の null 判定バグ（`runtimeNullSentinelInt` ではなく生の `0` を返していた）と `coroutineScope`/`supervisorScope` の直接 throw 握りつぶしバグ（`outThrown` を forward していなかった）、および `job.join()`/`Job.await()` が返却後にハンドルを解放し join 後の `isCancelled` 参照が use-after-free になっていたバグを修正して通常 diff へ復帰 |
+| CoroutineScope lifecycle（未解除） | `coroutine_scope_lifecycle.kt` | `CoroutineScope(context)` / `SupervisorJob()` / `Job()` 自体は実装済みだが、`CoroutineScope.launch { }`（レシーバ付き suspend ラムダ呼び出し）が `CoroutineLoweringPass` の `launch` 名前ベース書き換え（`CoroutineLoweringPass+LauncherSupport.swift`）がレシーバ非対応のため引数がずれてクラッシュする。加えて `private val scope = CoroutineScope(...)`（型注釈なしのクラスプロパティ）がシブリングのメンバ関数チェック時に未解決型のまま扱われる、`typeCheckClassLikeMembers`（`DeclTypeChecker+ClassAndObjectChecking.swift`）のパス順序バグも判明。`.launch` メンバは未登録のままにして安全側に倒し、`STDLIB-CORO-001` の残課題として追跡する |
+| structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task |
 | Channel / produce / Flow backpressure | `channel_basic.kt`, `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
 | sync primitives | `coroutine_mutex_semaphore.kt` | Sema: `launch { }` 直下の `Mutex.withLock` / `Semaphore.withPermit` 呼び出しが overload 解決に失敗する既存バグ |
 

@@ -476,6 +476,36 @@ extension CallLowerer {
         default:
             break
         }
+        // KSP-466 / PEC-NUM-0002: Unsigned-aware path for UInt/ULong/UByte/UShort
+        // division and remainder. The kk_op_div/kk_op_mod path below (reached via
+        // the .divide/.modulo cases further down) performs plain signed Int64
+        // division, which is wrong for ULong once the value's high bit is set
+        // (any ULong >= 2^63) — e.g. 17663719463477156090uL / 2uL would divide the
+        // negative signed reinterpretation instead of the actual unsigned value.
+        // UInt/UByte/UShort are always zero-extended into the shared 64-bit
+        // container, so signed and unsigned division already agree for them, but
+        // routing them through kk_op_udiv/kk_op_urem too is harmless and keeps this
+        // check a single isUnsigned test. kk_op_udiv/kk_op_urem reinterpret both
+        // operands via UInt(bitPattern:) and still throw ArithmeticException on
+        // zero divisor via outThrown, matching kk_op_div/kk_op_mod.
+        switch op {
+        case .divide, .modulo:
+            let unsignedTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                              ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(op == .divide ? "kk_op_udiv" : "kk_op_urem"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(
@@ -500,6 +530,7 @@ extension CallLowerer {
         case .divide:
             // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
             // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
+            // Unsigned operands (UInt/ULong/UByte/UShort) already returned via kk_op_udiv above.
             if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
                prim == .float || prim == .double {
                 kirOp = .divide
@@ -1035,27 +1066,12 @@ extension CallLowerer {
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
         // Derive element type from the receiver's array type.
-        // Mirrors TypeCheckHelpers.arrayElementType logic but also checks
-        // the value expression type as a heuristic for non-IntArray receivers.
         let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
-        let isStringElement: Bool = {
-            guard let recvType = receiverBoundType,
-                  case let .classType(classType) = sema.types.kind(of: recvType)
-            else {
-                return false
-            }
-            // Prefer the explicit element type from type arguments, if present.
-            if let firstArg = classType.args.first {
-                let elementType: TypeID? = switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: nil
-                }
-                if let elementType {
-                    return elementType == stringType
-                }
-            }
-            return false
-        }()
+        let receiverElementType = receiverBoundType.flatMap {
+            TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
+        }
+        let isStringElement = receiverElementType == stringType
+        let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
         } else {
@@ -1063,8 +1079,8 @@ extension CallLowerer {
             case .plusAssign: "kk_op_add"
             case .minusAssign: "kk_op_sub"
             case .timesAssign: "kk_op_mul"
-            case .divAssign: "kk_op_div"
-            case .modAssign: "kk_op_mod"
+            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
             }
         }
         instructions.append(.call(

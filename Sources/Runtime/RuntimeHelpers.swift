@@ -303,6 +303,10 @@ public enum KxMiniRuntime {
         DispatchQueue.global().async(execute: DispatchWorkItem(block: block))
     }
 
+    public static func launch(workItem: DispatchWorkItem) {
+        DispatchQueue.global().async(execute: workItem)
+    }
+
     static func launch(on dispatcher: RuntimeDispatcher, block: @Sendable @escaping () -> Void) {
         dispatcher.queue.async {
             let saved = RuntimeDispatcher.current
