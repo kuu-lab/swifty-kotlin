@@ -332,7 +332,7 @@ public func kk_list_forEach(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for elem in list.elements {
         var thrown = 0
-        _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        _ = runtimeInvokeCollectionLambda1PreservingBox(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     }
     return 0

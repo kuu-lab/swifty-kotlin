@@ -1,10 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-005): Random.nextFloat(until)/nextFloat(from, until) are
-// kswiftc-only extensions (STDLIB-655) — real kotlinc's kotlin.random.Random only
-// declares the no-arg nextFloat(), so the JVM reference always fails to compile
-// this file ("too many arguments for 'fun nextFloat(): Float'"). Split out of
-// random_extended.kt so that file's standard-API assertions stay diff-checked
-// against the JVM kotlinc reference. Also covers the same gap found in
-// random_overload_edge_cases.kt (instance-method nextFloat(from, until)).
+// SKIP-DIFF (DEBT-DIFF-005): Random.nextFloat(until) / nextFloat(from, until) are KSwiftK synthetic
+// extensions (see Stdlib/kotlin/random/Random.kt) not present in kotlin.random.Random's JVM stdlib
+// surface (kotlinc rejects them as "too many arguments for 'fun nextFloat(): Float'"), so the JVM
+// kotlinc reference cannot compile this case. Split out of random_extended.kt (STDLIB-655).
 import kotlin.random.Random
 
 fun main() {
@@ -28,7 +25,7 @@ fun main() {
     }
     println("nextFloat(1.0f, 10.0f) in range: $okFloatRange")
 
-    // random_overload_edge_cases.kt: r.nextFloat(from, until) instance-method form
+    // Instance-method form split out of random_overload_edge_cases.kt.
     val r = Random(7)
     val floatVal = r.nextFloat(1.0f, 2.0f)
     println(floatVal >= 1.0f && floatVal < 2.0f)

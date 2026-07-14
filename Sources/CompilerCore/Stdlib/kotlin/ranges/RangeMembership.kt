@@ -9,20 +9,15 @@ package kotlin.ranges
 //   (kk_long_range_contains, kk_long_range_isEmpty)
 // See RangeIterators.kt for the iterator() half of this migration.
 //
-// NOTE: Not yet wired into the compiler pipeline.
-// All six classes above are synthetic types registered directly in Sema
-// (HeaderHelpers+SyntheticRangeProgressionStubs.swift,
-// HeaderHelpers+SyntheticTypedRangeStubs.swift); their `contains`/`isEmpty` members
-// bind to the kk_range_* / kk_long_range_* / kk_op_contains runtime functions via
-// externalLinkName. A second, parallel dispatch path
-// (CallTypeChecker+RangeMemberFallback.swift) resolves the same member names
-// whenever an expression is flow-marked as a range (sema.bindings.isRangeExpr),
-// bypassing normal symbol lookup entirely, and `x in range` is additionally
-// special-cased in ExprLowerer+ControlFlowAndBlocks.swift. Wiring this file in —
-// and retiring all three paths — is deferred to a future RF-STDLIB task. Until
-// then this is a reference implementation only, written purely in terms of the
-// first/last/step properties every one of the six classes already exposes as
-// real (if not-yet-wired) Kotlin members.
+// NOTE: KSP-312 wires explicit `contains`/`isEmpty` calls through bundled stdlib
+// source and removes the duplicate CallTypeChecker+RangeMemberFallback entries.
+// The existing synthetic class members are skipped when the bundled declaration
+// index sees these extension signatures. `x in range` and `for (x in range)` are
+// still special-cased in ExprLowerer+ControlFlowAndBlocks.swift; retiring that
+// direct lowering path is intentionally left to KSP-452.
+//
+// These implementations are written purely in terms of the first/last/step
+// properties every one of the six classes already exposes as Kotlin members.
 //
 // LongRange.step is Kotlin-typed Long (registerSyntheticLongRangeStub) while
 // LongProgression.step is Kotlin-typed Int (registerSyntheticProgressionStub,

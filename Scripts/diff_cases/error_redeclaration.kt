@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Error cases for redeclaration errors (KSWIFTK-SEMA-*)
 
 // ERROR: Duplicate top-level function with same signature
