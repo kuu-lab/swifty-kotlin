@@ -1947,6 +1947,92 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Register joinToString(separator, prefix, postfix) for primitive arrays.
+        // Each primitive array type gets its own external link name because the
+        // Runtime stores primitive array elements as raw unboxed bit patterns
+        // (Double/Float bit patterns, Boolean 0/1, Char code points); only a
+        // type-aware renderer can convert them back to the correct string form.
+        for name in primitiveArrayNames {
+            let primName = interner.intern(name)
+            let fqName = kotlinPkg + [primName]
+            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
+                continue
+            }
+
+            let primJoinToStringName = interner.intern("joinToString")
+            let primJoinToStringFQName = fqName + [primJoinToStringName]
+            if symbols.lookup(fqName: primJoinToStringFQName) == nil {
+                let primJoinToStringSym = symbols.define(
+                    kind: .function,
+                    name: primJoinToStringName,
+                    fqName: primJoinToStringFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(arraySymbol, for: primJoinToStringSym)
+
+                let externalLinkName: String = switch name {
+                case "IntArray": "kk_intArray_joinToString"
+                case "LongArray": "kk_longArray_joinToString"
+                case "ByteArray": "kk_byteArray_joinToString"
+                case "ShortArray": "kk_shortArray_joinToString"
+                case "UIntArray": "kk_uIntArray_joinToString"
+                case "ULongArray": "kk_uLongArray_joinToString"
+                case "DoubleArray": "kk_doubleArray_joinToString"
+                case "FloatArray": "kk_floatArray_joinToString"
+                case "BooleanArray": "kk_booleanArray_joinToString"
+                case "CharArray": "kk_charArray_joinToString"
+                case "UByteArray": "kk_uByteArray_joinToString"
+                case "UShortArray": "kk_uShortArray_joinToString"
+                default: "kk_array_joinToString"
+                }
+                symbols.setExternalLinkName(externalLinkName, for: primJoinToStringSym)
+
+                let primArrayReceiverType = types.make(.classType(ClassType(
+                    classSymbol: arraySymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+
+                let primJoinParams: [(name: String, type: TypeID)] = [
+                    ("separator", types.stringType),
+                    ("prefix", types.stringType),
+                    ("postfix", types.stringType),
+                ]
+                var primJoinParamTypes: [TypeID] = []
+                var primJoinParamSymbols: [SymbolID] = []
+                for param in primJoinParams {
+                    let paramName = interner.intern(param.name)
+                    let paramSym = symbols.define(
+                        kind: .valueParameter,
+                        name: paramName,
+                        fqName: primJoinToStringFQName + [paramName],
+                        declSite: nil,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(primJoinToStringSym, for: paramSym)
+                    primJoinParamTypes.append(param.type)
+                    primJoinParamSymbols.append(paramSym)
+                }
+
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: primArrayReceiverType,
+                        parameterTypes: primJoinParamTypes,
+                        returnType: types.stringType,
+                        isSuspend: false,
+                        valueParameterSymbols: primJoinParamSymbols,
+                        valueParameterHasDefaultValues: [true, true, true],
+                        valueParameterIsVararg: [false, false, false],
+                        typeParameterSymbols: []
+                    ),
+                    for: primJoinToStringSym
+                )
+            }
+        }
+
         // --- joinToString (STDLIB-GAP-PH1) ---
         let joinToStringName = interner.intern("joinToString")
         let joinToStringFQName = arrayFQName + [joinToStringName]

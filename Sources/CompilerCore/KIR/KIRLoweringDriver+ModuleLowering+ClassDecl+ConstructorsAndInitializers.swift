@@ -12,6 +12,15 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
+
+        // Constructors with an external link name are implemented by the
+        // runtime. Do not emit a synthetic constructor body: NativeEmitter
+        // registers every emitted KIRFunction as an internal definition, and
+        // that definition would shadow the runtime entry point at call sites.
+        if let externalLink = sema.symbols.externalLinkName(for: ctorSymbol), !externalLink.isEmpty {
+            return []
+        }
+
         let arena = shared.arena
         guard let signature = sema.symbols.functionSignature(for: ctorSymbol) else {
             return []

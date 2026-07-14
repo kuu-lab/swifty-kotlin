@@ -506,9 +506,9 @@ enum MemberRuntimeDispatch {
         case ("chunkedSequence", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_sequence_flat")
         case ("encodeToByteArray", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_encodeToByteArray_charset_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toByteArray_charset_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
         case ("removePrefix", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removePrefix_flat")
         case ("removeSuffix", 1):
