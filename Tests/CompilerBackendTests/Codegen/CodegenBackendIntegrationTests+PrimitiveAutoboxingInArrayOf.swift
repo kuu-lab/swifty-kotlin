@@ -4,8 +4,10 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
+    // Keep these related cases in one XCTest entry so SwiftPM's generated
+    // discovery expression remains type-checkable on the Linux CI toolchain.
     func testPrimitiveArgumentBoxedWhenBuiltWithArrayOf() throws {
-        let source = """
+        let constructionSource = """
         fun main() {
             // Reported bug: arrayOf(...) stored raw elements instead of boxing them,
             // unlike listOf(...)/mutableListOf(...). Both construction (toString) and
@@ -44,7 +46,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
         try assertKotlinOutput(
-            source,
+            constructionSource,
             moduleName: "PrimitiveAutoboxingInArrayOf",
             expected:
                 """
@@ -66,10 +68,8 @@ extension CodegenBackendIntegrationTests {
                 """
                 + "\n"
         )
-    }
 
-    func testArrayOfElementIsCheckSeesConcreteBoxedType() throws {
-        let source = """
+        let isCheckSource = """
         fun describe(x: Any?): String = when (x) {
             is Int -> "Int:$x"
             is Char -> "Char:$x"
@@ -89,7 +89,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
         try assertKotlinOutput(
-            source,
+            isCheckSource,
             moduleName: "ArrayOfElementIsCheck",
             expected:
                 """
@@ -101,10 +101,8 @@ extension CodegenBackendIntegrationTests {
                 """
                 + "\n"
         )
-    }
 
-    func testArrayOfIndexedAssignBoxesPrimitiveValue() throws {
-        let source = """
+        let indexedAssignSource = """
         fun main() {
             // arr[i] = value must box a primitive value before storing it, matching
             // how arrayOf(...) boxes elements at construction — otherwise the array
@@ -124,7 +122,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
         try assertKotlinOutput(
-            source,
+            indexedAssignSource,
             moduleName: "ArrayOfIndexedAssignBoxing",
             expected:
                 """
