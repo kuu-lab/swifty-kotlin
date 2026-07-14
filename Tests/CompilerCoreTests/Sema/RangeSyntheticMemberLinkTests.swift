@@ -81,6 +81,16 @@ struct RangeSyntheticMemberLinkTests {
                 interner: interner
             ) == "List<Char>"
         )
+        let bundledIsEmptyName = ["kotlin", "ranges", "isEmpty"].map { interner.intern($0) }
+        let bundledIsEmptySymbol = try #require(sema.symbols.lookupAll(fqName: bundledIsEmptyName).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == charProgressionType
+                && signature.parameterTypes.isEmpty
+        })
+        #expect(sema.symbols.externalLinkName(for: bundledIsEmptySymbol) == nil)
+        #expect(sema.symbols.symbol(bundledIsEmptySymbol)?.flags.contains(.synthetic) == false)
         #expect(
             functionExternalLink(
                 for: "CharProgression",
@@ -88,7 +98,7 @@ struct RangeSyntheticMemberLinkTests {
                 parameterCount: 0,
                 sema: sema,
                 interner: interner
-            ) == "kk_char_range_isEmpty"
+            ) == nil
         )
         #expect(
             functionExternalLink(
