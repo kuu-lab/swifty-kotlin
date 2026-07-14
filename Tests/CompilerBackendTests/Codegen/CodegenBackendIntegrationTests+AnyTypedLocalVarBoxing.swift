@@ -3,11 +3,44 @@
 import Foundation
 import XCTest
 
-extension CodegenBackendIntegrationTests {
-    // Keep these related scenarios in one XCTest method. CodegenBackendIntegrationTests
-    // is already a large XCTestCase, and Swift's generated discovery array can
-    // otherwise exceed the type-checker time limit when several methods are added.
+/// Keep this regression in its own XCTestCase so SwiftPM does not have to
+/// type-check the already-large CodegenBackendIntegrationTests discovery list.
+final class AnyTypedLocalVarBoxingTests: XCTestCase {
     func testAnyAndNumberTypedLocalsAreBoxedCorrectly() throws {
+        func assertKotlinOutput(
+            _ source: String,
+            moduleName: String,
+            expected: String
+        ) throws {
+            try withTemporaryFile(contents: source) { path in
+                let outputBase = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                let options = CompilerOptions(
+                    moduleName: moduleName,
+                    inputs: [path],
+                    outputPath: outputBase,
+                    emit: .executable,
+                    target: defaultTargetTriple()
+                )
+                let ctx = CompilationContext(
+                    options: options,
+                    sourceManager: SourceManager(),
+                    diagnostics: DiagnosticEngine(),
+                    interner: StringInterner()
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                try LinkPhase().run(ctx)
+
+                let result = try CommandRunner.run(executable: outputBase, arguments: [])
+                XCTAssertEqual(
+                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                    expected
+                )
+            }
+        }
+
         // Reported bug: `.localDecl` aliased a local's storage directly to its
         // initializer expression's own KIRExprID, so an `Any`-declared local kept
         // the initializer's narrower arena type (e.g. Int) forever. Neither the
