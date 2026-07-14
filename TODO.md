@@ -328,6 +328,7 @@
   - 注意: `CollectionLiteralLoweringPass` がファクトリ呼び出しを直接 `kk_*` へ書き換えている。ブリッジ残留: 生成コア `kk_list_of`, `kk_set_of`, `kk_map_of`, `kk_emptyList`, `kk_emptySet`, `kk_emptyMap` は `__kk_` 降格（アロケーション主体のため）
   - 削除: `CallLowerer+StdlibArrayConstructor.swift` のファクトリ特例 / 各 `HeaderHelpers+Synthetic{List,Set,Map,Array}Stubs.swift` のファクトリ登録
   - 手順: T / diff: `collection_builders.kt`（既存）
+  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_simple.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
 - [x] KSP-306: ListFilterHOF を配線する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
   - 済み: 上記 5 関数は bundled Kotlin source へ bind し、同名 synthetic member stub を抑制済み
   - 完了: `*To` 変種も Kotlin source 側へ追加し、synthetic List member / lowering direct runtime rewrite / `RuntimeABISpec` / `StdlibSurfaceSpec` / `RuntimeCollectionHOF.swift` の public legacy List filter 経路を削除。`ListFilterHOFSourceMigrationTests` で source bind と旧 member link 不在を確認。
