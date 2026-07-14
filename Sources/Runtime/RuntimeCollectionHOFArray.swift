@@ -319,18 +319,18 @@ public func kk_array_count(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     return count
 }
 
-@_cdecl("kk_array_joinToString")
-public func kk_array_joinToString(
+private func runtimeArrayJoinToString(
     _ arrayRaw: Int,
     _ separatorRaw: Int,
     _ prefixRaw: Int,
-    _ postfixRaw: Int
+    _ postfixRaw: Int,
+    renderElement: (Int) -> String
 ) -> UnsafeMutableRawPointer {
     let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
     let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
     let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
     let elements = runtimeArrayBox(from: arrayRaw)?.elements ?? []
-    let rendered = elements.map(runtimeElementToString).joined(separator: separator)
+    let rendered = elements.map(renderElement).joined(separator: separator)
     let stringValue = prefix + rendered + postfix
     let utf8 = Array(stringValue.utf8)
     return (utf8.isEmpty ? [0] : utf8).withUnsafeBufferPointer { buf in
@@ -338,21 +338,72 @@ public func kk_array_joinToString(
     }
 }
 
-@_cdecl("kk_byteArray_joinToString")
-public func kk_byteArray_joinToString(
+@_cdecl("kk_array_joinToString")
+public func kk_array_joinToString(
     _ arrayRaw: Int,
     _ separatorRaw: Int,
     _ prefixRaw: Int,
     _ postfixRaw: Int
 ) -> UnsafeMutableRawPointer {
-    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
-    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
-    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
-    let elements = runtimeArrayBox(from: arrayRaw)?.elements ?? []
-    let rendered = elements.map { String(Int8(truncatingIfNeeded: $0)) }.joined(separator: separator)
-    let stringValue = prefix + rendered + postfix
-    let utf8 = Array(stringValue.utf8)
-    return (utf8.isEmpty ? [0] : utf8).withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(utf8.count))
-    }
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw, renderElement: runtimeElementToString)
+}
+
+@_cdecl("kk_intArray_joinToString")
+public func kk_intArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(Int32(truncatingIfNeeded: $0)) }
+}
+
+@_cdecl("kk_longArray_joinToString")
+public func kk_longArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(Int64($0)) }
+}
+
+@_cdecl("kk_byteArray_joinToString")
+public func kk_byteArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(Int8(truncatingIfNeeded: $0)) }
+}
+
+@_cdecl("kk_shortArray_joinToString")
+public func kk_shortArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(Int16(truncatingIfNeeded: $0)) }
+}
+
+@_cdecl("kk_uIntArray_joinToString")
+public func kk_uIntArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(UInt32(bitPattern: Int32(truncatingIfNeeded: $0))) }
+}
+
+@_cdecl("kk_uLongArray_joinToString")
+public func kk_uLongArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(UInt64(bitPattern: Int64($0))) }
+}
+
+@_cdecl("kk_doubleArray_joinToString")
+public func kk_doubleArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { runtimeFormatFloatingPoint(kk_bits_to_double($0)) }
+}
+
+@_cdecl("kk_floatArray_joinToString")
+public func kk_floatArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { runtimeFormatFloatingPoint(kk_bits_to_float($0)) }
+}
+
+@_cdecl("kk_booleanArray_joinToString")
+public func kk_booleanArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { $0 != 0 ? "true" : "false" }
+}
+
+@_cdecl("kk_charArray_joinToString")
+public func kk_charArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { UnicodeScalar($0).map(String.init) ?? "?" }
+}
+
+@_cdecl("kk_uByteArray_joinToString")
+public func kk_uByteArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(UInt8(truncatingIfNeeded: $0)) }
+}
+
+@_cdecl("kk_uShortArray_joinToString")
+public func kk_uShortArray_joinToString(_ arrayRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int) -> UnsafeMutableRawPointer {
+    runtimeArrayJoinToString(arrayRaw, separatorRaw, prefixRaw, postfixRaw) { String(UInt16(truncatingIfNeeded: $0)) }
 }
