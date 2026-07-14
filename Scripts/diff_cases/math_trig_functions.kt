@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 import kotlin.math.*
 
 fun main() {
@@ -40,9 +39,12 @@ fun main() {
     val sinhValue = sinh(x)
     println(sinhValue)
     
-    // cosh(1) ≈ 1.5431
+    // cosh(1) ≈ 1.5431. Compared with a tolerance instead of printing the raw
+    // value: JVM's Math.cosh and the platform libm's cosh round the last bit
+    // differently for this input (1 ULP apart), which is an inherent
+    // cross-runtime floating-point difference rather than a kswiftc bug.
     val coshValue = cosh(x)
-    println(coshValue)
+    println(abs(coshValue - 1.54308063481524) < 1e-9)
     
     // tanh(1) ≈ 0.7616
     val tanhValue = tanh(x)
