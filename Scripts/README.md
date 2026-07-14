@@ -18,7 +18,9 @@
 
 `Scripts/swift_test.sh` wraps `swift test` with parallel execution enabled by default.
 
-- Tune workers: `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
+- Tune XCTest workers: `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`. When
+  the test bundle contains Swift Testing sources, the wrapper omits
+  `--num-workers` because SwiftPM supports that option only for XCTest.
 - Tune build jobs: `SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh`
 - Disable parallel mode: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh`
 

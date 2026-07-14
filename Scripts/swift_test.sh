@@ -9,6 +9,21 @@ parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
 
+# SwiftPM 6.2 rejects --num-workers when the test bundle includes Swift
+# Testing tests. The framework still supports --parallel, so keep that flag
+# but leave worker selection to SwiftPM whenever Testing sources are present.
+has_swift_testing_sources=false
+tests_root="$SCRIPT_DIR/../Tests"
+if [[ -d "$tests_root" ]]; then
+    if command -v rg >/dev/null 2>&1; then
+        if rg -q --glob '*.swift' '^[[:space:]]*import[[:space:]]+Testing([[:space:]]|$)' "$tests_root"; then
+            has_swift_testing_sources=true
+        fi
+    elif find "$tests_root" -name '*.swift' -exec grep -Eq '^[[:space:]]*import[[:space:]]+Testing([[:space:]]|$)' {} +; then
+        has_swift_testing_sources=true
+    fi
+fi
+
 has_parallel_flag=false
 has_workers_flag=false
 has_jobs_flag=false
@@ -52,7 +67,7 @@ if [[ "$supports_parallel_flags" == true ]]; then
             command+=(--parallel)
         fi
 
-        if [[ "$has_workers_flag" == false ]]; then
+        if [[ "$has_workers_flag" == false && "$has_swift_testing_sources" == false ]]; then
             workers="$workers_override"
             if [[ -z "$workers" ]]; then
                 workers="$(detect_workers)"
