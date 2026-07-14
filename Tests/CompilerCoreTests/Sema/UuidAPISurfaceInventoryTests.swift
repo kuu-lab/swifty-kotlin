@@ -73,7 +73,6 @@ struct UuidAPISurfaceInventoryTests {
             ["kotlin", "uuid", "Uuid", "Companion", "parseHexOrNull"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseHexDash"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseHexDashOrNull"],
-            ["kotlin", "uuid", "Uuid", "Companion", "nameUUIDFromBytes"],
             ["kotlin", "uuid", "Uuid", "Companion", "fromLongs"],
             ["kotlin", "uuid", "Uuid", "Companion", "fromByteArray"],
             ["kotlin", "uuid", "Uuid", "mostSignificantBits"],
@@ -82,8 +81,7 @@ struct UuidAPISurfaceInventoryTests {
             ["kotlin", "uuid", "Uuid", "toHexString"],
             ["kotlin", "uuid", "Uuid", "toLongs"],
             ["kotlin", "uuid", "Uuid", "toByteArray"],
-            ["kotlin", "uuid", "Uuid", "version"],
-            ["kotlin", "uuid", "Uuid", "variant"],
+            ["kotlin", "uuid", "Uuid", "compareTo"],
             ["kotlin", "uuid", "getUuid"],
             ["kotlin", "uuid", "uuid"],
             ["kotlin", "uuid", "putUuid"],
@@ -107,7 +105,6 @@ struct UuidAPISurfaceInventoryTests {
         let (_, sema, interner) = try makeSemaWithContext()
         let bridges: [(path: [String], link: String)] = [
             (["kotlin", "uuid", "__kk_uuid_random"], "__kk_uuid_random"),
-            (["kotlin", "uuid", "__kk_uuid_nameUUIDFromBytes"], "__kk_uuid_nameUUIDFromBytes"),
             (["kotlin", "uuid", "__kk_uuid_lexicalOrder"], "__kk_uuid_lexicalOrder"),
             (["kotlin", "uuid", "__kk_uuid_fromLongs"], "__kk_uuid_fromLongs"),
             (["kotlin", "uuid", "__kk_uuid_toKotlinUuid"], "__kk_uuid_toKotlinUuid"),

@@ -258,22 +258,36 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let argType = arena.exprType(argID),
-              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: argType,
-                  types: sema.types,
-                  requireNonNull: false
-              )
+        guard let argType = arena.exprType(argID) else {
+            return argID
+        }
+        let rawSourceKind = sema.types.kind(of: argType)
+        let boxKind = resolveValueClassKind(
+            rawSourceKind,
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+            for: boxKind,
+            requireNonNull: false
+        )
         else {
             return argID
         }
-        return emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argID,
+        let boxedResult = arena.appendTemporary(type: sema.types.anyType)
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: argID,
+            rawSourceKind: rawSourceKind,
+            result: boxedResult,
             resultType: sema.types.anyType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
             arena: arena,
             into: &instructions
         )
+        return boxedResult
     }
 
     private func emitMapFactoryCall(

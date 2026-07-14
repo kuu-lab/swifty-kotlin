@@ -85,9 +85,8 @@ extension CallTypeChecker {
         }
         if !isSequenceReceiver {
             activeCollectionHOFNames.remove("flatMapIndexed")
-            // List.zip already resolves through its registered synthetic member
-            // stub (kk_list_zip) via normal overload resolution, which sets
-            // chosenCallee. Only Sequence needs this generic fast path.
+            // List.zip resolves through bundled Kotlin source. Only Sequence
+            // needs this generic fast path until KSP-308 removes its bridge.
             activeCollectionHOFNames.remove("zip")
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")
@@ -140,6 +139,50 @@ extension CallTypeChecker {
             return true
         }
 
+        @discardableResult
+        func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
+            guard !isSequenceReceiver, isCollectionReceiver else {
+                return false
+            }
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner) {
+                    return true
+                }
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: typeArguments,
+                parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }
+
         if interner.resolve(calleeName) == "asFlow",
            args.isEmpty,
            isCollectionReceiver || isSequenceReceiver
@@ -164,6 +207,76 @@ extension CallTypeChecker {
                 interner: interner
             ) ?? sema.types.anyType
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+
+        if interner.resolve(calleeName) == "zip",
+           !isSequenceReceiver,
+           isCollectionReceiver,
+           !args.isEmpty
+        {
+            let collectionElementType = resolvedCollectionElementType(
+                receiverID: receiverID,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner,
+                ctx: ctx,
+                locals: &locals
+            )
+            let otherType = sema.bindings.exprTypes[args[0].expr]
+                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let otherElementType: TypeID
+            if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+               let firstArg = otherClassType.args.first
+            {
+                otherElementType = switch firstArg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: sema.types.anyType
+                }
+            } else {
+                otherElementType = sema.types.anyType
+            }
+
+            let resultElementType: TypeID
+            let sourceTypeArguments: [TypeID]
+            if args.count >= 2 {
+                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType, otherElementType],
+                    returnType: sema.types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                }
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                resultElementType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                sourceTypeArguments = [collectionElementType, otherElementType, resultElementType]
+            } else if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first {
+                resultElementType = sema.types.make(.classType(ClassType(
+                    classSymbol: pairSymbol,
+                    args: [.invariant(collectionElementType), .invariant(otherElementType)],
+                    nullability: .nonNull
+                )))
+                sourceTypeArguments = [collectionElementType, otherElementType]
+            } else {
+                resultElementType = sema.types.anyType
+                sourceTypeArguments = [collectionElementType, otherElementType]
+            }
+
+            let resultType = if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(resultElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
+            _ = bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
@@ -960,7 +1073,7 @@ extension CallTypeChecker {
                 let otherType = sema.bindings.exprTypes[args[0].expr]
                     ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
                 let otherElementType: TypeID
-                if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+                if let otherClassType = resolveClassType(otherType, sema: sema),
                    let firstArg = otherClassType.args.first
                 {
                     otherElementType = switch firstArg {
