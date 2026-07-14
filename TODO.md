@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-10（stdlib Kotlin 化ギャップ監査: KSP-CAP / KSP-INF / KSP-W6 / CLEANUP-STUB-096+ / バグバックログを追補）
+最終更新: 2026-07-14（PR #4680 の accessor / backing-field CI 回帰を追補）
 
 ---
 
@@ -760,3 +760,4 @@
 - [ ] BUG-017: `lazy()`/`lazy(mode)` の戻り値型が `kotlin.properties.Lazy`（`lazyOf` と本家は `kotlin.Lazy`）→ KSP-681 で修正
 - [ ] BUG-018: `kotlin.reflect.full.createInstance` が宣言のみで呼ぶとリンクエラー確定 → KSP-682 で判断
 - [ ] BUG-019: `ByteArray.joinToString`/`contentEquals` が未スタブ（`Scripts/diff_cases/string_tobytearray.kt` の既知ギャップ）→ KSP-660 で吸収
+- [ ] BUG-020: クラスメンバの custom accessor が暗黙 receiver の setter dispatch と backing-field のインスタンス storage を迂回する（`implicit_receiver_setter_assign.kt` は setter が bypass され `10/1012` ではなく `5/4`、`custom_getter_field_access.kt` は getter 内 `field` と class-body initializer が global 経路になり `10/105/205/305` ではなく `10/5/5/5`）。最小再現: `Scripts/diff_cases/implicit_receiver_setter_assign.kt` / `Scripts/diff_cases/custom_getter_field_access.kt`。発見元: PR #4680 CI 修理。修正: PR #4680（未マージ）
