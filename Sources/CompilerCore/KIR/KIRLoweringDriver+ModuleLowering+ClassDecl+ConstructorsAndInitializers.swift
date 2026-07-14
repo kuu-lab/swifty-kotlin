@@ -316,7 +316,7 @@ extension KIRLoweringDriver {
                 explicitField.initializer,
                 shared: shared, emit: &body
             )
-            emitInstanceFieldStore(
+            emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: targetSymbol,
                 value: initValue, valueType: backingFieldType,
                 shared: shared, compilationCtx: compilationCtx, body: &body
@@ -325,7 +325,7 @@ extension KIRLoweringDriver {
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
-                emitInstanceFieldStore(
+                emitFieldStore(
                     propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
                     shared: shared, compilationCtx: compilationCtx, body: &body
@@ -340,26 +340,11 @@ extension KIRLoweringDriver {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let nullExpr = arena.appendExpr(.null, type: propType)
                 body.append(.constValue(result: nullExpr, value: .null))
-                if let receiverID = ctx.activeImplicitReceiverExprID(),
-                   let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
-                   let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
-                {
-                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
-                    body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-                    let unusedResult = arena.appendTemporary(type: sema.types.anyType)
-                    body.append(.call(
-                        symbol: nil,
-                        callee: compilationCtx.interner.intern("kk_array_set"),
-                        arguments: [receiverID, offsetExpr, nullExpr],
-                        result: unusedResult,
-                        canThrow: false,
-                        thrownResult: nil,
-                        isSuperCall: false
-                    ))
-                } else {
-                    let fieldRef = arena.appendExpr(.symbolRef(targetSymbol), type: propType)
-                    body.append(.copy(from: nullExpr, to: fieldRef))
-                }
+                emitFieldStore(
+                    propSymbol: propSymbol, targetSymbol: targetSymbol,
+                    value: nullExpr, valueType: propType,
+                    shared: shared, compilationCtx: compilationCtx, body: &body
+                )
             }
             return
         }
@@ -369,7 +354,7 @@ extension KIRLoweringDriver {
             initExpr,
             shared: shared, emit: &body
         )
-        emitInstanceFieldStore(
+        emitFieldStore(
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
             shared: shared, compilationCtx: compilationCtx, body: &body
@@ -377,11 +362,16 @@ extension KIRLoweringDriver {
     }
 
     /// Stores `value` into the storage backing `targetSymbol` on the instance
-    /// currently under construction, at its computed field offset — mirroring
-    /// the write `emitPrimaryConstructorPropertyInitializers` and the lateinit
-    /// branch above already use for instance fields. Falls back to a direct
-    /// symbol copy when no constructor receiver or layout offset is available.
-    private func emitInstanceFieldStore(
+    /// currently under construction.
+    ///
+    /// Class instance properties live inside the heap-allocated object, not in
+    /// a module-global slot, so the write must go through `kk_array_set` at
+    /// the property's computed field offset (the same mechanism reads use in
+    /// `tryLowerStoredMemberPropertyRead`) — mirroring how primary-constructor
+    /// property parameters are stored in `emitPrimaryConstructorPropertyInitializers`.
+    /// Falls back to a direct symbol copy when no constructor receiver or
+    /// layout is available (e.g. if ever invoked outside a constructor body).
+    private func emitFieldStore(
         propSymbol: SymbolID,
         targetSymbol: SymbolID,
         value: KIRExprID,

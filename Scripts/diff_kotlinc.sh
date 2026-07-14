@@ -818,6 +818,13 @@ run_case() {
         diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
       fi
     fi
+  elif [[ $ref_compile_exit -ne 0 && $cand_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit ]]; then
+    # Matching non-zero exit codes do not imply the same failure reason: ref
+    # and candidate may be erroring out for entirely unrelated causes. Treat
+    # this as unverified rather than silently passing (compile stderr for
+    # both sides is included in the FAIL output/artifacts below).
+    ok=0
+    echo "  both compile failed with exit=$ref_compile_exit (matching exit code alone does not verify parity; compile stderr not compared)"
   fi
 
   if [[ $ok -eq 1 ]]; then

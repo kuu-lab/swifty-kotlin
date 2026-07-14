@@ -1565,6 +1565,62 @@ extension ExprLowerer {
                         )
                         instructions.append(.copy(from: resultID, to: globalRef))
                     }
+                } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property || symInfo.kind == .field,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface,
+                          let receiverID = driver.ctx.activeImplicitReceiverExprID(),
+                          let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                              sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+                          ]
+                {
+                    // Class/interface instance property compound assignment: the
+                    // property lives inside the heap-allocated instance, not in a
+                    // module-global slot, so the read-modify-write must go through
+                    // kk_array_get_inbounds / kk_array_set at the computed field
+                    // offset — mirroring tryLowerStoredMemberPropertyRead (reads)
+                    // and lowerMemberAssignExpr (plain `=` writes). Falling through
+                    // to the local-variable branch below would silently discard the
+                    // computed result instead of storing it back into the instance.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+                    instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let loadedValue = arena.appendTemporary(type: propType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_get_inbounds"),
+                        arguments: [receiverID, offsetExpr],
+                        result: loadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    func storeFieldResult(_ value: KIRExprID) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_array_set"),
+                            arguments: [receiverID, offsetExpr, value],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeFieldResult(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: propType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeFieldResult(resultID)
+                    }
                 } else if driver.ctx.isMutableCaptureBoxed(symbol),
                           let loadedValue = loadMutableCaptureCellValue(
                               symbol: symbol,
@@ -1982,6 +2038,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: result,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2029,6 +2086,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: containsResult,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2123,12 +2181,16 @@ extension ExprLowerer {
         elementID: KIRExprID,
         containerID: KIRExprID,
         resultID: KIRExprID,
+        forceRuntimeFallback: Bool = false,
         sema: SemaModule,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // If sema resolved a user-defined operator fun contains, dispatch to it (STDLIB-OP-032)
-        if let callBinding = sema.bindings.callBindings[exprID],
+        // Range membership remains on the dedicated runtime path while explicit
+        // range.contains(...) calls migrate to bundled Kotlin source.
+        // Otherwise, dispatch to a user-defined operator fun contains (STDLIB-OP-032).
+        if !forceRuntimeFallback,
+           let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil
