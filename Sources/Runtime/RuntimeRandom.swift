@@ -71,13 +71,6 @@ final class SeededRandomBox {
         (nextBits() & 1) != 0
     }
 
-    func nextULongBits() -> UInt64 {
-        nextBits()
-    }
-
-    func nextUInt32Bits() -> UInt64 {
-        nextBits() & UInt64(UInt32.max)
-    }
 }
 
 // Compatibility helpers for native collection/range callers that still pass a
@@ -156,7 +149,7 @@ private func ulongPayload(_ raw: Int) -> UInt64 {
 
 private func runtimeRandomULongBits(receiver: Int) -> UInt64 {
     if let box = seededBox(from: receiver) {
-        return box.nextULongBits()
+        return box.nextBits()
     }
     var rng = SystemRandomNumberGenerator()
     return rng.next()
@@ -165,7 +158,7 @@ private func runtimeRandomULongBits(receiver: Int) -> UInt64 {
 private func runtimeRandomULongBelow(_ upperBound: UInt64, receiver: Int) -> UInt64 {
     precondition(upperBound > 0)
     if let box = seededBox(from: receiver) {
-        return box.nextULongBits() % upperBound
+        return box.nextBits() % upperBound
     }
     if upperBound == UInt64.max {
         var rng = SystemRandomNumberGenerator()
@@ -185,7 +178,7 @@ private func uint32Payload(_ raw: Int) -> UInt64 {
 
 private func runtimeRandomUInt32Bits(receiver: Int) -> UInt64 {
     if let box = seededBox(from: receiver) {
-        return box.nextUInt32Bits()
+        return box.nextBits() & UInt64(UInt32.max)
     }
     return UInt64(UInt32.random(in: UInt32.min ... UInt32.max))
 }
@@ -219,7 +212,6 @@ private func runtimeCreateSeededRandom(seed: Int) -> Int {
     return Int(bitPattern: ptr)
 }
 
-@_cdecl("__kk_random_create_seeded")
 public func __kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
@@ -274,22 +266,18 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
 
 // MARK: - Random (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655)
 
-@_cdecl("__kk_random_default")
 public func __kk_random_default() -> Int {
     0
 }
 
-@_cdecl("__kk_random_asKotlinRandom")
 public func __kk_random_asKotlinRandom(_ receiver: Int) -> Int {
     receiver
 }
 
-@_cdecl("__kk_random_asJavaRandom")
 public func __kk_random_asJavaRandom(_ receiver: Int) -> Int {
     receiver
 }
 
-@_cdecl("kk_random_nextInt")
 public func kk_random_nextInt(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
         return box.nextFullInt()
@@ -297,7 +285,6 @@ public func kk_random_nextInt(_ receiver: Int) -> Int {
     return Int.random(in: Int.min ... Int.max)
 }
 
-@_cdecl("kk_random_nextInt_until")
 public func kk_random_nextInt_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard until > 0 else {
@@ -310,7 +297,6 @@ public func kk_random_nextInt_until(_ receiver: Int, _ until: Int, _ outThrown: 
     return Int.random(in: 0 ..< until)
 }
 
-@_cdecl("kk_random_nextInt_range")
 public func kk_random_nextInt_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard until > from else {
@@ -323,7 +309,6 @@ public func kk_random_nextInt_range(_ receiver: Int, _ from: Int, _ until: Int, 
     return Int.random(in: from ..< until)
 }
 
-@_cdecl("kk_random_nextLong")
 public func kk_random_nextLong(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
         return box.nextFullInt()
@@ -331,7 +316,6 @@ public func kk_random_nextLong(_ receiver: Int) -> Int {
     return Int.random(in: Int.min ... Int.max)
 }
 
-@_cdecl("kk_random_nextLong_until")
 public func kk_random_nextLong_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard until > 0 else {
@@ -344,7 +328,6 @@ public func kk_random_nextLong_until(_ receiver: Int, _ until: Int, _ outThrown:
     return Int.random(in: 0 ..< until)
 }
 
-@_cdecl("kk_random_nextLong_range")
 public func kk_random_nextLong_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard until > from else {
@@ -357,12 +340,10 @@ public func kk_random_nextLong_range(_ receiver: Int, _ from: Int, _ until: Int,
     return Int.random(in: from ..< until)
 }
 
-@_cdecl("kk_random_nextULong")
 public func kk_random_nextULong(_ receiver: Int) -> Int {
     Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomULongBits(receiver: receiver)))
 }
 
-@_cdecl("kk_random_nextULong_until")
 public func kk_random_nextULong_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let upper = ulongPayload(until)
@@ -376,7 +357,6 @@ public func kk_random_nextULong_until(_ receiver: Int, _ until: Int, _ outThrown
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_random_nextULong_range")
 public func kk_random_nextULong_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let lower = ulongPayload(from)
@@ -415,12 +395,10 @@ public func kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _ o
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_random_nextUInt")
 public func kk_random_nextUInt(_ receiver: Int) -> Int {
     Int(runtimeRandomUInt32Bits(receiver: receiver))
 }
 
-@_cdecl("kk_random_nextUInt_until")
 public func kk_random_nextUInt_until(_ receiver: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let upper = uint32Payload(until)
@@ -431,7 +409,6 @@ public func kk_random_nextUInt_until(_ receiver: Int, _ until: Int, _ outThrown:
     return Int(runtimeRandomUIntBelow(upper, receiver: receiver))
 }
 
-@_cdecl("kk_random_nextUInt_range")
 public func kk_random_nextUInt_range(_ receiver: Int, _ from: Int, _ until: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let lower = uint32Payload(from)
@@ -460,7 +437,6 @@ public func kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ out
     return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
 }
 
-@_cdecl("kk_random_nextFloat")
 public func kk_random_nextFloat(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
         return kk_float_to_bits(box.nextFloat())
@@ -468,7 +444,6 @@ public func kk_random_nextFloat(_ receiver: Int) -> Int {
     return kk_float_to_bits(Float.random(in: 0 ..< 1))
 }
 
-@_cdecl("kk_random_nextFloat_until")
 public func kk_random_nextFloat_until(_ randomRaw: Int, _ untilBits: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let until = kk_bits_to_float(untilBits)
@@ -482,7 +457,6 @@ public func kk_random_nextFloat_until(_ randomRaw: Int, _ untilBits: Int, _ outT
     return kk_float_to_bits(Float.random(in: 0 ..< until))
 }
 
-@_cdecl("kk_random_nextFloat_range")
 public func kk_random_nextFloat_range(_ randomRaw: Int, _ fromBits: Int, _ untilBits: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let from = kk_bits_to_float(fromBits)
@@ -497,7 +471,6 @@ public func kk_random_nextFloat_range(_ randomRaw: Int, _ fromBits: Int, _ until
     return kk_float_to_bits(Float.random(in: from ..< until))
 }
 
-@_cdecl("kk_random_nextDouble")
 public func kk_random_nextDouble(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
         return kk_double_to_bits(box.nextDouble())
@@ -505,7 +478,6 @@ public func kk_random_nextDouble(_ receiver: Int) -> Int {
     return kk_double_to_bits(Double.random(in: 0 ..< 1))
 }
 
-@_cdecl("kk_random_nextDouble_until")
 public func kk_random_nextDouble_until(_ randomRaw: Int, _ untilBits: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let until = kk_bits_to_double(untilBits)
@@ -519,7 +491,6 @@ public func kk_random_nextDouble_until(_ randomRaw: Int, _ untilBits: Int, _ out
     return kk_double_to_bits(Double.random(in: 0.0 ..< until))
 }
 
-@_cdecl("kk_random_nextDouble_range")
 public func kk_random_nextDouble_range(_ randomRaw: Int, _ fromBits: Int, _ untilBits: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let from = kk_bits_to_double(fromBits)
@@ -550,7 +521,6 @@ private func runtimeRandomUByte(receiver: Int) -> Int {
     return Int(UInt8.random(in: UInt8.min ... UInt8.max))
 }
 
-@_cdecl("kk_random_nextBytes")
 public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let list = runtimeListBox(from: arrayRaw) else {
         // If the argument is not a valid list, return an empty list.
@@ -565,7 +535,6 @@ public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: filled))
 }
 
-@_cdecl("kk_random_nextBytes_size")
 public func kk_random_nextBytes_size(_ receiver: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard size >= 0 else {
@@ -578,7 +547,6 @@ public func kk_random_nextBytes_size(_ receiver: Int, _ size: Int, _ outThrown: 
     return kk_random_nextBytes(receiver, arrayRaw)
 }
 
-@_cdecl("kk_random_nextBytes_range")
 public func kk_random_nextBytes_range(
     _ receiver: Int,
     _ arrayRaw: Int,
@@ -619,7 +587,6 @@ public func kk_random_nextBytes_range(
     return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
-@_cdecl("kk_random_nextUBytes_size")
 public func kk_random_nextUBytes_size(_ receiver: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard size >= 0 else {
@@ -635,7 +602,6 @@ public func kk_random_nextUBytes_size(_ receiver: Int, _ size: Int, _ outThrown:
     return registerRuntimeObject(array)
 }
 
-@_cdecl("kk_random_nextUBytes")
 public func kk_random_nextUBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
@@ -646,7 +612,6 @@ public func kk_random_nextUBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     return arrayRaw
 }
 
-@_cdecl("kk_random_nextUBytes_range")
 public func kk_random_nextUBytes_range(
     _ receiver: Int,
     _ arrayRaw: Int,
@@ -673,7 +638,6 @@ public func kk_random_nextUBytes_range(
     return arrayRaw
 }
 
-@_cdecl("kk_random_nextBoolean")
 public func kk_random_nextBoolean(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
         return kk_box_bool(box.nextBoolean() ? 1 : 0)
@@ -683,7 +647,6 @@ public func kk_random_nextBoolean(_ receiver: Int) -> Int {
 
 // MARK: - nextBits (STDLIB-RANDOM-100)
 
-@_cdecl("kk_random_nextBits")
 public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard bitCount >= 0, bitCount <= 32 else {

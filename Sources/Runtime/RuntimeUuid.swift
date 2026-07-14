@@ -230,7 +230,6 @@ public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
 
 // Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
 // object shape (object header slots plus most/least significant bits).
-@_cdecl("kk_uuid_toKotlinUuid")
 func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     guard let box = runtimeUuidBox(from: receiver) else {
         return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
@@ -250,7 +249,6 @@ func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
 
 // MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
 
-@_cdecl("kk_byteArray_putUuid")
 public func kk_byteArray_putUuid(
     _ arrayRaw: Int,
     _ at: Int,
@@ -298,7 +296,6 @@ public func kk_byteArray_putUuid(
 
 // MARK: - ByteArray.uuid(at: Int): Uuid
 
-@_cdecl("kk_byteArray_uuid")
 public func kk_byteArray_uuid(
     _ arrayRaw: Int,
     _ at: Int,
@@ -348,7 +345,6 @@ public func kk_byteArray_uuid(
 
 /// Read a UUID from 16 bytes at [offset, offset+16) of the ByteArray.
 /// Throws IndexOutOfBoundsException when offset < 0 or offset + 16 > size.
-@_cdecl("kk_uuid_getUuid")
 public func kk_uuid_getUuid(_ arrayRaw: Int, _ offset: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
 

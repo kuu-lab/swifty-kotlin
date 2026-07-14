@@ -571,7 +571,13 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // RuntimeAssertions.swift / RuntimeTypes.swift), so this hierarchy check
         // is authoritative: a real mismatch must not be treated as a match, or
         // `catch (e: T)` would incorrectly catch any unrelated sibling exception.
-        return runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) ? 1 : 0
+        if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
+            return 1
+        }
+        // A base RuntimeThrowableBox has no Kotlin-level type information. Keep
+        // the historical broad catch fallback for those internal throwables,
+        // while typed subclasses must obey their explicit hierarchy above.
+        return throwable.exceptionHierarchyFQNames == ["kotlin.Throwable"] ? 1 : 0
 
     default:
         return 0
@@ -584,7 +590,7 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
     if kk_op_is(value, typeToken) != 0 {
         return value
     }
-    outThrown?.pointee = runtimeAllocateClassCastException(message: "")
+    outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
     return 0
 }
 
@@ -1556,7 +1562,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         if let scalar = UnicodeScalar(charBox.value) {
             Swift.print(Character(scalar))
         } else {
-            Swift.print("�")
+            Swift.print("?")
         }
         return
     }
@@ -1783,7 +1789,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         if let scalar = UnicodeScalar(charBox.value) {
             return String(Character(scalar))
         }
-        return "�"
+        return "?"
     }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
@@ -1856,7 +1862,7 @@ func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
             hash: value.payload3
         )
     case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "�"
+        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "?"
     default:
         return runtimeRenderAnyForPrint(value.payload0)
     }
