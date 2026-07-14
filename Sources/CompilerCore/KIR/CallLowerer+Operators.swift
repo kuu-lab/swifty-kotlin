@@ -216,69 +216,34 @@ extension CallLowerer {
                 return result
             }
         }
-        // STDLIB-561/562: Sequence plus/minus operators
-        // For plus:
-        //   - If RHS is a collection, pass directly (kk_sequence_plus handles
-        //     sequence/list/array handles).
-        //   - If RHS is a single element, wrap it in a single-element sequence
-        //     first so the runtime ABI always receives a collection handle,
-        //     eliminating the ambiguity where an element value could collide
-        //     with a live runtime handle.
-        // For minus: only handle the single-element case (non-collection RHS).
-        //   Collection-removal (Sequence.minus(Iterable)) is not yet supported
-        //   at the ABI level; return the LHS unchanged to avoid falling through
-        //   to the generic arithmetic path (kk_op_sub).
-        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
-        // deduplicate logic across CallLowerer+Operators, CallRewrite, and
-        // VirtualCallRewrite (see PR #460 review).
+        // STDLIB-561/562: Sequence plus/minus operators.
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
+            let callees = SequencePlusMinusRuntimeCallees(interner: interner)
             if op == .add {
-                let effectiveRHS: KIRExprID
-                if sema.bindings.isCollectionExpr(rhs) {
-                    // RHS is already a collection handle; pass directly.
-                    effectiveRHS = rhsID
-                } else {
-                    // Wrap single element in a one-element sequence so the
-                    // runtime always receives a collection handle.
-                    let wrappedExpr = arena.appendTemporary(type: nil
-                    )
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_of_single"),
-                            arguments: [rhsID],
-                            result: wrappedExpr,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
-                    effectiveRHS = wrappedExpr
-                }
-                instructions.append(
-                    .call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_plus"),
-                        arguments: [lhsID, effectiveRHS],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    )
+                emitSequencePlusMinusRewrite(
+                    operation: .plus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
                 )
                 return result
             }
             if op == .subtract {
-                if !sema.bindings.isCollectionExpr(rhs) {
-                    // Single-element removal: emit kk_sequence_minus.
-                    instructions.append(
-                        .call(
-                            symbol: nil,
-                            callee: interner.intern("kk_sequence_minus"),
-                            arguments: [lhsID, rhsID],
-                            result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
-                    )
+                let rewriteResult = emitSequencePlusMinusRewrite(
+                    operation: .minus,
+                    receiver: lhsID,
+                    argument: rhsID,
+                    argumentIsCollection: sema.bindings.isCollectionExpr(rhs),
+                    result: result,
+                    arena: arena,
+                    callees: callees,
+                    instructions: &instructions
+                )
+                if case .emitted = rewriteResult {
                     return result
                 }
                 // Collection-removal is not yet supported at the ABI level.
@@ -511,6 +476,36 @@ extension CallLowerer {
         default:
             break
         }
+        // KSP-466 / PEC-NUM-0002: Unsigned-aware path for UInt/ULong/UByte/UShort
+        // division and remainder. The kk_op_div/kk_op_mod path below (reached via
+        // the .divide/.modulo cases further down) performs plain signed Int64
+        // division, which is wrong for ULong once the value's high bit is set
+        // (any ULong >= 2^63) — e.g. 17663719463477156090uL / 2uL would divide the
+        // negative signed reinterpretation instead of the actual unsigned value.
+        // UInt/UByte/UShort are always zero-extended into the shared 64-bit
+        // container, so signed and unsigned division already agree for them, but
+        // routing them through kk_op_udiv/kk_op_urem too is harmless and keeps this
+        // check a single isUnsigned test. kk_op_udiv/kk_op_urem reinterpret both
+        // operands via UInt(bitPattern:) and still throw ArithmeticException on
+        // zero divisor via outThrown, matching kk_op_div/kk_op_mod.
+        switch op {
+        case .divide, .modulo:
+            let unsignedTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                              ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(op == .divide ? "kk_op_udiv" : "kk_op_urem"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(
@@ -535,6 +530,7 @@ extension CallLowerer {
         case .divide:
             // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
             // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
+            // Unsigned operands (UInt/ULong/UByte/UShort) already returned via kk_op_udiv above.
             if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
                prim == .float || prim == .double {
                 kirOp = .divide
@@ -1163,7 +1159,11 @@ extension CallLowerer {
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
-        let isStringElement = genericArrayElementType(of: receiverBoundType, sema: sema) == stringType
+        let receiverElementType = receiverBoundType.flatMap {
+            TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
+        }
+        let isStringElement = receiverElementType == stringType
+        let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
         } else {
@@ -1171,8 +1171,8 @@ extension CallLowerer {
             case .plusAssign: "kk_op_add"
             case .minusAssign: "kk_op_sub"
             case .timesAssign: "kk_op_mul"
-            case .divAssign: "kk_op_div"
-            case .modAssign: "kk_op_mod"
+            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
             }
         }
         instructions.append(.call(

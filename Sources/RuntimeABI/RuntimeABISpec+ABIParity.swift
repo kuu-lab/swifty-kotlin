@@ -323,7 +323,7 @@ public extension RuntimeABISpec {
         ],
             isThrowing: false),
         // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
-        abiParitySpec("kk_byteArray_toKString", parameters: [
+        abiParitySpec("__kk_byteArray_toKString", parameters: [
             p("arrRaw", .intptr),
             p("startIndex", .intptr),
             p("endIndex", .intptr),

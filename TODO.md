@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-10（stdlib Kotlin 化ギャップ監査: KSP-CAP / KSP-INF / KSP-W6 / CLEANUP-STUB-096+ / バグバックログを追補）
+最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
 
 ---
 
@@ -46,7 +46,7 @@
 - [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
 - [x] RF-SEMA-004: `+CollectionMemberFallback` / `+MemberCallInferenceCollectionFlow`（計 ~5.5k 行）に散在するレシーバ判定述語（isArrayReceiver / isIterableReceiver / isMapReceiver 等）を単一の ReceiverClassifier へ抽出する
-- [ ] RF-SEMA-005: `CallTypeChecker.swift`（3,896 行）の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）
+- [x] RF-SEMA-005: `CallTypeChecker.swift`（3,896 行）の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）
 - [x] RF-KIR-001: `CallLowerer+LegacyMemberLikeCalls.swift` の dispatch を `externalLinkName` / `MemberDispatchKey` ベースの表駆動へ移行する設計 + 第1弾（数値系）
 - [x] RF-KIR-002: 同 第2弾（String 系）を表駆動へ移行する
 - [ ] RF-KIR-003: 同 第3弾（Collection 系）を移行し、ファイルを解体して "Legacy" の名称を消滅させる
@@ -55,9 +55,9 @@
 
 ### Phase RF5: Lowering パス再編（RF3/RF4 の削減確定後、残存コードのみ）
 - [x] RF-LOWER-001: KIR + Lowering の TODO/FIXME 約 620 件を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）
-  - RF3/RF4 後の実測は 4 件。`PreScan` の stdlib 誤分類 TODO は即修正済み、残り 3 件は RF-LOWER-003 / DEBT-KIR-001 にタスク化し `kir_lowering_todo_fixme_count` で追跡。
+  - RF3/RF4 後の実測は 4 件。`PreScan` の stdlib 誤分類 TODO、RF-LOWER-003、DEBT-KIR-001 は修正済みで、`kir_lowering_todo_fixme_count` の現在値は 0。
 - [x] RF-LOWER-002: `CollectionLiteralLoweringPass`（31 ファイル・~12k 行）を責務分割する（リテラル構築 / VirtualCallRewrite / LookupTables を独立パス・レジストリへ。`+PreScan.swift:671` の単純名マッチによる stdlib 誤分類は解消済み）
-- [ ] RF-LOWER-003: `CallLowerer+Operators` / `CallRewrite` / `VirtualCallRewrite` に跨る sequence plus/minus 重複ロジックを共通ヘルパーへ抽出する（`+Operators.swift:211` の既知 TODO）
+- [x] RF-LOWER-003: `CallLowerer+Operators` / `CallRewrite` / `VirtualCallRewrite` に跨る sequence plus/minus 重複ロジックを共通ヘルパーへ抽出する（`+Operators.swift:211` の既知 TODO）
 - [ ] RF-LOWER-004: `InlineLoweringPass`（1,280 行）と `LambdaClosureConversionPass` の共有ヘルパーを抽出する（`InlineLoweringPass.swift:428` の既知 TODO）
 - [x] RF-LOWER-005: `ABILoweringPass+NonThrowingCallees`（1,298 行）と boxing rules の責務境界を整理する
 - [ ] RF-LOWER-006: `DataEnumSealedSynthesisPass+DataClassMethods`（1,268 行・TODO 33 件）を整理し、`.jscpd.json` の ignore 固定 3 ファイルを解消する
@@ -94,27 +94,34 @@
 - [x] DEBT-RT-001: `Sources/Runtime/RuntimeStringBuilder.swift` の境界チェック 11 箇所の `fatalError("StringIndexOutOfBoundsException: ...")` を catch 可能な Kotlin 例外送出へ置換する。`sb.insert(99, "x")` 等のユーザーコード 1 行でプロセスが落ちる最も再現容易な箇所。`try/catch (e: IndexOutOfBoundsException)` の diff ケースで kotlinc と挙動一致を検証する
 - [x] DEBT-RT-003: `Sources/Runtime/RuntimeRegex.swift` の正規表現フォールバック失敗時 `fatalError` 4 箇所（238 / 439 / 471 / 755 付近）を整理する。pattern はユーザー入力直通。静的フォールバック `(?!)` が失敗し得ないことの検証コメント化、または例外送出化
 - [x] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
+- [ ] DEBT-RT-007: `kk_list_of_not_null` が `RuntimeListBox` を `listRuntimeTypeID` なしで登録するため、生成リストの要素列は正しくても `size` が 0 になる。最小再現: `val xs = listOfNotNull(1, null, 2); println(xs.size)`（`Scripts/diff_cases/list_of_not_null.kt` / KSP-311 CI）。`registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)` に修正済み（PR #4594、マージ後に `[x]` 化）
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
 - [x] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` の compiler-generated plain `yield()` producer（range-loop 内 `yield` を含む）は CPS lowering の suspend point として扱い、`kk_*_builder_build_coro` 経由で専用 producer thread を使わない経路へ移行済み。`yieldAll` と legacy direct ABI callback 用の `Thread` fallback は互換経路として維持する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
+- [x] DEBT-CORO-004: `CoroutineExceptionHandler` 付き `launch` が例外を handler に通知した後も job を exceptional completion として扱い、`join()` が正常完了値を返さなかった。最小再現: `runBlocking { val handler = CoroutineExceptionHandler { _, _ -> }; val job = launch(handler) { error("boom") }; job.join() }`。発見元: PR #4730。handler ありは例外を消費して正常完了、handler なしは failed job として保持するよう修正済み
 
 ### KIR / Lowering
 - [x] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift` の vtable dispatch gate を解除。`kk_alloc` / `KTypeInfo` vtable は raw heap object fallback として残しつつ、既存 `kk_object_new` ベースの class/object/object-literal allocation は itable と同型の object-local vtable method registry を登録し、`kk_vtable_lookup` が override 実装を取得できるようにした。`VirtualDispatchTests` と backend 実行テストで open-class / safe-call 経路を検証済み
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
+- [ ] DEBT-KIR-004: 自己参照ではない `x or y` において、`y` が直前の関数呼び出し結果（例: `String.indexOf`）の場合に右オペランドが無視され 0 として計算されるバグを調査・修正する。再現: `val value = alphabet.indexOf(c); val r = 0 or value` は `r == 0`（誤り、正しくは `value`）になるが `value or 0` は正しく計算される。KSP-482 (#4625) の `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt:107` (`decodeRaw`) でオペランド順序を入れ替えるワークアラウンドを適用済み（コメント参照）。`and`/`xor` 等の他ビット演算子でも同型の問題がないか要確認
+- [ ] DEBT-KIR-005: `for (x in byteArray)` が ByteArray の直接イテレーションでループ本体を一度も実行しないバグを調査・修正する。再現: `for (b in "HI".encodeToByteArray()) { println(b) }` は何も出力しないが、`while` + インデックスアクセス（`bytes[i]`）に書き換えると正しく動作する。KSP-482 (#4625) のレビュー対応中に `OutputStream.encodingWith` の手動検証スクリプトで発覚（Base64 実装自体は影響を受けない）。IntArray/List 等の他コレクション型で同型の問題がないか要確認
+- [ ] DEBT-KIR-006: `Iterable<T>.joinToString(separator) { transform }` の transform ラムダが無視され、各要素の生の `toString()` がそのまま結合されるバグを調査・修正する。再現: `"a\r\nbb\r\nccc".split("\r\n").joinToString(",") { it.length.toString() }` は `"a,bb,ccc"`（誤り、正しくは `"1,2,3"`）になる。`split` 自体・`for` ループでの個別アクセスは正しく動作する。KSP-482 (#4625) のレビュー対応中に Base64.Pem の行長検証 diff case で発覚、該当箇所は `for` ループへ書き換えて回避済み。`map`/`filter` 等の他 HOF で同型の transform 無視パターンがないか要確認
+- [x] DEBT-KIR-007: bundled Kotlin stdlib source（`Sources/CompilerCore/Stdlib/**/*.kt`）で定義済みのメンバ関数・プロパティの解決結果が macOS ローカルビルドと Linux CI ビルドで異なるように見えた現象を根本調査した。**結論: 現行コミットでは macOS/Linux の意味論的な差は再現せず、真のクロスプラットフォーム差ではなかった**。検証: (1) 本 PR のブランチ HEAD を完全クリーン状態から `swift build` → `swift_test.sh --filter matchesGolden` したところ Sema golden 295/295 が pass し、`file_props`/`measure_timed_value`/`abstract_class`/`flatten_stdlib`/`list_collection_hofs`/`file_is_rooted`/`file_tree_walk`/`override_generic_covariant_return`/`stdlib_string_ops` を含む全ケースが現行の committed golden（＝ Linux CI 準拠の値）と一致した。(2) Ubuntu 24.04 + Swift 6.2.4 + LLVM 18 の Docker コンテナ（`.build` は macOS ホストと共有しない独立パス）で同一コミットをフルクリーンビルドし `GoldenHarnessWorker` で同ケースを直接実行したところ、`java.io.File.name`→`call=kotlin.io.name.$get`、`kotlin.time.TimedValue.value/duration`→`call=kotlin.time.{value,duration}.$get`、`emptyList`→callBinding なし、`kotlin.text.first`→`#0` 付き、のいずれも macOS の新規ビルドと完全一致した。**推定される真因**: PR #4625 で `UPDATE_GOLDEN=1` を実行した macOS ローカル環境が、当該コミット（`java.io.File.name` 等の直接互換スタブをすでに削除していた KSP-483 #4604 を祖先に持つコミット）に対して stale な `.build` インクリメンタルキャッシュ（または worktree の状態不整合）を引きずっていたと推定される。傍証として、修正前の `file_is_rooted.golden` は同一式に対し `ref=kotlin.io.isRooted` と `call=kotlin.io.isRooted.$get` を**同時に**持つという、単一の一貫した解決アルゴリズムでは説明しづらい二重登録の痕跡を残していた（本リポジトリは同時に多数の git worktree で並行作業する運用のため、この種の stale ビルドが起きやすい）。**訂正**: 当時「macOS = 新しい実シンボル解決／Linux = 旧 synthetic dispatch」と解釈したが、実際は逆で、macOS が示した `ref=` は KSP-483 で削除されたはずの旧互換スタブの残骸であり、`call=...$get`（Linux、および現在の macOS 新規ビルド）こそが移行後の現行実装の正しい出力だった。**対応不要事項**: 9件の golden ファイルは既に両プラットフォームの新規ビルド結果と一致しているため、再生成・追加のコード修正は不要。旧本文にあった「bundled stdlib 移行済みシンボルを含む golden ケースを macOS でだけ検証して確定させないこと」という運用注意は誤診断に基づくものであり撤回する。**恒久対応の推奨（未実施）**: master マージ・worktree 切替後に `UPDATE_GOLDEN=1` を実行する前は `.build` のクリーンビルド（`rm -rf .build && swift build`）を徹底するよう `docs/stdlib-pipeline.md` §8 または `CLAUDE.md` のゴールデン更新手順に一言添えると、今回のような stale ビルドによる偽陽性の再発を防げる
 
 ### RuntimeABISpec 本体の分割完遂
 > 既に 33 ファイルへ +分割済みだが、本体 `RuntimeABISpec.swift`（3,629 行）に 19 個の `static let *Functions` が残存する。
 - [x] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
 
 #### Diff skip 追跡（DEBT-TEST-005）
-> 2026-07-06 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 66 件（001:22 / 002:8 / 003:14 / 004:5 / 005:14 / 006:3）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
+> 2026-07-11 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 134 件（001:19 / 002:4 / 003:14 / 004:5 / 005:12 / 006:4 / 007:76。実測値は `find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'DEBT-DIFF-[0-9]{3}' -N | sort | uniq -c` で確認）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
 - [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
-- [ ] DEBT-DIFF-002: script-style diff cases の kotlinc JVM 起動 timeout / top-level execution parity を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。
-- [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。
+- [ ] DEBT-DIFF-002: script-style diff cases の top-level execution parity / stdlib nondeterminism を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。（2026-07-09: kotlinc JVM 起動 timeout 起因だった3件は `--script-timeout` 分離で解除済み。残り5件は timeout とは別要因）
+- [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。2026-07-10: `coroutine_deferred.kt`/`coroutine_structured_concurrency.kt`/`coroutine_supervisor_job.kt` 着手。Sema側の一般的バグ5件を修正（`kotlin.coroutines` default import欠落・`IntRange.map`要素型破壊・`async`/`coroutineScope`/`supervisorScope`戻り値型narrowing欠如・ラムダ本体のUnit-coercion時にexpectedTypeを誤伝播して`repeat`等が"No viable overload"になるバグ）、19ケースで回帰なし確認済み。ただし各ケースにKIR/runtime層の別バグが残存: (a) Iterator経由で取得したDeferred/Jobに`.await()`するとSIGSEGV、(b) `coroutineScope{}`が外側可変変数をキャプチャするとlowering失敗（`launch`/`async`は正常）、(c) `SupervisorJob()`/`CoroutineScope(context)`未実装。詳細は `docs/diff-skip-inventory.md` の「structured concurrency / Deferred / Supervisor 詳細」節参照。
 - [ ] DEBT-DIFF-004: value class の boxing / generics / collection / interface / interop parity を、Sema・KIR・Lowering・runtime ABI の責務別に分解して修正する。
-- [ ] DEBT-DIFF-005: common stdlib surface gap による skip（BigInteger、Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。
+- [ ] DEBT-DIFF-005: common stdlib surface gap による skip（Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs、Random.nextFloat range overload/nextBytes）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。BigInteger は `not`/`shiftLeft`/`shiftRight` の未登録と shiftLeft/shiftRight のエンディアン不整合バグを修正し、skip 解除済み。
 - [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
+- [ ] DEBT-DIFF-007: `run_case` の compile-exit-code-match 誤判定修正（2026-07-08、`Scripts/diff_kotlinc.sh`）で新規に顕在化した ref/candidate 不一致 76 件を棚卸し済み（`docs/diff-skip-inventory.md` の DEBT-DIFF-007 節）。診断/ネガティブテスト・enum/data class/interface 未実装・common stdlib gap・coroutine Flow・reflection・JVM interop・finally routing の7グループへ分解済みなので、グループ単位で実装 owner へ割り当てて skip を解除する。
 
 ### ドキュメント乖離
 - [x] DEBT-DOC-001: `README.md` / `CLAUDE.md` の Swift toolchain 表記を実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）へ同期する
@@ -326,9 +333,11 @@
   - 完了: `*To` 変種も Kotlin source 側へ追加し、synthetic List member / lowering direct runtime rewrite / `RuntimeABISpec` / `StdlibSurfaceSpec` / `RuntimeCollectionHOF.swift` の public legacy List filter 経路を削除。`ListFilterHOFSourceMigrationTests` で source bind と旧 member link 不在を確認。
   - 削除: `kk_list_filter`, `kk_list_filterNot`, `kk_list_filterNotNull`, `kk_list_filterIndexed`, `kk_list_filterIsInstance` + `*To` 変種（`RuntimeCollectionHOF.swift`）/ `HeaderHelpers+SyntheticListTransformMembers.swift` の同登録 / `CallLowerer+CollectionHOFMemberCalls.swift` の同 case
   - 手順: T
-- [ ] KSP-307: ListWindowChunk を配線する（`chunked`, `windowed`, `zip`, `zipWithNext`, `withIndex`）
+- [x] KSP-307: ListWindowChunk を配線する（`chunked`, `windowed`, `zip`, `zipWithNext`, `withIndex`）
   - 削除: `kk_list_chunked`, `kk_list_chunked_transform`, `kk_list_windowed`, `kk_list_windowed_default`, `kk_list_windowed_partial`, `kk_list_windowed_transform`, `kk_list_zip`, `kk_list_zipWithNext`, `kk_list_zipWithNextTransform` / 対応スタブ（`HeaderHelpers+SyntheticListTransformMembers.swift`, `+SyntheticListAggregateMembers.swift`）
   - 手順: T
+  - 完了(2026-07-07): `ListWindowChunk.kt` を bundled source として有効化し、public `kk_list_*` synthetic/member/runtime ABI を削除。実行経路は private `__kk_list_*` bridge に降格し、`withIndex` は既存 residual `kk_list_withIndex` を維持
+  - 検証: `ListWindowChunkSourceMigrationTests`, `CollectionHOFManifestDecodeErrorTests`, `ABIMismatchTests`, KIR regression, diff `list_chunked_windowed.kt` / `chunked_transform.kt` / `windowed_step_partial.kt` / `list_windowed_transform.kt` / `list_zip.kt` / `list_zipwithnext_orempty.kt` / `list_indexed_helpers.kt`
 - [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録
@@ -336,9 +345,10 @@
   - 対象: `compareBy`×2, `compareByDescending`×2, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`
   - 削除: `RuntimeComparator.swift` の対応 `kk_comparator_*`（trampoline 含む）/ `HeaderHelpers+SyntheticComparatorStubs.swift` の同登録 / `CallLowerer+StdlibComparisons.swift` の同 case
   - 注意: Comparator SAM ディスパッチ対応が前提（未対応ならブロッカーとして報告）/ diff: `comparisons_edge_cases.kt`（既存）
-- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray`, `version`, `variant` 等）— KSP-476 で完遂
-  - ブリッジ残留: `kk_uuid_random`（エントロピー）と `kk_uuid_nameUUIDFromBytes`（MD5）は `__kk_` 降格。パース/整形/ビット抽出は Kotlin 化
-  - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存）
+- [x] KSP-310: Uuid を配線する（`random`, `parse*`, `toString`, `toHexString`, `toLongs`, `toByteArray`, `fromLongs`, `fromByteArray` 等）— KSP-476 で完遂
+  - ブリッジ残留: `kk_uuid_random`（エントロピー）は `__kk_` 降格で継続使用。`kk_uuid_nameUUIDFromBytes`（MD5）も `__kk_` 降格したが、下記訂正により呼び出し元の `Uuid.nameUUIDFromBytes()` を削除したため現在は孤立ブリッジ（`RuntimeUuidBridgeTests.swift` 等 Runtime層のテストからのみ到達、orphan-abi-spec-backlog と同種の parked 表面）
+  - 削除: `HeaderHelpers+SyntheticUuidStubs.swift` の該当登録 / `RuntimeUuid.swift` の純ロジック系 `kk_uuid_*` / diff: `uuid_basic.kt`（既存、2026-07-09 に SKIP-DIFF (DEBT-DIFF-001) 解除して実 parity 対象へ復帰）
+  - 訂正（2026-07-09）: 当初スコープの `version()`/`variant()`/`nameUUIDFromBytes()` は実際の `kotlin.uuid.Uuid` には存在せず、`java.util.UUID` との混同に基づく誤ったスコープだったため撤回・削除した（kotlinc 2.4.0 の `kotlin-stdlib-sources.jar` で裏取り済み）。`toLongs()` も `(): Pair<Long, Long>` ではなく実際は `inline fun <T> toLongs(action: (Long, Long) -> T): T`（コールバック形式）が正しいシグネチャだったため修正。あわせて `Uuid` に `Comparable<Uuid>` を実装し、`LEXICAL_ORDER` を実際の `@Deprecated` + `@DeprecatedSinceKotlin(warningSince="2.1", errorSince="2.4")` に合わせた。残課題（`mostSignificantBits`/`leastSignificantBits` の internal 化、`toULongs`/`toUByteArray`/`fromUByteArray`/`fromULongs`/`toHexDashString`/`generateV4`/`generateV7*` の追加）は KSP-507 に切り出し。同じ `version`/`variant`/`nameUUIDFromBytes` 混同は KSP-476（#4605）にも独立に混入していたため、あわせてマージ時に是正（KSP-476 の項参照）。並行実装との統合経緯は KSP-476 参照
   - 手順: T
 - [ ] KSP-311: StringBuilder を配線する（クラス + `append`系/`insert`/`delete`系/`reverse`/`toString` 等 34 関数）
   - 注意: コンストラクタは `CallSupportLowerer` 経由。可変内部バッファは `__kk_` ブリッジ最小集合（new/append_obj/toString/length など）に絞り、型別 append/insert/delete 系を Kotlin 化
@@ -357,7 +367,7 @@
   - 完了: `rg '"kk_string_is|"kk_string_if|"kk_string_orEmpty|"kk_string_lines' Sources/CompilerCore` 0 件 + G
 - [x] KSP-402: first/last/single 系を Kotlin 化（`first`, `last`, `single`, `firstOrNull`, `lastOrNull`, `singleOrNull`, `getOrNull` + predicate 版）
   - 削除 kk_*: `kk_string_first`, `kk_string_last`, `kk_string_single`, `kk_string_firstOrNull`, `kk_string_lastOrNull`, `kk_string_singleOrNull`, `kk_string_getOrNull`, `kk_string_singleOrNull_predicate`（`RuntimeStringQuery.swift` / `RuntimeStringHOF.swift`）
-- [ ] KSP-403: trim 系を Kotlin 化（`trim`, `trimStart`, `trimEnd` + predicate 版）
+- [x] KSP-403: trim 系を Kotlin 化（`trim`, `trimStart`, `trimEnd` + predicate 版）
   - 削除 kk_*: `kk_string_trim`, `kk_string_trim_predicate`, `kk_string_trimStart`, `kk_string_trimStart_predicate`, `kk_string_trimEnd`, `kk_string_trimEnd_predicate` / diff: `string_trimstart_trimend.kt`（既存）+ predicate 版追加
 - [ ] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`）
   - 削除 kk_*: `kk_string_startsWith`, `kk_string_endsWith`, `kk_string_removePrefix`, `kk_string_removeSuffix`, `kk_string_removeSurrounding`, `kk_string_removeSurrounding_pair`
@@ -495,10 +505,22 @@
 
 - [x] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
-  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`version`/`variant`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
+  - 実施: `parse*`/`toString`/`toHexString`/`toLongs`/`toByteArray`/`fromByteArray`/`NIL`/`ByteArray.getUuid`/`uuid`/`putUuid` は純 Kotlin 化（`Stdlib/kotlin/uuid/Uuid.kt`）。`Uuid` は実プライマリコンストラクタ（`mostSignificantBits`/`leastSignificantBits` は実ストアドプロパティ、専用ブリッジ不要）。
     残存ブリッジは `random`/`fromLongs`/`nameUUIDFromBytes`/`toKotlinUuid`/`lexicalOrder` の5個のみで、全て `__kk_uuid_*` に改名し `@KsSymbolName` 経由で宣言。
-    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop）も同様にブリッジ維持（renamed）。
+    `LEXICAL_ORDER` は2引数SAM変換ラムダのパラメータ解決が未対応と判明したため、Comparator の itable 登録は Swift 側ブリッジのまま維持（`__kk_uuid_lexicalOrder`）。`toKotlinUuid`（`java.util.UUID` interop、実 API）も同様にブリッジ維持（renamed）。
     本タスクはコアクラス部分（KSP-310 相当）を並行実装した #4575 とのマージで完遂 — 実コンストラクタ設計は #4575 を採用し、`ByteArray` 拡張3関数 + `toKotlinUuid` 改名を本 PR の差分として上乗せした。
+  - 訂正（2026-07-09）: `version`/`variant` は KSP-310 と同根の誤り（`java.util.UUID` との混同）と判明したため撤回・削除。`LEXICAL_ORDER` は実 API では `@Deprecated`（`naturalOrder<Uuid>()` へ置換）だったため合わせて修正済み（詳細は KSP-310 参照）
+- [ ] KSP-507: kotlin.uuid.Uuid の実 API 未実装分を追加する（KSP-310 訂正のフォローアップ）
+  - 対象: `mostSignificantBits`/`leastSignificantBits` を `public` から `@PublishedApi internal` へ変更（KSwiftK がバンドル stdlib とユーザーコード間のモジュール境界可視性を実際に強制するか未検証のため、まず spike で確認する）
+  - 対象: `toULongs`, `toUByteArray`, `fromUByteArray`, `fromULongs`, `toHexDashString`, `generateV4()` を追加
+  - 対象外（別途再調査してから着手）: `generateV7()` / `generateV7NonMonotonicAt()` は `kotlin.concurrent.atomics.AtomicLong` と `kotlin.time.Clock`/`Instant` に依存。Atomics サポートの有無が未確認、Clock/Instant も KSP-472 で部分配線のみのため、実現可能性を先に確認する
+  - 前提: KSP-309（Comparators 配線、`naturalOrder`）が未着手のため、`naturalOrder<Uuid>()` を使う置き換え例は現状 `Uuid.compareTo()` 直接呼び出しで代替中
+  - ブロッカー候補（2026-07-09 発見、要再調査）: `toLongs`/`toULongs` と同型の `inline fun <T> foo(action: (X, Y) -> T): T` パターンで、ラムダ本体が (a) 引数をそのまま返す恒等関数（`{ m, l -> m }`）→ `KSWIFTK-TYPE-0001: Conflicting bounds ... T is not a subtype of Long` で失敗、(b) `Uuid.fromLongs(m, l)` や `Pair(m, l)` のようなネストしたコンストラクタ/コンパニオン呼び出し → `KSWIFTK-SEMA-0002/0003` で失敗、(c) `Boolean` を直接返す（`{ m, _ -> (...).toInt() == 4 }`）→ コンパイル・実行は成功するが文字列補間時に `true`/`false` ではなく `1`/`0` を出力（プリミティブが `T` を経由してボックス化される際の unboxing 不整合と推測、[[primitive-autoboxing-mutable-collection-add]] や [[comparison-unboxing-peer-type]] と同系統）。`toLongs` 自体は `m + l` のような二項演算のみを返す形（ジェネリック呼び出しの外側で比較・再構築する）であれば安全に動作することを確認済み（`Scripts/diff_cases/uuid_basic.kt` 参照）。`toULongs`/`toUByteArray` 等を実装する際は同じ制約に当たる可能性が高く、Sema/TypeCheck の型変数解決（`CallTypeChecker` 系）と ABI Lowering のプリミティブ boxing 経路の両方を先に調査すること
+- [ ] KSP-508: `ByteArray.getUuid`/`uuid`/`putUuid` を実 API（`ByteBuffer.getUuid`/`putUuid`）に置き換える（2026-07-09 マージ時発見、要再調査）
+  - 問題: KSP-476（#4605）が実装した `kotlin.uuid.ByteArray.getUuid(offset)` / `ByteArray.uuid(at)` / `ByteArray.putUuid(at, uuid)` は実際の `kotlin.uuid` パッケージには存在しない。kotlinc 2.4.0 の `kotlin-stdlib-sources.jar`（`jvmMain/kotlin/uuid/UuidJVM.kt`）で裏取りした実 API は `java.nio.ByteBuffer` の拡張関数 `ByteBuffer.getUuid()` / `ByteBuffer.getUuid(index: Int)` / `ByteBuffer.putUuid(uuid): ByteBuffer` / `ByteBuffer.putUuid(index, uuid): ByteBuffer`（いずれも `@SinceKotlin("2.4")` `@WasExperimental(ExperimentalUuidApi::class)`）であり、`ByteArray` ではなく `ByteBuffer` がレシーバ。`version`/`variant`/`nameUUIDFromBytes` と同型の「実 API 未確認のまま実装」ミス
+  - 影響範囲: `Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt`（`ByteArray.getUuid/uuid/putUuid` 拡張・`readUuidFromBytes` ヘルパ）/ `Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+Uuid.swift`（`testUuidByteArrayExtensionsAndJavaInteropLowerThroughKotlinSource`）/ `Tests/CompilerCoreTests/Sema/UuidGetUuidSemaTests.swift` / `Tests/CompilerCoreTests/Sema/UuidPutUuidSemaTests.swift` / `Tests/CompilerCoreTests/Sema/UuidAPISurfaceInventoryTests.swift`（`getUuid`/`uuid`/`putUuid` 3エントリ）
+  - 確認済み（2026-07-09、kotlinc-jvm 2.4.0 で実測）: `Scripts/diff_cases/uuid_put_uuid.kt` は SKIP-DIFF が付いておらず現在 diff_kotlinc.sh の実 parity 対象だが、実 kotlinc は `import kotlin.uuid.uuid` を `unresolved reference 'uuid'`、`buf.putUuid(0, original)` を「`fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer` に receiver type mismatch」で拒否し、確実にコンパイル失敗する。CLAUDE.md の「リファクタ PR 必須ゲート」（`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` を green にする）を満たそうとすると即座に踏むアクティブな既知バグ
+  - 対応方針（未着手、要検討）: (a) `ByteArray.getUuid/uuid/putUuid` を撤去し `ByteBuffer.getUuid/putUuid` を新規実装（`java.nio.ByteBuffer` interop の有無を先に確認 — 無ければブロッカー）、(b) 撤去のみでこの PR 時点では未配線として KSP-310/476 のスコープから正式に除外、のいずれか。影響範囲が広いため本 PR（マージコンフリクト解消）の対象外とし、別 PR に切り出す
 
 #### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
 
@@ -508,11 +530,10 @@
   - 手順: T / diff: `hexformat_basic.kt`（既存）+ `hexformat_padding_and_arrays.kt`（新規、`Long.toHexString` の桁パディング等）/ 完了: `rg '"kk_hexformat_|"kk_string_hexTo' Sources/CompilerCore` 0 件 + G
   - 2026-07-08 完了。HexFormat は単一フラットクラス（`NumberHexFormat`/`BytesHexFormat` 分離なし、`bytes`/`number` は `this` を返すエイリアス）として実装。`STDLIB-HEX-001`（`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`）は実配線後は到達不能と確認しdelete。旧 kk_* 実装のバグ（`Long.toHexString` が正の値でゼロパディングされない）を発見・修正（`Scripts/diff_cases/hexformat_padding_and_arrays.kt` で固定）。
   - 既知の制約（本タスクでは対処せず、影響範囲を確認しコード内コメントで明記のみ）: (1) 実 Kotlin の `HexFormat { }` ビルダー DSL 構文が使えない — トップレベル関数とクラスの同名宣言が `KSWIFTK-SEMA-0001` で拒否される件、およびコンストラクタ本体からその関数型パラメータを参照するとコード生成が未定義シンボルを吐く件、の2つの独立したコンパイラ制約による。回避策としてカスタム format は通常の名前付き引数コンストラクタ（`HexFormat(prefix = "0x", ...)`）経由でのみ構築可能にした（この経路は `diff_kotlinc` 非対応のため `CodegenBackendIntegrationTests+EncodingEdgeCases.swift` の `testCodegenCompilesHexFormatCustomization` で個別に固定）。(2) `Int/Long.toUInt()` 系の符号なし変換は、変換元が符号あり型へのナローイングを経て負値になるケースで壊れる（`hexToUInt`/`hexToUShort`/`hexToUByte` は Long アキュムレータから直接 `.toUInt()` 等を呼ぶことで回避）。(3) `StringBuilder(capacity: Int)` （容量指定コンストラクタ）呼び出しがクラッシュする（無引数 `StringBuilder()` で回避）。
-- [ ] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
-  - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/Base64.kt`（クラス + variant 実装あり）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`
-  - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
-  - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
-  - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
+- [x] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`。旧synthetic stubsと`CallLowerer+Base64MemberCalls.swift`、RuntimeのBase64公開ABIを削除済み。
+  - 残留ブリッジ: `__kk_output_stream_encodingWith` のみ。Base64インスタンスのalphabet/paddingをプリミティブ引数で受け取る。
+  - 実Kotlin APIに合わせて`decode(ByteArray)`を使用し、存在しない`String.decodingWith`は削除。`base64_edge_cases.kt`で固定。
 - [x] KSP-483: File のパス純ロジック層を Kotlin 化する
   - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
   - 削除 kk_*: `kk_file_name`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
@@ -742,3 +763,21 @@
 - [ ] BUG-017: `lazy()`/`lazy(mode)` の戻り値型が `kotlin.properties.Lazy`（`lazyOf` と本家は `kotlin.Lazy`）→ KSP-681 で修正
 - [ ] BUG-018: `kotlin.reflect.full.createInstance` が宣言のみで呼ぶとリンクエラー確定 → KSP-682 で判断
 - [ ] BUG-019: `ByteArray.joinToString`/`contentEquals` が未スタブ（`Scripts/diff_cases/string_tobytearray.kt` の既知ギャップ）→ KSP-660 で吸収
+- [ ] BUG-020: PR #4799（XCTest→Swift Testing移行）で `#if canImport(Testing)` ガードの閉じ位置が誤り、`@Suite struct` 本体（全 `@Test` 関数）がガード外に取り残される構造的バグ。`canImport(Testing)` が false の環境でビルド不能の恐れ — 対象 `Tests/RuntimeTests/RuntimeRangeHOFTests.swift`（2026-07-13 オープンPR一括レビューで発見）
+- [ ] BUG-021: PR #4801（XCTest→Swift Testing移行）で `tearDown()` が呼んでいた `kk_runtime_force_reset()` が `defer` 等に引き継がれず消失、テスト間のランタイム状態隔離が失われる — 対象 `Tests/RuntimeTests/RuntimeListPropertyTests.swift`（同型バグ: BUG-022/024/025/026/027。2026-07-13 オープンPR一括レビューで発見）
+- [ ] BUG-022: PR #4811（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeRegexAnchorTests.swift`
+- [ ] BUG-023: PR #4819（XCTest→Swift Testing移行）でプロセス全体共有のGC排他ロック（`RuntimeTestIsolationSupport.swift` の `gcSemaphore`、`IsolatedRuntimeXCTestCase(requiredLockSet: .gcOnly)` 由来）がファイルローカルな `NSLock` に縮小され、他の66件超の `IsolatedRuntimeXCTestCase` 使用ファイルとのクロスファイル排他が失われる — 対象 `Tests/RuntimeTests/RuntimeReadWriteLockTests.swift`
+- [ ] BUG-024: PR #4824（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeSetCollectionHOFTests.swift`
+- [ ] BUG-025: PR #4825（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeUuidBridgeTests.swift`
+- [ ] BUG-026: PR #4827（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失（131テストの最大規模ファイル）— 対象 `Tests/RuntimeTests/RuntimeCollectionHOFTests.swift`
+- [ ] BUG-027: PR #4828（XCTest→Swift Testing移行）で BUG-021 と同型の `tearDown`（`kk_runtime_force_reset()`）消失 — 対象 `Tests/RuntimeTests/RuntimeListIteratorTests.swift`
+- [ ] BUG-028: PR #4769（XCTest→Swift Testing移行）で `kk_system_gc()` を呼び実際にGCを起動するテストなのに `@Suite` に `.serialized` が付与されず、`RuntimeTestIsolationSupport.swift` の `IsolatedRuntimeXCTestCase`（GC専用排他）相当の保護も使われない — デフォルト並列実行下で他テストのオブジェクトを巻き込んで破棄しうる。対象 `Tests/RuntimeTests/RuntimeMemoryTests.swift`（同型バグ: BUG-029/030/031/032/033/035。2026-07-13 オープンPR一括レビュー（深掘り再検証）で発見）
+- [ ] BUG-029: PR #4793（XCTest→Swift Testing移行）で `kk_locale_setDefault`/`kk_locale_getDefault` によりプロセスグローバルな `runtimeLocaleState.defaultLocaleBox` を書き換え・復元するテストなのに `.serialized` が付与されず、並列実行下で復元順序のレースが起こりうる — 対象 `Tests/RuntimeTests/RuntimeStringLocaleTests.swift`
+- [ ] BUG-030: PR #4796（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeStringInternTests.swift`
+- [ ] BUG-031: PR #4807（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeCollectionMapIndexedNotNullToTests.swift`
+- [ ] BUG-032: PR #4810（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` に加え `__kk_secure_random_get_instance()` シングルトンにも依存）— 対象 `Tests/RuntimeTests/RuntimeSecureRandomTests.swift`
+- [ ] BUG-033: PR #4813（XCTest→Swift Testing移行）で `.serialized` 欠落と `tearDown`（`kk_runtime_force_reset()`）消失が両方発生する二重不備 — 対象 `Tests/RuntimeTests/RuntimeRegexNamedGroupTests.swift`
+- [ ] BUG-034: PR #4814（XCTest→Swift Testing移行）で `.serialized` は正しく付与されているが、`tearDown`（`kk_runtime_force_reset()`）が約20テスト全てで `defer` 化されず消失（一次レビューでは見落とし、深掘り再検証で発見）— 対象 `Tests/RuntimeTests/RuntimeStringLastIndexOfAnyTests.swift`
+- [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
+- [ ] BUG-036: `kotlin.text.CASE_INSENSITIVE_ORDER` 等の合成 top-level プロパティが、モジュール初期化時にキャッシュされるはずの global を読まず、参照のたびに `kk_string_case_insensitive_order()` を再実行して新規インスタンスを生成する（`--emit kir` で使用箇所ごとに独立した `call` が発行され、cached global への `loadGlobal` が起きないことを確認済み。値としては動作するが参照同一性が崩れる: `val a = CASE_INSENSITIVE_ORDER; val b = CASE_INSENSITIVE_ORDER` は同一インスタンスになるべき）— PR #4835 で発見。testKotlinTextCaseInsensitiveOrderEdgeCases の itable dispatch 障害報告の再現調査中に判明（**当該パニック自体は現行 HEAD `981b96169c` では再現せず**: `--emit kir` 上 dispatch=itable[0:0] がランタイム登録と一致、`swift_test.sh` で4回連続 pass 確認済み。原因は調査当時の Xcode ツールチェイン不一致の疑い — 本件はその副産物として見つかった別問題）
+- [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-020 の再現性検証中に偶然発見

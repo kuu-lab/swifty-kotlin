@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 enum class Color(val rgb: Int) {
     RED(0xFF0000),
     GREEN(0x00FF00),

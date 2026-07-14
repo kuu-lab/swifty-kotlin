@@ -6,6 +6,9 @@ symbol fq=User.nickname kind=property vis=public flags=_ type=String?
 symbol fq=__local_0.users kind=local vis=private flags=_ type=kotlin.collections.List<out User>
 symbol fq=__local_1.byNickname kind=local vis=private flags=_ type=kotlin.collections.List<out User>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
+symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -21,7 +24,7 @@ expr e@4:44 call callee=e@4:44#1 args=[_:e@4:49,_:e@4:56] type=User call=User.<i
 expr e@4:68 string(Carol) type=String
 expr e@4:77 string(A) type=String
 expr e@4:63 call callee=e@4:63#1 args=[_:e@4:68,_:e@4:77] type=User call=User.<init>
-expr e@4:17 call callee=e@4:17#1 args=[_:e@4:24,_:e@4:44,_:e@4:63] type=kotlin.collections.List<out User>
+expr e@4:17 call callee=e@4:17#1 args=[_:e@4:24,_:e@4:44,_:e@4:63] type=kotlin.collections.List<out User> call=kotlin.collections.listOf#1 targs=[User]
 expr e@4:5 localDecl users mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.users
 expr e@5:22 name(users) type=kotlin.collections.List<out User> ref=__local_0.users
 expr e@5:41 name(it) type=User ref=s-0

@@ -1,27 +1,31 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeCollectionRequireNoNullsTests: XCTestCase {
+@Suite
+struct RuntimeCollectionRequireNoNullsTests {
+    @Test
     func testIterableRequireNoNullsReturnsOriginalCollectionWhenAllElementsArePresent() {
         let source = makeList([1, 2, 3])
         var thrown = 0
 
         let result = kk_iterable_requireNoNulls(source, &thrown)
 
-        XCTAssertEqual(result, source)
-        XCTAssertEqual(thrown, 0)
+        #expect(result == source)
+        #expect(thrown == 0)
     }
 
+    @Test
     func testIterableRequireNoNullsThrowsForNullElement() {
         let source = makeList([runtimeStringRaw("a"), runtimeNullSentinelInt])
         var thrown = 0
 
         let result = kk_iterable_requireNoNulls(source, &thrown)
 
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(thrown != 0)
         let throwable = throwableBox(from: thrown)
-        XCTAssertEqual(throwable?.message, "null element found in collection.")
+        #expect(throwable?.message == "null element found in collection.")
     }
 
     private func makeList(_ elements: [Int]) -> Int {
@@ -29,7 +33,7 @@ final class RuntimeCollectionRequireNoNullsTests: XCTestCase {
         for (index, value) in elements.enumerated() {
             var thrown = 0
             _ = kk_array_set(arrayRaw, index, value, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
         }
         return kk_list_of(arrayRaw, elements.count)
     }
@@ -49,3 +53,4 @@ final class RuntimeCollectionRequireNoNullsTests: XCTestCase {
         return tryCast(ptr, to: RuntimeThrowableBox.self)
     }
 }
+#endif
