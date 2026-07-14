@@ -279,6 +279,22 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(joinResult, 0, "Exception handler should consume the exception; job completes with 0")
     }
 
+    /// Without a CoroutineExceptionHandler, an uncaught exception must remain visible
+    /// as an exceptional job completion instead of being reported as normal success.
+    func testExceptionWithoutHandlerFailsJob() {
+        let entryRaw = unsafeBitCast(
+            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let functionID = 8814
+        let jobHandle = kk_kxmini_launch_with_exception_handler(entryRaw, functionID, 0)
+        XCTAssertNotEqual(jobHandle, 0)
+
+        let joinResult = kk_job_join(jobHandle, 0)
+        XCTAssertNotEqual(joinResult, 0, "An uncaught exception without a handler must fail the job")
+        XCTAssertEqual(kk_job_is_failed(jobHandle), 1)
+    }
+
     // MARK: - Test 6: launch_with_dispatcher uses the specified dispatcher
 
     /// kk_kxmini_launch_with_dispatcher should run the coroutine and return a job handle
@@ -337,9 +353,11 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
     }
 
-    // MARK: - Test 10: withTimeoutOrNull returns null (0) when block exceeds timeout
+    // MARK: - Test 10: withTimeoutOrNull returns null when block exceeds timeout
 
-    /// kk_with_timeout_or_null must return 0 when the block takes longer than the deadline.
+    /// kk_with_timeout_or_null must return the shared null-sentinel value (not raw 0, which
+    /// is a legitimate unboxed Int result and indistinguishable from a real value once
+    /// printed/compared) when the block takes longer than the deadline.
     func testWithTimeoutOrNullReturnsNullOnTimeout() {
         let entryRaw = unsafeBitCast(
             advcoro_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -348,7 +366,7 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         let continuation = kk_coroutine_continuation_new(advCoroDelayFunctionID)
         // Use a 0 ms timeout: the block should not complete in time.
         let result = kk_with_timeout_or_null(0, entryRaw, continuation)
-        XCTAssertEqual(result, 0, "withTimeoutOrNull should return 0 (null) when block exceeds timeout")
+        XCTAssertEqual(result, runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
     }
 
     // MARK: - Test 11: withTimeoutOrNull returns block value when block completes in time

@@ -160,11 +160,8 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_list_joinToString"
-            || externalLinkName == "kk_array_joinToString"
-            || externalLinkName == "kk_byteArray_joinToString"
-            || externalLinkName == "kk_iterable_joinTo"
-            || externalLinkName == "kk_iterable_joinToString"
+           externalLinkName == "kk_iterable_joinTo"
+            || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
@@ -450,7 +447,7 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_byteArray_toKString")
+           loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
                 normalized.defaultMask,

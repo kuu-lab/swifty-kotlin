@@ -260,6 +260,60 @@ extension CallTypeChecker {
                 }
             }
         }
+        // STDLIB-HEX-001: HexFormat extension methods with default format parameter.
+        do {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let calleeStr = interner.resolve(calleeName)
+            let isSupportedHexReceiver =
+                (calleeStr == "toHexString" && (receiverTypeForCheck == sema.types.intType || receiverTypeForCheck == sema.types.longType))
+                    || (calleeStr == "hexToInt" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToShort" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToUByte" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToUShort" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToUByteArray" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToUInt" && receiverTypeForCheck == sema.types.stringType)
+                    || (calleeStr == "hexToULong" && receiverTypeForCheck == sema.types.stringType)
+            if isSupportedHexReceiver, args.count <= 1 {
+                let kotlinTextPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("text")]
+                let functionFQName = kotlinTextPkg + [calleeName]
+                let hexFormatFQName = kotlinTextPkg + [interner.intern("HexFormat")]
+                let hexFormatType: TypeID? = {
+                    guard let hexFormatSymbol = sema.symbols.lookup(fqName: hexFormatFQName) else { return nil }
+                    return sema.types.make(.classType(ClassType(classSymbol: hexFormatSymbol, args: [], nullability: .nonNull)))
+                }()
+                if let chosen = sema.symbols.lookupAll(fqName: functionFQName).first(where: { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.receiverType == receiverTypeForCheck,
+                          args.count <= signature.parameterTypes.count
+                    else { return false }
+                    if args.count < signature.parameterTypes.count,
+                       !signature.valueParameterHasDefaultValues.dropFirst(args.count).allSatisfy({ $0 }) {
+                        return false
+                    }
+                    return args.isEmpty || signature.parameterTypes.first == hexFormatType
+                }) {
+                    if args.count == 1, let hexFormatType {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: hexFormatType)
+                    }
+                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                    let returnType = bindCallAndResolveReturnType(
+                        id,
+                        chosen: chosen,
+                        resolved: ResolvedCall(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: [:],
+                            parameterMapping: args.count == 1 ? [0: 0] : [:],
+                            diagnostic: nil
+                        ),
+                        sema: sema
+                    )
+                    sema.bindings.bindExprType(id, type: safeCall ? sema.types.makeNullable(returnType) : returnType)
+                    return safeCall ? sema.types.makeNullable(returnType) : returnType
+                }
+            }
+        }
         // String stdlib: nullable-receiver 0-arg methods (NULL-002)
         // isNullOrEmpty/isNullOrBlank accept String? receiver directly (no safe-call needed).
         if args.isEmpty {
@@ -1661,6 +1715,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType
@@ -1875,6 +1930,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType
