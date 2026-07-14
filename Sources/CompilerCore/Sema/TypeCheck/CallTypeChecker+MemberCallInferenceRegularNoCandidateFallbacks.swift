@@ -1715,6 +1715,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType
@@ -1929,6 +1930,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType
