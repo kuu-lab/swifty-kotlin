@@ -1517,7 +1517,7 @@ final class InlineLoweringPass: LoweringPass {
             substitution[typeVar] = actual
 
         case let .classType(expectedClass):
-            guard case let .classType(actualClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)),
+            guard let actualClass = resolveClassType(actual, sema: sema),
                   expectedClass.classSymbol == actualClass.classSymbol
             else {
                 return

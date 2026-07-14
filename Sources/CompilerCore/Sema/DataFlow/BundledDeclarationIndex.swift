@@ -151,6 +151,9 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "collections", "List"] {
             return isRuntimeBackedListSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "collections", "Iterable"] {
+            return isRuntimeBackedIterableSyntheticRetainedOverlap(key, interner: interner)
+        }
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
@@ -248,6 +251,16 @@ struct BundledDeclarationIndex: Sendable {
         default:
             return false
         }
+    }
+
+    private static func isRuntimeBackedIterableSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // List.filter is bundled as Kotlin source, but that implementation is
+        // only valid for concrete List receivers. Keep the runtime bridge for
+        // nominal Iterable<T> receivers, whose values may not expose List indexing.
+        interner.resolve(key.name) == "filter" && key.arity == 1
     }
 
     private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(

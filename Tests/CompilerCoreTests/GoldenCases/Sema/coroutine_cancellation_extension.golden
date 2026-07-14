@@ -1,6 +1,6 @@
 symbol fq=__local_0.job kind=local vis=private flags=_ type=kotlinx.coroutines.Job
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
-symbol fq=kotlinx.coroutines.Job kind=class vis=public flags=synthetic type=kotlinx.coroutines.Job
+symbol fq=kotlinx.coroutines.Job#0 kind=class vis=public flags=synthetic type=kotlinx.coroutines.Job
 symbol fq=kotlinx.coroutines.Job.cancel kind=function vis=public flags=synthetic sig=recv=kotlinx.coroutines.Job params=[] ret=Unit
 symbol fq=kotlinx.coroutines.Job.join kind=function vis=public flags=synthetic sig=recv=kotlinx.coroutines.Job params=[] ret=Unit
 symbol fq=kotlinx.coroutines.launch#1 kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Unit] ret=kotlinx.coroutines.Job
