@@ -9,6 +9,9 @@ symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
 symbol fq=kotlin.collections.Map.K kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
+symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 file f0 package=_
   decl chained fun chained sym=chained
 expr e@2:18 name(values) type=kotlin.collections.List<Int> ref=chained.$0.values
@@ -26,7 +29,7 @@ expr e@4:27 name(it) type=Int ref=s-3
 expr e@4:31 name(it) type=Int ref=s-3
 expr e@4:36 int(2) type=Int
 expr e@4:31#1 binary(multiply) lhs=e@4:31 rhs=e@4:36 type=Int
-expr e@4:20 call callee=e@4:20#1 args=[_:e@4:27,_:e@4:31#1] type=kotlin.collections.List<out Int>
+expr e@4:20 call callee=e@4:20#1 args=[_:e@4:27,_:e@4:31#1] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@4:18 lambda params=[] body=e@4:20 label=flatMap type=(Int) -> Any
 expr e@2:18#3 memberCall recv=e@2:18#2 callee=flatMap args=[_:e@4:18] type=kotlin.collections.List<Int>
 expr e@5:26 name(it) type=Int ref=s-4

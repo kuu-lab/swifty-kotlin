@@ -536,6 +536,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // kotlinx.coroutines.currentCoroutineContext() is the suspend-function
+        // equivalent of the kotlin.coroutines.coroutineContext property above;
+        // both read the same ambient context, so they share a backing primitive.
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "currentCoroutineContext",
+            packageFQName: coroutinesPkg,
+            parameters: [],
+            returnType: kotlinCoroutineContextType,
+            externalLinkName: "kk_coroutine_current_context",
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCoroutineExtensionFunction(
             named: "resume",
             packageFQName: kotlinCoroutinesPkg,
@@ -1226,6 +1239,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticCoroutineTopLevelFunction(
+            named: "ensureActive",
+            packageFQName: coroutinesPkg,
+            parameters: [],
+            returnType: types.unitType,
+            externalLinkName: "kk_ensure_active",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
             named: "withTimeout",
             packageFQName: coroutinesPkg,
             parameters: [
@@ -1257,11 +1279,29 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // withContext accepts any CoroutineContext (e.g. NonCancellable, not just a
+        // dispatcher), matching kotlinx.coroutines' actual signature. `ensureInterfaceSymbol`
+        // is idempotent, so calling it here ahead of the "STDLIB-CORO-077" block below (which
+        // defines the canonical `coroutineContextSymbol`/`coroutineContextType` local bindings)
+        // just returns the same already-registered symbol -- this only widens the accepted
+        // argument type; CoroutineDispatcher already has CoroutineContext as a supertype (see
+        // below), so existing `withContext(Dispatchers.IO) { }`-style calls are unaffected.
+        let withContextContextSymbol = ensureInterfaceSymbol(
+            named: "CoroutineContext",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let withContextContextType = types.make(.classType(ClassType(
+            classSymbol: withContextContextSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
         registerSyntheticCoroutineTopLevelFunction(
             named: "withContext",
             packageFQName: coroutinesPkg,
             parameters: [
-                (name: "context", type: dispatcherType),
+                (name: "context", type: withContextContextType),
                 (name: "block", type: types.make(.functionType(FunctionType(
                     params: [],
                     returnType: types.anyType,
@@ -1304,7 +1344,43 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(coroutineContextElementType, for: coroutineContextElementSymbol)
         symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
         symbols.setDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+        types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: jobSymbol)
+
+        // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
+        // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
+        // Mirrors `this[Job]?.isActive ?: true` -- a context with no Job element is
+        // considered active.
+        registerSyntheticObjectProperty(
+            ownerSymbol: coroutineContextSymbol,
+            ownerType: coroutineContextType,
+            name: "isActive",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_context_is_active",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // `kotlinx.coroutines.NonCancellable`: a CoroutineContext.Element used with
+        // `withContext(NonCancellable) { ... }` to run cleanup code that ignores the
+        // enclosing job's cancellation. Referenced bare (not via member access), so it
+        // resolves through the object-with-externalLinkName path in ExprLowerer.
+        let nonCancellableSymbol = ensureSyntheticObjectSymbol(
+            named: "NonCancellable",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let nonCancellableType = types.make(.classType(ClassType(
+            classSymbol: nonCancellableSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(nonCancellableType, for: nonCancellableSymbol)
+        symbols.setDirectSupertypes([coroutineContextElementSymbol], for: nonCancellableSymbol)
+        types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: nonCancellableSymbol)
+        symbols.setExternalLinkName("kk_non_cancellable_instance", for: nonCancellableSymbol)
 
         let coroutineContextKeySymbol = ensureInterfaceSymbol(
             named: "Key",
@@ -2110,6 +2186,80 @@ extension DataFlowSemaPhase {
             name: "isCancelled",
             propertyType: types.booleanType,
             externalLinkName: "kk_job_is_cancelled",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // `kotlinx.coroutines.Job()` / `SupervisorJob()`: bare factory functions sharing
+        // their name with the `Job` interface (the same "nominal type + eponymous
+        // factory-style function" pattern already used for e.g. `Channel(...)`).
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "Job",
+            packageFQName: coroutinesPkg,
+            parameters: [],
+            returnType: jobType,
+            externalLinkName: "kk_job_new",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "SupervisorJob",
+            packageFQName: coroutinesPkg,
+            parameters: [],
+            returnType: jobType,
+            externalLinkName: "kk_supervisor_job_new",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // `kotlinx.coroutines.CoroutineScope`: an interface (real Kotlin declares
+        // `val coroutineContext: CoroutineContext` as its only member) plus the
+        // eponymous `CoroutineScope(context): CoroutineScope` factory function.
+        let coroutineScopeSymbol = ensureInterfaceSymbol(
+            named: "CoroutineScope",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let coroutineScopeType = types.make(.classType(ClassType(
+            classSymbol: coroutineScopeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(coroutineScopeType, for: coroutineScopeSymbol)
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "CoroutineScope",
+            packageFQName: coroutinesPkg,
+            parameters: [(name: "context", type: coroutineContextType)],
+            returnType: coroutineScopeType,
+            externalLinkName: "kk_coroutine_scope_new_with_context",
+            symbols: symbols,
+            interner: interner
+        )
+        // NOTE: `CoroutineScope.launch { block }` is intentionally NOT registered here.
+        // CoroutineLoweringPass's launcher-call rewrite (rewriteLauncherCall and friends
+        // in CoroutineLoweringPass+LauncherSupport.swift) matches purely on the callee
+        // NAME "launch" without regard to a receiver, so a receiver-bearing member call
+        // is not correctly split into (entryPoint, functionID) the way top-level `launch { }`
+        // is -- it ends up calling this external function with too few/misaligned
+        // arguments. Wiring `CoroutineScope.launch` correctly needs CoroutineLoweringPass
+        // itself to become receiver-aware, which is out of scope here; tracked as a
+        // follow-up rather than shipped half-working (it would panic/crash at runtime).
+        registerSyntheticCoroutineMember(
+            ownerSymbol: coroutineScopeSymbol,
+            ownerType: coroutineScopeType,
+            name: "cancel",
+            externalLinkName: "kk_coroutine_scope_cancel",
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticObjectProperty(
+            ownerSymbol: coroutineScopeSymbol,
+            ownerType: coroutineScopeType,
+            name: "isActive",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_coroutine_scope_is_active",
             symbols: symbols,
             interner: interner
         )
