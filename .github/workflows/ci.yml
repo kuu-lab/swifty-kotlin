@@ -132,7 +132,14 @@ jobs:
         with:
           path: .build
           # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -188,7 +195,14 @@ jobs:
         with:
           path: .build
           # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -269,7 +283,14 @@ jobs:
         with:
           path: .build
           # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -369,7 +390,14 @@ jobs:
         with:
           path: .build
           # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -455,7 +483,14 @@ jobs:
         with:
           path: .build
           # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Build kswiftc (on cache miss)
