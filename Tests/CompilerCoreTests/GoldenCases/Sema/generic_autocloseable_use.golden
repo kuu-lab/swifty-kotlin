@@ -11,7 +11,7 @@ file f0 package=golden.sema
   decl golden.sema.callSite fun callSite sym=golden.sema.callSite
 expr e@12:5 name(t) type=golden.sema.useIt.$0.T ref=golden.sema.useIt.$0.t
 expr e@12:12 blockExpr stmts=[] trailing=_ type=Unit
-expr e@12:11 lambda params=[] body=e@12:12 label=use type=(golden.sema.useIt.$0.T) -> Any
+expr e@12:11 lambda params=[] body=e@12:12 label=use type=(golden.sema.useIt.$0.T) -> Any?
 expr e@12:5#1 memberCall recv=e@12:5 callee=use args=[_:e@12:11] type=Unit
 expr e@16:11 call callee=e@16:11#1 args=[] type=golden.sema.MyAutoResource call=golden.sema.MyAutoResource.<init>
 expr e@16:5 call callee=e@16:5#1 args=[_:e@16:11] type=<error>

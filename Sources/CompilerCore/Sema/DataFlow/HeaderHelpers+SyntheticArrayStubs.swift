@@ -1562,6 +1562,106 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // --- ByteArray.contentEquals / ByteArray.joinToString (DEBT-DIFF-005) ---
+        if let byteArraySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("ByteArray")]) {
+            let byteArrayFQName = kotlinPkg + [interner.intern("ByteArray")]
+            let byteArrayType = types.make(.classType(ClassType(
+                classSymbol: byteArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            let byteContentEqualsName = interner.intern("contentEquals")
+            let byteContentEqualsFQName = byteArrayFQName + [byteContentEqualsName]
+            if symbols.lookup(fqName: byteContentEqualsFQName) == nil {
+                let contentEqualsSym = symbols.define(
+                    kind: .function,
+                    name: byteContentEqualsName,
+                    fqName: byteContentEqualsFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(byteArraySymbol, for: contentEqualsSym)
+                symbols.setExternalLinkName("kk_byteArray_contentEquals", for: contentEqualsSym)
+
+                let otherParamName = interner.intern("other")
+                let otherParamSym = symbols.define(
+                    kind: .valueParameter,
+                    name: otherParamName,
+                    fqName: byteContentEqualsFQName + [otherParamName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(contentEqualsSym, for: otherParamSym)
+
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: byteArrayType,
+                        parameterTypes: [byteArrayType],
+                        returnType: types.booleanType,
+                        isSuspend: false,
+                        valueParameterSymbols: [otherParamSym],
+                        valueParameterHasDefaultValues: [false],
+                        valueParameterIsVararg: [false],
+                        typeParameterSymbols: []
+                    ),
+                    for: contentEqualsSym
+                )
+            }
+
+            let byteJoinToStringName = interner.intern("joinToString")
+            let byteJoinToStringFQName = byteArrayFQName + [byteJoinToStringName]
+            if symbols.lookup(fqName: byteJoinToStringFQName) == nil {
+                let joinToStringSym = symbols.define(
+                    kind: .function,
+                    name: byteJoinToStringName,
+                    fqName: byteJoinToStringFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(byteArraySymbol, for: joinToStringSym)
+                symbols.setExternalLinkName("kk_byteArray_joinToString", for: joinToStringSym)
+
+                let joinParams: [(name: String, type: TypeID)] = [
+                    ("separator", types.stringType),
+                    ("prefix", types.stringType),
+                    ("postfix", types.stringType),
+                ]
+                var joinParamTypes: [TypeID] = []
+                var joinParamSymbols: [SymbolID] = []
+                for param in joinParams {
+                    let paramName = interner.intern(param.name)
+                    let paramSym = symbols.define(
+                        kind: .valueParameter,
+                        name: paramName,
+                        fqName: byteJoinToStringFQName + [paramName],
+                        declSite: nil,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(joinToStringSym, for: paramSym)
+                    joinParamTypes.append(param.type)
+                    joinParamSymbols.append(paramSym)
+                }
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: byteArrayType,
+                        parameterTypes: joinParamTypes,
+                        returnType: types.stringType,
+                        isSuspend: false,
+                        valueParameterSymbols: joinParamSymbols,
+                        valueParameterHasDefaultValues: [true, true, true],
+                        valueParameterIsVararg: [false, false, false],
+                        typeParameterSymbols: []
+                    ),
+                    for: joinToStringSym
+                )
+            }
+        }
+
         // Register reversedArray() and copyInto(destination, destinationOffset, startIndex, endIndex) for primitive arrays.
         for name in primitiveArrayNames {
             let primName = interner.intern(name)

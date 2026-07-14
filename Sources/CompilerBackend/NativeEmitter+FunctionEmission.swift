@@ -1315,17 +1315,20 @@ extension NativeEmitter {
                 "kk_regex_create_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_create_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 0
+                    extraArgumentCount: 0,
+                    canThrow: true
                 ),
                 "kk_regex_create_with_option_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_create_with_option_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 1
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_regex_create_with_options_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_create_with_options_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 1
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_matches_regex_flat",
@@ -1350,17 +1353,20 @@ extension NativeEmitter {
                 "kk_string_toRegex_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toRegex_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 0
+                    extraArgumentCount: 0,
+                    canThrow: true
                 ),
                 "kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toRegex_with_option_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 1
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toRegex_with_options_flat",
                     stringArgumentCount: 1,
-                    extraArgumentCount: 1
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_regex_find_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_find_flat",

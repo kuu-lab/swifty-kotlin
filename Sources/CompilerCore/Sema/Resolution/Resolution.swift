@@ -237,7 +237,13 @@ extension OverloadResolver {
             }
         }
 
-        if let expectedType {
+        // Kotlin's Unit-coercion rule: a call whose result is used where Unit is
+        // expected (e.g. the trailing expression of a `(T) -> Unit` lambda body,
+        // such as `also { it.append(x) }`) does not need its return type to be
+        // Unit — the value is simply discarded. Skip the return-type constraint
+        // in that case so overload candidates aren't rejected solely because
+        // none of them happen to return Unit.
+        if let expectedType, expectedType != ctx.types.unitType {
             let returnDecomposed = decomposeSubtypeConstraint(
                 subtype: signature.returnType,
                 supertype: expectedType,

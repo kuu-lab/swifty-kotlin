@@ -47,7 +47,7 @@ struct CollectionHOFManifestDecodeErrorTests {
         }
     }
 
-    @Test func testCollectionWindowedTransformSyntheticStubResolvesWithoutExternalMetadata() throws {
+    @Test func testCollectionWindowedTransformSourceDefinitionResolvesWithoutExternalMetadata() throws {
         let source = """
         fun test(values: List<Int>) {
             values.windowed(3, 2, true) { window ->
@@ -60,13 +60,12 @@ struct CollectionHOFManifestDecodeErrorTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listFQ: [InternedString] = [
+            let collectionsFQ: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
             ]
             let windowedCandidates = sema.symbols.lookupAll(
-                fqName: listFQ + [ctx.interner.intern("windowed")]
+                fqName: collectionsFQ + [ctx.interner.intern("windowed")]
             )
             let windowedTransform = windowedCandidates.first { symID in
                 guard let sig = sema.symbols.functionSignature(for: symID) else {
@@ -75,9 +74,11 @@ struct CollectionHOFManifestDecodeErrorTests {
                 return sig.parameterTypes.count == 4
             }
 
-            #expect(windowedTransform != nil, "Synthetic stub for List.windowed(size, step, partialWindows, transform) must exist")
+            #expect(windowedTransform != nil, "Bundled source for Iterable.windowed(size, step, partialWindows, transform) must exist")
             if let windowedTransform {
-                #expect(sema.symbols.externalLinkName(for: windowedTransform) == "kk_list_windowed_transform")
+                #expect(sema.symbols.externalLinkName(for: windowedTransform) == nil)
+                let fileID = try #require(sema.symbols.sourceFileID(for: windowedTransform))
+                #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListWindowChunk.kt")
             }
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)

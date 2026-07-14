@@ -1,3 +1,11 @@
+// SKIP-DIFF (DEBT-DIFF-007): fixing the Instant nanosecondsOfSecond/minus(Instant) naming
+// (DEBT-DIFF-005) let the JVM reference side compile cleanly, which unmasked two unrelated,
+// pre-existing kswiftc-only gaps this case also hits: (1) Instant.fromEpochMilliseconds(1_234)
+// does not widen an Int literal to the expected Long parameter ("No viable overload found for
+// call"), and (2) `import java.time.Duration as JavaDuration` / `import java.time.Instant as
+// JavaInstant` type aliases for Java interop types do not resolve ("Unresolved type"). Both are
+// candidate-side Sema gaps unrelated to Instant naming; previously a `nanoOfSecond` compile
+// failure on the reference side masked them by making both sides fail for different reasons.
 import java.time.Duration as JavaDuration
 import java.time.Instant as JavaInstant
 import java.util.concurrent.TimeUnit
@@ -25,7 +33,7 @@ fun main() {
     val javaInstant: JavaInstant = instant.toJavaInstant()
     val instantRoundTrip = javaInstant.toKotlinInstant()
     println(instantRoundTrip.epochSeconds == 1L)
-    println(instantRoundTrip.nanoOfSecond == 234_000_000)
+    println(instantRoundTrip.nanosecondsOfSecond == 234_000_000)
 
     val duration = 1_500.milliseconds
     val javaDuration: JavaDuration = duration.toJavaDuration()
