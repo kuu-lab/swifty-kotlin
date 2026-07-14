@@ -128,9 +128,10 @@ struct CollectionLiteralLookupTables {
     let kkListLastName: InternedString
     let kkListFindName: InternedString
     let kkListFindLastName: InternedString
-    let kkListZipName: InternedString
-    let kkListZipWithNextName: InternedString
-    let kkListZipWithNextTransformName: InternedString
+    let kkListZipBridgeName: InternedString
+    let kkListZipTransformBridgeName: InternedString
+    let kkListZipWithNextBridgeName: InternedString
+    let kkListZipWithNextTransformBridgeName: InternedString
     let kkListUnzipName: InternedString
     let kkListWithIndexName: InternedString
     let kkIndexingIterableIteratorName: InternedString
@@ -190,12 +191,10 @@ struct CollectionLiteralLookupTables {
     let kkListLastIndexOfName: InternedString
     let kkListIndexOfFirstName: InternedString
     let kkListIndexOfLastName: InternedString
-    let kkListChunkedName: InternedString
-    let kkListChunkedTransformName: InternedString
-    let kkListWindowedDefaultName: InternedString
-    let kkListWindowedName: InternedString
-    let kkListWindowedPartialName: InternedString
-    let kkListWindowedTransformName: InternedString
+    let kkListChunkedBridgeName: InternedString
+    let kkListChunkedTransformBridgeName: InternedString
+    let kkListWindowedBridgeName: InternedString
+    let kkListWindowedTransformBridgeName: InternedString
     let kkListSortedDescendingName: InternedString
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
@@ -941,9 +940,10 @@ struct CollectionLiteralLookupTables {
         kkListLastName = interner.intern("kk_list_last")
         kkListFindName = interner.intern("kk_list_find")
         kkListFindLastName = interner.intern("kk_list_findLast")
-        kkListZipName = interner.intern("kk_list_zip")
-        kkListZipWithNextName = interner.intern("kk_list_zipWithNext")
-        kkListZipWithNextTransformName = interner.intern("kk_list_zipWithNextTransform")
+        kkListZipBridgeName = interner.intern("__kk_list_zip")
+        kkListZipTransformBridgeName = interner.intern("__kk_list_zip_transform")
+        kkListZipWithNextBridgeName = interner.intern("__kk_list_zipWithNext")
+        kkListZipWithNextTransformBridgeName = interner.intern("__kk_list_zipWithNextTransform")
         kkListUnzipName = interner.intern("kk_list_unzip")
         kkListWithIndexName = interner.intern("kk_list_withIndex")
         kkIndexingIterableIteratorName = interner.intern("kk_indexing_iterable_iterator")
@@ -1003,12 +1003,10 @@ struct CollectionLiteralLookupTables {
         kkListLastIndexOfName = interner.intern("kk_list_lastIndexOf")
         kkListIndexOfFirstName = interner.intern("kk_list_indexOfFirst")
         kkListIndexOfLastName = interner.intern("kk_list_indexOfLast")
-        kkListChunkedName = interner.intern("kk_list_chunked")
-        kkListChunkedTransformName = interner.intern("kk_list_chunked_transform")
-        kkListWindowedDefaultName = interner.intern("kk_list_windowed_default")
-        kkListWindowedName = interner.intern("kk_list_windowed")
-        kkListWindowedPartialName = interner.intern("kk_list_windowed_partial")
-        kkListWindowedTransformName = interner.intern("kk_list_windowed_transform")
+        kkListChunkedBridgeName = interner.intern("__kk_list_chunked")
+        kkListChunkedTransformBridgeName = interner.intern("__kk_list_chunked_transform")
+        kkListWindowedBridgeName = interner.intern("__kk_list_windowed")
+        kkListWindowedTransformBridgeName = interner.intern("__kk_list_windowed_transform")
         kkListSortedDescendingName = interner.intern("kk_list_sortedDescending")
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")

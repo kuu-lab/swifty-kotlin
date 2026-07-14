@@ -85,6 +85,11 @@ extension CallTypeChecker {
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionReceiver
                 || isSequenceReceiver
+                // Array factories intentionally stay out of the generic
+                // collection-expression marker so List-only extensions do not
+                // receive an Array runtime representation. Keep the safe
+                // conversion members available from their static Array type.
+                || (isArrayReceiver && (memberName == "asSequence" || memberName == "asIterable"))
                 || isIterableWindowedTransformCall
                 || isIterableChunkedTransformCall
                 || isIterableFirstNotNullOfCall
@@ -266,7 +271,83 @@ extension CallTypeChecker {
             return true
         }()
 
+        let didBindListZipSource: Bool = {
+            guard memberName == "zip",
+                  !args.isEmpty,
+                  !isSequenceReceiver,
+                  isCollectionReceiver
+            else {
+                return false
+            }
+            let otherType = sema.bindings.exprTypes[args[0].expr]
+                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let otherElementType: TypeID
+            if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+               let firstArg = otherClassType.args.first
+            {
+                otherElementType = switch firstArg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: sema.types.anyType
+                }
+            } else {
+                otherElementType = sema.types.anyType
+            }
+            let typeArguments: [TypeID]
+            if args.count >= 2,
+               let transformType = sema.bindings.exprTypes[args[1].expr],
+               case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType))
+            {
+                typeArguments = [receiverElementType, otherElementType, fnType.returnType]
+            } else if args.count >= 2 {
+                typeArguments = [receiverElementType, otherElementType, sema.types.anyType]
+            } else {
+                typeArguments = [receiverElementType, otherElementType]
+            }
+
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner) {
+                    return true
+                }
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }()
+
         if !didBindListFilterNotNullSource,
+           !didBindListZipSource,
            let fallbackCallee = resolveCollectionFallbackCallee(
             memberName: calleeName,
             receiverID: receiverID,
@@ -653,9 +734,7 @@ extension CallTypeChecker {
             return lambdaMatch
         }
         // Prefer the overload whose parameter count matches the call-site
-        // argument count so that e.g. windowed(3, 2, true) resolves to the
-        // 3-param overload (kk_list_windowed_partial) instead of the 2-param
-        // one (kk_list_windowed).
+        // argument count for defaulted overload families such as windowed.
         if let exactMatch = allCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount

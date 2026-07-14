@@ -40,7 +40,7 @@ expr e@17:24 name(line) type=String ref=s-2
 expr e@17:13#1 memberCall recv=e@17:13 callee=add args=[_:e@17:24] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e@16:28 lambda params=[line] body=e@17:13#1 label=forEachLine type=(String) -> Unit
 expr e@16:9#1 memberCall recv=e@16:9 callee=forEachLine args=[_:e@16:28] type=Unit
-expr e@15:31 lambda params=[reader] body=e@16:9#1 label=use type=(java.io.BufferedReader) -> Any
+expr e@15:31 lambda params=[reader] body=e@16:9#1 label=use type=(java.io.BufferedReader) -> Any?
 expr e@15:5#2 memberCall recv=e@15:5#1 callee=use args=[_:e@15:31] type=Unit
 expr e@20:12 name(result) type=kotlin.collections.MutableList<String> ref=__local_1.result
 expr e@20:5 return value=e@20:12 type=Nothing

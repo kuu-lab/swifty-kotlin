@@ -1938,7 +1938,9 @@ struct StringSyntheticMemberLinkTests {
                 }
                 return exprID
             }
-            #expect(callExprIDs.count == 2, "Expected two decodeToString range calls")
+            // 2 user calls, plus 1 in bundled Base64.kt's decode(ByteArray)
+            // overload (`source.decodeToString()`, KSP-482).
+            #expect(callExprIDs.count == 3, "Expected two decodeToString range calls plus the bundled Base64 call")
 
             // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
             // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have
