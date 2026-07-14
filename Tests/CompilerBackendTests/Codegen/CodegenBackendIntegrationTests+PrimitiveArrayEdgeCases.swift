@@ -676,7 +676,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayContentDeepToString", expected: "[[1, 2], [x, y], [3, 4]]\n[[...]]\n")
     }
 
-    func testArrayContentToStringOverloads() throws {
+    func testArrayContentAndJoinToStringOverloads() throws {
         let source = """
         @OptIn(ExperimentalUnsignedTypes::class)
         fun main() {
@@ -694,36 +694,6 @@ extension CodegenBackendIntegrationTests {
             println(ushortArrayOf(1.toUShort(), 65535.toUShort()).contentToString())
             println(uintArrayOf(1u, 4000000000u).contentToString())
             println(ulongArrayOf(1uL, 4000000000uL).contentToString())
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "ArrayContentToStringOverloads",
-            expected:
-                """
-                [1, two, 3]
-                [1, -2, 3]
-                [1, -1]
-                [2, -3]
-                [1, 4000000000]
-                [1.5, -2.0]
-                [2.25, -0.5]
-                [true, false]
-                [a, Z]
-                [1, 255]
-                [1, 65535]
-                [1, 4000000000]
-                [1, 4000000000]
-                """
-                + "\n"
-        )
-    }
-
-    func testArrayJoinToStringOverloads() throws {
-        let source = """
-        @OptIn(ExperimentalUnsignedTypes::class)
-        fun main() {
-            val boxed = arrayOf<Any>(1, "two", 3)
             println(boxed.joinToString(","))
             println(intArrayOf(1, -2, 3).joinToString(","))
             println(byteArrayOf(1, (-1).toByte()).joinToString(","))
@@ -744,9 +714,22 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinOutput(
             source,
-            moduleName: "ArrayJoinToStringOverloads",
+            moduleName: "ArrayContentAndJoinToStringOverloads",
             expected:
                 """
+                [1, two, 3]
+                [1, -2, 3]
+                [1, -1]
+                [2, -3]
+                [1, 4000000000]
+                [1.5, -2.0]
+                [2.25, -0.5]
+                [true, false]
+                [a, Z]
+                [1, 255]
+                [1, 65535]
+                [1, 4000000000]
+                [1, 4000000000]
                 1,two,3
                 1,-2,3
                 1,-1
@@ -843,4 +826,3 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ByteArrayElementNotEqualsInsideUntilRangeLoop", expected: "true\nfalse\n")
     }
 }
-
