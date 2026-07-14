@@ -28,7 +28,7 @@ extension CodegenBackendIntegrationTests {
                 """
                 2025
                 04
-                unexpected-regex
+                invalid-pattern
                 """
                 + "\n"
         )

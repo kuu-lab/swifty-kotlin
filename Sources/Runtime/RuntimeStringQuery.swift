@@ -1,5 +1,5 @@
 // String query and predicate functions (isEmpty/isBlank,
-// ifBlank/ifEmpty, get, compareTo, contentEquals, lines, trimStart/trimEnd).
+// ifBlank/ifEmpty, get, compareTo, contentEquals, lines).
 // Split out from `RuntimeStringStdlib.swift`.
 
 import Foundation
@@ -263,54 +263,6 @@ public func kk_string_lineSequence(_ strRaw: Int) -> Int {
     let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
     let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
     return registerRuntimeObject(seq)
-}
-
-@_cdecl("kk_string_trimStart")
-public func kk_string_trimStart(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(String(source.drop { $0.isWhitespace }))
-}
-
-@_cdecl("kk_string_trimStart_predicate")
-public func kk_string_trimStart_predicate(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringTrimWithPredicate(
-        strRaw,
-        fnPtr,
-        closureRaw,
-        outThrown,
-        trimLeading: true,
-        trimTrailing: false,
-        context: "trimStart predicate"
-    )
-}
-
-@_cdecl("kk_string_trimEnd")
-public func kk_string_trimEnd(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(String(source.reversed().drop { $0.isWhitespace }.reversed()))
-}
-
-@_cdecl("kk_string_trimEnd_predicate")
-public func kk_string_trimEnd_predicate(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringTrimWithPredicate(
-        strRaw,
-        fnPtr,
-        closureRaw,
-        outThrown,
-        trimLeading: false,
-        trimTrailing: true,
-        context: "trimEnd predicate"
-    )
 }
 
 // MARK: - STDLIB-TEXT-FN-044: String.random()

@@ -204,10 +204,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_onEachIndexed")
             case "partition":
                 return interner.intern("kk_list_partition")
-            case "zipWithNext":
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_list_zipWithNextTransform"
-                    : "kk_list_zipWithNext")
             case "getOrNull":
                 return interner.intern("kk_list_getOrNull")
             case "elementAtOrNull":
@@ -476,15 +472,10 @@ extension CallLowerer {
             return interner.intern("kk_list_sortedByDescending")
         case "partition":
             return interner.intern("kk_list_partition")
-        case "zipWithNext":
-            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_sequence_zipWithNextTransform"
-                    : "kk_sequence_zipWithNext")
-            }
+        case "zipWithNext" where isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner):
             return interner.intern(hasHOFLambdaArg
-                ? "kk_list_zipWithNextTransform"
-                : "kk_list_zipWithNext")
+                ? "kk_sequence_zipWithNextTransform"
+                : "kk_sequence_zipWithNext")
         case "indexOf":
             return interner.intern("kk_list_indexOf")
         case "lastIndexOf":
