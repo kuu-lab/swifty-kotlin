@@ -3322,7 +3322,7 @@ public func kk_suspend_function_invoke_0(
             thrownException = 0
         } else {
             callResult = 0
-            thrownException = runtimeAllocateThrowable(message: "NullPointerException")
+            thrownException = runtimeAllocateNullPointerException(message: "")
         }
 
         // Store results in continuation state
@@ -3377,7 +3377,7 @@ public func kk_suspend_function_invoke(
             thrownException = 0
         } else {
             callResult = 0
-            thrownException = runtimeAllocateThrowable(message: "NullPointerException")
+            thrownException = runtimeAllocateNullPointerException(message: "")
         }
 
         // Store results in continuation state
