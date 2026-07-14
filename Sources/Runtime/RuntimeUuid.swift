@@ -50,6 +50,9 @@ private func runtimeCompareUuidLexically(_ lhs: RuntimeUuidBox, _ rhs: RuntimeUu
 public func __kk_uuid_lexicalOrder() -> Int {
     let raw = registerRuntimeObject(RuntimeUuidLexicalOrderComparatorBox())
     _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self))
+    // Needed for itableDynamic dispatch (e.g. `sortedWith(Uuid.lexicalOrder())`)
+    // — see the identical Comparator gap fixed in RuntimeComparator.swift.
+    _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID("kotlin.Comparator")), 0)
     return raw
 }
 

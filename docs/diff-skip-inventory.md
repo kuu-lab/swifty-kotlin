@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-11
+最終更新: 2026-07-14
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -35,9 +35,9 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
 | DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 12 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
-| DEBT-DIFF-004 | 5 | value class boxing / generics / interface / collection | Sema / KIR / Lowering / Runtime ABI に分解 |
-| DEBT-DIFF-005 | 12 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
-| DEBT-DIFF-006 | 4 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
+| DEBT-DIFF-005 | 6 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
 | DEBT-DIFF-007 | 76 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -125,22 +125,24 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 2. `coroutine_structured_concurrency.kt`: `coroutineScope{}` の capture-lowering バグの原因調査（`CoroutineLoweringPass+CallRewriting.swift`）。
 3. `coroutine_deferred.kt`: Iterator経由 `.await()` の SIGSEGV バグの原因調査（ABI boxing / Iterator lowering）。`CoroutineStart`/`awaitAll` の Sema 登録は独立して先に進められる。
 
-## DEBT-DIFF-004: value class parity
+## DEBT-DIFF-004: value class parity（解消済み、2026-07-12）
 
-| cases | 主な責務 | 次アクション |
+5 ケースとも `SKIP-DIFF` を解除し、通常の `diff_kotlinc.sh` 経路で green。
+
+| cases | 主な責務 | 解消した根本原因 |
 | --- | --- | --- |
-| `value_class_boxing_boundaries.kt` | Lowering / Runtime ABI | `Any`, nullable, cast, collection element 境界の box/unbox insertion を固定 |
-| `value_class_generics.kt` | Sema / KIR | generic value class、bounds、`sortedBy` lambda receiver の型を確認 |
-| `value_class_collections.kt` | Lowering / Runtime ABI | List / Map / Array storage、key equality/hash、HOF iteration 境界を確認 |
-| `value_class_interfaces.kt` | Sema / KIR / dispatch | value class の interface 実装と boxed interface dispatch を確認 |
-| `value_class_interop.kt` | Lowering / primitive ABI | Long / Double underlying value の ABI、string interpolation、list map を確認 |
+| `value_class_boxing_boundaries.kt` | Lowering / Runtime ABI | `Any`, nullable, cast, collection element 境界の box/unbox insertion |
+| `value_class_generics.kt` | Sema / KIR | generic value class、bounds、`sortedBy` lambda receiver の型推論 |
+| `value_class_collections.kt` | Lowering / Runtime ABI | List / Map / Array storage、HOF iteration 境界、および boxed value class の hashCode/equals 不整合（`runtimeAnyHashCode` に `RuntimeObjectBox` ケースが無く pointer-identity hash にフォールバックしていた） |
+| `value_class_interfaces.kt` | Sema / KIR / dispatch | value class の interface 実装と boxed interface dispatch（itable dynamic dispatch, `kk_itable_lookup_dynamic`） |
+| `value_class_interop.kt` | Lowering / primitive ABI | Long / Double underlying value の ABI、string interpolation、list map |
 
-分割タスク:
+対応した分割タスク:
 
-- Sema: value class declaration, generic value class, interface implementation, nullable value class の型表現を監査する。
-- KIR / Lowering: `Any` / generic / interface / collection / nullable 境界で box/unbox を挿入する。
-- Runtime ABI: value class box の equality / hash / type cast / array-list-map storage を検証する。
-- Regression: 上記 5 ケースを `--force-run-skipped` で green にしてから skip を外す。
+- Sema: value class declaration, generic value class, interface implementation, nullable value class の型表現を監査（完了）。
+- KIR / Lowering: `Any` / generic / interface / collection / nullable 境界で box/unbox を挿入（完了）。
+- Runtime ABI: boxed value class（interface 実装により `kk_object_new` で box されたまま残るもの）の equality / hash を検証・修正。`runtimeValuesEqual` は既に `RuntimeObjectBox` を構造比較していたが、`runtimeAnyHashCode` に対応ケースが無く、`Any.hashCode()` 経由の呼び出しが pointer-identity ハッシュへフォールバックしていた（`c1 == c2` は `true` なのに `c1.hashCode() != c2.hashCode()` という equals/hashCode 契約違反）。あわせて data class 側の `appendSyntheticDataClassHashCodeIfNeeded` も、フィールドを読み出さず `receiver, fieldOffset` を直接 `kk_any_hashCode` に渡しており同じ契約違反を起こしていたため修正。
+- Regression: 上記 5 ケースを `--force-run-skipped`（さらに機材負荷を考慮し `--run-timeout 60`）で green 確認後、`SKIP-DIFF` marker を削除。
 
 ## DEBT-DIFF-005: common stdlib surface gap
 
