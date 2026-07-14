@@ -323,14 +323,18 @@ extension NativeEmitter {
             } else {
                 lowered = nil
             }
-        case "kk_op_udiv":
-            lowered = bindings.buildUDiv(state.builder, lhs: lhs, rhs: rhs, name: "udiv_\(instructionIndex)")
         case "kk_op_floor_mod":
             lowered = buildSignedFloorMod(name: "floor_mod")
         case "kk_op_lfloor_mod":
             lowered = buildSignedFloorMod(name: "lfloor_mod")
-        case "kk_op_urem":
-            lowered = bindings.buildURem(state.builder, lhs: lhs, rhs: rhs, name: "urem_\(instructionIndex)")
+        // kk_op_udiv/kk_op_urem are intentionally NOT lowered as native LLVM
+        // UDiv/URem here (unlike kk_op_uge/ugt/ule/ult below): LLVM's udiv/urem
+        // by zero is undefined behavior (traps at the hardware level), but
+        // Kotlin division/remainder must throw a catchable ArithmeticException
+        // on zero divisor (PEC-NUM-0002 / KSP-466). Falling through to the
+        // generic external-call path below routes these to the throwing
+        // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
+        // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
         case "kk_op_eq":
             if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "eq64_\(instructionIndex)")
