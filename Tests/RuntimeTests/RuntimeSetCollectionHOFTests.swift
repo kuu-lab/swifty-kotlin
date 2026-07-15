@@ -1,6 +1,7 @@
+#if canImport(Testing)
 import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private final class SetHOFState: @unchecked Sendable {
     private let lock = NSLock()
@@ -47,291 +48,338 @@ private let setThrowingHOF: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
     return 0
 }
 
-final class RuntimeSetCollectionHOFTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
+@Suite(.serialized)
+struct RuntimeSetCollectionHOFTests {
+    init() {
         kk_runtime_force_reset()
         gSetHOFState.reset()
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
     // MARK: - filter
 
+    @Test
     func testSetFilterEmptySetReturnsEmptyList() {
         let result = kk_set_filter(makeSet([]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetFilterAllMatchReturnsAllElements() {
         let result = kk_set_filter(makeSet([2, 3, 4]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(Set(listElements(result)), Set([2, 3, 4]))
+        #expect(Set(listElements(result)) == Set([2, 3, 4]))
     }
 
+    @Test
     func testSetFilterNoneMatchReturnsEmptyList() {
         let result = kk_set_filter(makeSet([0, 1]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetFilterPartialMatchReturnsMatchingElements() {
         let result = kk_set_filter(makeSet([1, 2, 3]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(Set(listElements(result)), Set([2, 3]))
+        #expect(Set(listElements(result)) == Set([2, 3]))
     }
 
+    @Test
     func testSetFilterPropagatesThrow() {
         var thrown = 0
         _ = kk_set_filter(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - filterNot
 
+    @Test
     func testSetFilterNotEmptySetReturnsEmptyList() {
         let result = kk_set_filterNot(makeSet([]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetFilterNotExcludesMatchingElements() {
         let result = kk_set_filterNot(makeSet([1, 2, 3]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [1])
+        #expect(listElements(result) == [1])
     }
 
+    @Test
     func testSetFilterNotAllExcludedReturnsEmptyList() {
         let result = kk_set_filterNot(makeSet([2, 3, 4]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetFilterNotPropagatesThrow() {
         var thrown = 0
         _ = kk_set_filterNot(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - map
 
+    @Test
     func testSetMapEmptySetReturnsEmptyList() {
         let result = kk_set_map(makeSet([]), unsafeBitCast(setMapTimesTwo, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetMapTransformsAllElements() {
         let result = kk_set_map(makeSet([1, 2, 3]), unsafeBitCast(setMapTimesTwo, to: Int.self), 0, nil)
-        XCTAssertEqual(Set(listElements(result)), Set([2, 4, 6]))
+        #expect(Set(listElements(result)) == Set([2, 4, 6]))
     }
 
+    @Test
     func testSetMapPropagatesThrow() {
         var thrown = 0
         _ = kk_set_map(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - flatMap
 
+    @Test
     func testSetFlatMapEmptySetReturnsEmptyList() {
         let result = kk_set_flatMap(makeSet([]), unsafeBitCast(setFlatMapPair, to: Int.self), 0, nil)
-        XCTAssertEqual(listElements(result), [])
+        #expect(listElements(result) == [])
     }
 
+    @Test
     func testSetFlatMapFlattensSubListsFromEachElement() {
         let result = kk_set_flatMap(makeSet([1, 2]), unsafeBitCast(setFlatMapPair, to: Int.self), 0, nil)
-        XCTAssertEqual(Set(listElements(result)), Set([1, 10, 2, 20]))
+        #expect(Set(listElements(result)) == Set([1, 10, 2, 20]))
     }
 
+    @Test
     func testSetFlatMapPropagatesThrow() {
         var thrown = 0
         _ = kk_set_flatMap(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - all
 
+    @Test
     func testSetAllEmptySetReturnsTrue() {
-        XCTAssertEqual(kk_set_all(makeSet([]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil), 1)
+        #expect(kk_set_all(makeSet([]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil) == 1)
     }
 
+    @Test
     func testSetAllAllMatchReturnsTrue() {
-        XCTAssertEqual(kk_set_all(makeSet([2, 3, 4]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil), 1)
+        #expect(kk_set_all(makeSet([2, 3, 4]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil) == 1)
     }
 
+    @Test
     func testSetAllSomeDontMatchReturnsFalse() {
-        XCTAssertEqual(kk_set_all(makeSet([1, 2, 3]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil), 0)
+        #expect(kk_set_all(makeSet([1, 2, 3]), unsafeBitCast(setFilterGTOne, to: Int.self), 0, nil) == 0)
     }
 
+    @Test
     func testSetAllPropagatesThrow() {
         var thrown = 0
         _ = kk_set_all(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - any
 
+    @Test
     func testSetAnyEmptySetNoPredicateReturnsFalse() {
-        XCTAssertEqual(kk_set_any(makeSet([]), 0, 0, nil), 0)
+        #expect(kk_set_any(makeSet([]), 0, 0, nil) == 0)
     }
 
+    @Test
     func testSetAnyNonEmptySetNoPredicateReturnsTrue() {
-        XCTAssertEqual(kk_set_any(makeSet([1, 2]), 0, 0, nil), 1)
+        #expect(kk_set_any(makeSet([1, 2]), 0, 0, nil) == 1)
     }
 
+    @Test
     func testSetAnyWithPredicateOneMatchReturnsTrue() {
-        XCTAssertEqual(kk_set_any(makeSet([1, 2, 3]), unsafeBitCast(setFilterEven, to: Int.self), 0, nil), 1)
+        #expect(kk_set_any(makeSet([1, 2, 3]), unsafeBitCast(setFilterEven, to: Int.self), 0, nil) == 1)
     }
 
+    @Test
     func testSetAnyWithPredicateNoMatchReturnsFalse() {
-        XCTAssertEqual(kk_set_any(makeSet([1, 3, 5]), unsafeBitCast(setFilterEven, to: Int.self), 0, nil), 0)
+        #expect(kk_set_any(makeSet([1, 3, 5]), unsafeBitCast(setFilterEven, to: Int.self), 0, nil) == 0)
     }
 
+    @Test
     func testSetAnyPropagatesThrow() {
         var thrown = 0
         _ = kk_set_any(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - forEach
 
+    @Test
     func testSetForEachEmptySetMakesNoCalls() {
         _ = kk_set_forEach(makeSet([]), unsafeBitCast(setForEachAccumulate, to: Int.self), 0, nil)
-        XCTAssertEqual(gSetHOFState.callsSnapshot(), 0)
+        #expect(gSetHOFState.callsSnapshot() == 0)
     }
 
+    @Test
     func testSetForEachVisitsEachElementExactlyOnce() {
         _ = kk_set_forEach(makeSet([1, 2, 3]), unsafeBitCast(setForEachAccumulate, to: Int.self), 0, nil)
-        XCTAssertEqual(gSetHOFState.callsSnapshot(), 3)
-        XCTAssertEqual(gSetHOFState.sumSnapshot(), 6)
+        #expect(gSetHOFState.callsSnapshot() == 3)
+        #expect(gSetHOFState.sumSnapshot() == 6)
     }
 
+    @Test
     func testSetForEachPropagatesThrow() {
         var thrown = 0
         _ = kk_set_forEach(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - maxOrNull / minOrNull
 
+    @Test
     func testSetMaxOrNullEmptySetReturnsNullSentinel() {
-        XCTAssertEqual(kk_set_maxOrNull(makeSet([])), runtimeNullSentinelInt)
+        #expect(kk_set_maxOrNull(makeSet([])) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testSetMaxOrNullSingleElementReturnsThatElement() {
-        XCTAssertEqual(kk_set_maxOrNull(makeSet([7])), 7)
+        #expect(kk_set_maxOrNull(makeSet([7])) == 7)
     }
 
+    @Test
     func testSetMaxOrNullReturnsLargestElement() {
-        XCTAssertEqual(kk_set_maxOrNull(makeSet([3, 1, 4, 2])), 4)
+        #expect(kk_set_maxOrNull(makeSet([3, 1, 4, 2])) == 4)
     }
 
+    @Test
     func testSetMinOrNullEmptySetReturnsNullSentinel() {
-        XCTAssertEqual(kk_set_minOrNull(makeSet([])), runtimeNullSentinelInt)
+        #expect(kk_set_minOrNull(makeSet([])) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testSetMinOrNullSingleElementReturnsThatElement() {
-        XCTAssertEqual(kk_set_minOrNull(makeSet([7])), 7)
+        #expect(kk_set_minOrNull(makeSet([7])) == 7)
     }
 
+    @Test
     func testSetMinOrNullReturnsSmallestElement() {
-        XCTAssertEqual(kk_set_minOrNull(makeSet([3, 1, 4, 2])), 1)
+        #expect(kk_set_minOrNull(makeSet([3, 1, 4, 2])) == 1)
     }
 
     // MARK: - sorted / sortedDescending
 
+    @Test
     func testSetSortedEmptySetReturnsEmptyList() {
-        XCTAssertEqual(listElements(kk_set_sorted(makeSet([]))), [])
+        #expect(listElements(kk_set_sorted(makeSet([]))) == [])
     }
 
+    @Test
     func testSetSortedSingleElementReturnsSingletonList() {
-        XCTAssertEqual(listElements(kk_set_sorted(makeSet([5]))), [5])
+        #expect(listElements(kk_set_sorted(makeSet([5]))) == [5])
     }
 
+    @Test
     func testSetSortedReturnsElementsInAscendingOrder() {
-        XCTAssertEqual(listElements(kk_set_sorted(makeSet([3, 1, 4, 2]))), [1, 2, 3, 4])
+        #expect(listElements(kk_set_sorted(makeSet([3, 1, 4, 2]))) == [1, 2, 3, 4])
     }
 
+    @Test
     func testSetSortedDescendingEmptySetReturnsEmptyList() {
-        XCTAssertEqual(listElements(kk_set_sortedDescending(makeSet([]))), [])
+        #expect(listElements(kk_set_sortedDescending(makeSet([]))) == [])
     }
 
+    @Test
     func testSetSortedDescendingSingleElementReturnsSingletonList() {
-        XCTAssertEqual(listElements(kk_set_sortedDescending(makeSet([5]))), [5])
+        #expect(listElements(kk_set_sortedDescending(makeSet([5]))) == [5])
     }
 
+    @Test
     func testSetSortedDescendingReturnsElementsInDescendingOrder() {
-        XCTAssertEqual(listElements(kk_set_sortedDescending(makeSet([3, 1, 4, 2]))), [4, 3, 2, 1])
+        #expect(listElements(kk_set_sortedDescending(makeSet([3, 1, 4, 2]))) == [4, 3, 2, 1])
     }
 
     // MARK: - count (predicate)
 
+    @Test
     func testSetCountPredicateNullFnPtrOnEmptySetReturnsZero() {
-        XCTAssertEqual(kk_set_count_predicate(makeSet([]), 0, 0, nil), 0)
+        #expect(kk_set_count_predicate(makeSet([]), 0, 0, nil) == 0)
     }
 
+    @Test
     func testSetCountPredicateNullFnPtrReturnsElementCount() {
-        XCTAssertEqual(kk_set_count_predicate(makeSet([1, 2, 3]), 0, 0, nil), 3)
+        #expect(kk_set_count_predicate(makeSet([1, 2, 3]), 0, 0, nil) == 3)
     }
 
+    @Test
     func testSetCountPredicateCountsMatchingElements() {
         let count = kk_set_count_predicate(makeSet([1, 2, 3, 4]), unsafeBitCast(setFilterEven, to: Int.self), 0, nil)
-        XCTAssertEqual(count, 2)
+        #expect(count == 2)
     }
 
+    @Test
     func testSetCountPredicatePropagatesThrow() {
         var thrown = 0
         _ = kk_set_count_predicate(makeSet([1]), unsafeBitCast(setThrowingHOF, to: Int.self), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - first / last
 
+    @Test
     func testSetFirstNonEmptyReturnsFirstInsertionOrderElement() {
         var thrown = 0
         let result = kk_set_first(makeSet([42, 7, 3]), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 42)
+        #expect(thrown == 0)
+        #expect(result == 42)
     }
 
+    @Test
     func testSetFirstEmptySetThrows() {
         var thrown = 0
         _ = kk_set_first(makeSet([]), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSetLastNonEmptyReturnsLastInsertionOrderElement() {
         var thrown = 0
         let result = kk_set_last(makeSet([42, 7, 3]), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 3)
+        #expect(thrown == 0)
+        #expect(result == 3)
     }
 
+    @Test
     func testSetLastEmptySetThrows() {
         var thrown = 0
         _ = kk_set_last(makeSet([]), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - lastOrNull
 
+    @Test
     func testSetLastOrNullEmptySetReturnsNullSentinel() {
-        XCTAssertEqual(kk_set_lastOrNull(makeSet([])), runtimeNullSentinelInt)
+        #expect(kk_set_lastOrNull(makeSet([])) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testSetLastOrNullNonEmptyReturnsLastElement() {
-        XCTAssertEqual(kk_set_lastOrNull(makeSet([10, 20, 30])), 30)
+        #expect(kk_set_lastOrNull(makeSet([10, 20, 30])) == 30)
     }
 
     // MARK: - singleOrNull
 
+    @Test
     func testSetSingleOrNullEmptySetReturnsNullSentinel() {
-        XCTAssertEqual(kk_set_singleOrNull(makeSet([])), runtimeNullSentinelInt)
+        #expect(kk_set_singleOrNull(makeSet([])) == runtimeNullSentinelInt)
     }
 
+    @Test
     func testSetSingleOrNullSingleElementReturnsThatElement() {
-        XCTAssertEqual(kk_set_singleOrNull(makeSet([99])), 99)
+        #expect(kk_set_singleOrNull(makeSet([99])) == 99)
     }
 
+    @Test
     func testSetSingleOrNullMultipleElementsReturnsNullSentinel() {
-        XCTAssertEqual(kk_set_singleOrNull(makeSet([1, 2])), runtimeNullSentinelInt)
+        #expect(kk_set_singleOrNull(makeSet([1, 2])) == runtimeNullSentinelInt)
     }
 
     // MARK: - Helpers
@@ -341,7 +389,7 @@ final class RuntimeSetCollectionHOFTests: XCTestCase {
         var thrown = 0
         for (i, e) in elements.enumerated() {
             _ = kk_array_set(arr, i, e, &thrown)
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
         }
         return arr
     }
@@ -356,3 +404,4 @@ final class RuntimeSetCollectionHOFTests: XCTestCase {
         return (0 ..< size).map { kk_list_get(listRaw, $0) }
     }
 }
+#endif

@@ -152,7 +152,7 @@ private func runtimeKClassBoxLocal(from rawValue: Int) -> RuntimeKClassBox? {
     return tryCast(ptr, to: RuntimeKClassBox.self)
 }
 
-private func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> Int? {
+func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> Int? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
         return nil
     }

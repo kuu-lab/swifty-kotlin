@@ -420,13 +420,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_default_flat")
         case ("replaceIndent", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_default_flat")
-        case ("trim", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trim_flat")
-        case ("trimStart", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimStart_flat")
-        case ("trimEnd", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_trimEnd_flat")
-
         case ("toInt", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
@@ -513,9 +506,9 @@ enum MemberRuntimeDispatch {
         case ("chunkedSequence", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_sequence_flat")
         case ("encodeToByteArray", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_encodeToByteArray_charset_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toByteArray_charset_flat")
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
         case ("removePrefix", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removePrefix_flat")
         case ("removeSuffix", 1):
@@ -528,24 +521,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_prependIndent_flat")
         case ("replaceIndent", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceIndent_flat")
-        case ("trim", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_trim_predicate_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("trimStart", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_trimStart_predicate_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("trimEnd", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_trimEnd_predicate_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
         case ("take", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_take_flat", canThrow: true)
         case ("drop", 1):

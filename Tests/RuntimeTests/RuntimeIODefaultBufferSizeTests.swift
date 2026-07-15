@@ -1,8 +1,12 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeIODefaultBufferSizeTests: XCTestCase {
+@Suite
+struct RuntimeIODefaultBufferSizeTests {
+    @Test
     func testDefaultBufferSizeMatchesKotlinStdlibValue() {
-        XCTAssertEqual(kk_io_default_buffer_size(), 8192)
+        #expect(kk_io_default_buffer_size() == 8192)
     }
 }
+#endif
