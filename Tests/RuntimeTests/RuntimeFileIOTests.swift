@@ -115,7 +115,7 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
                 length,
                 byteCount,
                 hash,
-                kk_charset_utf_16be()
+                __kk_charset_utf_16be()
             )
             XCTAssertEqual(readInputStreamBytes(streamRaw), [0, 65, 0, 66])
         }

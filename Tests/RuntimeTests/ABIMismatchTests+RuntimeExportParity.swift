@@ -130,6 +130,9 @@ extension ABIMismatchTests {
             "kk_kclass_has_annotation",
             "kk_kclass_js",
             "kk_kclass_register_annotation",
+            // Kept in RuntimeABISpec for source-migration compatibility; the
+            // runtime exports only the __kk_ bridge.
+            "kk_list_zip_transform",
             "kk_long_range_firstOrNull",
             "kk_long_range_lastOrNull",
             "kk_native_atomic_ref_compareAndSet",

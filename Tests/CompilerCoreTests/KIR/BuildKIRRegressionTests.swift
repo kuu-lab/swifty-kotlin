@@ -104,7 +104,7 @@ struct BuildKIRRegressionTests {
         }
     }
 
-    @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeCalls() throws {
+    @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeOrSourceCalls() throws {
         let source = """
         fun parse(value: String): Int = value.toInt()
         fun trimValue(value: String): String = value.trim()
@@ -129,7 +129,9 @@ struct BuildKIRRegressionTests {
             ))
 
             #expect(parseCallees.contains("kk_string_toInt_flat"))
-            #expect(trimCallees.contains("kk_string_trim_flat"))
+            // String.trim is source-backed after the KSP-403 migration.
+            #expect(trimCallees.contains("trim"))
+            #expect(!trimCallees.contains("kk_string_trim_flat"))
             #expect(takeCallees.contains("kk_string_take_flat"))
         }
     }

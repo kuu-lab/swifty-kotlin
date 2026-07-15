@@ -1,6 +1,7 @@
+#if canImport(Testing)
 import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private let runtimeReadWriteLockStateLock = NSLock()
 nonisolated(unsafe) private var _runtimeReadWriteLockActiveReaders = 0
@@ -46,36 +47,34 @@ private func runtime_read_write_lock_writer(
     return 99
 }
 
-final class RuntimeReadWriteLockLegacyTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-        runtimeReadWriteLockStateLock.lock()
-        _runtimeReadWriteLockActiveReaders = 0
-        _runtimeReadWriteLockMaxReaders = 0
-        runtimeReadWriteLockStateLock.unlock()
-        runtimeReadWriteLockReadEnteredSemaphore = DispatchSemaphore(value: 0)
-        runtimeReadWriteLockReadReleaseSemaphore = DispatchSemaphore(value: 0)
-        runtimeReadWriteLockWriterEnteredSemaphore = DispatchSemaphore(value: 0)
-    }
+@Suite(.serialized)
+struct RuntimeReadWriteLockTests {
+    init() {}
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+    @Test
     func testReadWriteLockReturnsActionResult() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         let lock = kk_read_write_lock_create()
         let fn = unsafeBitCast(
             runtime_read_write_lock_passthrough as @convention(c) (Int) -> Int,
             to: Int.self
         )
 
-        XCTAssertEqual(kk_read_write_lock_read(lock, fn, 0), 123)
-        XCTAssertEqual(kk_read_write_lock_write(lock, fn, 0), 123)
+        #expect(kk_read_write_lock_read(lock, fn, 0) == 123)
+        #expect(kk_read_write_lock_write(lock, fn, 0) == 123)
     }
 
+    @Test
     func testReadWriteLockAllowsConcurrentReaders() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         let lock = kk_read_write_lock_create()
         let fn = unsafeBitCast(
             runtime_read_write_lock_reader as @convention(c) (Int) -> Int,
@@ -95,19 +94,25 @@ final class RuntimeReadWriteLockLegacyTests: XCTestCase {
             group.leave()
         }
 
-        XCTAssertEqual(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)), .success)
-        XCTAssertEqual(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)) == .success)
+        #expect(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)) == .success)
         runtimeReadWriteLockStateLock.lock()
         let maxReaders = _runtimeReadWriteLockMaxReaders
         runtimeReadWriteLockStateLock.unlock()
-        XCTAssertGreaterThanOrEqual(maxReaders, 2)
+        #expect(maxReaders >= 2)
 
         runtimeReadWriteLockReadReleaseSemaphore.signal()
         runtimeReadWriteLockReadReleaseSemaphore.signal()
-        XCTAssertEqual(group.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(group.wait(timeout: .now() + .seconds(2)) == .success)
     }
 
+    @Test
     func testReadWriteLockBlocksWriterWhileReaderIsHeld() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         let lock = kk_read_write_lock_create()
         let readerFn = unsafeBitCast(
             runtime_read_write_lock_reader as @convention(c) (Int) -> Int,
@@ -126,7 +131,7 @@ final class RuntimeReadWriteLockLegacyTests: XCTestCase {
             readerGroup.leave()
         }
 
-        XCTAssertEqual(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(runtimeReadWriteLockReadEnteredSemaphore.wait(timeout: .now() + .seconds(2)) == .success)
 
         writerGroup.enter()
         DispatchQueue.global().async {
@@ -134,17 +139,41 @@ final class RuntimeReadWriteLockLegacyTests: XCTestCase {
             writerGroup.leave()
         }
 
-        XCTAssertEqual(runtimeReadWriteLockWriterEnteredSemaphore.wait(timeout: .now() + .milliseconds(200)), .timedOut)
+        #expect(runtimeReadWriteLockWriterEnteredSemaphore.wait(timeout: .now() + .milliseconds(200)) == .timedOut)
 
         runtimeReadWriteLockReadReleaseSemaphore.signal()
-        XCTAssertEqual(runtimeReadWriteLockWriterEnteredSemaphore.wait(timeout: .now() + .seconds(2)), .success)
-        XCTAssertEqual(readerGroup.wait(timeout: .now() + .seconds(2)), .success)
-        XCTAssertEqual(writerGroup.wait(timeout: .now() + .seconds(2)), .success)
+        #expect(runtimeReadWriteLockWriterEnteredSemaphore.wait(timeout: .now() + .seconds(2)) == .success)
+        #expect(readerGroup.wait(timeout: .now() + .seconds(2)) == .success)
+        #expect(writerGroup.wait(timeout: .now() + .seconds(2)) == .success)
     }
 }
 
 nonisolated(unsafe) private var readWriteLockHandle: Int = 0
 nonisolated(unsafe) private var capturedReadClosureRaw: Int = 0
+private let runtimeReadWriteLockSuiteMutex = NSLock()
+
+private func resetReadWriteLockHarness() {
+    kk_runtime_force_reset()
+    runtimeReadWriteLockStateLock.lock()
+    _runtimeReadWriteLockActiveReaders = 0
+    _runtimeReadWriteLockMaxReaders = 0
+    runtimeReadWriteLockStateLock.unlock()
+    runtimeReadWriteLockReadEnteredSemaphore = DispatchSemaphore(value: 0)
+    runtimeReadWriteLockReadReleaseSemaphore = DispatchSemaphore(value: 0)
+    runtimeReadWriteLockWriterEnteredSemaphore = DispatchSemaphore(value: 0)
+    readWriteLockHandle = 0
+    capturedReadClosureRaw = 0
+}
+
+private func beginRuntimeReadWriteLockTest() {
+    runtimeReadWriteLockSuiteMutex.lock()
+    resetReadWriteLockHarness()
+}
+
+private func endRuntimeReadWriteLockTest() {
+    resetReadWriteLockHarness()
+    runtimeReadWriteLockSuiteMutex.unlock()
+}
 
 private let readEchoThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, outThrown in
     capturedReadClosureRaw = closureRaw
@@ -173,51 +202,66 @@ private let readNestedThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
     return innerResult + 1
 }
 
-final class RuntimeReadWriteLockTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        readWriteLockHandle = 0
-        capturedReadClosureRaw = 0
-    }
+@Suite(.serialized)
+struct RuntimeReadWriteLockTestsReentrant {
+    init() {}
 
+    @Test
     func testConstructorAndReadPassThroughClosureRaw() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         readWriteLockHandle = kk_reentrant_read_write_lock_new()
-        XCTAssertNotEqual(readWriteLockHandle, 0)
+        #expect(readWriteLockHandle != 0)
 
         var thrown = 0
         let fnPtr = unsafeBitCast(readEchoThunk, to: Int.self)
         let sentinel = 0x1234
         let result = kk_reentrant_read_write_lock_read(readWriteLockHandle, fnPtr, sentinel, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, sentinel)
-        XCTAssertEqual(capturedReadClosureRaw, sentinel)
+        #expect(thrown == 0)
+        #expect(result == sentinel)
+        #expect(capturedReadClosureRaw == sentinel)
     }
 
+    @Test
     func testReadPropagatesThrownValues() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         readWriteLockHandle = kk_reentrant_read_write_lock_new()
-        XCTAssertNotEqual(readWriteLockHandle, 0)
+        #expect(readWriteLockHandle != 0)
 
         var thrown = 0
         let fnPtr = unsafeBitCast(readThrowingThunk, to: Int.self)
         let result = kk_reentrant_read_write_lock_read(readWriteLockHandle, fnPtr, 0, &thrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(thrown, 0xC0DE)
+        #expect(result == 0)
+        #expect(thrown == 0xC0DE)
     }
 
+    @Test
     func testReadIsReentrantForTheSameHandle() {
+        beginRuntimeReadWriteLockTest()
+        defer {
+            endRuntimeReadWriteLockTest()
+        }
+
         readWriteLockHandle = kk_reentrant_read_write_lock_new()
-        XCTAssertNotEqual(readWriteLockHandle, 0)
+        #expect(readWriteLockHandle != 0)
 
         capturedReadClosureRaw = 0
         var thrown = 0
         let fnPtr = unsafeBitCast(readNestedThunk, to: Int.self)
         let result = kk_reentrant_read_write_lock_read(readWriteLockHandle, fnPtr, 0x20, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 0x22)
-        XCTAssertEqual(capturedReadClosureRaw, 0x21)
+        #expect(thrown == 0)
+        #expect(result == 0x22)
+        #expect(capturedReadClosureRaw == 0x21)
     }
 }
+#endif
