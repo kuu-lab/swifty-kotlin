@@ -1,9 +1,8 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-110: Validates that `kotlin.text.CharSequence.trim` resolves
-/// through Sema for both the no-arg overload and the predicate-based overload.
-/// Runtime link names involved: `kk_string_trim_flat`, `kk_string_trim_predicate_flat`.
+/// STDLIB-TEXT-FN-110: Validates that `kotlin.text.String.trim` resolves
+/// through bundled Kotlin stdlib source for both the no-arg and predicate overloads.
 @Suite
 struct StringTrimFunctionTests {
     @Test

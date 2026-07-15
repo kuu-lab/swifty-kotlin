@@ -220,6 +220,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }
