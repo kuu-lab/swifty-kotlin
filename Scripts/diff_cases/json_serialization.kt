@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): requires kotlinx-serialization jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): json.decodeFromString(jsonStr) with no reified type/deserializer arg is a hard type-inference error against the real kotlinx.serialization API, independent of classpath. See docs/diff-skip-inventory.md.
 import kotlinx.serialization.json.Json
 
 fun main() {

@@ -33,8 +33,13 @@ final class ExprTypeChecker {
 
         switch expr {
         case .intLiteral:
-            sema.bindings.bindExprType(id, type: intType)
-            return intType
+            // An unsuffixed integer literal takes on Long/UInt/ULong when that is
+            // the expected type at this position (e.g. `Millis(1500)` where the
+            // value class's single field is declared `Long`), matching Kotlin's
+            // literal-widening rule. Falls back to Int otherwise.
+            let literalType = intLiteralType(expectedType: expectedType, sema: sema, defaultType: intType)
+            sema.bindings.bindExprType(id, type: literalType)
+            return literalType
 
         case .longLiteral:
             sema.bindings.bindExprType(id, type: longType)
@@ -796,5 +801,23 @@ final class ExprTypeChecker {
         }
 
         return nil
+    }
+
+    /// Resolves the type of an unsuffixed integer literal given the expected
+    /// type at its use site. Kotlin widens such literals to `Long`/`UInt`/`ULong`
+    /// when that is the expected type (e.g. a value class field declared `Long`
+    /// receiving a plain `1500`); any other expected type falls back to `Int`.
+    private func intLiteralType(expectedType: TypeID?, sema: SemaModule, defaultType: TypeID) -> TypeID {
+        guard let expectedType else { return defaultType }
+        let nonNullExpected = sema.types.makeNonNullable(expectedType)
+        guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullExpected) else {
+            return defaultType
+        }
+        switch primitive {
+        case .long: return sema.types.longType
+        case .uint: return sema.types.uintType
+        case .ulong: return sema.types.ulongType
+        default: return defaultType
+        }
     }
 }
