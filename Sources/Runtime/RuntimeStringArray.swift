@@ -180,7 +180,7 @@ public func kk_throwable_getSuppressed(_ throwableRaw: Int) -> Int {
 
     let arrayBox = RuntimeArrayBox(length: throwable.suppressed.count)
     for (i, elem) in throwable.suppressed.enumerated() {
-        arrayBox[i] = elem
+        arrayBox.elements[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -608,17 +608,18 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         guard let throwable else {
             return 0
         }
+        // Every built-in exception class now allocates a RuntimeThrowableBox
+        // subclass with a correctly populated exceptionHierarchyFQNames (see
+        // RuntimeAssertions.swift / RuntimeTypes.swift), so this hierarchy check
+        // is authoritative: a real mismatch must not be treated as a match, or
+        // `catch (e: T)` would incorrectly catch any unrelated sibling exception.
         if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
             return 1
         }
-        // Typed RuntimeThrowableBox subclasses (STDLIB-LOG-149 and friends) know
-        // their exact exception hierarchy, so a lookup miss here is a genuine type
-        // mismatch (e.g. a ClassCastException checked against an IllegalStateException
-        // catch clause) and must NOT match. Only the untyped base RuntimeThrowableBox
-        // — used by external/runtime calls that don't carry Kotlin exception-hierarchy
-        // metadata — falls back to the broad "matches any catch clause" behaviour so
-        // it stays catchable despite the missing type info.
-        return ObjectIdentifier(type(of: throwable)) == ObjectIdentifier(RuntimeThrowableBox.self) ? 1 : 0
+        // A base RuntimeThrowableBox has no Kotlin-level type information. Keep
+        // the historical broad catch fallback for those internal throwables,
+        // while typed subclasses must obey their explicit hierarchy above.
+        return throwable.exceptionHierarchyFQNames == ["kotlin.Throwable"] ? 1 : 0
 
     default:
         return 0
@@ -1265,7 +1266,7 @@ public func kk_kclass_cast(
 ) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         outThrown?.pointee = runtimeAllocateClassCastException(
-            message: "ClassCastException: Invalid KClass handle."
+            message: "Invalid KClass handle."
         )
         return runtimeNullSentinelInt
     }
@@ -1280,7 +1281,7 @@ public func kk_kclass_cast(
         typeName = "Unknown"
     }
     outThrown?.pointee = runtimeAllocateClassCastException(
-        message: "ClassCastException: Value cannot be cast to \(typeName)."
+        message: "Value cannot be cast to \(typeName)."
     )
     return runtimeNullSentinelInt
 }
@@ -1486,11 +1487,11 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw),
-          index >= 0, index < array.count
+          array.elements.indices.contains(index)
     else {
         runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
-    return array[index]
+    return array.elements[index]
 }
 
 @_cdecl("kk_array_set")
@@ -1514,14 +1515,14 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs[i * 2]
-        let value = pairs[i * 2 + 1]
+        let marker = pairs.elements[i * 2]
+        let value = pairs.elements[i * 2 + 1]
         if marker == -1 {
             if let array = runtimeArrayBox(from: value) {
-                totalCount += array.count
+                totalCount += array.elements.count
             }
         } else {
             totalCount += 1
@@ -1531,17 +1532,17 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs[i * 2]
-            let value = pairs[i * 2 + 1]
+            let marker = pairs.elements[i * 2]
+            let value = pairs.elements[i * 2 + 1]
             if marker == -1 {
                 if let array = runtimeArrayBox(from: value) {
                     for elem in array.elements {
-                        box[writeIndex] = elem
+                        box.elements[writeIndex] = elem
                         writeIndex += 1
                     }
                 }
             } else {
-                box[writeIndex] = value
+                box.elements[writeIndex] = value
                 writeIndex += 1
             }
         }
@@ -1760,7 +1761,7 @@ public func kk_readline() -> Int {
 public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "EOF has already been reached")
+        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
         return 0
     }
     let utf8 = Array(line.utf8)
@@ -1830,7 +1831,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         if let scalar = UnicodeScalar(charBox.value) {
             return String(Character(scalar))
         }
-        return "�"
+        return "?"
     }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"

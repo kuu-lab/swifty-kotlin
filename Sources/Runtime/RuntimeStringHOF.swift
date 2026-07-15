@@ -726,8 +726,8 @@ public func kk_string_firstNotNullOf(
             return normalized
         }
     }
-    outThrown?.pointee = runtimeAllocateThrowable(
-        message: "NoSuchElementException: No element of the char sequence was transformed to a non-null value."
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(
+        message: "No element of the char sequence was transformed to a non-null value."
     )
     return 0
 }
@@ -799,7 +799,7 @@ public func kk_string_reduce(
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard !codeUnits.isEmpty else {
         return handleCollectionLambdaThrow(
-            runtimeAllocateThrowable(message: "Empty char sequence can't be reduced."),
+            runtimeAllocateUnsupportedOperationException(message: "Empty char sequence can't be reduced."),
             outThrown
         )
     }
@@ -916,7 +916,7 @@ public func kk_string_reduceRightIndexed(
     let scalars = runtimeStringScalars(strRaw)
     guard !scalars.isEmpty else {
         return handleCollectionLambdaThrow(
-            runtimeAllocateThrowable(message: "Empty char sequence can't be reduced."),
+            runtimeAllocateUnsupportedOperationException(message: "Empty char sequence can't be reduced."),
             outThrown
         )
     }
