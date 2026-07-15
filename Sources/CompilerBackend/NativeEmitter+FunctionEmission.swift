@@ -3469,6 +3469,13 @@ extension NativeEmitter {
                         bindings.constInt(int64Type, value: UInt64(interfaceSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
+                case let .itableDynamic(interfaceTypeID, methodSlot):
+                    lookupFunction = declareExternalFunction(named: "kk_itable_lookup_dynamic", argumentCount: 3, appendThrownChannel: false)
+                    lookupArgs = [
+                        resolveValue(receiver),
+                        bindings.constInt(int64Type, value: UInt64(bitPattern: interfaceTypeID)) ?? bindings.constInt(int64Type, value: 0)!,
+                        bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
+                    ]
                 }
 
                 guard let lookupFn = lookupFunction else { continue }
