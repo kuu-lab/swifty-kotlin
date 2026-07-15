@@ -1226,6 +1226,36 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
+            if loweredCalleeName == interner.intern("kk_auto_closeable_create"),
+               let closeableSymbol = sema.types.closeableInterfaceSymbol
+            {
+                // kk_auto_closeable_create wraps the close-action lambda in a
+                // lightweight object and hardcodes its close() method at
+                // itable slot 0 (see the kk_object_register_itable_method
+                // call inside it), but never registers that slot against the
+                // Closeable interface itself. A direct `resource.close()`
+                // call on an interface-typed receiver dispatches via
+                // kk_itable_lookup_dynamic, which requires that per-object
+                // (interfaceTypeID -> slot) registration — without it,
+                // dispatch fails at runtime with "method not found in
+                // vtable/itable".
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: closeableSymbol, sema: sema, interner: interner
+                )
+                let interfaceTypeIDExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: sema.types.intType)
+                instructions.append(.constValue(result: interfaceTypeIDExpr, value: .intLiteral(interfaceTypeID)))
+                let ifaceSlotExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(0)))
+                let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_object_register_itable_iface"),
+                    arguments: [result, interfaceTypeIDExpr, ifaceSlotExpr],
+                    result: registerIfaceResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
         }
         return result
     }
