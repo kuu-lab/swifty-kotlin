@@ -31,6 +31,8 @@ fun main() {
 
     val bytes = parsed.toByteArray()
     println("byteArray size: ${bytes.size == 16}")
+    println("known version: ${((bytes[6].toInt() and 0xFF) ushr 4) == 4}")
+    println("known variant: ${((bytes[8].toInt() and 0xFF) ushr 6) == 2}")
     val fromBytes = Uuid.fromByteArray(bytes)
     println("fromByteArray roundtrip: ${fromBytes.toString() == uuidStr}")
 

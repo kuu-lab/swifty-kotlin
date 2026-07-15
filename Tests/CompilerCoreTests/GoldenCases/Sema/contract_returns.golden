@@ -9,6 +9,7 @@ symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic 
 symbol fq=kotlin.IllegalArgumentException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.contracts.ContractBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.contracts.ContractBuilder.returns#0 kind=function vis=public flags=synthetic sig=recv=kotlin.contracts.ContractBuilder params=[] ret=kotlin.contracts.Returns
+symbol fq=kotlin.contracts.ContractBuilder.returns#1 kind=function vis=public flags=synthetic sig=recv=kotlin.contracts.ContractBuilder params=[Boolean] ret=kotlin.contracts.Returns
 symbol fq=kotlin.contracts.Returns kind=interface vis=public flags=synthetic type=kotlin.contracts.Returns
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
@@ -54,7 +55,7 @@ expr e@15:22 call callee=e@15:22#1 args=[] type=kotlin.IllegalArgumentException 
 expr e@15:16 throw value=e@15:22 type=Nothing
 expr e@15:5 if cond=e@15:9#1 then=e@15:16 else=_ type=Unit
 expr e@20:17 bool(true) type=Boolean
-expr e@20:9 call callee=e@20:9#1 args=[_:e@20:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0
+expr e@20:9 call callee=e@20:9#1 args=[_:e@20:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#1
 expr e@19:14 lambda params=[] body=e@20:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
 expr e@19:5 call callee=e@19:5#1 args=[_:e@19:14] type=Unit
 expr e@22:10 name(condition) type=Boolean ref=returnsTrue.$4.condition
@@ -65,7 +66,7 @@ expr e@22:5 if cond=e@22:9 then=e@22:21 else=_ type=Unit
 expr e@23:12 bool(true) type=Boolean
 expr e@23:5 return value=e@23:12 type=Nothing
 expr e@28:17 bool(false) type=Boolean
-expr e@28:9 call callee=e@28:9#1 args=[_:e@28:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0
+expr e@28:9 call callee=e@28:9#1 args=[_:e@28:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#1
 expr e@27:14 lambda params=[] body=e@28:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
 expr e@27:5 call callee=e@27:5#1 args=[_:e@27:14] type=Unit
 expr e@30:9 name(condition) type=Boolean ref=returnsFalse.$3.condition
@@ -80,7 +81,7 @@ expr e@38:37 name(null) type=Nothing?
 expr e@38:28#1 binary(notEqual) lhs=e@38:28 rhs=e@38:37 type=Boolean
 expr e@38:9#2 memberCall recv=e@38:9 callee=implies args=[_:e@38:28#1] type=<error>
 expr e@39:17 bool(true) type=Boolean
-expr e@39:9 call callee=e@39:9#1 args=[_:e@39:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0
+expr e@39:9 call callee=e@39:9#1 args=[_:e@39:17] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#1
 expr e@38:9#3 blockExpr stmts=[e@38:9#2] trailing=e@39:9 type=kotlin.contracts.Returns
 expr e@37:14 lambda params=[] body=e@38:9#3 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
 expr e@37:5 call callee=e@37:5#1 args=[_:e@37:14] type=Unit
