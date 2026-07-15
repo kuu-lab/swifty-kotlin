@@ -8,6 +8,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     // MARK: - Sequence operations
 
     func rewriteSequenceVirtualCall(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         arguments: [KIRExprID],
@@ -77,7 +78,22 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.takeName, arguments.count == 1 {
+        // STDLIB-pipeline §5: take(n) has real require(n >= 0) validation in
+        // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. Only take the direct
+        // kk_sequence_take shortcut when the resolved callee is NOT that
+        // source-backed declaration; otherwise fall through so the call
+        // routes through normal function resolution and the require() runs.
+        func isSourceBackedSequenceCall() -> Bool {
+            guard let symbol,
+                  let sema = context.sema,
+                  let semanticSymbol = sema.symbols.symbol(symbol),
+                  semanticSymbol.declSite != nil
+            else {
+                return false
+            }
+            return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        }
+        if callee == lookup.takeName, arguments.count == 1, !isSourceBackedSequenceCall() {
             if sequenceExprIDs.contains(receiver.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,

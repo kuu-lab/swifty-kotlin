@@ -1,5 +1,7 @@
+#if canImport(Testing)
+import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private let synchronizedCapturedClosureRawLock = NSLock()
 nonisolated(unsafe) private var _synchronizedCapturedClosureRaw = 0
@@ -89,21 +91,21 @@ private func runtime_synchronized_reentrant_lambda(
     return result + 1
 }
 
-final class RuntimeSynchronizedTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
+@Suite(.serialized)
+struct RuntimeSynchronizedTests {
+    init() {
         kk_runtime_force_reset()
         synchronizedCapturedClosureRaw = 0
         synchronizedNestedFnPtr = 0
         synchronizedNestedClosureRaw = 0
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+    @Test
     func testSynchronizedReturnsBlockResult() {
+        defer {
+            kk_runtime_force_reset()
+        }
+
         let fn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -111,11 +113,16 @@ final class RuntimeSynchronizedTests: XCTestCase {
         var thrown = 0
         let result = kk_synchronized(101, fn, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 123)
+        #expect(thrown == 0)
+        #expect(result == 123)
     }
 
+    @Test
     func testSynchronizedPropagatesThrownValue() {
+        defer {
+            kk_runtime_force_reset()
+        }
+
         let fn = unsafeBitCast(
             runtime_synchronized_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -123,11 +130,16 @@ final class RuntimeSynchronizedTests: XCTestCase {
         var thrown = 0
         let result = kk_synchronized(202, fn, 0, &thrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testSynchronizedPassesClosureRawToThunk() {
+        defer {
+            kk_runtime_force_reset()
+        }
+
         synchronizedCapturedClosureRaw = 0
         let fn = unsafeBitCast(
             runtime_synchronized_capture_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -137,12 +149,17 @@ final class RuntimeSynchronizedTests: XCTestCase {
         let sentinel = 4242
         let result = kk_synchronized(303, fn, sentinel, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 77)
-        XCTAssertEqual(synchronizedCapturedClosureRaw, sentinel)
+        #expect(thrown == 0)
+        #expect(result == 77)
+        #expect(synchronizedCapturedClosureRaw == sentinel)
     }
 
+    @Test
     func testSynchronizedSupportsReentrantLocking() {
+        defer {
+            kk_runtime_force_reset()
+        }
+
         let nestedFn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -158,7 +175,8 @@ final class RuntimeSynchronizedTests: XCTestCase {
         let lockKey = 404
         let result = kk_synchronized(lockKey, outerFn, lockKey, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 124)
+        #expect(thrown == 0)
+        #expect(result == 124)
     }
 }
+#endif

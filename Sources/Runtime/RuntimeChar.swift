@@ -236,13 +236,13 @@ public func kk_char_titlecaseChar(_ value: Int) -> Int {
 public func kk_char_digitToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let scalar = runtimeUnicodeScalar(value) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: Char is not a digit")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Char is not a digit")
         return 0
     }
     if let digitValue = charBase10DigitValue(scalar) {
         return digitValue
     }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: Char \(scalar) is not a digit")
+    outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Char \(scalar) is not a digit")
     return 0
 }
 
@@ -270,8 +270,8 @@ public func kk_char_digitToIntOrNull_radix(
 ) -> Int {
     outThrown?.pointee = 0
     guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: radix \(radix) is out of the valid range 2..36"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "radix \(radix) is out of the valid range 2..36"
         )
         return runtimeNullSentinelInt
     }
@@ -498,15 +498,15 @@ public func kk_char_digitToInt_radix(
 ) -> Int {
     outThrown?.pointee = 0
     guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: radix \(radix) is out of the valid range 2..36"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "radix \(radix) is out of the valid range 2..36"
         )
         return 0
     }
     let digitVal = charDigitValueForRadix(value)
     guard digitVal >= 0, digitVal < radix else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: code point \(value) is not a valid digit in radix \(radix)"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "code point \(value) is not a valid digit in radix \(radix)"
         )
         return 0
     }
@@ -547,14 +547,14 @@ public func kk_char_digitToChar_radix(
 ) -> Int {
     outThrown?.pointee = 0
     guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: radix \(radix) is out of the valid range 2..36"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "radix \(radix) is out of the valid range 2..36"
         )
         return 0
     }
     guard digit >= 0, digit < radix else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: digit \(digit) is out of the valid range 0..<\(radix)"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "digit \(digit) is out of the valid range 0..<\(radix)"
         )
         return 0
     }
@@ -580,8 +580,8 @@ public func kk_char_fromCode(
 ) -> Int {
     outThrown?.pointee = 0
     guard code >= 0, code <= 0xFFFF else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: code \(code) is out of the valid Char range 0..0xFFFF"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "code \(code) is out of the valid Char range 0..0xFFFF"
         )
         return 0
     }
