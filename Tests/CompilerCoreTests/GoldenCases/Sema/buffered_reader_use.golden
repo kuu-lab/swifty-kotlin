@@ -55,5 +55,5 @@ expr e@22:9 localDecl line mutable=0 type=String? init=e@22:29#1 type=Unit ref=_
 expr e@23:17 name(line) type=String? ref=__local_3.line
 expr e@23:9 call callee=e@23:9#1 args=[_:e@23:17] type=Unit call=kotlin.io.println#1
 expr e@22:9#1 blockExpr stmts=[e@22:9] trailing=e@23:9 type=Unit
-expr e@21:31 lambda params=[reader] body=e@22:9#1 label=use type=(java.io.BufferedReader) -> Any
+expr e@21:31 lambda params=[reader] body=e@22:9#1 label=use type=(java.io.BufferedReader) -> Any?
 expr e@21:5#2 memberCall recv=e@21:5#1 callee=use args=[_:e@21:31] type=Unit

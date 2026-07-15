@@ -48,7 +48,7 @@ private func runtimeTestFailure(
     message: String,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(message: "AssertionError: \(message)")
+    outThrown?.pointee = runtimeAllocateAssertionError(message: message)
     return 0
 }
 
