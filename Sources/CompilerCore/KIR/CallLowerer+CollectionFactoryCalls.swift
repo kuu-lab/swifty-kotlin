@@ -227,6 +227,7 @@ extension CallLowerer {
             interner: interner,
             intType: intType,
             anyType: sema.types.anyType,
+            types: sema.types,
             instructions: &instructions
         )
 
@@ -251,6 +252,14 @@ extension CallLowerer {
     /// Boxes a lowered argument into `Any?` when it is an unboxed primitive, so it can be
     /// stored as an element of an `Any?`-typed array/list. Reused by other vararg-into-`Any?`
     /// lowering paths (e.g. `StringBuilder.append(vararg value: Any?)`).
+    ///
+    /// A value class with no interface is unboxed to its underlying primitive
+    /// elsewhere (ValueClassUnboxingPass), so its *declared* type here is still
+    /// `.classType` — resolve it to that underlying primitive kind first, or
+    /// `BoxingCalleeTable` sees a non-primitive kind and skips boxing entirely,
+    /// storing the raw unboxed value directly in the Any-typed backing array.
+    /// Mirrors `ABILoweringPass.resolveValueClassKind` / the equivalent fix in
+    /// `CollectionLiteralLoweringPass+FactoryPredicates.primitiveBoxCalleeName`.
     func boxCollectionFactoryElementIfNeeded(
         _ argID: KIRExprID,
         sema: SemaModule,
