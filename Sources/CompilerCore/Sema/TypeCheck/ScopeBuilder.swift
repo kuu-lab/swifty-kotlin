@@ -225,6 +225,7 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "annotation"],
             ["kotlin", "collections"],
             ["kotlin", "comparisons"],
+            ["kotlin", "coroutines"],
             ["kotlin", "enums"],
             // kotlin.math is not a Kotlin default import; importing it here broke
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.

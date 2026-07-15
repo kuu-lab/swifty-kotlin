@@ -536,6 +536,9 @@ extension ExprTypeChecker {
             if sema.bindings.isULongRangeSymbol(local.symbol) {
                 sema.bindings.markULongRangeExpr(id)
             }
+            if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
+                sema.bindings.markFloatingPointRangeExpr(id)
+            }
             if sema.bindings.isFlowSymbol(local.symbol) {
                 sema.bindings.markFlowExpr(id)
                 if let flowElementType = sema.bindings.flowElementType(forSymbol: local.symbol) {
@@ -871,11 +874,20 @@ extension ExprTypeChecker {
                 contextReceiverTypes: ctx.contextReceiverTypes + expectedFunctionType.contextReceivers
             )
         }
+        // Kotlin discards a Unit-expected lambda body's value rather than requiring
+        // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
+        // Passing Unit down as the body's expectedType would incorrectly propagate
+        // into the body's own call resolution -- e.g. rejecting `addOne(i): Int` as
+        // "no viable overload" because Int isn't a subtype of the pushed-down Unit.
+        // Only push the expected return type down when it isn't Unit.
+        let bodyExpectedType = expectedFunctionType?.returnType == sema.types.unitType
+            ? nil
+            : expectedFunctionType?.returnType
         let inferredBodyType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
-            expectedType: expectedFunctionType?.returnType
+            expectedType: bodyExpectedType
         )
         let captures = driver.captureAnalyzer.collectCapturedOuterSymbols(
             in: body,

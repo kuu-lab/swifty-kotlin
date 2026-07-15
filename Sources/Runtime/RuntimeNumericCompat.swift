@@ -1833,6 +1833,32 @@ public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<
     return lhs % rhs
 }
 
+// PEC-NUM-0002 / KSP-466: UInt/ULong/UByte/UShort division and remainder must
+// reinterpret the raw 64-bit container as unsigned before dividing — plain
+// signed `/`/`%` misreads any ULong with the high bit set (>= 2^63) as
+// negative. UByte/UShort/UInt are always zero-extended into this container,
+// so unsigned reinterpretation is a no-op for them; ULong is the one type
+// that actually needs it. Unlike kk_op_div/kk_op_mod there is no INT_MIN/-1
+// overflow case to special-case (unsigned division cannot overflow), but
+// zero-divisor must still throw ArithmeticException via outThrown.
+@_cdecl("kk_op_udiv")
+public func kk_op_udiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) / UInt(bitPattern: rhs))
+}
+
+@_cdecl("kk_op_urem")
+public func kk_op_urem(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
+}
+
 private func runtimeFloorMod(_ lhs: Int, _ rhs: Int) -> Int {
     if rhs == 0 { return 0 }
     if lhs == Int.min && rhs == -1 { return 0 }
