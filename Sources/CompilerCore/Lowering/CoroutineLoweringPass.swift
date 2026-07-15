@@ -294,6 +294,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeStartCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return")
         let runtimeContinuationResumeCallee = ctx.interner.intern("kk_coroutine_continuation_resume")
         let launcherArgSetCallee = ctx.interner.intern("kk_coroutine_launcher_arg_set")
+        let coroutineScopeLaunchCallee = ctx.interner.intern("kk_coroutine_scope_launch")
         let runtimeRunBlockingWithContCallee = ctx.interner.intern("kk_kxmini_run_blocking_with_cont")
         let kxMiniLauncherWithContCallees: [InternedString: InternedString] = [
             kxMiniRunBlockingCallee: ctx.interner.intern("kk_kxmini_run_blocking_with_cont"),
@@ -333,6 +334,7 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,
             kxMiniLauncherWithContCallees: kxMiniLauncherWithContCallees,
+            coroutineScopeLaunchCallee: coroutineScopeLaunchCallee,
             sequenceBuilderBuildCallee: ctx.interner.intern("kk_sequence_builder_build"),
             sequenceBuilderBuildCoroCallee: ctx.interner.intern("kk_sequence_builder_build_coro"),
             sequenceBuilderYieldAllCallee: ctx.interner.intern("kk_sequence_builder_yieldAll"),

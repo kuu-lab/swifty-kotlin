@@ -28,6 +28,7 @@ extension CoroutineLoweringPass {
         let runtimeRunBlockingWithContCallee: InternedString
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString]
         let kxMiniLauncherWithContCallees: [InternedString: InternedString]
+        let coroutineScopeLaunchCallee: InternedString
         let sequenceBuilderBuildCallee: InternedString
         let sequenceBuilderBuildCoroCallee: InternedString
         let sequenceBuilderYieldAllCallee: InternedString

@@ -2555,6 +2555,58 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     return runtimeRegisterObject(scope)
 }
 
+/// Backing for `CoroutineScope.launch { block }`. Unlike `kk_kxmini_launch` (which
+/// registers the new job with whatever scope happens to be ambient/"current" at the
+/// call site), this launches into the EXPLICIT receiver `scope` passed in by the
+/// caller. That is the whole point of a property-stored, unstructured
+/// `CoroutineScope(...)`: `scope.cancel()` must cascade to jobs started this way no
+/// matter which scope (if any) is ambient wherever `.launch` happens to be called from.
+@_cdecl("kk_coroutine_scope_launch")
+public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, _ functionID: Int) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_launch received invalid scope handle")
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    let continuation = kk_coroutine_continuation_new(functionID)
+    if let state = runtimeContinuationState(from: continuation) {
+        job.continuationState = state
+        state.jobHandle = job
+        // Propagate the explicit receiver scope (not whatever is ambient) to the
+        // child continuation's context so nested launch/async inside the block
+        // discover `scope`, matching kotlinx.coroutines' CoroutineScope.launch.
+        state.scope = scope
+    }
+    scope.registerChild(Int(bitPattern: jobPtr))
+
+    KxMiniRuntime.launch {
+        // See the identical guard in kk_kxmini_launch: a cancel() that races in
+        // between this function returning and the dispatched closure actually
+        // running must skip the body entirely (CoroutineStart.DEFAULT semantics).
+        if job.cancellationSnapshot() {
+            _ = job.complete(with: 0)
+            return
+        }
+        RuntimeCoroutineScope.current = scope
+        var thrown = 0
+        let result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            outThrown: &thrown
+        )
+        RuntimeCoroutineScope.current = nil
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
+    }
+    return Int(bitPattern: jobPtr)
+}
 /// Backing for the bare `kotlinx.coroutines.Job(): Job` factory (no parent argument --
 /// the only shape currently registered in Sema).
 @_cdecl("kk_job_new")
@@ -2732,9 +2784,20 @@ public func kk_supervisor_scope_run(
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = scope
     }
+    var directThrow = 0
     let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation
+        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
     )
+    if directThrow != 0 {
+        // See kk_coroutine_scope_run: the block itself threw (as opposed to a
+        // child failing, which SupervisorJob semantics would otherwise isolate).
+        // The scope's own body failing still cancels children it already
+        // launched instead of leaving them orphaned.
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        outThrown?.pointee = directThrow
+        return 0
+    }
     let firstFailure = kk_coroutine_scope_wait(scopeHandle)
     if firstFailure != 0 {
         outThrown?.pointee = firstFailure
@@ -2757,7 +2820,19 @@ public func kk_supervisor_scope_run_with_cont(
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = scope
     }
-    let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
+    var directThrow = 0
+    let result = runSuspendEntryLoopWithContinuation(
+        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
+    )
+    if directThrow != 0 {
+        // See kk_coroutine_scope_run_with_cont / kk_supervisor_scope_run: propagate
+        // a direct throw from the block itself instead of letting it fall through
+        // as a plain return value.
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        outThrown?.pointee = directThrow
+        return 0
+    }
     let firstFailure = kk_coroutine_scope_wait(scopeHandle)
     if firstFailure != 0 {
         outThrown?.pointee = firstFailure
@@ -3394,7 +3469,7 @@ public func kk_suspend_function_invoke_0(
             thrownException = 0
         } else {
             callResult = 0
-            thrownException = runtimeAllocateThrowable(message: "NullPointerException")
+            thrownException = runtimeAllocateNullPointerException(message: "")
         }
 
         // Store results in continuation state
@@ -3449,7 +3524,7 @@ public func kk_suspend_function_invoke(
             thrownException = 0
         } else {
             callResult = 0
-            thrownException = runtimeAllocateThrowable(message: "NullPointerException")
+            thrownException = runtimeAllocateNullPointerException(message: "")
         }
 
         // Store results in continuation state
