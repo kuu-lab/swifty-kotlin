@@ -1,11 +1,43 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String indent and format functions migrated from Swift Runtime
 // MIGRATION-TEXT-006
 //
 // Public APIs stay source-backed while delegating to private __kk_* bridges.
 // This avoids reviving the legacy public kk_string_* synthetic/member lowering
 // surface and keeps the current runtime semantics for multiline raw strings.
+//
+// String.indent()/indent(n) stay fully pure-Kotlin (not bridged): they have no
+// __kk_string_indent* runtime counterpart, so they keep the private
+// splitIntoLines()/leadingWhitespaceCount() helpers used by their bodies.
+
+private fun String.splitIntoLines(): List<String> {
+    val src = replace("\r\n", "\n").replace("\r", "\n")
+    val result = mutableListOf<String>()
+    var start = 0
+    while (start < __string_struct_get_length(src)) {
+        val idx = src.indexOf("\n", start)
+        if (idx == -1) {
+            result.add(src.substring(start))
+            break
+        }
+        result.add(src.substring(start, idx))
+        start = idx + 1
+    }
+    return result
+}
+
+private fun String.leadingWhitespaceCount(): Int {
+    var count = 0
+    while (count < length) {
+        val c = this[count]
+        if (c != ' ' && c != '\t') break
+        count++
+    }
+    return count
+}
 
 private external fun String.__kk_string_trimIndent(): String
 private external fun String.__kk_string_trimMargin(marginPrefix: String): String
@@ -45,3 +77,34 @@ public fun String.replaceIndent(newIndent: String = ""): String =
  */
 public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String =
     this.__kk_string_replaceIndentByMargin(newIndent, marginPrefix)
+
+/**
+ * Returns a string with content of this string where each line is indented by 4 spaces.
+ */
+public fun String.indent(): String = indent(4)
+
+/**
+ * Returns a string with content of this string where each line is indented by [n] spaces
+ * (or has up to [n] leading spaces removed, when [n] is negative).
+ */
+public fun String.indent(n: Int): String {
+    if (n == 0) return this
+    val lines = splitIntoLines()
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (n > 0) {
+            var j = 0
+            while (j < n) { sb.append(' '); j++ }
+            sb.append(line)
+        } else {
+            val remove = -n
+            val leading = line.leadingWhitespaceCount()
+            val drop = if (remove < leading) remove else leading
+            sb.append(line.substring(drop))
+        }
+        first = false
+    }
+    return sb.toString()
+}
