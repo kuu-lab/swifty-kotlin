@@ -252,11 +252,14 @@ public func kk_instant_compare(_ aRaw: Int, _ bRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - until() — Duration between two Instants
+// MARK: - Duration between two Instants
 
 /// Returns the Duration from this Instant until the other Instant.
 ///
-/// Kotlin: instant.until(other)
+/// Bridges Kotlin's `operator fun Instant.minus(other: Instant): Duration`
+/// (called as `other.__kk_instant_until(this)`, since this bridge computes
+/// `to - from`) and `Instant.elapsed()` (called as
+/// `this.__kk_instant_until(Instant.now())`).
 @_cdecl("kk_instant_until")
 public func kk_instant_until(_ fromRaw: Int, _ toRaw: Int) -> Int {
     guard let fromBox = runtimeInstantBox(from: fromRaw),

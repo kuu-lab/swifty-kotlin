@@ -133,10 +133,11 @@ struct OutputStreamEncodingWithFunctionTests {
         }
     }
 
-    /// The Sema layer should record the external link name on the symbol so
-    /// codegen can resolve it to `kk_output_stream_encodingWith` later in
-    /// the pipeline.
-    @Test func testOutputStreamEncodingWithExternalLinkNameIsRegisteredOnSymbol() throws {
+    /// `encodingWith` itself is a regular Kotlin function (with a body that
+    /// delegates to a private external wrapper) — the external link name
+    /// lives on that private wrapper, not on `encodingWith`'s own symbol.
+    /// Sema should still record it so codegen can resolve the runtime bridge.
+    @Test func testOutputStreamEncodingWithExternalLinkNameIsRegisteredOnWrapperSymbol() throws {
         let source = """
         import java.io.OutputStream
         import kotlin.io.encoding.Base64
@@ -152,32 +153,16 @@ struct OutputStreamEncodingWithFunctionTests {
             let interner = ctx.interner
             let sema = try #require(ctx.sema)
             let symbols = sema.symbols
-            let types = sema.types
 
-            let outputStreamSymbol = try #require(
-                symbols.lookup(fqName: ["java", "io", "OutputStream"].map(interner.intern))
+            let wrapperCandidates = symbols.lookupAll(
+                fqName: ["kotlin", "io", "encoding", "__outputStreamEncodingWith"].map(interner.intern)
             )
-            let base64Symbol = try #require(
-                symbols.lookup(fqName: ["kotlin", "io", "encoding", "Base64"].map(interner.intern))
+            let wrapper = try #require(
+                wrapperCandidates.first { symbols.externalLinkName(for: $0) != nil },
+                "Sema should register the private __outputStreamEncodingWith bridge"
             )
-            let outputStreamType = types.make(.classType(ClassType(
-                classSymbol: outputStreamSymbol, args: [], nullability: .nonNull
-            )))
-            let base64Type = types.make(.classType(ClassType(
-                classSymbol: base64Symbol, args: [], nullability: .nonNull
-            )))
-            let encodingWithCandidates = symbols.lookupAll(
-                fqName: ["kotlin", "io", "encoding", "encodingWith"].map(interner.intern)
-            )
-            let encodingWith = try #require(encodingWithCandidates.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == outputStreamType
-                    && signature.parameterTypes == [base64Type]
-            }, "Sema should register an OutputStream.encodingWith(Base64) extension")
             #expect(
-                symbols.externalLinkName(for: encodingWith) == "kk_output_stream_encodingWith"
+                symbols.externalLinkName(for: wrapper) == "__kk_output_stream_encodingWith"
             )
         }
     }

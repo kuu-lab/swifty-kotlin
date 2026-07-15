@@ -19,15 +19,8 @@ func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -
     kk_string_toByteArray_charset(runtimeMakeStringRaw(source), charsetTag)
 }
 
-@_cdecl("kk_string_toByteArray")
-public func kk_string_toByteArray(_ strRaw: Int) -> Int {
-    // Sema types this as List<Int> — return ListBox so list-access codegen works.
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
-}
-
-@_cdecl("kk_string_toByteArray_flat")
-public func kk_string_toByteArray_flat(
+@_cdecl("__kk_string_toByteArray_flat")
+public func __kk_string_toByteArray_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -36,32 +29,32 @@ public func kk_string_toByteArray_flat(
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
-@_cdecl("kk_charset_utf_8")
-public func kk_charset_utf_8() -> Int { CharsetTag.utf8.rawValue }
+@_cdecl("__kk_charset_utf_8")
+public func __kk_charset_utf_8() -> Int { CharsetTag.utf8.rawValue }
 
-@_cdecl("kk_charset_iso_8859_1")
-public func kk_charset_iso_8859_1() -> Int { CharsetTag.iso8859_1.rawValue }
+@_cdecl("__kk_charset_iso_8859_1")
+public func __kk_charset_iso_8859_1() -> Int { CharsetTag.iso8859_1.rawValue }
 
-@_cdecl("kk_charset_us_ascii")
-public func kk_charset_us_ascii() -> Int { CharsetTag.usASCII.rawValue }
+@_cdecl("__kk_charset_us_ascii")
+public func __kk_charset_us_ascii() -> Int { CharsetTag.usASCII.rawValue }
 
-@_cdecl("kk_charset_utf_16")
-public func kk_charset_utf_16() -> Int { CharsetTag.utf16.rawValue }
+@_cdecl("__kk_charset_utf_16")
+public func __kk_charset_utf_16() -> Int { CharsetTag.utf16.rawValue }
 
-@_cdecl("kk_charset_utf_16be")
-public func kk_charset_utf_16be() -> Int { CharsetTag.utf16be.rawValue }
+@_cdecl("__kk_charset_utf_16be")
+public func __kk_charset_utf_16be() -> Int { CharsetTag.utf16be.rawValue }
 
-@_cdecl("kk_charset_utf_16le")
-public func kk_charset_utf_16le() -> Int { CharsetTag.utf16le.rawValue }
+@_cdecl("__kk_charset_utf_16le")
+public func __kk_charset_utf_16le() -> Int { CharsetTag.utf16le.rawValue }
 
-@_cdecl("kk_charset_utf_32")
-public func kk_charset_utf_32() -> Int { CharsetTag.utf32.rawValue }
+@_cdecl("__kk_charset_utf_32")
+public func __kk_charset_utf_32() -> Int { CharsetTag.utf32.rawValue }
 
-@_cdecl("kk_charset_utf_32be")
-public func kk_charset_utf_32be() -> Int { CharsetTag.utf32be.rawValue }
+@_cdecl("__kk_charset_utf_32be")
+public func __kk_charset_utf_32be() -> Int { CharsetTag.utf32be.rawValue }
 
-@_cdecl("kk_charset_utf_32le")
-public func kk_charset_utf_32le() -> Int { CharsetTag.utf32le.rawValue }
+@_cdecl("__kk_charset_utf_32le")
+public func __kk_charset_utf_32le() -> Int { CharsetTag.utf32le.rawValue }
 
 // STDLIB-581: String.toByteArray(charset: Charset)
 @_cdecl("kk_string_toByteArray_charset")
@@ -145,8 +138,8 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
     return runtimeMakeListRaw(bytes)
 }
 
-@_cdecl("kk_string_toByteArray_charset_flat")
-public func kk_string_toByteArray_charset_flat(
+@_cdecl("__kk_string_toByteArray_charset_flat")
+public func __kk_string_toByteArray_charset_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -229,8 +222,8 @@ public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
     return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
-@_cdecl("kk_string_encodeToByteArray_flat")
-public func kk_string_encodeToByteArray_flat(
+@_cdecl("__kk_string_encodeToByteArray_flat")
+public func __kk_string_encodeToByteArray_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -249,8 +242,8 @@ public func kk_string_encodeToByteArray_range(_ strRaw: Int, _ startIndex: Int, 
     return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
-@_cdecl("kk_string_encodeToByteArray_range_flat")
-public func kk_string_encodeToByteArray_range_flat(
+@_cdecl("__kk_string_encodeToByteArray_range_flat")
+public func __kk_string_encodeToByteArray_range_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -274,8 +267,8 @@ public func kk_string_encodeToByteArray_charset(_ strRaw: Int, _ charsetID: Int)
     return runtimeMakeArrayRaw(elements)
 }
 
-@_cdecl("kk_string_encodeToByteArray_charset_flat")
-public func kk_string_encodeToByteArray_charset_flat(
+@_cdecl("__kk_string_encodeToByteArray_charset_flat")
+public func __kk_string_encodeToByteArray_charset_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -305,8 +298,8 @@ private func runtimeByteArrayRangeError(
     size: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(
-        message: "IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), size=\(size)"
+    outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+        message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(size)"
     )
     return runtimeMakeStringRaw("")
 }
@@ -357,10 +350,10 @@ private func runtimeDecodeByteArrayRange(
 }
 
 // STDLIB-574: ByteArray.decodeToString()
-@_cdecl("kk_bytearray_decodeToString")
-public func kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
+@_cdecl("__kk_bytearray_decodeToString")
+public func __kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_decodeToString received invalid byte array handle \(arrRaw)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString received invalid byte array handle \(arrRaw)")
     }
     // Use truncating conversion to match Kotlin's signed-byte semantics:
     // negative values (e.g. -1) become their unsigned equivalent (255).
@@ -372,8 +365,8 @@ public func kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
 }
 
 // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex)
-@_cdecl("kk_bytearray_decodeToString_range")
-public func kk_bytearray_decodeToString_range(
+@_cdecl("__kk_bytearray_decodeToString_range")
+public func __kk_bytearray_decodeToString_range(
     _ arrRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
@@ -390,8 +383,8 @@ public func kk_bytearray_decodeToString_range(
 }
 
 // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, throwOnInvalidSequence)
-@_cdecl("kk_bytearray_decodeToString_range_throw")
-public func kk_bytearray_decodeToString_range_throw(
+@_cdecl("__kk_bytearray_decodeToString_range_throw")
+public func __kk_bytearray_decodeToString_range_throw(
     _ arrRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
@@ -411,8 +404,8 @@ public func kk_bytearray_decodeToString_range_throw(
 // STDLIB-CINTEROP-FN-029: kotlinx.cinterop.ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
 // Same UTF-8 decode semantics as decodeToString — toKString is cinterop's
 // historical name for the identical operation.
-@_cdecl("kk_byteArray_toKString")
-public func kk_byteArray_toKString(
+@_cdecl("__kk_byteArray_toKString")
+public func __kk_byteArray_toKString(
     _ arrRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
@@ -431,10 +424,10 @@ public func kk_byteArray_toKString(
 
 // STDLIB-574: ByteArray.decodeToString(charset)
 // Charset IDs follow CharsetTag: 0 = UTF-8, 1 = ISO-8859-1 (Latin-1), 2 = US-ASCII
-@_cdecl("kk_bytearray_decodeToString_charset")
-public func kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int) -> Int {
+@_cdecl("__kk_bytearray_decodeToString_charset")
+public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_decodeToString_charset received invalid byte array handle \(arrRaw)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString_charset received invalid byte array handle \(arrRaw)")
     }
     let bytes = elements.map { UInt8(truncatingIfNeeded: $0) }
     let decoded: String
@@ -448,7 +441,7 @@ public func kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int)
         // ASCII: bytes > 127 become replacement character U+FFFD
         decoded = String(bytes.map { $0 <= 127 ? Character(Unicode.Scalar($0)) : "\u{FFFD}" })
     default:
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_decodeToString_charset unsupported charset ID \(charsetId)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString_charset unsupported charset ID \(charsetId)")
     }
     return runtimeMakeStringRaw(decoded)
 }

@@ -417,7 +417,7 @@ func runtimeReduceElements(
 ) -> Int {
     guard !elements.isEmpty else {
         if let emptyMessage {
-            runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: emptyMessage))
+            runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: emptyMessage))
         }
         return emptyResult
     }
@@ -447,7 +447,7 @@ func runtimeReduceIndexedElements(
 ) -> Int {
     guard !elements.isEmpty else {
         if let emptyMessage {
-            runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: emptyMessage))
+            runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: emptyMessage))
         }
         return emptyResult
     }
@@ -478,7 +478,7 @@ func runtimeReduceRightElements(
 ) -> Int {
     guard let last = elements.last else {
         if let emptyMessage {
-            runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: emptyMessage))
+            runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: emptyMessage))
         }
         return emptyResult
     }
@@ -509,7 +509,7 @@ func runtimeReduceRightIndexedElements(
 ) -> Int {
     guard let last = elements.last else {
         if let emptyMessage {
-            runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: emptyMessage))
+            runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: emptyMessage))
         }
         return emptyResult
     }

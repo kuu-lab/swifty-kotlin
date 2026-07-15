@@ -8,10 +8,12 @@
 ///
 /// Also registers `__kk_instant_*` bridge methods used by
 /// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,
-/// `nanoOfSecond`, `isDistantPast`, `isDistantFuture`, `plus`/`minus`
-/// (Duration), `compareTo`, and `until()` as Kotlin-source extension
-/// properties/functions/operators (KSP-472). `elapsed()` has no bridge; it
-/// is written directly in Kotlin source as `this.until(Instant.now())`.
+/// `nanosecondsOfSecond`, `isDistantPast`, `isDistantFuture`, `plus`/`minus`
+/// (Duration), `compareTo`, and `minus` (Instant, returning Duration) as
+/// Kotlin-source extension properties/functions/operators (KSP-472).
+/// `elapsed()` has no dedicated bridge; it reuses the same
+/// `__kk_instant_until` bridge as the Instant-Instant `minus` overload,
+/// written directly in Kotlin source as `this.__kk_instant_until(Instant.now())`.
 extension DataFlowSemaPhase {
     func registerSyntheticInstantStubs(
         symbols: SymbolTable,
@@ -86,9 +88,10 @@ extension DataFlowSemaPhase {
 
         // --- KSP-472: bridge methods for Stdlib/kotlin/time/Instant.kt ---
         // Called as `this.__kk_instant_*(...)` from Kotlin source; the
-        // public API (epochSeconds, nanoOfSecond, isDistantPast,
-        // isDistantFuture, plus, minus, compareTo, until) is defined there
-        // as extension properties/functions/operators.
+        // public API (epochSeconds, nanosecondsOfSecond, isDistantPast,
+        // isDistantFuture, plus, minus (Duration and Instant overloads),
+        // compareTo) is defined there as extension properties/functions/
+        // operators.
 
         registerInstantInstanceMethod(
             named: "__kk_instant_epoch_seconds",

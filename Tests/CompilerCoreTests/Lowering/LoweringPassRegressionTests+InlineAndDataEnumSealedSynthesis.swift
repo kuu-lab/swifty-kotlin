@@ -654,7 +654,9 @@ extension LoweringPassRegressionTests {
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
 
-        // Single property: result = kk_any_hashCode(receiver, offset), no mul/add needed
+        // Single property: field is read via kk_array_get_inbounds, then
+        // result = kk_any_hashCode(fieldValue, tag), no mul/add needed
+        #expect(callees.contains("kk_array_get_inbounds"), "hashCode should read the field before hashing it")
         #expect(callees.contains("kk_any_hashCode"), "hashCode should call kk_any_hashCode")
         #expect(!callees.contains("kk_op_mul"), "hashCode with single property should not call kk_op_mul")
         #expect(!callees.contains("kk_op_add"), "hashCode with single property should not call kk_op_add")

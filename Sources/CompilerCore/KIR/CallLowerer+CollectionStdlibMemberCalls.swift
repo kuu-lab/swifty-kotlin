@@ -29,6 +29,15 @@ extension CallLowerer {
             "sumOf",
             "maxByOrNull",
             "minByOrNull",
+            // STDLIB-pipeline §5: take/drop/chunked/windowed have real
+            // require() validation in SequenceWindowChunk.kt as of
+            // MIGRATION-SEQ-005. A resolved call to that source declaration
+            // must not be short-circuited to the unchecked kk_sequence_*
+            // runtime bridge below.
+            "take",
+            "drop",
+            "chunked",
+            "windowed",
         ].contains(calleeText),
             let chosenBase64Callee,
             sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
@@ -168,9 +177,12 @@ extension CallLowerer {
                         joinArgs.append(exprID)
                     }
                 }
+                let joinToStringCallee = isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                    ? arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
+                    : interner.intern("kk_sequence_joinToString")
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_sequence_joinToString"),
+                    callee: joinToStringCallee,
                     arguments: [loweredReceiverID] + joinArgs,
                     result: result,
                     canThrow: false,
@@ -322,7 +334,6 @@ extension CallLowerer {
                 }
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_list_partition"
-                        || runtimeCallee == "kk_list_zipWithNextTransform"
                         || runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
                         || runtimeCallee == "kk_array_reduce"
@@ -934,8 +945,6 @@ extension CallLowerer {
                     "kk_list_lastIndexOf"
                 case "partition":
                     "kk_list_partition"
-                case "zipWithNext":
-                    "kk_list_zipWithNextTransform"
                 case "getOrNull":
                     "kk_list_getOrNull"
                 case "elementAtOrNull":
@@ -1077,6 +1086,139 @@ extension CallLowerer {
         }
 
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
+
+        // KSP-307: ListWindowChunk public functions are source-backed, but codegen
+        // still lowers their executable path to private runtime bridges.
+        do {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let isListWindowChunkReceiver = isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                || isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
+
+            if isListWindowChunkReceiver {
+                func appendBridgeCall(
+                    _ name: String,
+                    _ runtimeArguments: [KIRExprID],
+                    canThrow: Bool = false
+                ) -> KIRExprID {
+                    let thrownResult = canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(name),
+                        arguments: runtimeArguments,
+                        result: result,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult
+                    ))
+                    return result
+                }
+
+                func intLiteral(_ value: Int64) -> KIRExprID {
+                    let expr = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
+                    instructions.append(.constValue(result: expr, value: .intLiteral(value)))
+                    return expr
+                }
+
+                func windowedTransformRuntimeArguments() -> [KIRExprID]? {
+                    guard hasHOFLambdaArg else {
+                        return nil
+                    }
+                    let valueArgCount = args.count - 1
+                    guard (1...3).contains(valueArgCount),
+                          normalizedArgIDs.count > valueArgCount
+                    else {
+                        return nil
+                    }
+
+                    let sizeArg = normalizedArgIDs[0]
+                    let stepArg = valueArgCount >= 2 ? normalizedArgIDs[1] : intLiteral(1)
+                    let partialArg = valueArgCount >= 3 ? normalizedArgIDs[2] : intLiteral(0)
+                    let fnPtrExpr: KIRExprID
+                    let envPtrExpr: KIRExprID
+                    if normalizedArgIDs.count > valueArgCount + 1 {
+                        fnPtrExpr = normalizedArgIDs[valueArgCount]
+                        envPtrExpr = normalizedArgIDs[valueArgCount + 1]
+                    } else {
+                        let split = splitCallableLambdaArgument(
+                            normalizedArgIDs[valueArgCount],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        fnPtrExpr = split.fnPtrExpr
+                        envPtrExpr = split.envPtrExpr
+                    }
+                    return [loweredReceiverID, sizeArg, stepArg, partialArg, fnPtrExpr, envPtrExpr]
+                }
+
+                switch interner.resolve(calleeName) {
+                case "chunked" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
+                    return appendBridgeCall("__kk_list_chunked", [loweredReceiverID, normalizedArgIDs[0]])
+                case "chunked" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        normalizedArgIDs[1],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return appendBridgeCall(
+                        "__kk_list_chunked_transform",
+                        [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
+                        canThrow: true
+                    )
+                case "windowed" where !hasHOFLambdaArg && (1...3).contains(normalizedArgIDs.count):
+                    let sizeArg = normalizedArgIDs[0]
+                    let stepArg = normalizedArgIDs.count >= 2 ? normalizedArgIDs[1] : intLiteral(1)
+                    let partialArg = normalizedArgIDs.count >= 3 ? normalizedArgIDs[2] : intLiteral(0)
+                    return appendBridgeCall("__kk_list_windowed", [loweredReceiverID, sizeArg, stepArg, partialArg])
+                case "windowed" where hasHOFLambdaArg:
+                    guard let runtimeArguments = windowedTransformRuntimeArguments() else {
+                        break
+                    }
+                    return appendBridgeCall(
+                        "__kk_list_windowed_transform",
+                        runtimeArguments,
+                        canThrow: true
+                    )
+                case "zip" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
+                    return appendBridgeCall("__kk_list_zip", [loweredReceiverID, normalizedArgIDs[0]])
+                case "zip" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        normalizedArgIDs[1],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return appendBridgeCall(
+                        "__kk_list_zip_transform",
+                        [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
+                        canThrow: true
+                    )
+                case "zipWithNext" where normalizedArgIDs.isEmpty:
+                    return appendBridgeCall("__kk_list_zipWithNext", [loweredReceiverID])
+                case "zipWithNext" where hasHOFLambdaArg && normalizedArgIDs.count == 1:
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        normalizedArgIDs[0],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    return appendBridgeCall(
+                        "__kk_list_zipWithNextTransform",
+                        [loweredReceiverID, fnPtrExpr, envPtrExpr],
+                        canThrow: true
+                    )
+                default:
+                    break
+                }
+            }
+        }
 
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
         // Lambda-bearing `windowed` calls use the synthetic iterable HOF overload
