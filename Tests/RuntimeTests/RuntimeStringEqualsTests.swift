@@ -1,8 +1,10 @@
 // STDLIB-TEXT-FN-016: String.equals(other: String?)
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeStringEqualsTests: XCTestCase {
+@Suite
+struct RuntimeStringEqualsTests {
     private func runtimeString(_ text: String) -> Int {
         text.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
@@ -17,28 +19,35 @@ final class RuntimeStringEqualsTests: XCTestCase {
         kk_unbox_bool(raw) != 0
     }
 
+    @Test
     func testEqualsSameContent() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
+        #expect(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("hello"))))
     }
 
+    @Test
     func testEqualsDifferentContent() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("hello"), runtimeString("world"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("hello"), runtimeString("world"))))
     }
 
+    @Test
     func testEqualsEmptyStrings() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString(""), runtimeString(""))))
+        #expect(boolValue(kk_string_equals(runtimeString(""), runtimeString(""))))
     }
 
+    @Test
     func testEqualsOtherNull() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("hello"), runtimeNullSentinelInt)))
+        #expect(!boolValue(kk_string_equals(runtimeString("hello"), runtimeNullSentinelInt)))
     }
 
+    @Test
     func testEqualsCaseSensitive() {
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("abc"), runtimeString("ABC"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("abc"), runtimeString("ABC"))))
     }
 
+    @Test
     func testEqualsUnicode() {
-        XCTAssertTrue(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
-        XCTAssertFalse(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
+        #expect(boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("こんにちは"))))
+        #expect(!boolValue(kk_string_equals(runtimeString("こんにちは"), runtimeString("さようなら"))))
     }
 }
+#endif

@@ -23,7 +23,7 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
 
     private func makeRegex(_ pattern: String) -> Int {
         withFlatString(pattern) { data, length, byteCount, hash in
-            kk_regex_create_flat(data, length, byteCount, hash)
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
     }
 

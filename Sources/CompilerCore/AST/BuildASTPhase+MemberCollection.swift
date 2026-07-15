@@ -361,10 +361,22 @@ extension BuildASTPhase {
     /// contains `.property(i)` / `.initBlock(j)` entries whose indices
     /// correspond to the positions in `ClassDecl.memberProperties` and
     /// `ClassDecl.initBlocks` respectively.
+    ///
+    /// `ClassDecl.memberProperties` is `constructorProperties + members.properties`
+    /// (primary-constructor `val`/`var` params first, then body-declared
+    /// properties — see `makeClassDecl`), so `propertyIndex` must start at
+    /// `constructorPropertyCount` rather than 0. Otherwise the `.property(i)`
+    /// entries this function emits — which are indexed relative to the body
+    /// block alone — end up pointing at the wrong `memberProperties` entry
+    /// (or a constructor-parameter property with no body initializer) as soon
+    /// as the class has both kinds of property, and body property initializers
+    /// silently stop running. `ObjectDecl.memberProperties` has no constructor
+    /// properties prepended, so its callers pass 0 (the default).
     func declarationClassBodyInitOrder(
         from nodeID: NodeID,
         in arena: SyntaxArena,
-        interner _: StringInterner
+        interner _: StringInterner,
+        constructorPropertyCount: Int = 0
     ) -> [ClassBodyInitMember] {
         guard let bodyBlockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
@@ -378,7 +390,7 @@ extension BuildASTPhase {
         }
 
         var order: [ClassBodyInitMember] = []
-        var propertyIndex = 0
+        var propertyIndex = constructorPropertyCount
         var initBlockIndex = 0
 
         for child in arena.children(of: bodyBlockID) {

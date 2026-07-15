@@ -1,21 +1,26 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePanicTests: XCTestCase {
+@Suite
+struct RuntimePanicTests {
+    @Test
     func testRuntimePanicMessageIncludesDiagnosticCodeAndPayload() {
         let message = "panic payload"
         let rendered = message.withCString { cstr in
             runtimePanicMessage(fromCString: cstr)
         }
-        XCTAssertTrue(rendered.contains(runtimePanicDiagnosticCode))
-        XCTAssertTrue(rendered.contains(message))
+        #expect(rendered.contains(runtimePanicDiagnosticCode))
+        #expect(rendered.contains(message))
     }
 
+    @Test
     func testRuntimeStructuredPanicMessageIncludesDiagnosticCodeAndPayload() {
         let payload = "structured panic payload"
         let rendered = runtimeStructuredPanicMessage(payload)
-        XCTAssertTrue(rendered.contains(runtimePanicDiagnosticCode))
-        XCTAssertTrue(rendered.contains(payload))
-        XCTAssertTrue(rendered.hasPrefix("KSwiftK panic ["))
+        #expect(rendered.contains(runtimePanicDiagnosticCode))
+        #expect(rendered.contains(payload))
+        #expect(rendered.hasPrefix("KSwiftK panic ["))
     }
 }
+#endif
