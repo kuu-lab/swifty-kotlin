@@ -56,7 +56,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testEncodeToByteArrayASCII() {
         withFlatString("Hello") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             let elements = extractListElements(result)
             // "Hello" -> [72, 101, 108, 108, 111]
             #expect(elements == [72, 101, 108, 108, 111])
@@ -68,7 +68,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testEncodeToByteArrayNonASCII() {
         withFlatString("\u{00E9}") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             let elements = extractListElements(result)
             #expect(elements == [-61, -87])
         }
@@ -79,8 +79,8 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testEncodeToByteArrayMatchesToByteArray() {
         withFlatString("test123") { data, length, byteCount, hash in
-            let encode = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
-            let toByte = kk_string_toByteArray_flat(data, length, byteCount, hash)
+            let encode = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let toByte = __kk_string_toByteArray_flat(data, length, byteCount, hash)
             #expect(runtimeListBox(from: toByte) == nil)
             #expect(runtimeArrayBox(from: toByte) != nil)
             let encodeElems = extractListElements(encode)
@@ -95,21 +95,21 @@ struct RuntimeEncodeDecodeTests {
         withFlatString("H\u{00E9}") { data, length, byteCount, hash in
             let expected = [72, -61, -87]
             #expect(
-                extractListElements(kk_string_toByteArray_flat(data, length, byteCount, hash)) == expected
+                extractListElements(__kk_string_toByteArray_flat(data, length, byteCount, hash)) == expected
             )
             #expect(
-                extractListElements(kk_string_encodeToByteArray_flat(data, length, byteCount, hash)) == expected
+                extractListElements(__kk_string_encodeToByteArray_flat(data, length, byteCount, hash)) == expected
             )
         }
 
         withFlatString("Hello") { data, length, byteCount, hash in
             #expect(
-                extractListElements(kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 1, 4)) == [101, 108, 108]
+                extractListElements(__kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 1, 4)) == [101, 108, 108]
             )
         }
 
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
-            let charsetBytes = kk_string_toByteArray_charset_flat(data, length, byteCount, hash, kk_charset_us_ascii())
+            let charsetBytes = __kk_string_toByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_us_ascii())
             #expect(runtimeListBox(from: charsetBytes) == nil)
             #expect(runtimeArrayBox(from: charsetBytes) != nil)
             #expect(extractListElements(charsetBytes) == [65, 63])
@@ -118,7 +118,7 @@ struct RuntimeEncodeDecodeTests {
         withFlatString("AB") { data, length, byteCount, hash in
             #expect(
                 extractListElements(
-                    kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, kk_charset_utf_16be())
+                    __kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_utf_16be())
                 ) == [0, 65, 0, 66]
             )
         }
@@ -129,7 +129,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testDecodeToStringASCII() {
         let byteArray = makeListRaw([72, 101, 108, 108, 111]) // "Hello"
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         #expect(extractSwiftString(result) == "Hello")
     }
 
@@ -139,7 +139,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringNonASCII() {
         // U+00E9 (e-acute) -> UTF-8: [0xC3, 0xA9]
         let byteArray = makeListRaw([0xC3, 0xA9])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         #expect(extractSwiftString(result) == "\u{00E9}")
     }
 
@@ -149,8 +149,8 @@ struct RuntimeEncodeDecodeTests {
     func testRoundTripUTF8() {
         let original = "Hello, World! \u{1F600}" // includes emoji (4-byte UTF-8)
         withFlatString(original) { data, length, byteCount, hash in
-            let encoded = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
-            let decoded = kk_bytearray_decodeToString(encoded)
+            let encoded = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let decoded = __kk_bytearray_decodeToString(encoded)
             #expect(extractSwiftString(decoded) == original)
         }
     }
@@ -163,7 +163,7 @@ struct RuntimeEncodeDecodeTests {
         // [0xC3, 0xA9] encodes U+00E9 — test using negative representations.
         // -61 truncated to UInt8 = 195 = 0xC3; -87 truncated to UInt8 = 169 = 0xA9
         let byteArray = makeListRaw([-61, -87])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         #expect(extractSwiftString(result) == "\u{00E9}")
     }
 
@@ -173,7 +173,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringMalformedUTF8() {
         // 0xFF is not valid in UTF-8 — should produce replacement character U+FFFD
         let byteArray = makeListRaw([0xFF])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         let decoded = extractSwiftString(result)
         #expect(decoded != nil)
         #expect(decoded?.contains("\u{FFFD}") == true,
@@ -185,7 +185,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testDecodeToStringEmptyArray() {
         let byteArray = makeListRaw([])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         #expect(extractSwiftString(result) == "")
     }
 
@@ -194,7 +194,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testEncodeToByteArrayEmptyString() {
         withFlatString("") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             #expect(extractListElements(result) == [])
         }
     }
@@ -204,7 +204,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testDecodeToStringCharsetUTF8() {
         let byteArray = makeListRaw([72, 101, 108, 108, 111]) // "Hello"
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         #expect(extractSwiftString(result) == "Hello")
     }
 
@@ -213,7 +213,7 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testDecodeToStringCharsetASCII() {
         let byteArray = makeListRaw([65, 66, 67]) // "ABC"
-        let result = kk_bytearray_decodeToString_charset(byteArray, 2)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 2)
         #expect(extractSwiftString(result) == "ABC")
     }
 
@@ -221,7 +221,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringCharsetASCIINonASCIIByte() {
         // Bytes > 127 should produce replacement character in US-ASCII
         let byteArray = makeListRaw([0xC3, 0xA9]) // UTF-8 for e-acute, but invalid ASCII
-        let result = kk_bytearray_decodeToString_charset(byteArray, 2)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 2)
         let decoded = extractSwiftString(result)
         #expect(decoded != nil)
         #expect(decoded == "\u{FFFD}\u{FFFD}",
@@ -234,7 +234,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringCharsetLatin1() {
         // In ISO-8859-1, byte 0xE9 = U+00E9 (e-acute), direct 1:1 mapping
         let byteArray = makeListRaw([0x48, 0x65, 0x6C, 0x6C, 0x6F, 0xE9]) // "Hello" + e-acute
-        let result = kk_bytearray_decodeToString_charset(byteArray, 1)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 1)
         #expect(extractSwiftString(result) == "Hello\u{00E9}")
     }
 
@@ -242,7 +242,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringCharsetLatin1HighBytes() {
         // ISO-8859-1: every byte 0x00..0xFF maps to same Unicode code point
         let byteArray = makeListRaw([0xFF, 0xFE, 0xA0])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 1)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 1)
         #expect(extractSwiftString(result) == "\u{FF}\u{FE}\u{A0}")
     }
 
@@ -251,14 +251,14 @@ struct RuntimeEncodeDecodeTests {
     @Test
     func testDecodeToStringCharsetEmpty() {
         let byteArray = makeListRaw([])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         #expect(extractSwiftString(result) == "")
     }
 
     @Test
     func testDecodeToStringCharsetAcceptsArrayBox() {
         let byteArray = makeArrayRaw([72, 101, 108, 108, 111])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         #expect(extractSwiftString(result) == "Hello")
     }
 
@@ -268,7 +268,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringRange() {
         var thrown = 0
         let byteArray = makeListRaw([65, 66, 67, 68, 69]) // "ABCDE"
-        let result = kk_bytearray_decodeToString_range(byteArray, 1, 4, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 1, 4, &thrown)
         #expect(thrown == 0)
         #expect(extractSwiftString(result) == "BCD")
     }
@@ -277,7 +277,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringRangeAcceptsArrayBox() {
         var thrown = 0
         let byteArray = makeArrayRaw([65, 66, 67, 68, 69]) // "ABCDE"
-        let result = kk_bytearray_decodeToString_range(byteArray, 0, 5, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 0, 5, &thrown)
         #expect(thrown == 0)
         #expect(extractSwiftString(result) == "ABCDE")
     }
@@ -286,7 +286,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringRangeInvalidBoundsThrows() {
         var thrown = 0
         let byteArray = makeListRaw([65, 66, 67])
-        _ = kk_bytearray_decodeToString_range(byteArray, 2, 4, &thrown)
+        _ = __kk_bytearray_decodeToString_range(byteArray, 2, 4, &thrown)
         #expect(thrown != 0)
     }
 
@@ -294,7 +294,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringRangeStrictMalformedUTF8Throws() {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
-        _ = kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
+        _ = __kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
         #expect(thrown != 0)
     }
 
@@ -302,7 +302,7 @@ struct RuntimeEncodeDecodeTests {
     func testDecodeToStringRangeNonStrictMalformedUTF8UsesReplacement() {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
-        let result = kk_bytearray_decodeToString_range(byteArray, 0, 2, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 0, 2, &thrown)
         #expect(thrown == 0)
         #expect(extractSwiftString(result) == "\u{FFFD}(")
     }

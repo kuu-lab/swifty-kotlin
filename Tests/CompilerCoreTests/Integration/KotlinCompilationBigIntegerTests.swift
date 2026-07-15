@@ -120,5 +120,43 @@ import Testing
         }
         """)
     }
+
+    // MARK: - STDLIB-NUM-129 follow-up: raw Java instance method names
+
+    @Test func testCompile_bigIntegerNot() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigInteger
+
+        fun main() {
+            val a = BigInteger("12")
+            val result = a.not()
+            println(result.toString())
+        }
+        """)
+    }
+
+    @Test func testCompile_bigIntegerShiftLeft() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigInteger
+
+        fun main() {
+            val a = BigInteger("1")
+            val result = a.shiftLeft(8)
+            println(result.toString())
+        }
+        """)
+    }
+
+    @Test func testCompile_bigIntegerShiftRight() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigInteger
+
+        fun main() {
+            val a = BigInteger("256")
+            val result = a.shiftRight(4)
+            println(result.toString())
+        }
+        """)
+    }
 }
 #endif
