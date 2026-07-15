@@ -241,6 +241,48 @@ final class RuntimeBigIntegerTests: XCTestCase {
         XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-4")
     }
 
+    // Regression coverage for a big-endian/little-endian mismatch in the
+    // carry propagation: shiftLeft/shiftRight only exercised single-byte
+    // magnitudes above, which masked the bug (e.g. BigInteger("100").shiftLeft(3)
+    // produced 8195 instead of 800 because the generated carry byte landed on
+    // the wrong side of the big-endian result).
+
+    func testBigIntegerShiftLeftCrossesByteBoundary() {
+        let value = bigInteger("100")
+        let result = kk_biginteger_shiftLeft(value, 3)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "800")
+    }
+
+    func testBigIntegerShiftLeftCrossesByteBoundaryNegative() {
+        let value = bigInteger("-100")
+        let result = kk_biginteger_shiftLeft(value, 3)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-800")
+    }
+
+    func testBigIntegerShiftRightCrossesByteBoundary() {
+        let value = bigInteger("291")
+        let result = kk_biginteger_shiftRight(value, 4)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "18")
+    }
+
+    func testBigIntegerShiftRightCrossesByteBoundaryNegative() {
+        let value = bigInteger("-291")
+        let result = kk_biginteger_shiftRight(value, 4)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-19")
+    }
+
+    func testBigIntegerShiftLeftLargeMagnitude() {
+        let value = bigInteger("12345678901234567890")
+        let result = kk_biginteger_shiftLeft(value, 9)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "6320987597432098759680")
+    }
+
+    func testBigIntegerShiftRightLargeMagnitude() {
+        let value = bigInteger("12345678901234567890")
+        let result = kk_biginteger_shiftRight(value, 9)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "24112654103973765")
+    }
+
     func testBigIntegerModInverse() {
         let value = bigInteger("3")
         let modulus = bigInteger("11")

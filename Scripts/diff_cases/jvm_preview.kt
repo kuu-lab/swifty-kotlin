@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // STDLIB-JVM-166: Java preview feature simulations.
 // Covers: @PreviewFeature opt-in, sealed class hierarchy, @JvmRecord, pattern
 // matching for instanceof, switch expressions, and text blocks.

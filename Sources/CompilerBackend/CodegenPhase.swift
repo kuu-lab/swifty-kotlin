@@ -282,6 +282,8 @@ final class CodegenPhase: CompilerPhase {
                 "vtable:\(slot)"
             case let .itable(interfaceSlot, methodSlot):
                 "itable:\(interfaceSlot):\(methodSlot)"
+            case let .itableDynamic(interfaceTypeID, methodSlot):
+                "itableDynamic:\(interfaceTypeID):\(methodSlot)"
             }
             return "virtualCall symbol=\(symbolValue) calleeB64=\(calleeName)"
                 + " receiver=\(receiver.rawValue) args=[\(args)]"
