@@ -1589,8 +1589,8 @@ public func kk_path_setAttribute(
         switch name {
         case "lastModifiedTime":
             guard let millis = resolveMillis() else {
-                outThrown?.pointee = runtimeAllocateThrowable(
-                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
                 return pathRaw
             }
@@ -1605,8 +1605,8 @@ public func kk_path_setAttribute(
             }
         case "creationTime":
             guard let millis = resolveMillis() else {
-                outThrown?.pointee = runtimeAllocateThrowable(
-                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
                 return pathRaw
             }
@@ -1621,8 +1621,8 @@ public func kk_path_setAttribute(
             }
             #endif
         default:
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "UnsupportedOperationException: setAttribute does not support attribute '\(attribute)'"
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "setAttribute does not support attribute '\(attribute)'"
             )
         }
     } catch {
