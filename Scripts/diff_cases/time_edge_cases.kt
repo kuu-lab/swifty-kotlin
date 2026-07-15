@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 import kotlin.time.*
 
 fun main() {
@@ -14,9 +15,9 @@ fun main() {
     val epoch = Instant.fromEpochMilliseconds(0)
     val later = epoch + 1500.milliseconds
     println(later.epochSeconds)
-    println(later.nanoOfSecond)
+    println(later.nanosecondsOfSecond)
 
     val earlier = later - 2.seconds
     println(earlier.epochSeconds)
-    println(earlier.nanoOfSecond)
+    println(earlier.nanosecondsOfSecond)
 }

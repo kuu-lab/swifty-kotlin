@@ -80,5 +80,26 @@ extension BuildKIRRegressionTests {
             #expect(!(callees.contains("kk_range_next")), "Custom iterator loop should not use kk_range_next, got: \(callees)")
         }
     }
+
+    @Test func testBuildKIRKeepsRangeMembershipOnRuntimePath() throws {
+        let source = """
+        fun usesIn(): Boolean = 5 in (1..10).step(2)
+        fun usesNotIn(): Boolean = 4 !in (1..10).step(2)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            for functionName in ["usesIn", "usesNotIn"] {
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: ctx.interner)
+
+                #expect(callees.contains("kk_op_contains"), "Expected range membership runtime call, got: \(callees)")
+                #expect(!callees.contains("contains"), "Range membership must not target an unlinked source symbol")
+            }
+        }
+    }
 }
 #endif

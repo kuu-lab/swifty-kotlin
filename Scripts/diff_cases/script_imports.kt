@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-002): kotlinc JVM startup exceeds 10s run timeout for script-style files
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min

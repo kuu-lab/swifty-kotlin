@@ -3,7 +3,9 @@
 import Foundation
 import XCTest
 
-extension CodegenBackendIntegrationTests {
+class CodegenBackendTestSupport: XCTestCase {}
+
+extension CodegenBackendTestSupport {
 
     func runCodegenPipeline(
         inputPath: String,

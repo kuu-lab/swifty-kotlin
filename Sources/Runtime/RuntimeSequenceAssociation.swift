@@ -449,7 +449,7 @@ private func runtimeSequenceBestValue(
         guard let bestElement else {
             if throwOnEmpty {
                 return handleCollectionLambdaThrow(
-                    runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement),
+                    runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement),
                     outThrown
                 )
             }
@@ -459,7 +459,7 @@ private func runtimeSequenceBestValue(
     }
     guard let bestSelector else {
         if throwOnEmpty {
-            outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
             return runtimeExceptionCaughtSentinel
         }
         return runtimeNullSentinelInt
@@ -513,7 +513,7 @@ private func runtimeSequenceExtremumWith(
     guard let bestElement else {
         if throwOnEmpty {
             return handleCollectionLambdaThrow(
-                runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement),
+                runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement),
                 outThrown
             )
         }

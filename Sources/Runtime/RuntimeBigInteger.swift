@@ -592,33 +592,13 @@ struct BigIntValue: Equatable {
         if n == 0 { return self }
         if n < 0 { return shiftRight(-n) }
 
-        let bytes = twosComplementBytes()
-        let totalShiftBits = n
-        let byteShift = totalShiftBits / 8
-        let bitShift = totalShiftBits % 8
-
-        var result = [UInt8](repeating: 0, count: bytes.count + byteShift + 1)
-
-        for i in 0..<bytes.count {
-            let sourceIdx = i
-            let targetIdx = i + byteShift
-
-            let value = UInt16(bytes[sourceIdx]) << UInt16(bitShift)
-            result[targetIdx] |= UInt8(value & 0xFF)
-
-            if bitShift > 0 && targetIdx + 1 < result.count {
-                result[targetIdx + 1] |= UInt8((value >> 8) & 0xFF)
-            }
-        }
-
-        // Drop redundant LSB zero bytes (big-endian twos-complement); avoids e.g. [8,0] → 2048.
-        while result.count > 1,
-              result[result.count - 1] == 0,
-              (result[result.count - 2] & 0x80) == 0 {
-            result.removeLast()
-        }
-
-        return BigIntValue.fromTwosComplementBytes(result)
+        // Unlike shiftRight, shiftLeft never needs floor-division rounding —
+        // it's an exact multiply by 2^n for either sign — so route through
+        // the already-correct decimal multiply/pow rather than growing a
+        // twosComplementBytes() array: a naive byte-array shift left doesn't
+        // sign-extend before the shift, so negative values (e.g.
+        // BigInteger("-100").shiftLeft(3)) come out with the wrong sign.
+        return multiply(BigIntValue(string: "2").pow(n))
     }
 
     func shiftRight(_ n: Int) -> BigIntValue {
@@ -626,9 +606,8 @@ struct BigIntValue: Equatable {
         if n < 0 { return shiftLeft(-n) }
 
         let bytes = twosComplementBytes()
-        let totalShiftBits = n
-        let byteShift = totalShiftBits / 8
-        let bitShift = totalShiftBits % 8
+        let byteShift = n / 8
+        let bitShift = n % 8
 
         if byteShift >= bytes.count {
             if bytes.first.map({ $0 & 0x80 != 0 }) ?? false {
@@ -638,29 +617,33 @@ struct BigIntValue: Equatable {
             }
         }
 
-        var result = [UInt8](repeating: 0, count: bytes.count - byteShift)
+        // Same little-endian flip as shiftLeft: dropping whole bytes off the
+        // low end and carrying into the next-more-significant byte is a
+        // little-endian operation, but twosComplementBytes() is big-endian.
         let isNegative = bytes.first.map({ $0 & 0x80 != 0 }) ?? false
+        let leBytes = Array(bytes.reversed())
+        var result = [UInt8](repeating: 0, count: leBytes.count - byteShift)
 
         for i in 0..<result.count {
             let sourceIdx = i + byteShift
-            let targetIdx = i
 
-            var value = UInt16(bytes[sourceIdx]) >> UInt16(bitShift)
+            var value = UInt16(leBytes[sourceIdx]) >> UInt16(bitShift)
 
-            if bitShift > 0 && sourceIdx + 1 < bytes.count {
-                value |= UInt16(bytes[sourceIdx + 1]) << UInt16(8 - bitShift)
+            if bitShift > 0 && sourceIdx + 1 < leBytes.count {
+                value |= UInt16(leBytes[sourceIdx + 1]) << UInt16(8 - bitShift)
             }
 
-            result[targetIdx] = UInt8(value & 0xFF)
+            result[i] = UInt8(value & 0xFF)
         }
 
-        // Arithmetic right shift: set the top `bitShift` bits of the MSB to 1 for negative values.
+        // Arithmetic right shift: set the top `bitShift` bits of the MSB
+        // (the last little-endian byte) to 1 for negative values.
         if isNegative, !result.isEmpty, bitShift > 0 {
             let mask = UInt8(truncatingIfNeeded: (0xFF << (8 - bitShift)) & 0xFF)
-            result[0] |= mask
+            result[result.count - 1] |= mask
         }
 
-        return BigIntValue.fromTwosComplementBytes(result)
+        return BigIntValue.fromTwosComplementBytes(Array(result.reversed()))
     }
 
 }
@@ -725,8 +708,8 @@ public func kk_biginteger_fromString(_ strRaw: Int, _ outThrown: UnsafeMutablePo
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_biginteger_fromString received invalid string handle")
     }
     guard let value = runtimeParseBigIntegerDecimalString(str) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NumberFormatException: For input string: \"\(str)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(str)\""
         )
         return 0
     }
@@ -784,7 +767,7 @@ public func kk_biginteger_divide(_ selfRaw: Int, _ otherRaw: Int, _ outThrown: U
         return kk_biginteger_valueOf(0)
     }
     if otherBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: / by zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
         return 0
     }
     let result = selfBox.value.divide(otherBox.value)
@@ -821,7 +804,7 @@ public func kk_biginteger_abs(_ selfRaw: Int) -> Int {
 public func kk_biginteger_pow(_ selfRaw: Int, _ exponent: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if exponent < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Negative exponent")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Negative exponent")
         return 0
     }
     guard let selfBox = runtimeBigIntegerBox(from: selfRaw) else {
@@ -914,7 +897,7 @@ public func kk_biginteger_modInverse(_ selfRaw: Int, _ modulusRaw: Int, _ outThr
         return kk_biginteger_valueOf(0)
     }
     if modulusBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Modulus must be non-zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Modulus must be non-zero")
         return 0
     }
 
@@ -922,11 +905,11 @@ public func kk_biginteger_modInverse(_ selfRaw: Int, _ modulusRaw: Int, _ outThr
         let result = try selfBox.value.modInverse(modulusBox.value)
         return registerRuntimeObject(RuntimeBigIntegerBox(value: result))
     } catch let error as NSError {
-        let errorMessage = error.userInfo[NSLocalizedDescriptionKey] as? String ?? "ArithmeticException: BigInteger has no modular inverse"
-        outThrown?.pointee = runtimeAllocateThrowable(message: errorMessage)
+        let errorMessage = error.userInfo[NSLocalizedDescriptionKey] as? String ?? "BigInteger has no modular inverse"
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: errorMessage)
         return 0
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: BigInteger has no modular inverse")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "BigInteger has no modular inverse")
         return 0
     }
 }
@@ -943,7 +926,7 @@ public func kk_biginteger_modPow(_ selfRaw: Int, _ exponentRaw: Int, _ modulusRa
         return kk_biginteger_valueOf(0)
     }
     if modulusBox.value.stringValue == "0" {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "ArithmeticException: Modulus must be non-zero")
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "Modulus must be non-zero")
         return 0
     }
 
@@ -951,7 +934,7 @@ public func kk_biginteger_modPow(_ selfRaw: Int, _ exponentRaw: Int, _ modulusRa
         let result = try selfBox.value.modPow(exponentBox.value, modulusBox.value)
         return registerRuntimeObject(RuntimeBigIntegerBox(value: result))
     } catch {
-        outThrown?.pointee = runtimeAllocateThrowable(message: error.localizedDescription)
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: error.localizedDescription)
         return 0
     }
 }
