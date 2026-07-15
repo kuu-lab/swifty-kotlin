@@ -1,8 +1,10 @@
 /// Resolves a value class's `TypeKind` to the `TypeKind` of its underlying
 /// primitive, so the caller's boxing-callee lookup treats a value class like
 /// its underlying representation (value classes are unboxed everywhere
-/// except at reference-type boundaries — ValueClassUnboxingPass). Non-value-
-/// class kinds, and nullable value classes, pass through unchanged.
+/// except at reference-type boundaries — ValueClassUnboxingPass — and except
+/// when the value class implements an interface, in which case it stays
+/// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
+/// Non-value-class kinds, and nullable value classes, pass through unchanged.
 ///
 /// Shared as a free function (rather than an `ABILoweringPass` method) so
 /// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
@@ -22,7 +24,7 @@ func resolveValueClassKind(
     }
     guard let sym = symbols.symbol(classType.classSymbol),
           sym.flags.contains(.valueType),
-          let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
+          let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
     else {
         return kind
     }
@@ -62,7 +64,14 @@ extension ABILoweringPass {
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
-        let paramKind = types.kind(of: paramType)
+        // Resolve the parameter's value-class type to its underlying kind too —
+        // otherwise a parameter declared as a value class (e.g. `s: SecondsXYZ`)
+        // looks like any other `.classType` reference boundary and gets boxed,
+        // even though the callee (post-ValueClassUnboxingPass) expects the raw
+        // unboxed underlying value. That mismatch corrupted arithmetic: a boxed
+        // Double pointer fed into `kk_op_dmul` as if it were the raw bit pattern.
+        let rawParamKind = types.kind(of: paramType)
+        let paramKind = resolveValueClassKind(rawParamKind, types: types, symbols: symbols)
 
         // Treat Any/Any?, reference types, and type parameters as boxing boundaries.
         // Type parameters are erased to Any at runtime, so primitives must be boxed.

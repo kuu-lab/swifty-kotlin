@@ -21,7 +21,7 @@ final class RuntimeTestFrameworkTests: XCTestCase {
             XCTFail("Expected a RuntimeThrowableBox", file: file, line: line)
             return
         }
-        XCTAssertTrue(throwable.message.hasPrefix("AssertionError:"), file: file, line: line)
+        XCTAssertTrue(throwable.renderedMessage.hasPrefix("AssertionError:"), file: file, line: line)
         XCTAssertTrue(throwable.message.contains(fragment), file: file, line: line)
     }
 
