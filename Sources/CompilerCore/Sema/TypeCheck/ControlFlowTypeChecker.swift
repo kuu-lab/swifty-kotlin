@@ -219,10 +219,25 @@ final class ControlFlowTypeChecker {
                 visibility: .private,
                 flags: []
             )
-            // Only register primitive element types in the symbol table; for complex types
-            // (e.g. IndexedValue<Char>) this would change downstream lowering in ways that
-            // break field-access codegen (kk_array_get_inbounds gets wrong indices).
+            // Only register primitive (and value-class) element types in the
+            // symbol table; for complex types (e.g. IndexedValue<Char>) this
+            // would change downstream lowering in ways that break field-access
+            // codegen (kk_array_get_inbounds gets wrong indices). Value classes
+            // are a single-field wrapper like a primitive at the ABI level, so
+            // ValueClassUnboxingPass needs this type recorded to recognize
+            // `for (box in list) { box.value }` as an unboxing site — without
+            // it the loop variable falls back to Any and the property read
+            // stays a raw kk_array_get_inbounds on the unboxed underlying value.
+            let isValueClassElement: Bool = {
+                guard case let .classType(classType) = sema.types.kind(of: elementType),
+                      classType.nullability == .nonNull,
+                      let sym = sema.symbols.symbol(classType.classSymbol)
+                else { return false }
+                return sym.flags.contains(.valueType)
+            }()
             if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
+                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            } else if isValueClassElement {
                 sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
             }
             bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)

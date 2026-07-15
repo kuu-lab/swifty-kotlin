@@ -62,6 +62,14 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    for (element in elements) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
+
 // --- Set factories -----------------------------------------------------------
 
 public fun <T> setOf(): Set<T> = emptySet()

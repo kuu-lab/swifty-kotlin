@@ -279,6 +279,22 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(joinResult, 0, "Exception handler should consume the exception; job completes with 0")
     }
 
+    /// Without a CoroutineExceptionHandler, an uncaught exception must remain visible
+    /// as an exceptional job completion instead of being reported as normal success.
+    func testExceptionWithoutHandlerFailsJob() {
+        let entryRaw = unsafeBitCast(
+            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let functionID = 8814
+        let jobHandle = kk_kxmini_launch_with_exception_handler(entryRaw, functionID, 0)
+        XCTAssertNotEqual(jobHandle, 0)
+
+        let joinResult = kk_job_join(jobHandle, 0)
+        XCTAssertNotEqual(joinResult, 0, "An uncaught exception without a handler must fail the job")
+        XCTAssertEqual(kk_job_is_failed(jobHandle), 1)
+    }
+
     // MARK: - Test 6: launch_with_dispatcher uses the specified dispatcher
 
     /// kk_kxmini_launch_with_dispatcher should run the coroutine and return a job handle
@@ -327,6 +343,21 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 42, "supervisor_scope_run must return the block's result")
     }
 
+    /// A direct throw from the supervisorScope block itself (as opposed to a
+    /// child failing, which SupervisorJob semantics isolate) must still
+    /// propagate to the caller instead of being silently discarded. Regression
+    /// test for a fix flagged by PR review: this variant did not forward
+    /// outThrown to the suspend loop, unlike the identical kk_coroutine_scope_run.
+    func testSupervisorScopeRunPropagatesDirectThrow() {
+        let entryRaw = unsafeBitCast(
+            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        var outThrown = 0
+        _ = kk_supervisor_scope_run(entryRaw, 8827, &outThrown)
+        XCTAssertNotEqual(outThrown, 0, "A direct throw from the supervisorScope block must propagate, not be discarded")
+    }
+
     // MARK: - Test 9: Supervisor scope is active and not cancelled initially
 
     func testSupervisorScopeNewIsInitiallyActive() {
@@ -337,9 +368,11 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
     }
 
-    // MARK: - Test 10: withTimeoutOrNull returns null (0) when block exceeds timeout
+    // MARK: - Test 10: withTimeoutOrNull returns null when block exceeds timeout
 
-    /// kk_with_timeout_or_null must return 0 when the block takes longer than the deadline.
+    /// kk_with_timeout_or_null must return the shared null-sentinel value (not raw 0, which
+    /// is a legitimate unboxed Int result and indistinguishable from a real value once
+    /// printed/compared) when the block takes longer than the deadline.
     func testWithTimeoutOrNullReturnsNullOnTimeout() {
         let entryRaw = unsafeBitCast(
             advcoro_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -348,7 +381,7 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         let continuation = kk_coroutine_continuation_new(advCoroDelayFunctionID)
         // Use a 0 ms timeout: the block should not complete in time.
         let result = kk_with_timeout_or_null(0, entryRaw, continuation)
-        XCTAssertEqual(result, 0, "withTimeoutOrNull should return 0 (null) when block exceeds timeout")
+        XCTAssertEqual(result, runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
     }
 
     // MARK: - Test 11: withTimeoutOrNull returns block value when block completes in time
@@ -475,6 +508,42 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         )
         let result = kk_with_context_full(contextHandle, entryRaw, continuation)
         XCTAssertEqual(result, 11, "withContext_full should propagate both CoroutineName and dispatcher")
+    }
+
+    /// After a `withContext(NonCancellable) { }` block completes, cancellation
+    /// checks in the rest of the same coroutine must observe the ORIGINAL job
+    /// again -- not remain stuck on the NonCancellable override forever.
+    /// Regression test for a fix flagged by PR review: kk_with_context_full
+    /// overwrote contState.jobHandle with the NonCancellable singleton and
+    /// never restored it after the block returned.
+    func testWithContextFullRestoresJobHandleAfterNonCancellableBlock() {
+        let continuation = kk_coroutine_continuation_new(8828)
+        guard let state = runtimeContinuationState(from: continuation) else {
+            XCTFail("Expected continuation state to exist")
+            return
+        }
+        let originalJob = RuntimeJobHandle()
+        state.jobHandle = originalJob
+        _ = originalJob.cancel()
+
+        var precheckThrown = 0
+        XCTAssertEqual(
+            kk_coroutine_check_cancellation(continuation, &precheckThrown), 1,
+            "Sanity check: cancellation must be observed before entering withContext(NonCancellable)"
+        )
+
+        let nonCancellableHandle = kk_non_cancellable_instance()
+        let entryRaw = unsafeBitCast(
+            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        _ = kk_with_context_full(nonCancellableHandle, entryRaw, continuation)
+
+        var postThrown = 0
+        XCTAssertEqual(
+            kk_coroutine_check_cancellation(continuation, &postThrown), 1,
+            "Cancellation must be observed again after the NonCancellable block completes, not suppressed forever"
+        )
     }
 
     // MARK: - Test 17: coroutineScope run with continuation returns captured value

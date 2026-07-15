@@ -24,11 +24,11 @@ extension CodegenBackendIntegrationTests {
             val epoch = Instant.fromEpochMilliseconds(0L)
             val later = epoch + 1500.milliseconds
             println(later.epochSeconds)
-            println(later.nanoOfSecond)
+            println(later.nanosecondsOfSecond)
 
             val earlier = later - 2.seconds
             println(earlier.epochSeconds)
-            println(earlier.nanoOfSecond)
+            println(earlier.nanosecondsOfSecond)
 
             println(epoch.isDistantPast)
             println(epoch.isDistantFuture)

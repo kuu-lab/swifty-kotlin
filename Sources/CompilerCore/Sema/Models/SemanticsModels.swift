@@ -969,6 +969,33 @@ public final class SymbolTable {
         valueClassUnderlyingTypes[symbol]
     }
 
+    /// Whether a value class directly implements at least one interface.
+    ///
+    /// Such a value class must keep its full boxed representation (vtable /
+    /// itable registered via `kk_object_new`, same as a regular class) rather
+    /// than being unboxed to its bare underlying primitive: an unboxed
+    /// primitive has no itable to dispatch through when the value is later
+    /// used as the interface type. Value classes are `final` in Kotlin, so
+    /// checking direct supertypes is sufficient — there is no deeper
+    /// interface-inheritance chain to walk.
+    public func valueClassImplementsInterface(_ symbol: SymbolID) -> Bool {
+        directSupertypes(for: symbol).contains { self.symbol($0)?.kind == .interface }
+    }
+
+    /// Returns `symbol`'s underlying primitive type only when it's safe to
+    /// treat the value class as unboxed — i.e. it has a recorded underlying
+    /// type AND implements no interface. Prefer this over
+    /// `valueClassUnderlyingType(for:)` at every box/unbox decision site
+    /// (`ValueClassUnboxingPass`, `resolveValueClassKind`, runtime type-check
+    /// token classification) so they all agree on which value classes stay
+    /// boxed; a mismatch between sites reintroduces the box/unbox corruption
+    /// this method was added to prevent.
+    public func effectiveValueClassUnderlyingType(for symbol: SymbolID) -> TypeID? {
+        guard let underlying = valueClassUnderlyingTypes[symbol] else { return nil }
+        guard !valueClassImplementsInterface(symbol) else { return nil }
+        return underlying
+    }
+
     public func setSealedSubclasses(_ subclasses: [SymbolID], for symbol: SymbolID) {
         sealedSubclassesStorage[symbol] = subclasses
     }
@@ -1109,15 +1136,25 @@ public final class BindingTable {
     public private(set) var charRangeExprIDs: Set<ExprID> = []
     public private(set) var uintRangeExprIDs: Set<ExprID> = []
     public private(set) var ulongRangeExprIDs: Set<ExprID> = []
+    public private(set) var floatingPointRangeExprIDs: Set<ExprID> = []
     public private(set) var flowExprIDs: Set<ExprID> = []
     public private(set) var collectionSymbolIDs: Set<SymbolID> = []
     public private(set) var rangeSymbolIDs: Set<SymbolID> = []
     public private(set) var charRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var uintRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    /// Tracks the real element type produced by an `async { ... }` call, keyed by
+    /// expr and (once assigned to a `val`/`var`) by symbol. `Deferred` is
+    /// registered with no class-level type parameter, so this side-channel
+    /// mirrors the Flow element-type tracking above rather than relying on
+    /// `ClassType.args` (which would create an arity mismatch against the
+    /// zero-type-parameter `Deferred` symbol).
+    public private(set) var deferredElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var deferredElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var objectLiteralPropertySymbolIDs: Set<SymbolID> = []
     /// Maps `T::class` callable-ref expression IDs to the resolved type that
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
@@ -1268,6 +1305,14 @@ public final class BindingTable {
         ulongRangeExprIDs.contains(expr)
     }
 
+    public func markFloatingPointRangeExpr(_ expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+    }
+
+    public func isFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        floatingPointRangeExprIDs.contains(expr)
+    }
+
     public func markFlowExpr(_ expr: ExprID) {
         flowExprIDs.insert(expr)
     }
@@ -1333,6 +1378,14 @@ public final class BindingTable {
         ulongRangeSymbolIDs.contains(symbol)
     }
 
+    public func markFloatingPointRangeSymbol(_ symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+    }
+
+    public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        floatingPointRangeSymbolIDs.contains(symbol)
+    }
+
     public func markFlowSymbol(_ symbol: SymbolID) {
         flowSymbolIDs.insert(symbol)
     }
@@ -1353,6 +1406,22 @@ public final class BindingTable {
 
     public func flowElementType(forSymbol symbol: SymbolID) -> TypeID? {
         flowElementTypesBySymbol[symbol]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forExpr expr: ExprID) {
+        deferredElementTypesByExpr[expr] = type
+    }
+
+    public func deferredElementType(forExpr expr: ExprID) -> TypeID? {
+        deferredElementTypesByExpr[expr]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        deferredElementTypesBySymbol[symbol] = type
+    }
+
+    public func deferredElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        deferredElementTypesBySymbol[symbol]
     }
 
     public func bindClassRefTargetType(_ expr: ExprID, type: TypeID) {
