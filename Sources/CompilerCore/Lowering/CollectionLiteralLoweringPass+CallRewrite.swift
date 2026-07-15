@@ -20,7 +20,13 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.groupByName
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName,
+            || callee == lookup.minByOrNullName
+            // STDLIB-pipeline §5: take/drop have real require() validation in
+            // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
+            // to that source declaration must not be short-circuited to the
+            // unchecked kk_sequence_take/drop runtime bridge.
+            || callee == lookup.takeName
+            || callee == lookup.dropName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
