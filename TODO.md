@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-13（オープンPR一括レビューで判明した Swift Testing 移行の変換不備を BUG-020〜035 として追補。020 は canImport ガード不備、021〜027 は tearDown 消失系、028〜032/035 は深掘り再検証で判明した `.serialized` 欠落系、033 は二重不備、034 は tearDown 消失のみ）
+最終更新: 2026-07-15（RF0–RF9 完了項目の実態監査を反映: SwiftLint ラチェット・CallTypeChecker 行数・ABI 検証網羅化 ×2 の計 4 件を `[x]` から `[~]` へ降格、マージ済み作業のあった Runtime HOF 共通化 1 件を `[ ]` から `[~]` へ更新、名前特例台帳・stdlib 読み込み・member link tests・Range HOF の注記 4 件を実測値で補正、`--no-stdlib` 死にフラグを BUG-038 として追補。各タスク行の「2026-07-15 監査」注記を参照）
 
 ---
 
@@ -15,14 +15,14 @@
 ### Phase RF0: 計測・ガードレール（他フェーズの前提・即着手可）
 - [x] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する。2026-07-10 確認: スクリプト実在・全メトリクス出力・ベースライン記録済み（CI artifact 化は RF-GOV-002 で継続）
 - [ ] RF-GUARD-002: `.jscpd.json` の `path` に `Tests/` を追加し重複率を再計測する（まず report-only ジョブで観測、閾値は実測後に設定。現状 Tests/ は完全に未監視）
-- [x] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）
+- [~] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）。2026-07-15 監査で `[x]` から降格: `.swiftlint.yml` の両ルール有効化と `.swiftlint.baseline.json`（凍結違反 28 件）は実在するが、CI に swiftlint 実行が存在せず baseline は休眠状態（`f016878c75` 2026-03-12 で lint チェックが CI から削除されて以降未復旧）。残: CI での baseline 比較ラチェットの再導入
 - [x] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は KIR link validation 側で対応）。調査結果: [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md)
 - [x] RF-GUARD-005: リファクタ PR の必須ゲート（全テスト + golden + `diff_kotlinc.sh` green、`loc_report.sh` の悪化なし）を `CLAUDE.md` に明文化する
 
 ### Phase RF2: Stdlib ソースパイプライン基盤（本計画のクリティカルパス）
 > 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」は基本配線済みだが、opt-out、source origin、合成スタブとの優先順位、incremental/golden 安定化を設計として固定する必要がある。
 - [x] RF-STDLIB-001: 設計メモ `docs/stdlib-pipeline.md` を作成する（読み込みフェーズ・合成スタブとの優先順位・インクリメンタルキャッシュ / golden への影響・コンパイル時間戦略。実装前に 1 PR でレビュー）
-- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `--no-stdlib` での opt-out、source origin、ユーザー入力との診断パス区別）
+- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。2026-07-15 監査で残リストを補正: ユーザー入力との診断パス区別は `__bundled_` 接頭辞機構で実装済みのため残から除外。残: `--no-stdlib` の実配線（BUG-038 — フラグはパースされるが未参照の死にフラグで、`injectBundledStdlib` は無条件実行）、形式的な source origin 型の導入）
 - [x] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）。2026-07-07 完了: KSP-001〜003 で bundled 宣言インデックス、合成スタブ skip guard、`KSWIFTK-SEMA-0102` overlap warning を実装。
 - [x] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）。2026-07-06 完了。
 - [x] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
@@ -42,16 +42,16 @@
 
 ### Phase RF4: 名前文字列ベース特殊処理の排除（Sema / KIR）
 > 背景: TypeCheck に `interner.resolve(...) == "名前"` が 104 箇所、`CallLowerer+LegacyMemberLikeCalls.swift` は 4,055 行・`kk_` リテラル 601 個。
-- [x] RF-SEMA-001: TypeCheck の名前比較特例 104 箇所の台帳を作る（機能・対応スタブ・スタブ/ソース移行後に削除可能か、の 3 列）。台帳: [`docs/rf4-name-special-case-inventory.md`](docs/rf4-name-special-case-inventory.md)。2026-07-06 現在の直接比較は 102 行（元メモの 104 はブランチ差分で変動）
+- [x] RF-SEMA-001: TypeCheck の名前比較特例 104 箇所の台帳を作る（機能・対応スタブ・スタブ/ソース移行後に削除可能か、の 3 列）。台帳: [`docs/rf4-name-special-case-inventory.md`](docs/rf4-name-special-case-inventory.md)。件数は台帳記載の baseline コマンドで都度取得する（台帳自体は意図的にスナップショット数値を記録しない。2026-07-15 実測は 107 行 — 元メモの 104 / 07-06 時点の 102 とはブランチ差分で変動）
 - [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
 - [x] RF-SEMA-004: `+CollectionMemberFallback` / `+MemberCallInferenceCollectionFlow`（計 ~5.5k 行）に散在するレシーバ判定述語（isArrayReceiver / isIterableReceiver / isMapReceiver 等）を単一の ReceiverClassifier へ抽出する
-- [x] RF-SEMA-005: `CallTypeChecker.swift`（3,896 行）の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）
+- [~] RF-SEMA-005: `CallTypeChecker.swift` の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）。2026-07-15 監査で `[x]` から降格: PR #4594 で 4,085 → 3,267 行に削減したが 3,000 行未満は未達（残 268 行。元メモの起点 3,896 行も削減直前の実測は 4,085 行だった）
 - [x] RF-KIR-001: `CallLowerer+LegacyMemberLikeCalls.swift` の dispatch を `externalLinkName` / `MemberDispatchKey` ベースの表駆動へ移行する設計 + 第1弾（数値系）
 - [x] RF-KIR-002: 同 第2弾（String 系）を表駆動へ移行する
 - [ ] RF-KIR-003: 同 第3弾（Collection 系）を移行し、ファイルを解体して "Legacy" の名称を消滅させる
 - [x] RF-KIR-004: `kk_int` / `kk_long` / `kk_double` プレフィックス判定の重複ヘルパー（`CallLowerer.swift` と `+Operators.swift` 等で反復）を 1 箇所へ統合する
-- [x] RF-KIR-005: runtime ABI external-link gap 検証を enforcing に昇格する（`RuntimeABISpec` 未宣言の `kk_*` 名 emit を CI fail にする）
+- [~] RF-KIR-005: runtime ABI external-link gap 検証を enforcing に昇格する（`RuntimeABISpec` 未宣言の `kk_*` 名 emit を CI fail にする）。2026-07-15 監査で `[x]` から降格: `RuntimeABIExternalLinkValidationTests` は `#expect` で fail する enforcing として CI 必須ゲートに含まれるが、[`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) の引き継ぎ 5 単位のうち実装済みは単位 1（Sema 登録名）・2（KIR リテラル collector）のみ。残: 単位 3（動的 prefix `kk_xxx_\(...)` 展開）・4（`StdlibSurfaceSpec` runtimeLinkName 照合）・5（内部名前空間分類）と `allowedCompilerExternalLinks`（30 項目）の縮小
 
 ### Phase RF5: Lowering パス再編（RF3/RF4 の削減確定後、残存コードのみ）
 - [x] RF-LOWER-001: KIR + Lowering の TODO/FIXME 約 620 件を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）
@@ -63,16 +63,16 @@
 - [ ] RF-LOWER-006: `DataEnumSealedSynthesisPass+DataClassMethods`（1,268 行・TODO 33 件）を整理し、`.jscpd.json` の ignore 固定 3 ファイルを解消する
 
 ### Phase RF6: Runtime 縮小・ABI 整合（M タスク進行と連動）
-- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する
+- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する。2026-07-15 注記: `70c77932aa`（本タスク名義のコミット）で共有内部ヘルパー方式の統合（`RuntimeRangeSharedHOF.swift` 782 行）がマージ済みだが、generics 化そのものは未実施のため open を維持
 - [x] RF-RT-002: `kk_list_component1..5` 等の薄ラッパ族を統合・生成化する（2026-07-07: ABI spec / Sema 登録を range 生成へ寄せ、runtime export は共通 component helper へ集約）
 - [x] RF-RT-003: `RuntimeStringStdlib.swift`（4,542 行・211 @_cdecl）を M1 の進行に合わせ「migrated 関数の削除 or `__` ブリッジ降格」で縮小する
-- [ ] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する
-- [x] RF-RT-005: Runtime の全 `@_cdecl` が `RuntimeABISpec` に宣言されていることの CI 検証を網羅化する（`validate_runtime_abi_links.sh` 拡張、compiler emit 側の enforcing check と対）
+- [~] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する。2026-07-15 監査で `[ ]` から更新: PR #4589（share runtime HOF helpers）がマージ済みで、fold/scan 共通化（`RuntimeSequenceFoldScan.swift` 295 行）と責務分割（本体は 2,983 / 3,771 行に縮小）が実在。残: filter/map 系など残共通化箇所の棚卸しと完了判定の記録
+- [~] RF-RT-005: Runtime の全 `@_cdecl` が `RuntimeABISpec` に宣言されていることの CI 検証を網羅化する（`validate_runtime_abi_links.sh` 拡張、compiler emit 側の enforcing check と対）。2026-07-15 監査で `[x]` から降格: `ABIMismatchTests+RuntimeExportParity` が export⊆spec / spec⊆export / シグネチャ一致を CI で双方向検証しているが、`kk_string_` / `__kk_string_` / `__string_` / `kk_regex_` / `kk_locale_` プレフィックスの 482 件（Runtime 全 `@_cdecl` の約 17%）が除外され、同等の網羅検証が存在しない。`validate_runtime_abi_links.sh` も未拡張（compiler 側テストを起動するだけの 8 行のまま）。残: 除外プレフィックスのパリティ検証追加と allowlist（export-only 17 / spec-only ~85）の縮小
 
 ### Phase RF7: テスト資産再編
 - [ ] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）
 - [ ] RF-TEST-002: fixture 化を領域単位で展開し、「新規 Codegen 実行テストは fixture 必須」のガイドラインを `docs/ARCHITECTURE.md` に追記する
-- [x] RF-TEST-003: `*SyntheticMemberLinkTests` 群（List 2,284 行 / Sequence 2,739 行 / String 2,057 行）は対応スタブの削除と同一 PR で削除するルールにする（リファクタ対象にしない）。2026-07-10 完了: 実在行数を再計測し、`docs/ARCHITECTURE.md` §5 に synthetic member link tests の扱いを明文化。
+- [x] RF-TEST-003: `*SyntheticMemberLinkTests` 群は対応スタブの削除と同一 PR で削除するルールにする（リファクタ対象にしない）。2026-07-10 完了: `docs/ARCHITECTURE.md` §5 に synthetic member link tests の扱いを明文化。2026-07-15 再計測: List 2,362 行 + 既存分割 `+MutableAndAdvancedMembers` 2,238 行 / Sequence 2,739 行 / String 2,043 行（07-10 メモの List 2,284 / String 2,057 は実測と不一致だったため補正。List の分割はルール制定前の既存物で、以後の分割・整理は行わない）。
 - [ ] RF-TEST-004: `SemanticsAndUtilitiesRegressionTests.swift`（3,520 行）を責務別に分割する
 - [ ] RF-TEST-005: GoldenCases/Sema 244 ケースのうち同型ケース（minof_* / maxof_* 等）をパラメタライズ統合する
 - [x] RF-TEST-006: XCTest / Swift Testing の使い分けポリシーを決定し `docs/ARCHITECTURE.md` に明記する。2026-07-10 完了: `import Testing` は 571 ファイル、`import XCTest` は 451 ファイルの混在状態として再確認し、§5 に新規テストの選択基準を明記。
@@ -781,3 +781,4 @@
 - [ ] BUG-035: PR #4816（XCTest→Swift Testing移行）で BUG-028 と同型の `.serialized` 欠落（`kk_runtime_force_reset()` 呼び出しあり）— 対象 `Tests/RuntimeTests/RuntimeResultTests.swift`
 - [ ] BUG-036: `kotlin.text.CASE_INSENSITIVE_ORDER` 等の合成 top-level プロパティが、モジュール初期化時にキャッシュされるはずの global を読まず、参照のたびに `kk_string_case_insensitive_order()` を再実行して新規インスタンスを生成する（`--emit kir` で使用箇所ごとに独立した `call` が発行され、cached global への `loadGlobal` が起きないことを確認済み。値としては動作するが参照同一性が崩れる: `val a = CASE_INSENSITIVE_ORDER; val b = CASE_INSENSITIVE_ORDER` は同一インスタンスになるべき）— PR #4835 で発見。testKotlinTextCaseInsensitiveOrderEdgeCases の itable dispatch 障害報告の再現調査中に判明（**当該パニック自体は現行 HEAD `981b96169c` では再現せず**: `--emit kir` 上 dispatch=itable[0:0] がランタイム登録と一致、`swift_test.sh` で4回連続 pass 確認済み。原因は調査当時の Xcode ツールチェイン不一致の疑い — 本件はその副産物として見つかった別問題）
 - [ ] BUG-037: interface 型オペランド同士の `===`/`!==` が Sema 型チェックを通らず `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になる（具象クラスが実装した interface 型の変数同士でも再現。最小再現: `interface Foo { fun bar(): Int }` `class FooImpl : Foo { override fun bar() = 1 }` `fun main() { val a: Foo = FooImpl(); val b: Foo = a; val same: Boolean = (a === b) }`）— PR #4835 で発見。BUG-020 の再現性検証中に偶然発見
+- [ ] BUG-038: `--no-stdlib` フラグが黙って無視される。`Sources/KSwiftKCLI/CLIParser.swift:126` でパースされ help テキスト（同 `:36`「Disable automatic stdlib inclusion」）にも記載されるが、格納先の `CompilerOptions.includeStdlib` は Sources 全域で一度も参照されず、`Sources/CompilerCore/Driver/FrontendPhases.swift:94` の `injectBundledStdlib` が無条件実行されるため bundled stdlib は常に注入される（`docs/stdlib-pipeline.md` §4-3 の「opt-out できる」記述とも不整合）。最小再現: `.build/debug/kswiftc --no-stdlib hello.kt -o out`（任意の .kt で bundled stdlib が読み込まれる）— RF0–RF9 完了項目監査（2026-07-15）で発見。修正は Phase RF2 の `LoadSourcesPhase` タスク（`[~]`）の残作業「`--no-stdlib` の実配線」と対（当該タスク行からも本バグを参照）
