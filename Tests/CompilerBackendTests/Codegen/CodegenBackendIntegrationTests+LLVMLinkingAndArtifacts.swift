@@ -534,10 +534,13 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatTrimPredicateRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendEmitsKotlinTrimCallsWithoutRuntimeTrimABI() throws {
         let source = """
         fun main() {
             val value = "xxbodyxx"
+            println(value.trim())
+            println(value.trimStart())
+            println(value.trimEnd())
             println(value.trim { it == 'x' })
             println(value.trimStart { it == 'x' })
             println(value.trimEnd { it == 'x' })
@@ -558,13 +561,26 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let rawNames = [
+                "kk_string_trim",
+                "kk_string_trimStart",
+                "kk_string_trimEnd",
                 "kk_string_trim_predicate",
                 "kk_string_trimStart_predicate",
                 "kk_string_trimEnd_predicate",
             ]
             for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim predicate call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String trim predicate call: \(rawName)_flat")
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
+            }
+            let flatNames = [
+                "kk_string_trim_flat",
+                "kk_string_trimStart_flat",
+                "kk_string_trimEnd_flat",
+                "kk_string_trim_predicate_flat",
+                "kk_string_trimStart_predicate_flat",
+                "kk_string_trimEnd_predicate_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertFalse(ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
             }
         }
     }
@@ -1977,11 +1993,11 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendByteArrayCall("kk_string_toByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_toByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
         appendByteArrayCall("kk_string_byteInputStream_flat", [textExpr])
         appendByteArrayCall("kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
@@ -2013,16 +2029,16 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_toByteArray",
-            "kk_string_toByteArray_charset",
-            "kk_string_encodeToByteArray",
-            "kk_string_encodeToByteArray_range",
-            "kk_string_encodeToByteArray_charset",
+        let flatPrefixes = [
+            "kk_string_toByteArray": "__kk_string_toByteArray_flat",
+            "kk_string_toByteArray_charset": "__kk_string_toByteArray_charset_flat",
+            "kk_string_encodeToByteArray": "__kk_string_encodeToByteArray_flat",
+            "kk_string_encodeToByteArray_range": "__kk_string_encodeToByteArray_range_flat",
+            "kk_string_encodeToByteArray_charset": "__kk_string_encodeToByteArray_charset_flat",
         ]
-        for rawName in rawNames {
+        for (rawName, flatName) in flatPrefixes {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String byte-array call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
         }
         let removedRawStringStreamNames = ["", "_charset"].map {
             ["kk", "string", "byteInputStream"].joined(separator: "_") + $0
