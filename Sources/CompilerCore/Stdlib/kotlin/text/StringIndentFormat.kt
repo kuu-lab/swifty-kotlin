@@ -39,8 +39,10 @@ private fun trimBlankEdges(lines: List<String>): List<String> {
     while (end > start && lines[end - 1].isBlank()) end--
     if (start >= end) return mutableListOf()
     val result = mutableListOf<String>()
-    for (i in start until end) {
+    var i = start
+    while (i < end) {
         result.add(lines[i])
+        i++
     }
     return result
 }
@@ -167,6 +169,30 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
             sb.append(trimmedLeading.substring(__string_struct_get_length(marginPrefix)))
         } else {
             sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.indent(): String = indent(4)
+
+public fun String.indent(n: Int): String {
+    if (n == 0) return this
+    val lines = splitIntoLines()
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (n > 0) {
+            var j = 0
+            while (j < n) { sb.append(' '); j++ }
+            sb.append(line)
+        } else {
+            val remove = -n
+            val leading = line.leadingWhitespaceCount()
+            val drop = if (remove < leading) remove else leading
+            sb.append(line.substring(drop))
         }
         first = false
     }

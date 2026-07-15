@@ -652,7 +652,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: .invalid,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -661,7 +661,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -671,7 +671,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
     }
@@ -704,14 +704,14 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
         #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -721,7 +721,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -751,7 +751,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -769,7 +769,7 @@ extension BuildKIRRegressionTests {
         let dispatch = fixture.driver.callLowerer.resolveVirtualDispatch(
             callee: method,
             receiverTypeID: receiverType,
-            sema: fixture.sema
+            sema: fixture.sema, interner: fixture.interner
         )
         #expect(dispatch == .itable(interfaceSlot: 2, methodSlot: 4))
     }
@@ -814,7 +814,7 @@ extension BuildKIRRegressionTests {
         let dispatch = fixture.driver.callLowerer.resolveVirtualDispatch(
             callee: method,
             receiverTypeID: receiverType,
-            sema: fixture.sema
+            sema: fixture.sema, interner: fixture.interner
         )
         #expect(dispatch == .itable(interfaceSlot: 0, methodSlot: 5))
     }
@@ -840,7 +840,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -861,7 +861,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
 
@@ -880,7 +880,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == .vtable(slot: 1)
         )
 
@@ -902,7 +902,7 @@ extension BuildKIRRegressionTests {
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: objectMethod,
                 receiverTypeID: nil,
-                sema: fixture.sema
+                sema: fixture.sema, interner: fixture.interner
             ) == nil
         )
     }

@@ -440,6 +440,28 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
+                // Synthetic singleton objects with an externalLinkName (e.g.
+                // kotlinx.coroutines.NonCancellable) resolve to a runtime handle via a
+                // direct zero-argument call, bypassing the eager module-init allocation
+                // used for real `object` declarations (which real objects need for their
+                // own stored state, but a synthetic native-backed singleton doesn't).
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .object,
+                   let externalLinkName = sema.symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty
+                {
+                    let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: resultType)
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern(externalLinkName),
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
                 instructions.append(.constValue(result: id, value: .symbolRef(symbol)))
                 return id
@@ -919,25 +941,29 @@ extension ExprLowerer {
                         ?? initializerType
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                    // When a primitive initializer (Int, Long, ...) is widened to
-                    // an Any-typed local, route through a `.copy` into a freshly
-                    // typed slot so ABILoweringPass's existing copy-boxing logic
-                    // (the same path used for reassignment) inserts the box call.
-                    // Narrowly scoped to primitive-source/Any-target: routing
-                    // *every* declared/initializer type mismatch through `.copy`
-                    // also caught reference-type variance (e.g. `val f: () -> Any
-                    // = stringProducer`) and non-null-to-nullable-primitive
-                    // widening (e.g. `val x: Int? = 5`), both of which broke —
-                    // closures lost their exprID-keyed capture metadata, and
-                    // nullable-primitive call sites expect the unboxed raw
-                    // sentinel representation, not a heap-boxed pointer.
+                    // Reference-like declared locals need a slot typed to the
+                    // declaration rather than an alias to the initializer. This
+                    // keeps later assignments (e.g. String -> Int in Any) in the
+                    // same erased storage and lets ABILoweringPass apply the
+                    // correct boxing at each copy. Primitive destinations are
+                    // intentionally excluded: nullable primitive locals use a
+                    // distinct sentinel representation and must keep their
+                    // existing coercion path.
+                    let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
+                    case .any, .classType, .functionType, .typeParam:
+                        true
+                    default:
+                        false
+                    }
                     if !isDelegated, let initializerType, initializerType != declaredType,
-                       case .primitive = sema.types.kind(of: initializerType),
-                       case .any = sema.types.kind(of: declaredType)
+                       declaredTypeIsReferenceLike
                     {
                         let localSlot = arena.appendTemporary(type: declaredType)
                         instructions.append(.copy(from: initializerID, to: localSlot))
                         driver.ctx.setLocalValue(localSlot, for: symbol)
+                        if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
+                            driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
+                        }
                     } else {
                         driver.ctx.setLocalValue(initializerID, for: symbol)
                     }
@@ -1054,6 +1080,14 @@ extension ExprLowerer {
                         // Mutable local already has storage: emit a copy so the C variable
                         // is updated in place, preserving the value across loop iterations.
                         instructions.append(.copy(from: valueID, to: storageID))
+                        // Reassigning a callable-typed local to a different lambda/function
+                        // reference must overwrite storageID's callableValueInfo too, or a
+                        // later call through this local would still invoke the previous value.
+                        if let callableInfo = driver.ctx.callableValueInfo(for: valueID) {
+                            driver.ctx.callableValueInfoByExprID[storageID] = callableInfo
+                        } else {
+                            driver.ctx.callableValueInfoByExprID.removeValue(forKey: storageID)
+                        }
                     } else {
                         driver.ctx.setLocalValue(valueID, for: symbol)
                     }
@@ -1536,6 +1570,62 @@ extension ExprLowerer {
                         )
                         instructions.append(.copy(from: resultID, to: globalRef))
                     }
+                } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property || symInfo.kind == .field,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface,
+                          let receiverID = driver.ctx.activeImplicitReceiverExprID(),
+                          let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                              sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+                          ]
+                {
+                    // Class/interface instance property compound assignment: the
+                    // property lives inside the heap-allocated instance, not in a
+                    // module-global slot, so the read-modify-write must go through
+                    // kk_array_get_inbounds / kk_array_set at the computed field
+                    // offset — mirroring tryLowerStoredMemberPropertyRead (reads)
+                    // and lowerMemberAssignExpr (plain `=` writes). Falling through
+                    // to the local-variable branch below would silently discard the
+                    // computed result instead of storing it back into the instance.
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+                    instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let loadedValue = arena.appendTemporary(type: propType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_get_inbounds"),
+                        arguments: [receiverID, offsetExpr],
+                        result: loadedValue,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    func storeFieldResult(_ value: KIRExprID) {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("kk_array_set"),
+                            arguments: [receiverID, offsetExpr, value],
+                            result: nil,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    if let callBinding = sema.bindings.callBindings[exprID],
+                       let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
+                        if signature.returnType == sema.types.unitType {
+                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            storeFieldResult(resultID)
+                        }
+                    } else {
+                        let resultID = appendBuiltinCompoundResult(
+                            lhs: loadedValue,
+                            lhsType: propType,
+                            rhs: rhsID,
+                            rhsType: arena.exprType(rhsID)
+                        )
+                        storeFieldResult(resultID)
+                    }
                 } else if driver.ctx.isMutableCaptureBoxed(symbol),
                           let loadedValue = loadMutableCaptureCellValue(
                               symbol: symbol,
@@ -1953,6 +2043,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: result,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2000,6 +2091,7 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: containsResult,
+                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2094,12 +2186,16 @@ extension ExprLowerer {
         elementID: KIRExprID,
         containerID: KIRExprID,
         resultID: KIRExprID,
+        forceRuntimeFallback: Bool = false,
         sema: SemaModule,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // If sema resolved a user-defined operator fun contains, dispatch to it (STDLIB-OP-032)
-        if let callBinding = sema.bindings.callBindings[exprID],
+        // Range membership remains on the dedicated runtime path while explicit
+        // range.contains(...) calls migrate to bundled Kotlin source.
+        // Otherwise, dispatch to a user-defined operator fun contains (STDLIB-OP-032).
+        if !forceRuntimeFallback,
+           let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil

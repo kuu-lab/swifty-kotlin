@@ -5,8 +5,8 @@
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) ?? "null"
-    outThrown?.pointee = runtimeAllocateThrowable(
-        message: "IllegalArgumentException: No enum constant \(name)"
+    outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+        message: "No enum constant \(name)"
     )
     return 0
 }

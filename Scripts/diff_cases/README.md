@@ -69,11 +69,13 @@ Cases:
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
 - `property_based_test.kt`: seeded samples, shrinking, statistics report を持つ property-based style parity
-- `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity
+- `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity（JVM reference には `kotlin-test.jar` classpath 注入が必要）
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
 - `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
+- `class_body_property_init.kt`: クラス本体で宣言されたストアドプロパティのインライン初期化子（`var a: Int = 10` の形）が実際に per-instance field へ書き込まれ、読み出せることの parity。primary constructor パラメータ併存クラス・型無注釈プロパティ・`object` singleton・`init` ブロックと交互配置された複数プロパティの組み合わせをカバー
+- `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
 
 The set intentionally includes both successful programs and compile-error cases.
