@@ -21,7 +21,7 @@ struct RuntimeTestFrameworkTests {
             Issue.record("Expected a RuntimeThrowableBox")
             return
         }
-        #expect(throwable.message.hasPrefix("AssertionError:"))
+        #expect(throwable.renderedMessage.hasPrefix("AssertionError:"))
         #expect(throwable.message.contains(fragment))
     }
 

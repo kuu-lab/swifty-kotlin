@@ -4,12 +4,15 @@ symbol fq=golden.sema.useNullableArg kind=function vis=public flags=_ sig=recv=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
+symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
+symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 file f0 package=golden.sema
   decl golden.sema.useNullableArg fun useNullableArg sym=golden.sema.useNullableArg
 expr e@4:38 string(a) type=String
 expr e@4:43 name(null) type=Nothing?
 expr e@4:49 string(b) type=String
-expr e@4:31 call callee=e@4:31#1 args=[_:e@4:38,_:e@4:43,_:e@4:49] type=kotlin.collections.List<String?>
+expr e@4:31 call callee=e@4:31#1 args=[_:e@4:38,_:e@4:43,_:e@4:49] type=kotlin.collections.List<String?> call=kotlin.collections.listOf#1 targs=[String?]
 expr e@4:5 localDecl list mutable=0 type=List<String?> init=e@4:31 type=Unit ref=__local_0.list
 expr e@5:26 name(list) type=kotlin.collections.List<String?> ref=__local_0.list
 expr e@5:31 int(0) type=Int

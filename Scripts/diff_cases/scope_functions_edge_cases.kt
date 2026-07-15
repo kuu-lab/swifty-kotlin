@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 fun traceValue(tag: String): String {
     println("value:$tag")
     return tag

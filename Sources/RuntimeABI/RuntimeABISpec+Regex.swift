@@ -10,10 +10,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_matches_regex_flat",
@@ -113,10 +113,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "optionRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_options_flat",
@@ -126,10 +126,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "optionsRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_flat",
@@ -138,10 +138,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_pattern",
@@ -215,10 +215,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "optionRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
         RuntimeABIFunctionSpec(
@@ -229,10 +229,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "optionsSetRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
+            section: "Regex"
         ),
         // STDLIB-480: Regex.containsMatchIn(input)
         RuntimeABIFunctionSpec(

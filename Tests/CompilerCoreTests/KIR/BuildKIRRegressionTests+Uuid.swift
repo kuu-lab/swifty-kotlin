@@ -10,32 +10,30 @@ extension BuildKIRRegressionTests {
 
         import kotlin.uuid.Uuid
 
-        fun main(bytes: ByteArray) {
+        fun main() {
             val nil = Uuid.NIL
             val random = Uuid.random()
-            val named = Uuid.nameUUIDFromBytes(bytes)
             val uuid = Uuid.parse("550e8400-e29b-41d4-a716-446655440000")
             val maybeUuid = Uuid.parseOrNull("550e8400-e29b-41d4-a716-446655440000")
             val hexUuid = Uuid.parseHex("550e8400e29b41d4a716446655440000")
             val maybeHexUuid = Uuid.parseHexOrNull("550e8400e29b41d4a716446655440000")
             val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
             val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
+            val longsSum = uuid.toLongs { msb, lsb -> msb + lsb }
             val fromLongs = Uuid.fromLongs(uuid.mostSignificantBits, uuid.leastSignificantBits)
             val fromBytes = Uuid.fromByteArray(uuid.toByteArray())
             nil.toString()
             random.toString()
-            named.toHexString()
             uuid.toString()
             maybeUuid?.toString()
             hexUuid.toString()
             maybeHexUuid?.toString()
             dashUuid.toString()
             maybeDashUuid?.toString()
-            fromLongs.toLongs()
+            longsSum.toString()
+            fromLongs.toString()
             fromBytes.toByteArray()
-            uuid.version()
-            uuid.variant()
-            Uuid.LEXICAL_ORDER.compare(uuid, nil)
+            uuid.compareTo(nil)
         }
         """
 
@@ -49,17 +47,17 @@ extension BuildKIRRegressionTests {
 
             for callee in [
                 "random",
-                "nameUUIDFromBytes",
                 "fromLongs",
                 "fromByteArray",
                 "toByteArray",
+                "toLongs",
+                "compareTo",
             ] {
                 #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
             }
 
             #expect(callees.isDisjoint(with: [
                 "__kk_uuid_random",
-                "__kk_uuid_nameUUIDFromBytes",
                 "__kk_uuid_lexicalOrder",
                 "__kk_uuid_fromLongs",
             ]))

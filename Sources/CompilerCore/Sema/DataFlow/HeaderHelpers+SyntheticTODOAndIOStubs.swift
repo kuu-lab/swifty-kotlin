@@ -1187,6 +1187,12 @@ extension DataFlowSemaPhase {
             parameterSymbols.append(parameterSymbol)
         }
 
+        let allTypeParameterSymbols = [typeParamSymbol] + additionalTypeParameterSymbols
+        let reifiedTypeParameterIndices = Set(
+            allTypeParameterSymbols.enumerated().compactMap { index, symbolID in
+                symbols.symbol(symbolID)?.flags.contains(.reifiedTypeParameter) == true ? index : nil
+            }
+        )
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1196,7 +1202,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: parameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
                 valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                typeParameterSymbols: [typeParamSymbol] + additionalTypeParameterSymbols,
+                typeParameterSymbols: allTypeParameterSymbols,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
                 typeParameterUpperBoundsList: (typeParameterUpperBoundsList ?? [typeParameterUpperBounds]) + additionalTypeParameterUpperBoundsList,
                 classTypeParameterCount: 1
             ),
