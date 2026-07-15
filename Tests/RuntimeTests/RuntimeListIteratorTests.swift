@@ -5,8 +5,12 @@ import Testing
 
 /// STDLIB-538: Comprehensive tests for ListIterator.hasPrevious() and previous() methods
 @Suite(.serialized)
-struct RuntimeListIteratorTests {
+final class RuntimeListIteratorTests {
     init() {
+        kk_runtime_force_reset()
+    }
+
+    deinit {
         kk_runtime_force_reset()
     }
 
