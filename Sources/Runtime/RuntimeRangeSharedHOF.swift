@@ -299,7 +299,7 @@ private func runtimeRangeReduce<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard !Kind.isEmpty(range) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Empty collection can't be reduced.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced.")
         return 0
     }
     let lambda = unsafeBitCast(fnPtr, to: RuntimeRangeFoldLambda.self)
@@ -330,7 +330,7 @@ private func runtimeRangeReduceIndexed<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard !Kind.isEmpty(range) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Empty collection can't be reduced.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "Empty collection can't be reduced.")
         return 0
     }
     let lambda = unsafeBitCast(fnPtr, to: RuntimeRangeIndexedFoldLambda.self)

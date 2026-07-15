@@ -251,5 +251,58 @@ struct BigIntegerSyntheticLinkTests {
             expectedFQName: ["java", "math", "BigInteger", "modPow"]
         )
     }
+
+    // MARK: - Raw Java instance methods (STDLIB-NUM-129 follow-up: not/shiftLeft/shiftRight)
+
+    @Test
+    func testBigIntegerNotResolvesToSyntheticInstanceMethod() throws {
+        try assertBigIntegerExtensionCalls(
+            callName: "not",
+            source: """
+            import java.math.BigInteger
+            fun main() {
+                val a = BigInteger("12")
+                a.not()
+            }
+            """,
+            expectedCount: 1,
+            expectedLinkName: "kk_biginteger_not",
+            expectedFQName: ["java", "math", "BigInteger", "not"]
+        )
+    }
+
+    @Test
+    func testBigIntegerShiftLeftResolvesToSyntheticInstanceMethod() throws {
+        try assertBigIntegerExtensionCalls(
+            callName: "shiftLeft",
+            source: """
+            import java.math.BigInteger
+            fun main() {
+                val a = BigInteger("12")
+                a.shiftLeft(3)
+            }
+            """,
+            expectedCount: 1,
+            expectedLinkName: "kk_biginteger_shiftLeft",
+            expectedFQName: ["java", "math", "BigInteger", "shiftLeft"]
+        )
+    }
+
+    @Test
+    func testBigIntegerShiftRightResolvesToSyntheticInstanceMethod() throws {
+        try assertBigIntegerExtensionCalls(
+            callName: "shiftRight",
+            source: """
+            import java.math.BigInteger
+            fun main() {
+                val a = BigInteger("12")
+                a.shiftRight(2)
+            }
+            """,
+            expectedCount: 1,
+            expectedLinkName: "kk_biginteger_shiftRight",
+            expectedFQName: ["java", "math", "BigInteger", "shiftRight"]
+        )
+    }
 }
 #endif

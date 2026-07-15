@@ -1223,7 +1223,13 @@ extension DataFlowSemaPhase {
         registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
+        registerLateListIndexedMembers(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }

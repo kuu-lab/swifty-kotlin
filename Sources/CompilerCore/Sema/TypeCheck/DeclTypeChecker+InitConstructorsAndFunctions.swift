@@ -103,12 +103,51 @@ extension DeclTypeChecker {
 
     // MARK: - Init Block & Secondary Constructor Type Checking
 
+    /// Kotlin scopes primary constructor parameters declared without `val`/`var`
+    /// to property initializers and `init {}` blocks only — not to regular
+    /// member functions. Property-backed parameters (`val`/`var`) are already
+    /// reachable as members through `classScope`, so only the non-property
+    /// parameters need to be threaded through here as `locals`.
+    func primaryConstructorParameterLocals(
+        classDecl: ClassDecl,
+        ctx: TypeInferenceContext
+    ) -> LocalBindings {
+        guard !classDecl.primaryConstructorParams.isEmpty else { return [:] }
+        let sema = ctx.sema
+        guard let ctorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap({ sema.symbols.symbol($0) })
+            .first(where: { $0.kind == .constructor }),
+            let signature = sema.symbols.functionSignature(for: ctorSymbol.id)
+        else {
+            return [:]
+        }
+        var locals: LocalBindings = [:]
+        for (index, param) in classDecl.primaryConstructorParams.enumerated() {
+            guard !param.isProperty, index < signature.valueParameterSymbols.count else { continue }
+            let paramSymbol = signature.valueParameterSymbols[index]
+            let type = localTypeForParameter(
+                at: index, signature: signature, sema: sema, interner: ctx.interner
+            )
+            locals[param.name] = (type, paramSymbol, false, true)
+            if driver.helpers.isOpenEndRangeType(type, sema: sema, interner: ctx.interner) {
+                sema.bindings.markRangeSymbol(paramSymbol)
+            }
+            if index < signature.valueParameterIsVararg.count,
+               signature.valueParameterIsVararg[index]
+            {
+                sema.bindings.markCollectionSymbol(paramSymbol)
+            }
+        }
+        return locals
+    }
+
     func typeCheckInitBlocks(
         _ blocks: [FunctionBody],
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        baseLocals: LocalBindings = [:]
     ) {
         for block in blocks {
-            var locals: LocalBindings = [:]
+            var locals: LocalBindings = baseLocals
             var initCtx = ctx
             initCtx.allowsValPropertyInitialization = true
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
