@@ -29,6 +29,15 @@ extension CallLowerer {
             "sumOf",
             "maxByOrNull",
             "minByOrNull",
+            // STDLIB-pipeline §5: take/drop/chunked/windowed have real
+            // require() validation in SequenceWindowChunk.kt as of
+            // MIGRATION-SEQ-005. A resolved call to that source declaration
+            // must not be short-circuited to the unchecked kk_sequence_*
+            // runtime bridge below.
+            "take",
+            "drop",
+            "chunked",
+            "windowed",
         ].contains(calleeText),
             let chosenBase64Callee,
             sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,

@@ -28,6 +28,7 @@ extension CoroutineLoweringPass {
         let runtimeRunBlockingWithContCallee: InternedString
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString]
         let kxMiniLauncherWithContCallees: [InternedString: InternedString]
+        let coroutineScopeLaunchCallee: InternedString
         let sequenceBuilderBuildCallee: InternedString
         let sequenceBuilderBuildCoroCallee: InternedString
         let sequenceBuilderYieldAllCallee: InternedString
@@ -467,7 +468,7 @@ extension CoroutineLoweringPass {
             // treating a nonexistent suspend-lowered counterpart as the
             // entry point.
             //
-            // BUG-038 (TODO.md): this still crashes when collectorSymbol
+            // BUG-039 (TODO.md): this still crashes when collectorSymbol
             // refers to a lambda stored in a local `val` and passed by
             // reference (`val h = { v: Int -> ... }; flow.collect(h)`),
             // because such lambdas stay marked inline=true and are never

@@ -2262,15 +2262,35 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // NOTE: `CoroutineScope.launch { block }` is intentionally NOT registered here.
-        // CoroutineLoweringPass's launcher-call rewrite (rewriteLauncherCall and friends
-        // in CoroutineLoweringPass+LauncherSupport.swift) matches purely on the callee
-        // NAME "launch" without regard to a receiver, so a receiver-bearing member call
-        // is not correctly split into (entryPoint, functionID) the way top-level `launch { }`
-        // is -- it ends up calling this external function with too few/misaligned
-        // arguments. Wiring `CoroutineScope.launch` correctly needs CoroutineLoweringPass
-        // itself to become receiver-aware, which is out of scope here; tracked as a
-        // follow-up rather than shipped half-working (it would panic/crash at runtime).
+        // `CoroutineScope.launch { block }`: a receiver-bearing member call. The general
+        // member-call emission path (appendReceiverToMemberArguments in
+        // CallLowerer+MemberCallEmission.swift) already prepends the receiver as
+        // arguments[0] whenever the chosen callee's FunctionSignature.receiverType is
+        // set, so this call reaches CoroutineLoweringPass as a 2-argument call
+        // [receiverExpr, blockRef] -- the same shape as the dispatcher-aware top-level
+        // `launch(dispatcher) { }`. CoroutineLoweringPass+LauncherSupport.swift's
+        // rewriteLauncherCall special-cases this externalLinkName up front and routes
+        // it through rewriteCoroutineScopeLaunchCall, which threads the receiver through
+        // to a dedicated `kk_coroutine_scope_launch(scopeHandle, entryPointRaw,
+        // functionID)` runtime entry point.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: coroutineScopeSymbol,
+            ownerType: coroutineScopeType,
+            name: "launch",
+            externalLinkName: "kk_coroutine_scope_launch",
+            returnType: jobType,
+            parameters: [(
+                name: "block",
+                type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.unitType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))
+            )],
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCoroutineMember(
             ownerSymbol: coroutineScopeSymbol,
             ownerType: coroutineScopeType,

@@ -1422,9 +1422,13 @@ public func kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutable
     let result = runtimeFlowEvaluate(flow: flow)
     runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
     guard result.values.count == 1 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NoSuchElementException: Flow does not contain exactly one element."
-        )
+        if result.values.isEmpty {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Flow is empty.")
+        } else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Flow has more than one element."
+            )
+        }
         return 0
     }
     return result.values[0]
