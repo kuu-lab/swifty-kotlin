@@ -453,7 +453,7 @@ public func kk_string_replaceRange(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, message: "Invalid range for replaceRange")
+        runtimeSetThrown(outThrown, runtimeAllocateStringIndexOutOfBoundsException(message: "Invalid range for replaceRange"))
         return 0
     }
     let first = range.first
@@ -462,7 +462,7 @@ public func kk_string_replaceRange(
     if first < 0 || first > length || last < -1 || last >= length || first > last + 1 {
         runtimeSetThrown(
             outThrown,
-            message: "StringIndexOutOfBoundsException: start=\(first), end=\(last + 1), length=\(length)"
+            runtimeAllocateStringIndexOutOfBoundsException(message: "start=\(first), end=\(last + 1), length=\(length)")
         )
         return 0
     }
@@ -491,7 +491,7 @@ public func kk_string_replaceRange_indices(
     if start < 0 || start > length || end < 0 || end > length || start > end {
         runtimeSetThrown(
             outThrown,
-            message: "StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(length)"
+            runtimeAllocateStringIndexOutOfBoundsException(message: "start=\(start), end=\(end), length=\(length)")
         )
         return 0
     }
@@ -518,7 +518,7 @@ public func kk_string_removeRange(
     if start < 0 || start > length || end < 0 || end > length || start > end {
         runtimeSetThrown(
             outThrown,
-            message: "StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(length)"
+            runtimeAllocateStringIndexOutOfBoundsException(message: "start=\(start), end=\(end), length=\(length)")
         )
         return 0
     }
@@ -535,7 +535,7 @@ public func kk_string_removeRange_range(
 ) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, message: "Invalid range for removeRange")
+        runtimeSetThrown(outThrown, runtimeAllocateStringIndexOutOfBoundsException(message: "Invalid range for removeRange"))
         return 0
     }
     return kk_string_removeRange(strRaw, range.first, range.last + 1, outThrown)

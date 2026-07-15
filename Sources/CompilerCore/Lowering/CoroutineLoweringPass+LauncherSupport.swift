@@ -211,6 +211,19 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        // `CoroutineScope.launch { }` is a receiver-bearing member call: the general
+        // member-call emission path already prepended the receiver as arguments[0]
+        // (see appendReceiverToMemberArguments), giving this a distinct callee name
+        // from bare top-level `launch`/`launch(dispatcher)`, so it is handled by its
+        // own dedicated rewrite rather than kxMiniLauncherRuntimeCallees below.
+        if call.callee == rewrite.coroutineScopeLaunchCallee {
+            return rewriteCoroutineScopeLaunchCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            )
+        }
+
         guard let runtimeLauncherCallee = rewrite.kxMiniLauncherRuntimeCallees[call.callee]
         else {
             return nil
@@ -460,6 +473,88 @@ extension CoroutineLoweringPass {
             )
         )
         return rewritten
+    }
+
+    // Receiver-aware rewrite for `CoroutineScope.launch { block }`. Mirrors the
+    // dispatcher-aware launch rewrite above: the receiver (like the dispatcher) is
+    // an extra argument in front of the suspend function reference rather than a
+    // capture threaded through the continuation, since it identifies *where* to
+    // launch rather than data the launched body closes over.
+    func rewriteCoroutineScopeLaunchCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        guard call.arguments.count == 2 else {
+            rewrite.ctx.diagnostics.error(
+                "KSWIFTK-CORO-0001",
+                "CoroutineScope.launch expects a receiver and a suspend function reference argument.",
+                range: nil
+            )
+            return [call.instruction]
+        }
+        let scopeExpr = call.arguments[0]
+        let suspendArgExpr = call.arguments[1]
+
+        guard let suspendSymbol = symbolReference(
+                  for: suspendArgExpr,
+                  module: rewrite.module,
+                  propagatedSymbols: symbolByExprRaw
+              ),
+              let loweredTarget = rewrite.loweredBySymbol[suspendSymbol]
+        else {
+            rewrite.ctx.diagnostics.error(
+                "KSWIFTK-CORO-0002",
+                "CoroutineScope.launch requires a suspend function reference argument.",
+                range: nil
+            )
+            return [call.instruction]
+        }
+
+        // Only a non-capturing block is supported so far -- a lambda that closes
+        // over outer variables would need a with-continuation runtime entry point
+        // analogous to kk_kxmini_launch_with_cont, which is not implemented yet.
+        let targetArity = rewrite.suspendFunctionArityBySymbol[suspendSymbol] ?? 0
+        guard targetArity == 0 else {
+            rewrite.ctx.diagnostics.error(
+                "KSWIFTK-CORO-0003",
+                "CoroutineScope.launch does not yet support a suspend lambda that captures outer variables.",
+                range: nil
+            )
+            return [call.instruction]
+        }
+
+        return rewriteZeroArgCoroutineScopeLauncherCall(
+            scopeExpr: scopeExpr,
+            loweredTarget: loweredTarget,
+            call: call,
+            using: rewrite
+        )
+    }
+
+    func rewriteZeroArgCoroutineScopeLauncherCall(
+        scopeExpr: KIRExprID,
+        loweredTarget: LoweredSuspendFunction,
+        call: CallRewriteInput,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let entryFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+
+        return [
+            .constValue(result: entryPointExpr, value: .symbolRef(loweredTarget.symbol)),
+            .constValue(result: entryFunctionID, value: .intLiteral(Int64(loweredTarget.symbol.rawValue))),
+            .call(
+                symbol: nil,
+                callee: rewrite.coroutineScopeLaunchCallee,
+                arguments: [scopeExpr, entryPointExpr, entryFunctionID],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult
+            ),
+        ]
     }
 
     func rewriteZeroArgLauncherCall(
