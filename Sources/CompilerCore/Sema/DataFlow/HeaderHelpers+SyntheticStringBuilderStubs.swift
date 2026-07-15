@@ -1,4 +1,3 @@
-
 /// Synthetic stubs for StringBuilder type (STDLIB-255/256/257).
 ///
 /// NOTE: Kotlin source exists at Stdlib/kotlin/text/StringBuilder.kt (MIGRATION-SB-001).
@@ -48,6 +47,15 @@ extension DataFlowSemaPhase {
         let floatType = types.make(.primitive(.float, .nonNull))
         let doubleType = types.make(.primitive(.double, .nonNull))
         let nullableStringType = types.makeNullable(stringType)
+        registerStringBuilderConstructors(
+            symbols: symbols,
+            interner: interner,
+            kotlinTextPkg: kotlinTextPkg,
+            sbSymbol: sbSymbol,
+            sbType: sbType,
+            stringType: stringType,
+            intType: intType
+        )
 
         // append(Any?): StringBuilder
         registerStringBuilderMemberFunction(
@@ -496,6 +504,102 @@ extension DataFlowSemaPhase {
             returnType: sbType,
             symbols: symbols,
             interner: interner
+        )
+    }
+
+    private func registerStringBuilderConstructors(
+        symbols: SymbolTable,
+        interner: StringInterner,
+        kotlinTextPkg: [InternedString],
+        sbSymbol: SymbolID,
+        sbType: TypeID,
+        stringType: TypeID,
+        intType: TypeID
+    ) {
+        let ownerFQName = kotlinTextPkg + [interner.intern("StringBuilder")]
+        registerStringBuilderConstructor(
+            parameterTypes: [],
+            externalLinkName: "kk_string_builder_new",
+            ownerSymbol: sbSymbol,
+            ownerFQName: ownerFQName,
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderConstructor(
+            parameterTypes: [stringType],
+            externalLinkName: "kk_string_builder_new_from_string_flat",
+            ownerSymbol: sbSymbol,
+            ownerFQName: ownerFQName,
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderConstructor(
+            parameterTypes: [intType],
+            externalLinkName: "kk_string_builder_new_with_capacity",
+            ownerSymbol: sbSymbol,
+            ownerFQName: ownerFQName,
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerStringBuilderConstructor(
+        parameterTypes: [TypeID],
+        externalLinkName: String,
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        returnType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerFQName + [initName]
+        if let existing = symbols.lookupAll(fqName: constructorFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
+        var valueParameterSymbols: [SymbolID] = []
+        for index in parameterTypes.indices {
+            let parameterName = interner.intern("p\(index)")
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: constructorFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
+            valueParameterSymbols.append(parameterSymbol)
+        }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: parameterTypes.count),
+                valueParameterIsVararg: Array(repeating: false, count: parameterTypes.count)
+            ),
+            for: constructorSymbol
         )
     }
 

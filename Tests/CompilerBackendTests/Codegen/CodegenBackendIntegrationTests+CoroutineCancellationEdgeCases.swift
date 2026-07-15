@@ -5,7 +5,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesCoroutineCancellationEdgeCases() throws {
-        try XCTSkipIf(true, "withTimeoutOrNull null semantics and coroutineScope exception propagation not yet correct (STDLIB-CORO-001, DEBT-CORO-003)")
         let source = """
         import kotlinx.coroutines.*
 
@@ -37,14 +36,18 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
+        // `cancelJob.cancel()` runs synchronously right after `launch { }` returns, with no
+        // intervening suspension point -- matching kotlinx.coroutines' CoroutineStart.DEFAULT
+        // semantics, the child body never starts, so "cancelled" is never printed. Confirmed
+        // against the real kotlinc/JVM reference via `Scripts/diff_cases/coroutine_cancellation_edge_cases.kt`.
         try assertKotlinOutput(
             source,
             moduleName: "CoroutineCancellationEdgeCases",
             expected:
                 """
                 null
-                cancelled
                 boom
+
                 """
         )
     }

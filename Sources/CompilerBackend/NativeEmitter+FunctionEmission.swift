@@ -1967,28 +1967,28 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByteArray_flat",
+                "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByteArray_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toByteArray_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toByteArray_charset_flat",
+                "__kk_string_toByteArray_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toByteArray_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_encodeToByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_encodeToByteArray_flat",
+                "__kk_string_encodeToByteArray_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_encodeToByteArray_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_encodeToByteArray_range_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_encodeToByteArray_range_flat",
+                "__kk_string_encodeToByteArray_range_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_encodeToByteArray_range_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2
                 ),
-                "kk_string_encodeToByteArray_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_encodeToByteArray_charset_flat",
+                "__kk_string_encodeToByteArray_charset_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_encodeToByteArray_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
@@ -3467,6 +3467,13 @@ extension NativeEmitter {
                     lookupArgs = [
                         resolveValue(receiver),
                         bindings.constInt(int64Type, value: UInt64(interfaceSlot)) ?? bindings.constInt(int64Type, value: 0)!,
+                        bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
+                    ]
+                case let .itableDynamic(interfaceTypeID, methodSlot):
+                    lookupFunction = declareExternalFunction(named: "kk_itable_lookup_dynamic", argumentCount: 3, appendThrownChannel: false)
+                    lookupArgs = [
+                        resolveValue(receiver),
+                        bindings.constInt(int64Type, value: UInt64(bitPattern: interfaceTypeID)) ?? bindings.constInt(int64Type, value: 0)!,
                         bindings.constInt(int64Type, value: UInt64(methodSlot)) ?? bindings.constInt(int64Type, value: 0)!,
                     ]
                 }

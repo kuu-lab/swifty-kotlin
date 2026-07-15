@@ -1602,39 +1602,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "trim" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trim_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimStart_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimEnd_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
             }
         }
 
@@ -1888,20 +1855,7 @@ extension CallLowerer {
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "encodeToByteArray":
-                    if loweredArgIDs.count == 1 {
-                        ("kk_string_encodeToByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
-                case "toByteArray":
-                    if loweredArgIDs.count == 1 {
-                        // toByteArray(charset) returns the ByteArray handle produced by the charset-aware runtime.
-                        ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        // toByteArray(startIndex, endIndex) shares the ByteArray-returning range function with encodeToByteArray.
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
+
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
@@ -1921,12 +1875,6 @@ extension CallLowerer {
                         instructions.append(.constValue(result: pipeExpr, value: .stringLiteral(pipeString)))
                         return ("kk_string_replaceIndentByMargin_flat", [loweredReceiverID, loweredArgIDs[0], pipeExpr])
                     }()
-                case "trim":
-                    ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimStart":
-                    ("kk_string_trimStart_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimEnd":
-                    ("kk_string_trimEnd_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "take":
                     ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "drop":
@@ -1947,9 +1895,6 @@ extension CallLowerer {
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                        || calleeStr == "trim"
-                        || calleeStr == "trimStart"
-                        || calleeStr == "trimEnd"
                         || calleeStr == "take"
                         || calleeStr == "drop"
                         || calleeStr == "takeLast"
@@ -2477,9 +2422,12 @@ extension CallLowerer {
                         joinArgs.append(exprID)
                     }
                 }
+                let joinToStringCallee = isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                    ? arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
+                    : interner.intern("kk_sequence_joinToString")
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_sequence_joinToString"),
+                    callee: joinToStringCallee,
                     arguments: [loweredReceiverID] + joinArgs,
                     result: result,
                     canThrow: false,
@@ -2631,6 +2579,15 @@ extension CallLowerer {
                     "sumOf",
                     "maxByOrNull",
                     "minByOrNull",
+                    // STDLIB-pipeline §5: take/drop/chunked/windowed have real
+                    // require() validation in SequenceWindowChunk.kt as of
+                    // MIGRATION-SEQ-005. A resolved call to that source
+                    // declaration must not be short-circuited to the
+                    // unchecked kk_sequence_* runtime bridge below.
+                    "take",
+                    "drop",
+                    "chunked",
+                    "windowed",
                 ].contains(interner.resolve(calleeName)),
                     let chosenBase64Callee,
                     sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
@@ -3629,10 +3586,25 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-pipeline §5: windowed has real require(size > 0) /
+        // require(step > 0) validation in SequenceWindowChunk.kt as of
+        // MIGRATION-SEQ-005. When normal candidate lookup already resolved
+        // this call to that source declaration, this shortcut must not
+        // discard it and skip past the require() checks.
+        let windowedIsSourceBacked: Bool = {
+            guard let chosenBase64Callee,
+                  sema.symbols.symbol(chosenBase64Callee)?.declSite != nil
+            else {
+                return false
+            }
+            return (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+        }()
+
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
         // Lambda-bearing `windowed` calls use the synthetic iterable HOF overload
         // and must not be rewritten to the sequence ABI here.
         if !hasHOFLambdaArg,
+           !windowedIsSourceBacked,
            (1...3).contains(args.count),
            calleeName == interner.intern("windowed")
         {
@@ -3978,6 +3950,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }
@@ -4029,6 +4002,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }

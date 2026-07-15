@@ -109,7 +109,7 @@ public func kk_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?)
     guard let set = runtimeSetBox(from: setRaw),
           let first = set.elements.first
     else {
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
         return 0
     }
     return first
@@ -131,7 +131,7 @@ public func kk_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) 
     guard let set = runtimeSetBox(from: setRaw),
           let last = set.elements.last
     else {
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
         return 0
     }
     return last
@@ -467,7 +467,7 @@ private func runtimeMapDefaultValue(_ map: RuntimeMapBox, key: Int, outThrown: U
 
 @inline(__always)
 private func runtimeMapMissingKey(outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: Key is not in the map.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Key is not in the map.")
     return 0
 }
 
