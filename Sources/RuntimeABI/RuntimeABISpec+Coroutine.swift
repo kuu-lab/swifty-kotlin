@@ -748,6 +748,20 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // `CoroutineScope.launch { }` (receiver-aware launcher): fire-and-forget like
+        // kk_kxmini_launch, so no outThrown parameter -- it returns a Job immediately
+        // rather than blocking for the body's result.
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_scope_launch",
+            parameters: [
+                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_job_new",
             parameters: [],
