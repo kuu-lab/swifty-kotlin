@@ -134,7 +134,15 @@ enum RuntimeTypeCheckToken {
         case .primitive(.char, _):      category = .char
         case .unit:                     category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
-        case let .classType(classType): category = .nominal(classType.classSymbol)
+        case let .classType(classType):
+            // Value classes (boxed or not) are checked by nominal identity,
+            // not by their underlying representation: kk_tag_value_class_box
+            // (see emitBoxCallWithValueClassTag) tags a value class's boxed
+            // primitive with its own stable nominal type ID at every
+            // reference-type boundary, so `is`/`as`/`KClass.isInstance`
+            // against the value class name can match that tag directly —
+            // the same way a plain nominal class/interface check does.
+            category = .nominal(classType.classSymbol)
         default:                        category = .unknown
         }
         return RuntimeTypeDescriptor(category: category, nullable: nullable)

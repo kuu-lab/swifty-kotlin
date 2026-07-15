@@ -374,6 +374,11 @@ extension ExprTypeChecker {
                 type = intType
             }
             sema.bindings.markRangeExpr(id)
+            if lhs == sema.types.doubleType || rhs == sema.types.doubleType ||
+                lhs == sema.types.floatType || rhs == sema.types.floatType
+            {
+                sema.bindings.markFloatingPointRangeExpr(id)
+            }
             // Detect CharRange: if either operand is Char, mark as char range (STDLIB-290)
             if lhs == sema.types.charType || rhs == sema.types.charType {
                 sema.bindings.markCharRangeExpr(id)

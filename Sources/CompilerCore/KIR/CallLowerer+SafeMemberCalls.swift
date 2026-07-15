@@ -1079,6 +1079,27 @@ extension CallLowerer {
             return accessorRead
         }
 
+        // Stored (field-backed) member property read, e.g. `w?.value` on a
+        // class/value-class whose property has no custom getter. Without this,
+        // safe-call property reads fell through to the generic call fallback
+        // below, which emits a call to a callee literally named after the
+        // property (e.g. "value") instead of a field-offset read — an
+        // undefined symbol at link time.
+        if let storedRead = tryLowerStoredMemberPropertyRead(
+            exprID,
+            loweredReceiverID: loweredReceiverID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: storedRead, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // Lower arguments only on the non-null path.
         let loweredArgIDs = args.map { argument in
             driver.lowerExpr(
@@ -1180,7 +1201,7 @@ extension CallLowerer {
             if !isSuperCall,
                let chosen,
                !hasExternalLink,
-               let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema)
+               let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             {
                 var vcArguments = finalArguments
                 if let signature = sema.symbols.functionSignature(for: chosen),
@@ -1218,7 +1239,12 @@ extension CallLowerer {
     /// Determine if a callee method requires virtual dispatch.
     /// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
     /// or `nil` if the call should use direct (static) dispatch.
-    func resolveVirtualDispatch(callee: SymbolID, receiverTypeID: TypeID?, sema: SemaModule) -> KIRDispatchKind? {
+    func resolveVirtualDispatch(
+        callee: SymbolID,
+        receiverTypeID: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> KIRDispatchKind? {
         guard let calleeSymbol = sema.symbols.symbol(callee),
               calleeSymbol.kind == .function
         else { return nil }
@@ -1229,7 +1255,7 @@ extension CallLowerer {
         if parentSymbol.kind == .interface {
             return resolveItableDispatch(
                 callee: callee, parentID: parentID, layout: layout,
-                receiverTypeID: receiverTypeID, sema: sema
+                receiverTypeID: receiverTypeID, sema: sema, interner: interner
             )
         }
         if parentSymbol.kind == .class {
@@ -1243,28 +1269,39 @@ extension CallLowerer {
         parentID: SymbolID,
         layout: NominalLayout,
         receiverTypeID: TypeID?,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> KIRDispatchKind? {
-        // The itable slot must be derived from the concrete receiver's layout
-        // (which records where each interface is stored), not the interface's
-        // own layout.  Without a concrete class receiver we cannot form an
-        // itable dispatch.
         guard let receiverTypeID,
               case let .classType(classType) = sema.types.kind(of: receiverTypeID)
         else { return nil }
         let receiverClassSymID = classType.classSymbol
-        // If the receiver is a concrete class with no subtypes, use direct
-        // dispatch.  Kotlin classes are final by default, so this is safe and
-        // avoids the itable path which requires runtime typeInfo support.
-        if let receiverClassSym = sema.symbols.symbol(receiverClassSymID),
-           receiverClassSym.kind == .class
-        {
+        guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
+        guard let methodSlot = layout.vtableSlots[callee] else { return nil }
+
+        if receiverClassSym.kind == .class {
+            // If the receiver is a concrete class with no subtypes, use direct
+            // dispatch.  Kotlin classes are final by default, so this is safe and
+            // avoids the itable path which requires runtime typeInfo support.
             if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-        }
-        guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-        let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
-        if let methodSlot = layout.vtableSlots[callee] {
+            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
+            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
             return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        }
+
+        // The receiver's static type is the interface itself (e.g. a function
+        // parameter typed `d: Describable`) — the concrete implementing class,
+        // and therefore the itable slot that class assigned to this interface,
+        // is unknown at this call site. Falling back to slot 0 here previously
+        // dispatched to whatever interface happened to occupy slot 0 on the
+        // object actually passed in (e.g. Printable instead of Describable).
+        // Defer the slot lookup to runtime instead, keyed by the interface's
+        // stable type ID (see kk_itable_lookup_dynamic).
+        if receiverClassSym.kind == .interface {
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: parentID, sema: sema, interner: interner
+            )
+            return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         }
         return nil
     }

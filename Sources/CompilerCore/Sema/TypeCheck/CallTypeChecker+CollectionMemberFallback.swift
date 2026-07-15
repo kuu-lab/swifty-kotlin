@@ -17,6 +17,13 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         expectedType: TypeID? = nil,
+        // Only set by call sites reached when ordinary symbol lookup already
+        // found zero candidates (see CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift).
+        // Call sites reached while real overload candidates exist (e.g.
+        // Iterable.reduceRightIndexed, which is a registered symbol) must NOT
+        // set this, or this fallback would short-circuit ahead of the normal
+        // overload resolver for members it does not model precisely.
+        admitNominalIterableReceiver: Bool = false,
         locals: inout LocalBindings
     ) -> TypeID? {
         let sema = ctx.sema
@@ -79,12 +86,30 @@ extension CallTypeChecker {
             && receiverClassification.isIterableReceiver
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
+        // A receiver whose static type is nominally `Iterable<T>` (e.g. a local
+        // variable explicitly typed `Iterable<T>`, or a function parameter typed
+        // `Iterable<T>`) but isn't otherwise recognized as collection/sequence-like
+        // must still be admitted when ordinary symbol lookup found no candidates at
+        // all (isCollectionReceiver/isSequenceReceiver rely on either a concrete
+        // List/Set/Map/Sequence type or the isCollectionExpr propagation heuristic,
+        // which only fires for a fixed set of collection-factory call forms like
+        // listOf(...), not arbitrary functions returning List<T>). Restricted to the
+        // no-candidates case so members already resolved as real Iterable-owned
+        // symbols (e.g. Iterable.reduceRightIndexed) keep going through the normal
+        // overload resolver instead of this fallback's approximate typing.
+        let admitIterableReceiver = admitNominalIterableReceiver && receiverClassification.isIterableReceiver
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionReceiver
                 || isSequenceReceiver
+                // Array factories intentionally stay out of the generic
+                // collection-expression marker so List-only extensions do not
+                // receive an Array runtime representation. Keep the safe
+                // conversion members available from their static Array type.
+                || (isArrayReceiver && (memberName == "asSequence" || memberName == "asIterable"))
+                || admitIterableReceiver
                 || isIterableWindowedTransformCall
                 || isIterableChunkedTransformCall
                 || isIterableFirstNotNullOfCall
@@ -266,7 +291,83 @@ extension CallTypeChecker {
             return true
         }()
 
+        let didBindListZipSource: Bool = {
+            guard memberName == "zip",
+                  !args.isEmpty,
+                  !isSequenceReceiver,
+                  isCollectionReceiver
+            else {
+                return false
+            }
+            let otherType = sema.bindings.exprTypes[args[0].expr]
+                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let otherElementType: TypeID
+            if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+               let firstArg = otherClassType.args.first
+            {
+                otherElementType = switch firstArg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: sema.types.anyType
+                }
+            } else {
+                otherElementType = sema.types.anyType
+            }
+            let typeArguments: [TypeID]
+            if args.count >= 2,
+               let transformType = sema.bindings.exprTypes[args[1].expr],
+               case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType))
+            {
+                typeArguments = [receiverElementType, otherElementType, fnType.returnType]
+            } else if args.count >= 2 {
+                typeArguments = [receiverElementType, otherElementType, sema.types.anyType]
+            } else {
+                typeArguments = [receiverElementType, otherElementType]
+            }
+
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner) {
+                    return true
+                }
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }()
+
         if !didBindListFilterNotNullSource,
+           !didBindListZipSource,
            let fallbackCallee = resolveCollectionFallbackCallee(
             memberName: calleeName,
             receiverID: receiverID,
@@ -653,9 +754,7 @@ extension CallTypeChecker {
             return lambdaMatch
         }
         // Prefer the overload whose parameter count matches the call-site
-        // argument count so that e.g. windowed(3, 2, true) resolves to the
-        // 3-param overload (kk_list_windowed_partial) instead of the 2-param
-        // one (kk_list_windowed).
+        // argument count for defaulted overload families such as windowed.
         if let exactMatch = allCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount
@@ -775,7 +874,6 @@ extension CallTypeChecker {
         let collectionMembers: Set = [
             knownNames.size,
             knownNames.isEmpty,
-            interner.intern("get"),
             interner.intern("contains"),
             interner.intern("containsAll"),
             interner.intern("first"),
@@ -786,6 +884,7 @@ extension CallTypeChecker {
             interner.intern("indexOfLast"),
             interner.intern("count"),
             interner.intern("iterator"),
+            interner.intern("filter"),
             interner.intern("filterNotNull"),
             interner.intern("filterIsInstanceTo"),
             interner.intern("filterNotNullTo"),
@@ -863,6 +962,7 @@ extension CallTypeChecker {
             interner.intern("minusElement"),
         ]
         let listOnlyMembers: Set = [
+            interner.intern("get"),
             interner.intern("subList"),
             interner.intern("slice"),
             interner.intern("getOrNull"),
@@ -964,6 +1064,7 @@ extension CallTypeChecker {
 
         let collectionReturningMembers: Set = [
             interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("filterNotNull"), interner.intern("requireNoNulls"),
+            interner.intern("filter"),
             interner.intern("filterIsInstanceTo"), interner.intern("reduceTo"),
             interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"),
@@ -1036,6 +1137,8 @@ extension CallTypeChecker {
              interner.intern("toMutableList"), interner.intern("sum"), interner.intern("average"),
              interner.intern("requireNoNulls"):
             return argCount == 0
+        case interner.intern("filter"):
+            return argCount == 1
         case interner.intern("joinToString"):
             return (0 ... 3).contains(argCount)
         case interner.intern("shuffled"):
@@ -1275,6 +1378,14 @@ extension CallTypeChecker {
             interner: interner
            ) {
             return resultType
+        }
+        if memberName == interner.intern("filter") {
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
         }
         let intReturningMembers: Set = [
             interner.intern("size"),
@@ -2291,6 +2402,7 @@ extension CallTypeChecker {
             return surfaceExpectation
         }
         let boolOneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("count"),
             interner.intern("first"),
             interner.intern("last"),
@@ -2302,6 +2414,7 @@ extension CallTypeChecker {
         ]
         let knownNames = KnownCompilerNames(interner: interner)
         let oneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("sortedBy"),
             interner.intern("count"),
             interner.intern("first"),
