@@ -2,7 +2,7 @@
 @testable import Runtime
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct RuntimeRegexNamedGroupTests {
     init() {
         kk_runtime_force_reset()
@@ -45,6 +45,7 @@ struct RuntimeRegexNamedGroupTests {
 
     @Test
     func testNamedGroupsExposeValuesByName() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
@@ -60,6 +61,7 @@ struct RuntimeRegexNamedGroupTests {
 
     @Test
     func testMissingNamedGroupReturnsNullSentinel() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
@@ -70,6 +72,7 @@ struct RuntimeRegexNamedGroupTests {
 
     @Test
     func testGroupNamesReturnsAllNamedGroups() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
         let setRaw = kk_regex_group_names(regexRaw)
 
@@ -84,6 +87,7 @@ struct RuntimeRegexNamedGroupTests {
 
     @Test
     func testGroupNamesEmptyForUnnamedPattern() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
         let setRaw = kk_regex_group_names(regexRaw)
 
