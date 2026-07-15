@@ -30,6 +30,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return nominal.symbol
         }
 
+        var enumStaticInitCallees: [(name: InternedString, symbol: SymbolID)] = []
+
         for nominalSymbolID in nominalSymbols {
             guard let nominalSymbol = sema.symbols.symbol(nominalSymbolID) else {
                 continue
@@ -40,6 +42,13 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
                 )
+                let entries = enumEntrySymbols(owner: nominalSymbol, symbols: sema.symbols)
+                if !entries.isEmpty {
+                    let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
+                    if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
+                        enumStaticInitCallees.append((initName, initSymbol))
+                    }
+                }
             }
             if nominalSymbol.flags.contains(.sealedType) {
                 synthesizeSealedHelper(
@@ -54,6 +63,42 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
                 )
+            }
+        }
+
+        // `__enum_static_init_<Class>` populates the global ordinal slots that
+        // equality comparisons and `when` branches read back. Nothing else
+        // ever calls it, so without this the globals stay at their
+        // zero-initialized default and every entry of a given enum class
+        // compares equal. Inject one call per enum class at the very start of
+        // `main`, mirroring how top-level property/companion initializers are
+        // threaded in by `postProcessTopLevelInitializersAndDelegates`.
+        if !enumStaticInitCallees.isEmpty {
+            let mainName = ctx.interner.intern("main")
+            let unitType = sema.types.unitType
+            module.arena.transformFunctions { function in
+                guard function.name == mainName else {
+                    return function
+                }
+                var initInstructions: [KIRInstruction] = []
+                for callee in enumStaticInitCallees {
+                    let result = module.arena.appendTemporary(type: unitType)
+                    initInstructions.append(.call(
+                        symbol: callee.symbol,
+                        callee: callee.name,
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+                var updated = function
+                if let first = updated.body.first, case .beginBlock = first {
+                    updated.replaceBody([first] + initInstructions + updated.body.dropFirst())
+                } else {
+                    updated.replaceBody(initInstructions + updated.body)
+                }
+                return updated
             }
         }
 

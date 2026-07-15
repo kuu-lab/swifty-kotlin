@@ -18,14 +18,12 @@ public extension RuntimeABISpec {
         "kk_op_lushr",
         "kk_op_mul",
         "kk_op_sub",
-        "kk_op_udiv",
         "kk_op_uge",
         "kk_op_ugt",
         "kk_op_ule",
         "kk_op_ult",
         "kk_op_uminus",
         "kk_op_uplus",
-        "kk_op_urem",
         "kk_uint_narrow",
     ]
 
