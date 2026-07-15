@@ -107,7 +107,7 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
             }
         }
     }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
 }
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
@@ -213,6 +213,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         list.elements
     } else if let set = runtimeSetBox(from: listRaw) {
         set.elements
+    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        array.elements
     } else {
         []
     }
@@ -583,8 +585,8 @@ public func kk_list_elementAt(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeM
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_list_elementAt received invalid list handle")
     }
     guard list.elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: Index \(index) out of bounds for length \(list.elements.count)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "Index \(index) out of bounds for length \(list.elements.count)"
         )
         return 0
     }
@@ -622,10 +624,11 @@ public func kk_list_single(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int
         invalidContainerPanic(#function, "list")
     }
     guard list.elements.count == 1 else {
-        let message = list.elements.isEmpty
-            ? "Collection is empty."
-            : "Collection has more than one element."
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: message))
+        if list.elements.isEmpty {
+            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
+        } else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Collection has more than one element."))
+        }
         return 0
     }
     return list.elements[0]
@@ -778,7 +781,7 @@ public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutab
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
     var values = list.values
@@ -806,7 +809,7 @@ public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutabl
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
     var values = list.values
@@ -1255,7 +1258,7 @@ public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePoint
     outThrown?.pointee = 0
     let values = runtimeIterableValues(from: iterableRaw) ?? []
     guard let last = values.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
         return 0
     }
     return last.legacyRawValue
