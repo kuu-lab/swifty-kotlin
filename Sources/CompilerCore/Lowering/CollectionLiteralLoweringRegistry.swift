@@ -18,6 +18,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
     static let name = "CollectionVirtualCallRewrite"
 
     func lowerVirtualCallInstruction(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         arguments: [KIRExprID],
@@ -32,6 +33,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
         rewriteVirtualCallInstruction(
+            symbol: symbol,
             callee: callee,
             receiver: receiver,
             arguments: arguments,
@@ -134,8 +136,9 @@ struct CollectionLiteralLoweringRegistry {
                         loweredBody: &loweredBody
                     )
 
-                case let .virtualCall(_, callee, receiver, arguments, result, origCanThrow, origThrownResult, _):
+                case let .virtualCall(symbol, callee, receiver, arguments, result, origCanThrow, origThrownResult, _):
                     if virtualCallRewritePass.lowerVirtualCallInstruction(
+                        symbol: symbol,
                         callee: callee,
                         receiver: receiver,
                         arguments: arguments,

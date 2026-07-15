@@ -1934,7 +1934,7 @@ public extension RuntimeABISpec {
         flatStringHOFReturnSpec(name: "kk_string_trimEnd_predicate_flat"),
         // STDLIB-145: String.toByteArray
         RuntimeABIFunctionSpec(
-            name: "kk_string_toByteArray_flat",
+            name: "__kk_string_toByteArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1947,7 +1947,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-581: String.toByteArray(charset: Charset)
         RuntimeABIFunctionSpec(
-            name: "kk_string_toByteArray_charset_flat",
+            name: "__kk_string_toByteArray_charset_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -1960,63 +1960,63 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_8",
+            name: "__kk_charset_utf_8",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_iso_8859_1",
+            name: "__kk_charset_iso_8859_1",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_us_ascii",
+            name: "__kk_charset_us_ascii",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_16",
+            name: "__kk_charset_utf_16",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_16be",
+            name: "__kk_charset_utf_16be",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_16le",
+            name: "__kk_charset_utf_16le",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_32",
+            name: "__kk_charset_utf_32",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_32be",
+            name: "__kk_charset_utf_32be",
             parameters: [],
             returnType: .intptr,
             section: "String",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_charset_utf_32le",
+            name: "__kk_charset_utf_32le",
             parameters: [],
             returnType: .intptr,
             section: "String",
@@ -2024,7 +2024,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray_flat",
+            name: "__kk_string_encodeToByteArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -2036,7 +2036,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
         RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray_range_flat",
+            name: "__kk_string_encodeToByteArray_range_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -2050,7 +2050,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-573: String.encodeToByteArray(charset)
         RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray_charset_flat",
+            name: "__kk_string_encodeToByteArray_charset_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -2063,26 +2063,28 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-574: ByteArray.decodeToString
         RuntimeABIFunctionSpec(
-            name: "kk_bytearray_decodeToString",
+            name: "__kk_bytearray_decodeToString",
             parameters: [
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "ByteArray"
+            section: "ByteArray",
+            isThrowing: false
         ),
         // STDLIB-574: ByteArray.decodeToString(charset)
         RuntimeABIFunctionSpec(
-            name: "kk_bytearray_decodeToString_charset",
+            name: "__kk_bytearray_decodeToString_charset",
             parameters: [
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
                 RuntimeABIParameter(name: "charsetId", type: .intptr),
             ],
             returnType: .intptr,
-            section: "ByteArray"
+            section: "ByteArray",
+            isThrowing: false
         ),
         // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, ...)
         RuntimeABIFunctionSpec(
-            name: "kk_bytearray_decodeToString_range",
+            name: "__kk_bytearray_decodeToString_range",
             parameters: [
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
@@ -2093,7 +2095,7 @@ public extension RuntimeABISpec {
             section: "ByteArray"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_bytearray_decodeToString_range_throw",
+            name: "__kk_bytearray_decodeToString_range_throw",
             parameters: [
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),

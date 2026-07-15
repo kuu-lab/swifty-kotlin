@@ -578,7 +578,7 @@ public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: Unsafe
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_build received invalid builder handle")
     }
     guard let url = builder.url else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalStateException: HTTP request URI is not set")
+        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "HTTP request URI is not set")
         return 0
     }
     return registerRuntimeObject(RuntimeHttpRequestBox(url: url, method: builder.method, headers: builder.headers, body: builder.body))

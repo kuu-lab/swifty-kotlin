@@ -369,7 +369,7 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendBytes received invalid File handle")
     }
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> array")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> array")
         return 0
     }
     do {
@@ -398,7 +398,7 @@ public func kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Uns
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_writeBytes received invalid File handle")
     }
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> array")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> array")
         return 0
     }
     do {
@@ -1598,7 +1598,7 @@ public func kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMuta
 public func kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard bufferSizeRaw > 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: bufferSize must be positive")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bufferSize must be positive")
         return 0
     }
     guard runtimeBufferedWriterBox(from: writerRaw) != nil else {
@@ -1626,7 +1626,7 @@ public func kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointe
 public func kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let bytes = runtimeByteArrayBytes(from: bufferRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> buffer")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return 0
     }
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
@@ -1638,7 +1638,7 @@ public func kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMut
 public func kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray handle")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
         return 0
     }
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
@@ -1656,14 +1656,14 @@ public func kk_bytearray_inputStream_range(
 ) -> Int {
     outThrown?.pointee = 0
     guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray handle")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
         return 0
     }
     let offset = offsetRaw
     let length = lengthRaw
     guard offset >= 0, length >= 0, offset + length <= bytes.count else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: offset=\(offset) length=\(length) size=\(bytes.count)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "offset=\(offset) length=\(length) size=\(bytes.count)"
         )
         return 0
     }
@@ -1767,7 +1767,7 @@ public func kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outT
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_read_bytes received invalid InputStream handle")
     }
     guard let list = runtimeListBox(from: bytesRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> buffer")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return -1
     }
     return stream.read(into: list)
@@ -1929,7 +1929,7 @@ public func kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _ o
     // does the same).  Surface that diagnostic via the standard outThrown
     // channel rather than returning a sentinel.
     if bufferSizeRaw <= 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: Buffer size <= 0")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Buffer size <= 0")
         return 0
     }
     return streamRaw
@@ -2000,7 +2000,7 @@ public func kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_write_bytes received invalid OutputStream handle")
     }
     guard let list = runtimeListBox(from: bytesRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> buffer")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return 0
     }
     do {
@@ -2146,8 +2146,8 @@ public func kk_reader_copyTo(
     }
 
     if bufferSizeRaw <= 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: bufferSize must be positive (was \(bufferSizeRaw))"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "bufferSize must be positive (was \(bufferSizeRaw))"
         )
         return kk_box_long(0)
     }

@@ -53,7 +53,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testEncodeToByteArrayASCII() {
         withFlatString("Hello") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             let elements = extractListElements(result)
             // "Hello" -> [72, 101, 108, 108, 111]
             XCTAssertEqual(elements, [72, 101, 108, 108, 111])
@@ -64,7 +64,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testEncodeToByteArrayNonASCII() {
         withFlatString("\u{00E9}") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             let elements = extractListElements(result)
             XCTAssertEqual(elements, [-61, -87])
         }
@@ -74,8 +74,8 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testEncodeToByteArrayMatchesToByteArray() {
         withFlatString("test123") { data, length, byteCount, hash in
-            let encode = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
-            let toByte = kk_string_toByteArray_flat(data, length, byteCount, hash)
+            let encode = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let toByte = __kk_string_toByteArray_flat(data, length, byteCount, hash)
             XCTAssertNil(runtimeListBox(from: toByte))
             XCTAssertNotNil(runtimeArrayBox(from: toByte))
             let encodeElems = extractListElements(encode)
@@ -89,24 +89,24 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         withFlatString("H\u{00E9}") { data, length, byteCount, hash in
             let expected = [72, -61, -87]
             XCTAssertEqual(
-                extractListElements(kk_string_toByteArray_flat(data, length, byteCount, hash)),
+                extractListElements(__kk_string_toByteArray_flat(data, length, byteCount, hash)),
                 expected
             )
             XCTAssertEqual(
-                extractListElements(kk_string_encodeToByteArray_flat(data, length, byteCount, hash)),
+                extractListElements(__kk_string_encodeToByteArray_flat(data, length, byteCount, hash)),
                 expected
             )
         }
 
         withFlatString("Hello") { data, length, byteCount, hash in
             XCTAssertEqual(
-                extractListElements(kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 1, 4)),
+                extractListElements(__kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 1, 4)),
                 [101, 108, 108]
             )
         }
 
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
-            let charsetBytes = kk_string_toByteArray_charset_flat(data, length, byteCount, hash, kk_charset_us_ascii())
+            let charsetBytes = __kk_string_toByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_us_ascii())
             XCTAssertNil(runtimeListBox(from: charsetBytes))
             XCTAssertNotNil(runtimeArrayBox(from: charsetBytes))
             XCTAssertEqual(
@@ -118,7 +118,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         withFlatString("AB") { data, length, byteCount, hash in
             XCTAssertEqual(
                 extractListElements(
-                    kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, kk_charset_utf_16be())
+                    __kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_utf_16be())
                 ),
                 [0, 65, 0, 66]
             )
@@ -129,7 +129,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testDecodeToStringASCII() {
         let byteArray = makeListRaw([72, 101, 108, 108, 111]) // "Hello"
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "Hello")
     }
 
@@ -138,7 +138,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringNonASCII() {
         // U+00E9 (e-acute) -> UTF-8: [0xC3, 0xA9]
         let byteArray = makeListRaw([0xC3, 0xA9])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "\u{00E9}")
     }
 
@@ -147,8 +147,8 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testRoundTripUTF8() {
         let original = "Hello, World! \u{1F600}" // includes emoji (4-byte UTF-8)
         withFlatString(original) { data, length, byteCount, hash in
-            let encoded = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
-            let decoded = kk_bytearray_decodeToString(encoded)
+            let encoded = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let decoded = __kk_bytearray_decodeToString(encoded)
             XCTAssertEqual(extractSwiftString(decoded), original)
         }
     }
@@ -160,7 +160,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         // [0xC3, 0xA9] encodes U+00E9 — test using negative representations.
         // -61 truncated to UInt8 = 195 = 0xC3; -87 truncated to UInt8 = 169 = 0xA9
         let byteArray = makeListRaw([-61, -87])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "\u{00E9}")
     }
 
@@ -169,7 +169,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringMalformedUTF8() {
         // 0xFF is not valid in UTF-8 — should produce replacement character U+FFFD
         let byteArray = makeListRaw([0xFF])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         let decoded = extractSwiftString(result)
         XCTAssertNotNil(decoded)
         XCTAssertTrue(decoded?.contains("\u{FFFD}") == true,
@@ -180,7 +180,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testDecodeToStringEmptyArray() {
         let byteArray = makeListRaw([])
-        let result = kk_bytearray_decodeToString(byteArray)
+        let result = __kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "")
     }
 
@@ -188,7 +188,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testEncodeToByteArrayEmptyString() {
         withFlatString("") { data, length, byteCount, hash in
-            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let result = __kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             XCTAssertEqual(extractListElements(result), [])
         }
     }
@@ -197,7 +197,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testDecodeToStringCharsetUTF8() {
         let byteArray = makeListRaw([72, 101, 108, 108, 111]) // "Hello"
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         XCTAssertEqual(extractSwiftString(result), "Hello")
     }
 
@@ -205,14 +205,14 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testDecodeToStringCharsetASCII() {
         let byteArray = makeListRaw([65, 66, 67]) // "ABC"
-        let result = kk_bytearray_decodeToString_charset(byteArray, 2)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 2)
         XCTAssertEqual(extractSwiftString(result), "ABC")
     }
 
     func testDecodeToStringCharsetASCIINonASCIIByte() {
         // Bytes > 127 should produce replacement character in US-ASCII
         let byteArray = makeListRaw([0xC3, 0xA9]) // UTF-8 for e-acute, but invalid ASCII
-        let result = kk_bytearray_decodeToString_charset(byteArray, 2)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 2)
         let decoded = extractSwiftString(result)
         XCTAssertNotNil(decoded)
         XCTAssertEqual(decoded, "\u{FFFD}\u{FFFD}",
@@ -224,14 +224,14 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringCharsetLatin1() {
         // In ISO-8859-1, byte 0xE9 = U+00E9 (e-acute), direct 1:1 mapping
         let byteArray = makeListRaw([0x48, 0x65, 0x6C, 0x6C, 0x6F, 0xE9]) // "Hello" + e-acute
-        let result = kk_bytearray_decodeToString_charset(byteArray, 1)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 1)
         XCTAssertEqual(extractSwiftString(result), "Hello\u{00E9}")
     }
 
     func testDecodeToStringCharsetLatin1HighBytes() {
         // ISO-8859-1: every byte 0x00..0xFF maps to same Unicode code point
         let byteArray = makeListRaw([0xFF, 0xFE, 0xA0])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 1)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 1)
         XCTAssertEqual(extractSwiftString(result), "\u{FF}\u{FE}\u{A0}")
     }
 
@@ -239,13 +239,13 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testDecodeToStringCharsetEmpty() {
         let byteArray = makeListRaw([])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         XCTAssertEqual(extractSwiftString(result), "")
     }
 
     func testDecodeToStringCharsetAcceptsArrayBox() {
         let byteArray = makeArrayRaw([72, 101, 108, 108, 111])
-        let result = kk_bytearray_decodeToString_charset(byteArray, 0)
+        let result = __kk_bytearray_decodeToString_charset(byteArray, 0)
         XCTAssertEqual(extractSwiftString(result), "Hello")
     }
 
@@ -254,7 +254,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringRange() {
         var thrown = 0
         let byteArray = makeListRaw([65, 66, 67, 68, 69]) // "ABCDE"
-        let result = kk_bytearray_decodeToString_range(byteArray, 1, 4, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 1, 4, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractSwiftString(result), "BCD")
     }
@@ -262,7 +262,7 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringRangeAcceptsArrayBox() {
         var thrown = 0
         let byteArray = makeArrayRaw([65, 66, 67, 68, 69]) // "ABCDE"
-        let result = kk_bytearray_decodeToString_range(byteArray, 0, 5, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 0, 5, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractSwiftString(result), "ABCDE")
     }
@@ -270,21 +270,21 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     func testDecodeToStringRangeInvalidBoundsThrows() {
         var thrown = 0
         let byteArray = makeListRaw([65, 66, 67])
-        _ = kk_bytearray_decodeToString_range(byteArray, 2, 4, &thrown)
+        _ = __kk_bytearray_decodeToString_range(byteArray, 2, 4, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
     func testDecodeToStringRangeStrictMalformedUTF8Throws() {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
-        _ = kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
+        _ = __kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
     func testDecodeToStringRangeNonStrictMalformedUTF8UsesReplacement() {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
-        let result = kk_bytearray_decodeToString_range(byteArray, 0, 2, &thrown)
+        let result = __kk_bytearray_decodeToString_range(byteArray, 0, 2, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractSwiftString(result), "\u{FFFD}(")
     }

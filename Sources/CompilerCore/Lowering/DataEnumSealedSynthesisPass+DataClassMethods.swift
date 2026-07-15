@@ -584,12 +584,41 @@ extension DataEnumSealedSynthesisPass {
                 )
                 body.append(.constValue(result: fieldOffsetExpr, value: .intLiteral(fieldOffsetValue)))
 
+                // Read the stored field first (matching appendSyntheticDataClassEqualsIfNeeded /
+                // synthesizeDataClassComponentN). Passing `receiverRef` itself straight to
+                // kk_any_hashCode — as this used to do — hashed the *receiver's own pointer*
+                // on every iteration (kk_any_hashCode only reads its `tag` arg for non-pointer
+                // values), so every property contributed the same identity-based hash and
+                // equal-by-content instances ended up with different hashCode()s.
+                let propType = sema.symbols.propertyType(for: propSym.id) ?? sema.types.anyType
+                let fieldValueExpr = module.arena.appendTemporary(type: propType
+                )
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_get_inbounds"),
+                    arguments: [receiverRef, fieldOffsetExpr],
+                    result: fieldValueExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+
+                // Tag only disambiguates Boolean's JVM-matching 1231/1237 sentinel from a raw
+                // int/long/char bit pattern; pointer-shaped values (String/class instances) are
+                // dispatched by kk_any_hashCode via runtime type inspection regardless of tag.
+                let tagValue: Int64 = switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
+                case .primitive(.boolean, _): 2
+                default: 1
+                }
+                let tagExpr = module.arena.appendTemporary(type: intType
+                )
+                body.append(.constValue(result: tagExpr, value: .intLiteral(tagValue)))
+
                 let propHashExpr = module.arena.appendTemporary(type: intType
                 )
                 body.append(.call(
                     symbol: nil,
                     callee: hashCodeCallee,
-                    arguments: [receiverRef, fieldOffsetExpr],
+                    arguments: [fieldValueExpr, tagExpr],
                     result: propHashExpr,
                     canThrow: false,
                     thrownResult: nil
