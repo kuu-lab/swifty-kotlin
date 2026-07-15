@@ -8,6 +8,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     // MARK: - Sequence operations
 
     func rewriteSequenceVirtualCall(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         arguments: [KIRExprID],
@@ -77,7 +78,22 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if callee == lookup.takeName, arguments.count == 1 {
+        // STDLIB-pipeline §5: take(n) has real require(n >= 0) validation in
+        // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. Only take the direct
+        // kk_sequence_take shortcut when the resolved callee is NOT that
+        // source-backed declaration; otherwise fall through so the call
+        // routes through normal function resolution and the require() runs.
+        func isSourceBackedSequenceCall() -> Bool {
+            guard let symbol,
+                  let sema = context.sema,
+                  let semanticSymbol = sema.symbols.symbol(symbol),
+                  semanticSymbol.declSite != nil
+            else {
+                return false
+            }
+            return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        }
+        if callee == lookup.takeName, arguments.count == 1, !isSourceBackedSequenceCall() {
             if sequenceExprIDs.contains(receiver.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,
@@ -206,6 +222,148 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
+        if callee == lookup.chunkedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
+            let transformResult = module.arena.appendTemporary(type: nil
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListChunkedBridgeName,
+                arguments: [receiver] + arguments,
+                result: transformResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(transformResult.rawValue)
+                loweredBody.append(.copy(from: transformResult, to: result))
+            }
+            return true
+        }
+
+        // chunked(size, transform) HOF overload after closure expansion: [size, fnPtr, closureRaw]
+        if callee == lookup.chunkedName, arguments.count == 3, listExprIDs.contains(receiver.rawValue) {
+            let transformResult = module.arena.appendTemporary(type: nil
+            )
+            let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListChunkedTransformBridgeName,
+                arguments: [receiver] + arguments,
+                result: transformResult,
+                canThrow: true,
+                thrownResult: thrownExpr
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(transformResult.rawValue)
+                loweredBody.append(.copy(from: transformResult, to: result))
+            }
+            return true
+        }
+
+        if callee == lookup.windowedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
+            let transformResult = module.arena.appendTemporary(type: nil
+            )
+            let oneExpr = module.arena.appendExpr(.intLiteral(1), type: nil)
+            loweredBody.append(.constValue(result: oneExpr, value: .intLiteral(1)))
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListWindowedBridgeName,
+                arguments: [receiver, arguments[0], oneExpr, zeroExpr],
+                result: transformResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(transformResult.rawValue)
+                loweredBody.append(.copy(from: transformResult, to: result))
+            }
+            return true
+        }
+
+        if callee == lookup.windowedName, arguments.count == 2, listExprIDs.contains(receiver.rawValue) {
+            let transformResult = module.arena.appendTemporary(type: nil
+            )
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListWindowedBridgeName,
+                arguments: [receiver, arguments[0], arguments[1], zeroExpr],
+                result: transformResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(transformResult.rawValue)
+                loweredBody.append(.copy(from: transformResult, to: result))
+            }
+            return true
+        }
+
+        if callee == lookup.windowedName, arguments.count == 3, listExprIDs.contains(receiver.rawValue) {
+            let thirdArgType = module.arena.exprType(arguments[2])
+            let thirdArgIsBoolean = context.sema.map { thirdArgType == $0.types.booleanType } ?? false
+            if thirdArgIsBoolean {
+                let transformResult = module.arena.appendTemporary(type: nil
+                )
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: lookup.kkListWindowedBridgeName,
+                    arguments: [receiver] + arguments,
+                    result: transformResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let result {
+                    listExprIDs.insert(result.rawValue)
+                    listExprIDs.insert(transformResult.rawValue)
+                    loweredBody.append(.copy(from: transformResult, to: result))
+                }
+                return true
+            }
+        }
+
+        if callee == lookup.windowedName,
+           supportsIterableWindowedTransformReceiver(
+               receiver: receiver,
+               context: context,
+               listExprIDs: listExprIDs,
+               setExprIDs: setExprIDs,
+               arrayExprIDs: arrayExprIDs
+           ),
+           let bridgeArguments = makeWindowedTransformBridgeArguments(
+               receiver: receiver,
+               windowedArguments: arguments,
+               module: module,
+               sema: context.sema,
+               loweredBody: &loweredBody
+           )
+        {
+            let transformResult = module.arena.appendTemporary(type: nil
+            )
+            let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListWindowedTransformBridgeName,
+                arguments: bridgeArguments,
+                result: transformResult,
+                canThrow: true,
+                thrownResult: thrownExpr
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(transformResult.rawValue)
+                loweredBody.append(.copy(from: transformResult, to: result))
+            }
+            return true
+        }
+
         if callee == lookup.shuffledName,
            arguments.isEmpty || arguments.count == 1,
            sequenceExprIDs.contains(receiver.rawValue)
@@ -274,204 +432,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 result: transformResult,
                 canThrow: false,
                 thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.chunkedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListChunkedName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        // chunked(size, transform) HOF overload — 3 args after closure expansion [size, fnPtr, closureRaw]
-        if callee == lookup.chunkedName, arguments.count == 3, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            let thrownExpr = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListChunkedTransformName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: thrownExpr
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.windowedName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWindowedDefaultName,
-                arguments: [receiver, arguments[0]],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.windowedName, arguments.count == 2, listExprIDs.contains(receiver.rawValue) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWindowedName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        if callee == lookup.windowedName, arguments.count == 3, listExprIDs.contains(receiver.rawValue) {
-            let thirdArgType = module.arena.exprType(arguments[2])
-            let thirdArgIsBoolean = context.sema.map { thirdArgType == $0.types.booleanType } ?? false
-            if thirdArgIsBoolean {
-                let transformResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListWindowedPartialName,
-                    arguments: [receiver] + arguments,
-                    result: transformResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if let result {
-                    listExprIDs.insert(result.rawValue)
-                    listExprIDs.insert(transformResult.rawValue)
-                    loweredBody.append(.copy(from: transformResult, to: result))
-                }
-                return true
-            }
-        }
-
-        // windowed(size, transform) HOF overload — 3 args after closure expansion [size, fnPtr, closureRaw]
-        if callee == lookup.windowedName, arguments.count == 3,
-           supportsIterableWindowedTransformReceiver(
-               receiver: receiver,
-               context: context,
-               listExprIDs: listExprIDs,
-               setExprIDs: setExprIDs,
-               arrayExprIDs: arrayExprIDs
-           )
-        {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            let oneExpr = module.arena.appendExpr(.intLiteral(1), type: nil)
-            loweredBody.append(.constValue(result: oneExpr, value: .intLiteral(1)))
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let thrownExpr = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWindowedTransformName,
-                arguments: [receiver, arguments[0], oneExpr, zeroExpr, arguments[1], arguments[2]],
-                result: transformResult,
-                canThrow: true,
-                thrownResult: thrownExpr
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        // windowed(size, step, transform) HOF overload — 4 args after closure expansion [size, step, fnPtr, closureRaw]
-        if callee == lookup.windowedName, arguments.count == 4,
-           supportsIterableWindowedTransformReceiver(
-               receiver: receiver,
-               context: context,
-               listExprIDs: listExprIDs,
-               setExprIDs: setExprIDs,
-               arrayExprIDs: arrayExprIDs
-           )
-        {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let thrownExpr = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWindowedTransformName,
-                arguments: [receiver, arguments[0], arguments[1], zeroExpr, arguments[2], arguments[3]],
-                result: transformResult,
-                canThrow: true,
-                thrownResult: thrownExpr
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(transformResult.rawValue)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        // windowed(size, step, partialWindows, transform) HOF overload — 5 args after closure expansion [size, step, partialWindows, fnPtr, closureRaw]
-        if callee == lookup.windowedName, arguments.count == 5,
-           supportsIterableWindowedTransformReceiver(
-               receiver: receiver,
-               context: context,
-               listExprIDs: listExprIDs,
-               setExprIDs: setExprIDs,
-               arrayExprIDs: arrayExprIDs
-           )
-        {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            let thrownExpr = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListWindowedTransformName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: true,
-                thrownResult: thrownExpr
             ))
             if let result {
                 listExprIDs.insert(result.rawValue)
@@ -756,12 +716,13 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
+        let sequencePlusMinusCallees = SequencePlusMinusRuntimeCallees(
+            plus: lookup.kkSequencePlusName,
+            minus: lookup.kkSequenceMinusName,
+            ofSingle: lookup.kkSequenceOfSingleName
+        )
+
         // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
-        // Wrap single-element arguments in a one-element sequence so the
-        // runtime ABI always receives a collection handle.
-        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
-        // deduplicate logic across VirtualCallRewrite, CallRewrite, and
-        // CallLowerer+Operators (see PR #460 review).
         if callee == lookup.plusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
             let argID = arguments[0]
             // Only sequence/list/array are supported by kk_sequence_plus
@@ -769,30 +730,16 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let isArgCollection = listExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
                 || arrayExprIDs.contains(argID.rawValue)
-            let effectiveArg: KIRExprID
-            if isArgCollection {
-                effectiveArg = argID
-            } else {
-                let wrappedExpr = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSequenceOfSingleName,
-                    arguments: [argID],
-                    result: wrappedExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                effectiveArg = wrappedExpr
-            }
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequencePlusName,
-                arguments: [receiver, effectiveArg],
+            emitSequencePlusMinusRewrite(
+                operation: .plus,
+                receiver: receiver,
+                argument: argID,
+                argumentIsCollection: isArgCollection,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                arena: module.arena,
+                callees: sequencePlusMinusCallees,
+                instructions: &loweredBody
+            )
             if let result { sequenceExprIDs.insert(result.rawValue) }
             return true
         }
@@ -856,8 +803,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         // minus(element)/minusElement(element) on sequence → kk_sequence_minus
-        // Only rewrite when the argument is a single element (not a collection).
-        // Collection-removal is not yet supported at the ABI level.
         if callee == lookup.minusMemberName || callee == lookup.minusElementName,
            arguments.count == 1,
            sequenceExprIDs.contains(receiver.rawValue)
@@ -868,18 +813,20 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let isArgCollection = listExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
                 || arrayExprIDs.contains(argID.rawValue)
-            guard !isArgCollection else {
+            let rewriteResult = emitSequencePlusMinusRewrite(
+                operation: .minus,
+                receiver: receiver,
+                argument: argID,
+                argumentIsCollection: isArgCollection,
+                result: result,
+                arena: module.arena,
+                callees: sequencePlusMinusCallees,
+                instructions: &loweredBody
+            )
+            guard case .emitted = rewriteResult else {
                 // Fall through: collection-removal not supported
                 return false
             }
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkSequenceMinusName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
             if let result { sequenceExprIDs.insert(result.rawValue) }
             return true
         }

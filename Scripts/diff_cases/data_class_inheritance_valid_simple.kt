@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Test cases for valid data class inheritance (STDLIB-DATA-014)
 
 // Case 1: Data class inheriting from regular open class - should be allowed

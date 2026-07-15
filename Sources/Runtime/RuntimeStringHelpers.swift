@@ -95,10 +95,6 @@ func runtimeMakeStringListRaw(_ values: [String]) -> Int {
     runtimeMakeListRaw(values.map(runtimeMakeStringRaw))
 }
 
-func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, message: String) {
-    outThrown?.pointee = runtimeAllocateThrowable(message: message)
-}
-
 func runtimePropagateThrownOrTrap(
     _ thrown: Int,
     outThrown: UnsafeMutablePointer<Int>?,

@@ -27,13 +27,10 @@ extension CodegenBackendIntegrationTests {
     // output, because runtimeElementToString (unlike runtimeRenderAnyForPrint, used by
     // println) had no RuntimeThrowableBox case.
     //
-    // Note: constructing IllegalStateException(...) directly from Kotlin source routes
-    // through kk_throwable_new, which allocates an untyped RuntimeThrowableBox with no
-    // exception-name prefix in its rendered message (a separate, pre-existing gap from
-    // the raw-pointer bug fixed here — see testCodegenCaughtArithmeticExceptionStringConversionMatchesPrintln
-    // below for a type-specialized box that does carry the prefix). What this test
-    // guards is that all three conversions ($e, +, println) stay in lockstep and none
-    // of them regresses to printing a raw pointer.
+    // Constructing IllegalStateException(...) now routes through its type-specific
+    // constructor bridge, so the typed RuntimeThrowableBox adds the exception name
+    // to rendered output. What this test guards is that all three conversions ($e,
+    // +, println) stay in lockstep and none of them regresses to printing a raw pointer.
     func testCodegenCaughtThrowableStringConversionMatchesPrintln() throws {
         let source = """
         fun main() {
@@ -52,9 +49,9 @@ extension CodegenBackendIntegrationTests {
             moduleName: "ThrowableStringTemplateConcatIllegalState",
             expected:
                 """
-                interp existing: Throwable(existing type test)
-                plus existing: Throwable(existing type test)
-                Throwable(existing type test)
+                interp existing: Throwable(IllegalStateException: existing type test)
+                plus existing: Throwable(IllegalStateException: existing type test)
+                Throwable(IllegalStateException: existing type test)
                 """ + "\n"
         )
     }
@@ -89,4 +86,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-

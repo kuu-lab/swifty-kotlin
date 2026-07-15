@@ -351,6 +351,19 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
     return next
 }
 
+/// `kotlinx.coroutines.isActive` extension on CoroutineContext: `this[Job]?.isActive ?: true`.
+@_cdecl("kk_context_is_active")
+public func kk_context_is_active(_ contextRaw: Int) -> Int {
+    let ctx = resolveToCoroutineContext(contextRaw)
+    guard ctx.jobHandleRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: ctx.jobHandleRaw),
+          let job = tryCast(ptr, to: RuntimeJobHandle.self)
+    else {
+        return 1 // No Job element: kotlinx.coroutines treats this as active.
+    }
+    return job.isActiveSnapshot() ? 1 : 0
+}
+
 /// Extract the CoroutineName from a CoroutineContext.
 /// Returns a RuntimeStringBox pointer (or 0 if no name).
 @_cdecl("kk_context_get_name")
@@ -392,13 +405,36 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         ? resolvedCtx.dispatcher
         : RuntimeDispatcherTag.defaultDispatcher
 
+    var restoreJobHandle: (@Sendable () -> Void)?
     if let contState = runtimeContinuationState(from: continuation) {
         if let name = resolvedCtx.name, let scope = contState.scope {
             scope.name = name
         }
+        // Install a Job element from the context (e.g. NonCancellable) as this
+        // block's ambient job, so cancellation checks inside the block observe it
+        // instead of falling through to the caller's job/scope. This is what makes
+        // `withContext(NonCancellable) { ... }` immune to the enclosing job's
+        // cancellation: NonCancellable's backing job is never cancelled.
+        //
+        // This override must not leak past the end of this withContext block --
+        // otherwise every subsequent cancellation check in the same coroutine
+        // would observe the (never-cancelled) override job forever. Save the
+        // original and restore it via restoreJobHandle once the block genuinely
+        // finishes, across all of kk_with_context's completion paths (inline,
+        // CORO-004 async, and non-coroutine semaphore).
+        if resolvedCtx.jobHandleRaw != 0,
+           let ptr = UnsafeMutableRawPointer(bitPattern: resolvedCtx.jobHandleRaw),
+           let overrideJob = tryCast(ptr, to: RuntimeJobHandle.self)
+        {
+            let savedJobHandle = contState.jobHandle
+            contState.jobHandle = overrideJob
+            restoreJobHandle = { [weak contState] in
+                contState?.jobHandle = savedJobHandle
+            }
+        }
     }
 
-    return kk_with_context(dispatcherTag, blockFnPtr, continuation)
+    return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, restoreJobHandle: restoreJobHandle)
 }
 
 /// Check if a raw Int value is a known dispatcher tag.
@@ -613,6 +649,21 @@ private final class WithContextResultBox: @unchecked Sendable {
 /// and context elements (name, exception handler) are propagated.
 @_cdecl("kk_with_context")
 public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
+    kk_with_context_impl(dispatcherRaw, blockFnPtr, continuation, restoreJobHandle: nil)
+}
+
+/// Shared implementation behind the `kk_with_context` ABI entry point.
+/// `restoreJobHandle`, when non-nil, is invoked exactly once at the point the
+/// block's execution has genuinely finished -- across all three completion
+/// paths below (inline, CORO-004 async, non-coroutine semaphore) -- so that
+/// `kk_with_context_full`'s job-element override (e.g. NonCancellable) does
+/// not leak past the end of this withContext block.
+func kk_with_context_impl(
+    _ dispatcherRaw: Int,
+    _ blockFnPtr: Int,
+    _ continuation: Int,
+    restoreJobHandle: (@Sendable () -> Void)?
+) -> Int {
     // STDLIB-CORO-077: If dispatcherRaw is a RuntimeCoroutineContext, delegate
     // to kk_with_context_full which handles context element propagation.
     if !isDispatcherTag(dispatcherRaw), dispatcherRaw != 0,
@@ -621,6 +672,7 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
        runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
        tryCast(ptr, to: RuntimeCoroutineContext.self) != nil
     {
+        restoreJobHandle?()
         return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
     }
 
@@ -637,6 +689,7 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
         // Clean up the continuation to avoid leaking coroutine state.
         _ = kk_coroutine_state_exit(continuation, 0)
+        restoreJobHandle?()
         return 0
     }
 
@@ -667,10 +720,12 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
         defer { RuntimeDispatcher.current = savedDispatcher }
         RuntimeCoroutineScope.current = parentScope
         RuntimeDispatcher.current = dispatcher
-        return runSuspendEntryLoopWithContinuation(
+        let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
             continuation: continuation
         )
+        restoreJobHandle?()
+        return result
     }
 
     // CORO-004: Continuation-based withContext (caller suspend path).
@@ -693,6 +748,7 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
                 onCompletion: { result, thrown in
+                    restoreJobHandle?()
                     if thrown != 0 {
                         callerState.resume(withException: thrown)
                     } else {
@@ -718,6 +774,7 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
             entryPointRaw: blockFnPtr,
             continuation: continuation
         )
+        restoreJobHandle?()
         semaphore.signal()
     }
 

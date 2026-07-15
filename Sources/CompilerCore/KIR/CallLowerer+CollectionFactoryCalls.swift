@@ -227,6 +227,7 @@ extension CallLowerer {
             interner: interner,
             intType: intType,
             anyType: sema.types.anyType,
+            types: sema.types,
             instructions: &instructions
         )
 
@@ -251,6 +252,14 @@ extension CallLowerer {
     /// Boxes a lowered argument into `Any?` when it is an unboxed primitive, so it can be
     /// stored as an element of an `Any?`-typed array/list. Reused by other vararg-into-`Any?`
     /// lowering paths (e.g. `StringBuilder.append(vararg value: Any?)`).
+    ///
+    /// A value class with no interface is unboxed to its underlying primitive
+    /// elsewhere (ValueClassUnboxingPass), so its *declared* type here is still
+    /// `.classType` — resolve it to that underlying primitive kind first, or
+    /// `BoxingCalleeTable` sees a non-primitive kind and skips boxing entirely,
+    /// storing the raw unboxed value directly in the Any-typed backing array.
+    /// Mirrors `ABILoweringPass.resolveValueClassKind` / the equivalent fix in
+    /// `CollectionLiteralLoweringPass+FactoryPredicates.primitiveBoxCalleeName`.
     func boxCollectionFactoryElementIfNeeded(
         _ argID: KIRExprID,
         sema: SemaModule,
@@ -258,22 +267,36 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let argType = arena.exprType(argID),
-              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: argType,
-                  types: sema.types,
-                  requireNonNull: false
-              )
+        guard let argType = arena.exprType(argID) else {
+            return argID
+        }
+        let rawSourceKind = sema.types.kind(of: argType)
+        let boxKind = resolveValueClassKind(
+            rawSourceKind,
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+            for: boxKind,
+            requireNonNull: false
+        )
         else {
             return argID
         }
-        return emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argID,
+        let boxedResult = arena.appendTemporary(type: sema.types.anyType)
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: argID,
+            rawSourceKind: rawSourceKind,
+            result: boxedResult,
             resultType: sema.types.anyType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
             arena: arena,
             into: &instructions
         )
+        return boxedResult
     }
 
     private func emitMapFactoryCall(

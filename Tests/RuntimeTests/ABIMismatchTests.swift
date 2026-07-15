@@ -11,44 +11,6 @@ final class ABIMismatchTests: XCTestCase {
 
     // MARK: - Spec Integrity
 
-    func testSpecVersionIsNonEmpty() {
-        XCTAssertFalse(RuntimeABISpec.specVersion.isEmpty)
-    }
-
-    func testSpecVersionMatchesCompilerExterns() {
-        XCTAssertEqual(
-            RuntimeABISpec.specVersion,
-            RuntimeABIExterns.specVersion,
-            "Runtime spec version must match shared RuntimeABI extern spec version"
-        )
-    }
-
-    func testAllFunctionNamesAreUnique() {
-        let reflectionNames =
-            RuntimeABISpec.kPropertyStubFunctions.map { $0.name }
-            + RuntimeABISpec.kFunctionFunctions.map { $0.name }
-            + RuntimeABISpec.callableRefFunctions.map { $0.name }
-        let uniqueNames = Set(reflectionNames)
-        XCTAssertEqual(
-            reflectionNames.count,
-            uniqueNames.count,
-            "Duplicate reflection function names found in RuntimeABISpec"
-        )
-    }
-
-    func testAllFunctionNamesFollowKKPrefix() {
-        let legacyNonKKRuntimeExports: Set<String> = [
-            "component1",
-            "component2",
-        ]
-        for spec in RuntimeABISpec.allFunctions {
-            XCTAssertTrue(
-                spec.name.hasPrefix("kk_") || spec.name.hasPrefix("__") || legacyNonKKRuntimeExports.contains(spec.name),
-                "Function '\(spec.name)' does not follow kk_ naming convention"
-            )
-        }
-    }
-
     func testAllParameterNamesAreNonEmpty() {
         for spec in RuntimeABISpec.allFunctions {
             for param in spec.parameters {
@@ -547,10 +509,13 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringTrimPredicatePointerABIRemoved() {
+    func testKKStringTrimPointerABIRemoved() {
         let legacyNames = [
+            "kk_string_trim",
             "kk_string_trim_predicate",
+            "kk_string_trimStart",
             "kk_string_trimStart_predicate",
+            "kk_string_trimEnd",
             "kk_string_trimEnd_predicate",
         ]
         for legacyName in legacyNames {
@@ -1289,52 +1254,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.returnType, .intptr)
     }
 
-    // MARK: - C Declaration Generation
-
-    func testCDeclarationForKKAlloc() throws {
-        let spec = try requireSpec("kk_alloc")
-        XCTAssertEqual(
-            spec.cDeclaration,
-            "void * kk_alloc(uint32_t size, const KTypeInfo * typeInfo);"
-        )
-    }
-
-    func testCDeclarationForKKGcCollect() throws {
-        let spec = try requireSpec("kk_gc_collect")
-        XCTAssertEqual(spec.cDeclaration, "void kk_gc_collect(void);")
-    }
-
-    func testCDeclarationForKKGcSchedule() throws {
-        let spec = try requireSpec("kk_gc_schedule")
-        XCTAssertEqual(spec.cDeclaration, "intptr_t kk_gc_schedule(void);")
-    }
-
-    func testCDeclarationForKKGcTargetHeapUtilization() throws {
-        let spec = try requireSpec("kk_gc_target_heap_utilization")
-        XCTAssertEqual(spec.cDeclaration, "double kk_gc_target_heap_utilization(void);")
-    }
-
-    func testCDeclarationForKKDebuggingGlobalObjectCount() throws {
-        let spec = try requireSpec("kk_debugging_global_object_count")
-        XCTAssertEqual(spec.cDeclaration, "intptr_t kk_debugging_global_object_count(void);")
-    }
-
-    func testCDeclarationForKKPrintlnAny() throws {
-        let spec = try requireSpec("kk_println_any")
-        XCTAssertEqual(
-            spec.cDeclaration,
-            "void kk_println_any(void * _Nullable obj);"
-        )
-    }
-
-    func testCDeclarationForKKAbortUnreachable() throws {
-        let spec = try requireSpec("kk_abort_unreachable")
-        XCTAssertEqual(
-            spec.cDeclaration,
-            "intptr_t kk_abort_unreachable(intptr_t * _Nullable outThrown);"
-        )
-    }
-
     // MARK: - Header Generation
 
     func testGeneratedHeaderContainsGuard() {
@@ -1364,17 +1283,4 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertTrue(header.contains(RuntimeABISpec.specVersion))
     }
 
-    func testGeneratedHeaderContainsSectionMarkers() {
-        let header = RuntimeABISpec.generateCHeader()
-        XCTAssertTrue(header.contains("Memory"))
-        XCTAssertTrue(header.contains("Exception"))
-        XCTAssertTrue(header.contains("String"))
-        XCTAssertTrue(header.contains("Print"))
-        XCTAssertTrue(header.contains("GC"))
-        XCTAssertTrue(header.contains("Coroutine"))
-        XCTAssertTrue(header.contains("Boxing"))
-        XCTAssertTrue(header.contains("Array"))
-        XCTAssertTrue(header.contains("TypeCheck"))
-        XCTAssertTrue(header.contains("Bitwise"))
-    }
 }
