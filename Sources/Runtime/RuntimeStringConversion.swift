@@ -24,7 +24,7 @@ public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Unsa
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return 0
     }
@@ -57,7 +57,7 @@ public func kk_string_toIntOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -116,7 +116,7 @@ public func kk_string_toUByteOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -137,7 +137,7 @@ public func kk_string_toUShortOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -158,7 +158,7 @@ public func kk_string_toUIntOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -179,7 +179,7 @@ public func kk_string_toULongOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -402,7 +402,7 @@ public func kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutableP
     default:
         runtimeSetThrown(
             outThrown,
-            message: "The string doesn't represent a boolean value: \(source)"
+            runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)")
         )
         return 0
     }
@@ -467,7 +467,7 @@ public func kk_string_toByte_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return 0
     }

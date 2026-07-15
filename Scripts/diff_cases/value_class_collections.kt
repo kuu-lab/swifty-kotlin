@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-004): value class boxing/generics/interface parity tracking
 @JvmInline
 value class Score(val value: Int)
 

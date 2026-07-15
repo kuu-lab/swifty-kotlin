@@ -3,7 +3,7 @@
 import Foundation
 import XCTest
 
-final class CodegenBackendIntegrationTests: XCTestCase {
+final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
     func testCodegenEmitsKirDumpArtifact() throws {
         let source = """
         inline fun helper(x: Int) = x + 1
