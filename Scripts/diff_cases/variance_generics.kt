@@ -1,5 +1,4 @@
 // Test STDLIB-GEN-054: Variance generics - covariance, contravariance, invariance
-// KSWIFTK_DIFF_IGNORE (DEBT-DIFF-006) - Variance checking not yet implemented
 
 // Covariant (out) interface - Producer pattern
 interface Producer<out T> {

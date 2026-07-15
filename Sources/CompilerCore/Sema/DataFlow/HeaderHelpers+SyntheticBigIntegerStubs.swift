@@ -260,6 +260,48 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- Raw java.math.BigInteger instance methods (STDLIB-NUM-129) ---
+        // The Kotlin idioms above (inv/shl/shr) wrap these but do not shadow
+        // them: real Kotlin/JVM code can also call the underlying Java method
+        // names directly (a.not(), a.shiftLeft(n), a.shiftRight(n)), so they
+        // must be registered as instance methods on BigInteger itself.
+
+        // not() -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "not",
+            externalLinkName: "kk_biginteger_not",
+            returnType: bigIntegerType,
+            parameters: [],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // shiftLeft(n: Int) -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "shiftLeft",
+            externalLinkName: "kk_biginteger_shiftLeft",
+            returnType: bigIntegerType,
+            parameters: [("n", intType)],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // shiftRight(n: Int) -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "shiftRight",
+            externalLinkName: "kk_biginteger_shiftRight",
+            returnType: bigIntegerType,
+            parameters: [("n", intType)],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- toByteArray() instance method ---
 
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
