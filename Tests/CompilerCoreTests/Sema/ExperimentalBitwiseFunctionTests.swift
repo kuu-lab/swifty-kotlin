@@ -64,6 +64,7 @@ struct ExperimentalBitwiseFunctionTests {
             }
         }
 
+        // The range filter above intentionally counts only user-file calls.
         #expect(seenCalls == ["and": 2, "inv": 2, "or": 2, "xor": 2])
     }
 }

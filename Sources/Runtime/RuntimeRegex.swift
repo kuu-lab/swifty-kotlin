@@ -364,20 +364,27 @@ public func kk_regex_create_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
-    _ hash: Int
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreate(pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
+    runtimeRegexCreate(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_regex_create")
-public func kk_regex_create(_ patternRaw: Int) -> Int {
-    runtimeRegexCreate(pattern: regexStringFromRaw(patternRaw) ?? "")
+public func kk_regex_create(_ patternRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRegexCreate(pattern: regexStringFromRaw(patternRaw) ?? "", outThrown: outThrown)
 }
 
-private func runtimeRegexCreate(pattern: String) -> Int {
+private func runtimeRegexCreate(pattern: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-        // Invalid user pattern — substitute a never-match regex (see RegexNeverMatch).
-        return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern))
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Illegal pattern: \(pattern)"
+        )
+        return 0
     }
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
 }
@@ -671,27 +678,31 @@ private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Opti
     }
 }
 
-/// Applies LITERAL escaping and CANON_EQ normalization, compiles the pattern,
-/// and falls back to a never-matching regex on compile failure.
+/// Applies LITERAL escaping and CANON_EQ normalization and compiles the pattern.
+/// Returns `nil` and sets `outThrown` to an `IllegalArgumentException` on compile failure.
 private func createRegexBox(
     pattern: String,
     isLiteral: Bool,
     options: NSRegularExpression.Options,
-    optionOrdinals: Set<Int>
-) -> RuntimeRegexBox {
+    optionOrdinals: Set<Int>,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> RuntimeRegexBox? {
     let canonEq = optionOrdinals.contains(kRegexOptionOrdinalCanonEq)
     let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
     let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
     guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
-        return RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Illegal pattern: \(pattern)"
+        )
+        return nil
     }
     return RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
 }
 
 
 @_cdecl("kk_regex_create_with_option")
-public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
-    runtimeRegexCreateWithOption(pattern: regexStringFromRaw(patternRaw) ?? "", optionRaw: optionRaw)
+public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRegexCreateWithOption(pattern: regexStringFromRaw(patternRaw) ?? "", optionRaw: optionRaw, outThrown: outThrown)
 }
 
 @_cdecl("kk_regex_create_with_option_flat")
@@ -700,11 +711,13 @@ public func kk_regex_create_with_option_flat(
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
-    _ optionRaw: Int
+    _ optionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeRegexCreateWithOption(
         pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionRaw: optionRaw
+        optionRaw: optionRaw,
+        outThrown: outThrown
     )
 }
 
@@ -714,29 +727,35 @@ public func kk_string_toRegex_with_option_flat(
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
-    _ optionRaw: Int
+    _ optionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeRegexCreateWithOption(
         pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionRaw: optionRaw
+        optionRaw: optionRaw,
+        outThrown: outThrown
     )
 }
 
-private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int) -> Int {
+private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     let ordinal = Int(kk_unbox_int(optionRaw))
-    let box = createRegexBox(
+    guard let box = createRegexBox(
         pattern: pattern,
         isLiteral: ordinal == kRegexOptionOrdinalLiteral,
         options: nsRegexOption(fromOrdinal: ordinal),
-        optionOrdinals: [ordinal]
-    )
+        optionOrdinals: [ordinal],
+        outThrown: outThrown
+    ) else {
+        return 0
+    }
     return registerRuntimeObject(box)
 }
 
 /// Creates a Regex from a raw pattern pointer and a `Set<RegexOption>`.
 @_cdecl("kk_regex_create_with_options")
-public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
-    runtimeRegexCreateWithOptions(pattern: regexStringFromRaw(patternRaw) ?? "", optionsSetRaw: optionsSetRaw)
+public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeRegexCreateWithOptions(pattern: regexStringFromRaw(patternRaw) ?? "", optionsSetRaw: optionsSetRaw, outThrown: outThrown)
 }
 
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
@@ -748,11 +767,13 @@ public func kk_regex_create_with_options_flat(
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
-    _ optionsSetRaw: Int
+    _ optionsSetRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeRegexCreateWithOptions(
         pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionsSetRaw: optionsSetRaw
+        optionsSetRaw: optionsSetRaw,
+        outThrown: outThrown
     )
 }
 
@@ -762,15 +783,18 @@ public func kk_string_toRegex_with_options_flat(
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
-    _ optionsSetRaw: Int
+    _ optionsSetRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeRegexCreateWithOptions(
         pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionsSetRaw: optionsSetRaw
+        optionsSetRaw: optionsSetRaw,
+        outThrown: outThrown
     )
 }
 
-private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int) -> Int {
+private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     var combined: NSRegularExpression.Options = []
     var isLiteral = false
     var storedOrdinals: Set<Int> = []
@@ -782,7 +806,11 @@ private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int) 
             combined.insert(nsRegexOption(fromOrdinal: ordinal))
         }
     }
-    let box = createRegexBox(pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals)
+    guard let box = createRegexBox(
+        pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals, outThrown: outThrown
+    ) else {
+        return 0
+    }
     return registerRuntimeObject(box)
 }
 
@@ -815,21 +843,25 @@ public func kk_string_toRegex_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
-    _ hash: Int
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreate(pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
+    runtimeRegexCreate(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: outThrown
+    )
 }
 
 // MARK: - STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
 
 @_cdecl("kk_string_toRegex_with_option")
-public func kk_string_toRegex_with_option(_ strRaw: Int, _ optionRaw: Int) -> Int {
-    kk_regex_create_with_option(strRaw, optionRaw)
+public func kk_string_toRegex_with_option(_ strRaw: Int, _ optionRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    kk_regex_create_with_option(strRaw, optionRaw, outThrown)
 }
 
 @_cdecl("kk_string_toRegex_with_options")
-public func kk_string_toRegex_with_options(_ strRaw: Int, _ optionsRaw: Int) -> Int {
-    kk_regex_create_with_options(strRaw, optionsRaw)
+public func kk_string_toRegex_with_options(_ strRaw: Int, _ optionsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    kk_regex_create_with_options(strRaw, optionsRaw, outThrown)
 }
 
 @_cdecl("kk_regex_pattern")

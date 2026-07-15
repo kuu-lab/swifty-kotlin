@@ -1,3 +1,5 @@
+// SKIP-DIFF (DEBT-DIFF-007): compile-exit parity surfaced unrelated failures on both sides;
+// kotlin.test also requires kotlin-test.jar in the JVM kotlinc reference classpath.
 package testframework
 
 import kotlin.test.After

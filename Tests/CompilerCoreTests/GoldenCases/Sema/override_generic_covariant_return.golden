@@ -14,6 +14,8 @@ symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic type=kot
 symbol fq=kotlin.RuntimeException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.RuntimeException
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=Any
+symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file f0 package=golden.sema
@@ -22,8 +24,8 @@ file f0 package=golden.sema
   decl golden.sema.NumberHolder class NumberHolder sym=golden.sema.NumberHolder
   decl golden.sema.IntHolder class IntHolder sym=golden.sema.IntHolder
   decl golden.sema.main fun main sym=golden.sema.main
-expr e@4:33 call callee=e@4:33#1 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T>
-expr e@9:39 call callee=e@9:39#1 args=[] type=kotlin.collections.List<Int>
+expr e@4:33 call callee=e@4:33#1 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T> call=kotlin.collections.emptyList targs=[golden.sema.ListProvider.$class0.T]
+expr e@9:39 call callee=e@9:39#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.emptyList targs=[Int]
 expr e@13:33 call callee=e@13:33#1 args=[] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#0
 expr e@13:27 throw value=e@13:33 type=Nothing
 expr e@18:33 int(42) type=Int

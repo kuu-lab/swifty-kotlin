@@ -139,6 +139,7 @@ final class DeclTypeChecker {
         _ property: PropertyDecl,
         symbol: SymbolID,
         ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -148,7 +149,7 @@ final class DeclTypeChecker {
             : nil
 
         if let initializer = property.initializer {
-            var locals: LocalBindings = [:]
+            var locals: LocalBindings = initialLocals
             let initializerType = driver.inferExpr(
                 initializer, ctx: ctx, locals: &locals,
                 expectedType: inferredPropertyType

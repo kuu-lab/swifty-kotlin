@@ -626,39 +626,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "trim" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trim_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimStart_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimEnd_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
             }
         }
 
@@ -883,26 +850,13 @@ extension CallLowerer {
                     ("kk_string_dropLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
-                case "toByteArray":
-                    if loweredArgIDs.count == 1 {
-                        // toByteArray(charset) — Sema types this as List<Int>, so use the ListBox-returning function.
-                        ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
+
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
                     ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "trim":
-                    ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimStart":
-                    ("kk_string_trimStart_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimEnd":
-                    ("kk_string_trimEnd_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 default:
                     nil
                 }
@@ -914,9 +868,6 @@ extension CallLowerer {
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
                         || calleeStr == "onEach"
-                        || calleeStr == "trim"
-                        || calleeStr == "trimStart"
-                        || calleeStr == "trimEnd"
                         || calleeStr == "take"
                         || calleeStr == "drop"
                         || calleeStr == "takeLast"
@@ -1391,6 +1342,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }

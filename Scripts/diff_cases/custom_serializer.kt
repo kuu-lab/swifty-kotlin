@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): requires kotlinx-serialization jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): tests KSwiftK's non-generic KSerializer/registerSerializer stub, which has no real kotlinx.serialization equivalent and currently fails to compile on kswiftc itself (Sema overload-resolution bugs). See docs/diff-skip-inventory.md.
 import kotlinx.serialization.Decoder
 import kotlinx.serialization.Encoder
 import kotlinx.serialization.KSerializer

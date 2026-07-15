@@ -1200,7 +1200,15 @@ extension DataFlowSemaPhase {
         // zip(other: Iterable<R>): List<Pair<E, R>>
         let zipName = interner.intern("zip")
         let zipFQName = listFQName + [zipName]
-        if symbols.lookup(fqName: zipFQName) == nil {
+        let collectionsFQName = Array(listFQName.dropLast())
+        let iterableFQName = collectionsFQName + [interner.intern("Iterable")]
+        let sourceBackedZipOneArg = bundledIndex.contains(ownerFQName: iterableFQName, name: zipName, arity: 1)
+            || BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: iterableFQName,
+                name: zipName,
+                arity: 1
+            )
+        if !sourceBackedZipOneArg, symbols.lookup(fqName: zipFQName) == nil {
             let rName = interner.intern("R")
             let rSymbol = symbols.define(
                 kind: .typeParameter,
@@ -1261,7 +1269,13 @@ extension DataFlowSemaPhase {
             guard let sig = symbols.functionSignature(for: symID) else { return false }
             return sig.parameterTypes.count == 2
         }
-        if !hasTwoParamZip {
+        let sourceBackedZipTransform = bundledIndex.contains(ownerFQName: iterableFQName, name: zipName, arity: 2)
+            || BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: iterableFQName,
+                name: zipName,
+                arity: 2
+            )
+        if !sourceBackedZipTransform, !hasTwoParamZip {
             let zipTransformScope = zipFQName + [interner.intern("transform")]
             let otherRName = interner.intern("R")
             let otherRSymbol = symbols.define(
@@ -1401,97 +1415,5 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // zipWithNext(): List<Pair<T, T>>
-        let zipWithNextName = interner.intern("zipWithNext")
-        let zipWithNextFQName = listFQName + [zipWithNextName]
-        if symbols.lookup(fqName: zipWithNextFQName) == nil {
-            let pairType: TypeID
-            if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")])
-                ?? symbols.lookupByShortName(interner.intern("Pair")).first
-            {
-                pairType = types.make(.classType(ClassType(
-                    classSymbol: pairSymbol,
-                    args: [.out(listTypeParamType), .out(listTypeParamType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                pairType = types.anyType
-            }
-            let zipWithNextResultType = types.make(.classType(ClassType(
-                classSymbol: listInterfaceSymbol,
-                args: [.out(pairType)],
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: zipWithNextName,
-                fqName: zipWithNextFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_zipWithNext", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: zipWithNextResultType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        let zipWithNextTransformFQName = listFQName + [zipWithNextName]
-        let existingZipWithNextOverloads = symbols.lookupAll(fqName: zipWithNextTransformFQName)
-        let hasZipWithNextTransform = existingZipWithNextOverloads.contains { symID in
-            guard let sig = symbols.functionSignature(for: symID) else { return false }
-            return sig.parameterTypes.count == 1
-        }
-        if !hasZipWithNextTransform {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: zipWithNextTransformFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let transformFnType = types.make(.functionType(FunctionType(
-                params: [listTypeParamType, listTypeParamType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let transformResultType = types.make(.classType(ClassType(
-                classSymbol: listInterfaceSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-            let transformMemberSymbol = symbols.define(
-                kind: .function,
-                name: zipWithNextName,
-                fqName: zipWithNextTransformFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: transformMemberSymbol)
-            symbols.setExternalLinkName("kk_list_zipWithNextTransform", for: transformMemberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [transformFnType],
-                    returnType: transformResultType,
-                    typeParameterSymbols: [listTypeParamSymbol, rSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: transformMemberSymbol
-            )
-        }
     }
 }
