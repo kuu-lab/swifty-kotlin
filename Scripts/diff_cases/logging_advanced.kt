@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): uses runtime-only APIs (MDC, AdvancedLogger, StructuredAppender) not available in standard kotlinc
+// SKIP-DIFF (DEBT-DIFF-001): MDC/AdvancedLogger/StructuredAppender are unresolved on both kotlinc and kswiftc (no import, no KSwiftK implementation); AdvancedLogger/StructuredAppender have no JVM equivalent at all. See docs/diff-skip-inventory.md
 fun main() {
     // MDC basic usage
     println("=== MDC ===")

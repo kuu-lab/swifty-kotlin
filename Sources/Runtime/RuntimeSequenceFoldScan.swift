@@ -244,7 +244,7 @@ public func kk_sequence_reduceIndexed(
         return 0
     }
     if !hasAccumulator {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceCannotReduce)
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: kEmptySequenceCannotReduce)
         return 0
     }
     return acc
