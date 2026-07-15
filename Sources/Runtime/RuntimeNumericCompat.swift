@@ -195,6 +195,31 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
+    // and other user-defined objects reached via Any.hashCode() — must stay
+    // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
+    // equality by classID + elements). Without this, equal-by-content boxed
+    // instances compared with `==` reported equal but had different
+    // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
+    if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        var hash = Int(truncatingIfNeeded: objBox.classID)
+        for element in objBox.elements {
+            // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
+            // tag, so a raw (unboxed) Boolean field hashes as tag 0 here — its
+            // 0/1 value — instead of tag 2's Kotlin-standard 1231/1237. That
+            // mismatches the compiler-synthesized data-class hashCode() (which
+            // does know each field's declared type; see
+            // appendSyntheticDataClassHashCodeIfNeeded), so the same instance's
+            // hashCode() can differ between a direct call and this Any-erased
+            // fallback for a Boolean field. A real fix needs per-field type
+            // tags stored alongside RuntimeObjectBox's elements (a broader
+            // change to object allocation), tracked as a follow-up rather than
+            // rushed here; equal-by-content instances still hash equally to
+            // each other through this same fallback path.
+            hash = 31 &* hash &+ kk_any_hashCode(element, 0)
+        }
+        return hash
+    }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
 }
 
@@ -1831,6 +1856,32 @@ public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<
     }
     if lhs == Int.min && rhs == -1 { return 0 }
     return lhs % rhs
+}
+
+// PEC-NUM-0002 / KSP-466: UInt/ULong/UByte/UShort division and remainder must
+// reinterpret the raw 64-bit container as unsigned before dividing — plain
+// signed `/`/`%` misreads any ULong with the high bit set (>= 2^63) as
+// negative. UByte/UShort/UInt are always zero-extended into this container,
+// so unsigned reinterpretation is a no-op for them; ULong is the one type
+// that actually needs it. Unlike kk_op_div/kk_op_mod there is no INT_MIN/-1
+// overflow case to special-case (unsigned division cannot overflow), but
+// zero-divisor must still throw ArithmeticException via outThrown.
+@_cdecl("kk_op_udiv")
+public func kk_op_udiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) / UInt(bitPattern: rhs))
+}
+
+@_cdecl("kk_op_urem")
+public func kk_op_urem(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
 }
 
 private func runtimeFloorMod(_ lhs: Int, _ rhs: Int) -> Int {

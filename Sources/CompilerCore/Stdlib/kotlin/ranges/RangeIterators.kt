@@ -6,16 +6,13 @@ package kotlin.ranges
 // Migration source: Sources/Runtime/RuntimeRangeAndDispatch.swift
 //   (kk_range_iterator, kk_range_hasNext, kk_range_next)
 //   Sources/Runtime/RuntimeRangeLongRange.swift (kk_long_range_iterator)
-// See RangeMembership.kt for the contains()/isEmpty() half of this migration,
-// including the fuller note on the parallel Sema/KIR dispatch paths that still
-// own every call site.
+// See RangeMembership.kt for the contains()/isEmpty() half of this migration.
 //
-// NOTE: Not yet wired into the compiler pipeline (see RangeMembership.kt).
-// `for (x in range)` does not even go through `.iterator()` today: it is
+// NOTE: KSP-312 wires explicit `range.iterator()` calls through bundled stdlib
+// source. `for (x in range)` does not go through `.iterator()` yet: it is still
 // special-cased in ExprLowerer+ControlFlowAndBlocks.swift straight to the
-// kk_*range_iterator/kk_iterator_hasNext/kk_iterator_next runtime calls. The
-// functions below exist for the explicit `range.iterator()` call surface
-// (Iterable<T> conformance) and as the eventual replacement for that lowering.
+// kk_*range_iterator/kk_iterator_hasNext/kk_iterator_next runtime calls. That
+// lowering cleanup is intentionally left to KSP-452.
 //
 // Implementation note — why this delegates through toList() instead of a
 // hand-written lazy iterator: a user-defined class that implements the

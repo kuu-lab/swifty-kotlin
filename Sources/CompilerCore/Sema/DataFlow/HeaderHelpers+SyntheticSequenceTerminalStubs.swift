@@ -2,7 +2,7 @@
 import RuntimeABI
 
 /// Synthetic stubs for `Sequence` terminal operators (`toSet`, `toMap`,
-/// `groupBy`, `maxOrNull`, `minOrNull`, `flatten`, `take`, `drop`,
+/// `groupBy`, `maxOrNull`, `minOrNull`, `take`, `drop`,
 /// `windowed`, etc.) backed by STDLIB-470.
 ///
 /// Split out from `HeaderHelpers+SyntheticTODOAndIOStubs.swift` to keep
@@ -3177,20 +3177,6 @@ extension DataFlowSemaPhase {
                 typeParameterUpperBounds: minComparableElementBounds
             )
         }
-
-        // flatten(): Sequence<T>
-        registerSequenceMemberStub(
-            named: "flatten",
-            externalLinkName: "kk_sequence_flatten",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: types.anyType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
 
         // forEach(action: (T) -> Unit): Unit
         registerSequenceMemberStub(

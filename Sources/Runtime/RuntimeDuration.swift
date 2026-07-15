@@ -49,22 +49,56 @@ private func runtimeDurationNanoseconds(
     return Int64(rounded)
 }
 
-private func runtimeFormatScaledDuration(_ absNs: Int64, unitDivisor: Int64, suffix: String) -> String {
-    let whole = absNs / unitDivisor
-    let remainder = absNs % unitDivisor
-    guard remainder != 0 else {
+/// Formats `whole.fraction<unit>` following kotlin-stdlib's `Duration.toString()`
+/// trimming rule: fewer than 3 significant fractional digits are kept as-is,
+/// otherwise the fraction is padded out to the next multiple of 3 digits
+/// (e.g. 4500ns of a second -> ".000004500", 500000ns -> ".000500").
+private func runtimeDurationFormatFractional(
+    whole: Int64,
+    fractionalRemainder: Int64,
+    fractionalWidth: Int,
+    suffix: String
+) -> String {
+    guard fractionalRemainder != 0 else {
         return "\(whole)\(suffix)"
     }
 
-    var fraction = String(remainder)
-    let targetWidth = String(unitDivisor - 1).count
-    if fraction.count < targetWidth {
-        fraction = String(repeating: "0", count: targetWidth - fraction.count) + fraction
+    var fraction = String(fractionalRemainder)
+    if fraction.count < fractionalWidth {
+        fraction = String(repeating: "0", count: fractionalWidth - fraction.count) + fraction
     }
-    while fraction.last == "0" {
-        fraction.removeLast()
+    let digits = Array(fraction)
+    var significantDigits = digits.count
+    while significantDigits > 0, digits[significantDigits - 1] == "0" {
+        significantDigits -= 1
     }
-    return "\(whole).\(fraction)\(suffix)"
+    let keepDigits = significantDigits < 3 ? significantDigits : ((significantDigits + 2) / 3) * 3
+    let trimmed = String(digits.prefix(keepDigits))
+    return "\(whole).\(trimmed)\(suffix)"
+}
+
+private func runtimeDurationMakeString(_ value: String) -> Int {
+    Int(bitPattern: value.withCString { cstr in
+        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+            kk_string_from_utf8(pointer, Int32(value.utf8.count))
+        }
+    })
+}
+
+private func runtimeDurationComponents(
+    _ nanoseconds: Int64,
+    topUnit: Int64,
+    lowerUnits: [Int64]
+) -> (top: Int64, lower: [Int]) {
+    var remaining = nanoseconds
+    let top = remaining / topUnit
+    remaining %= topUnit
+    let lower = lowerUnits.map { unit -> Int in
+        let component = remaining / unit
+        remaining %= unit
+        return Int(component)
+    }
+    return (top, lower)
 }
 
 private func runtimeDurationString(from raw: Int) -> String? {
@@ -351,37 +385,91 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toString received invalid Duration handle")
     }
     let ns = box.nanoseconds
-    let str: String
 
     if ns == 0 {
-        str = "0s"
-    } else {
-        let isNegative = ns < 0
-        let absNs = isNegative ? (ns == Int64.min ? Int64.max : -ns) : ns
-        if absNs % 3_600_000_000_000 == 0 {
-            let hours = absNs / 3_600_000_000_000
-            str = isNegative ? "-\(hours)h" : "\(hours)h"
-        } else if absNs % 60_000_000_000 == 0 {
-            let minutes = absNs / 60_000_000_000
-            str = isNegative ? "-\(minutes)m" : "\(minutes)m"
-        } else if absNs % 1_000_000_000 == 0 {
-            let seconds = absNs / 1_000_000_000
-            str = isNegative ? "-\(seconds)s" : "\(seconds)s"
-        } else if absNs >= 1_000_000 {
-            let formatted = runtimeFormatScaledDuration(absNs, unitDivisor: 1_000_000, suffix: "ms")
-            str = isNegative ? "-\(formatted)" : formatted
-        } else if absNs >= 1_000 {
-            let formatted = runtimeFormatScaledDuration(absNs, unitDivisor: 1_000, suffix: "us")
-            str = isNegative ? "-\(formatted)" : formatted
-        } else {
-            str = isNegative ? "-\(absNs)ns" : "\(absNs)ns"
-        }
+        return runtimeDurationMakeString("0s")
     }
-    return Int(bitPattern: str.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: str.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(str.utf8.count))
+    if ns == Int64.max {
+        return runtimeDurationMakeString("Infinity")
+    }
+    if ns == Int64.min {
+        return runtimeDurationMakeString("-Infinity")
+    }
+
+    let isNegative = ns < 0
+    let absNs = isNegative ? -ns : ns
+
+    // Decompose into days/hours/minutes/seconds/nanoseconds, matching
+    // kotlin-stdlib's Duration.toString() component breakdown (values > 24h
+    // roll up into days, e.g. 25h -> "1d 1h").
+    let components = runtimeDurationComponents(
+        absNs,
+        topUnit: runtimeDurationNanosPerDay,
+        lowerUnits: [runtimeDurationNanosPerHour, runtimeDurationNanosPerMinute, runtimeDurationNanosPerSecond, 1]
+    )
+    let days = components.top
+    let hours = components.lower[0]
+    let minutes = components.lower[1]
+    let seconds = components.lower[2]
+    let subsecondNanos = components.lower[3]
+
+    let hasDays = days != 0
+    let hasHours = hours != 0
+    let hasMinutes = minutes != 0
+    let hasSeconds = seconds != 0 || subsecondNanos != 0
+
+    var out = ""
+    var componentCount = 0
+
+    if hasDays {
+        out += "\(days)d"
+        componentCount += 1
+    }
+    // Intermediate zero components stay visible once a higher and a lower
+    // component are both present, e.g. 1 day + 5 minutes -> "1d 0h 5m".
+    if hasHours || (hasDays && (hasMinutes || hasSeconds)) {
+        if componentCount > 0 { out += " " }
+        out += "\(hours)h"
+        componentCount += 1
+    }
+    if hasMinutes || (hasSeconds && (hasHours || hasDays)) {
+        if componentCount > 0 { out += " " }
+        out += "\(minutes)m"
+        componentCount += 1
+    }
+    if hasSeconds {
+        if componentCount > 0 { out += " " }
+        if seconds != 0 || hasDays || hasHours || hasMinutes {
+            out += runtimeDurationFormatFractional(
+                whole: Int64(seconds), fractionalRemainder: Int64(subsecondNanos), fractionalWidth: 9, suffix: "s"
+            )
+        } else if subsecondNanos >= 1_000_000 {
+            out += runtimeDurationFormatFractional(
+                whole: Int64(subsecondNanos / 1_000_000), fractionalRemainder: Int64(subsecondNanos % 1_000_000),
+                fractionalWidth: 6, suffix: "ms"
+            )
+        } else if subsecondNanos >= 1_000 {
+            out += runtimeDurationFormatFractional(
+                whole: Int64(subsecondNanos / 1_000), fractionalRemainder: Int64(subsecondNanos % 1_000),
+                fractionalWidth: 3, suffix: "us"
+            )
+        } else {
+            out += "\(subsecondNanos)ns"
         }
-    })
+        componentCount += 1
+    }
+
+    // A single negative component is prefixed with "-"; multiple components
+    // are wrapped in parens, e.g. "-12m" vs. "-(1h 30m)".
+    let str: String
+    if isNegative && componentCount > 1 {
+        str = "-(\(out))"
+    } else if isNegative {
+        str = "-\(out)"
+    } else {
+        str = out
+    }
+    return runtimeDurationMakeString(str)
 }
 
 @_cdecl("kk_duration_parse")
@@ -532,7 +620,14 @@ public func kk_duration_unary_minus(_ durationRaw: Int) -> Int {
     guard let box = runtimeDurationBox(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_unary_minus received invalid Duration handle")
     }
-    let ns = box.nanoseconds == Int64.min ? Int64.max : -box.nanoseconds
+    let ns: Int64
+    if box.nanoseconds == Int64.min {
+        ns = Int64.max
+    } else if box.nanoseconds == Int64.max {
+        ns = Int64.min
+    } else {
+        ns = -box.nanoseconds
+    }
     return registerRuntimeObject(RuntimeDurationBox(nanoseconds: ns))
 }
 

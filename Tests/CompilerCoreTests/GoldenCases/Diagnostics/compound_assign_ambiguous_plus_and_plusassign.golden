@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "compound_assign_ambiguous_plus_and_plusassign.kt",
+      "range": {
+        "start": { "line": 9, "character": 4 },
+        "end": { "line": 9, "character": 19 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0302",
+      "source": "kswiftk",
+      "message": "Assignment operator is ambiguous because both 'plusAssign' and the corresponding binary operator are applicable.",
+      "codeActions": []
+    }
+  ]
+}
