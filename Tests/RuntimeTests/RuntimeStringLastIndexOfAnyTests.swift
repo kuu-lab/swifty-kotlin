@@ -5,12 +5,12 @@ import Testing
 /// STDLIB-TEXT-FN-035: Verifies `kk_string_lastIndexOfAny_chars` and
 /// `kk_string_lastIndexOfAny_strings` behave consistently with Kotlin's
 /// `CharSequence.lastIndexOfAny(chars/strings, startIndex, ignoreCase)`.
-@Suite(.serialized)
+///
+/// NOTE: Swift Testing suites share one process with all other suites, so this
+/// suite must not call `kk_runtime_force_reset()` — it would deallocate live
+/// handles owned by concurrently running suites.
+@Suite
 struct RuntimeStringLastIndexOfAnyTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     private func makeStringRaw(_ value: String) -> Int {
         value.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
