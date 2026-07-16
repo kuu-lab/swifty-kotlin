@@ -346,16 +346,23 @@ jobs:
       matrix:
         include:
           # RuntimeTests touches shared runtime state; keep test execution serialized while preserving parallel builds.
-          # Must stay on the --parallel code path (not --no-parallel): RuntimeTests mixes XCTest and
-          # Swift Testing, and swift test --no-parallel passes the full filtered XCTest name list as a
-          # single argv, which overflows Linux's argument-length limit (posix_spawn "Argument list too
-          # long") once the suite grows. --num-workers 1 keeps execution serialized without that path.
+          # RuntimeTests mixes XCTest and Swift Testing in one target. Running both libraries in the
+          # same `swift test` invocation causes two distinct problems, so this target is split into two
+          # separate steps below (see split-testing-libraries):
+          #  1. `swift test --no-parallel` on a mixed target passes the full filtered XCTest name list
+          #     as a single argv, which overflows Linux's argument-length limit (posix_spawn "Argument
+          #     list too long") once the suite grows.
+          #  2. Even with `--parallel --num-workers 1`, XCTest and Swift Testing run concurrently within
+          #     the same process, and tests from both libraries mutate shared runtime state (e.g. boxing
+          #     caches), producing flaky cross-library failures (observed locally: XCTest alone and
+          #     Swift Testing alone both pass all tests every time; mixed execution flakes).
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
             parallel: "1"
             workers: "1"
             build-jobs: "4"
             needs-llvm: true
+            split-testing-libraries: true
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             parallel: "1"
@@ -416,14 +423,40 @@ jobs:
         env:
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run XCTest portion of ${{ matrix.test-target }} with strict concurrency warnings
+        if: matrix.split-testing-libraries
+        env:
+          SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
+          SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
+          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
+        run: bash Scripts/swift_test.sh --skip-build --disable-swift-testing --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run Swift Testing portion of ${{ matrix.test-target }} with strict concurrency warnings
+        if: matrix.split-testing-libraries
+        env:
+          SWIFT_TEST_PARALLEL: "0"
+          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
+        run: bash Scripts/swift_test.sh --skip-build --disable-xctest --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
+        if: ${{ !matrix.split-testing-libraries }}
         env:
           SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint (split XCTest / Swift Testing)
+        if: always() && matrix.split-testing-libraries
+        run: |
+          {
+            echo '## Full Swift test reproduce (${{ matrix.test-target }})'
+            echo '```bash'
+            echo "# XCTest portion"
+            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --disable-swift-testing --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "# Swift Testing portion"
+            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --disable-xctest --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Full test reproduce hint
-        if: always()
+        if: always() && !matrix.split-testing-libraries
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
