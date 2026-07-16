@@ -127,10 +127,10 @@ final class SequenceTraversalState {
 private let kSequenceGeneratorHardLimit = 100_000
 
 /// Error message for `first()` / `last()` on an empty sequence.
-let kEmptySequenceNoSuchElement = "NoSuchElementException: Sequence is empty."
-private let kSequenceNoNonNullTransformResult = "NoSuchElementException: No element of the sequence was transformed to a non-null value."
+let kEmptySequenceNoSuchElement = "Sequence is empty."
+private let kSequenceNoNonNullTransformResult = "No element of the sequence was transformed to a non-null value."
 /// Error message for `reduce` on an empty sequence.
-let kEmptySequenceCannotReduce = "UnsupportedOperationException: Empty sequence can't be reduced."
+let kEmptySequenceCannotReduce = "Empty sequence can't be reduced."
 /// Error message when a generator sequence exceeds the traversal hard limit.
 let kSequenceGeneratorLimitReached = "IllegalStateException: Sequence generator exceeded traversal hard limit (\(kSequenceGeneratorHardLimit))."
 private let kSequenceConstrainedOnceConsumed = "This sequence can be consumed only once."
@@ -1796,7 +1796,7 @@ public func kk_sequence_firstNotNullOf(
         return handleCollectionLambdaThrow(outThrown.pointee, outThrown)
     }
     if !found {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kSequenceNoNonNullTransformResult), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kSequenceNoNonNullTransformResult), outThrown)
     }
     return result
 }
@@ -2313,7 +2313,7 @@ public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
     }
     if let outThrown, outThrown.pointee != 0 { return 0 }
     if !found {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
         return 0
     }
     return result
@@ -2352,7 +2352,7 @@ public func kk_sequence_random(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<
     }
     if let outThrown, outThrown.pointee != 0 { return 0 }
     guard let element = elements.randomElement() else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
         return 0
     }
     return element
@@ -2394,7 +2394,7 @@ public func kk_sequence_last(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<In
     }
     if let outThrown, outThrown.pointee != 0 { return 0 }
     if !found {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
         return 0
     }
     if let traversalState, traversalState.limitReached {
@@ -3123,7 +3123,7 @@ public func kk_sequence_reduce(
 
     if let outThrown, outThrown.pointee != 0 { return 0 }
     if !hasAccumulator {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceCannotReduce)
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: kEmptySequenceCannotReduce)
         return 0
     }
     return acc
@@ -3579,7 +3579,7 @@ public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
 public func kk_sequence_max(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let result = kk_sequence_maxOrNull(seqRaw)
     guard result != runtimeNullSentinelInt else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
     }
     return result
 }
@@ -3631,7 +3631,7 @@ public func kk_sequence_min(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int
         return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached), outThrown)
     }
     guard let best else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
     }
     return best
 }

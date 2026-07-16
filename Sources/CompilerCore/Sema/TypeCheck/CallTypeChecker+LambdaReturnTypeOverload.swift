@@ -40,6 +40,21 @@ extension CallTypeChecker {
                 lambdaLiteralIndices.insert(index)
             case .callableRef:
                 break
+            case .intLiteral:
+                if inferredNonLambdaArgTypes[index] != nil {
+                    continue
+                }
+                // An unsuffixed int literal must see the candidates' parameter
+                // type (e.g. Long) before inference, or it defaults to Int and
+                // every candidate rejects it (`Millis(1500)` with `value: Long`).
+                let literalExpectedType = uniformNumericLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
             default:
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
@@ -300,6 +315,39 @@ extension CallTypeChecker {
             return nil
         }
         return expectedType
+    }
+
+    /// Returns the expected numeric type (Long/UInt/ULong) for an unsuffixed
+    /// int-literal argument if every candidate agrees on that parameter being
+    /// one of those types, so the literal can be widened before overload
+    /// resolution instead of defaulting to Int and rejecting every candidate.
+    /// Returns nil (leaving the literal as Int) when candidates disagree or
+    /// none expect a wideable numeric type — the normal Int-literal path and
+    /// existing overload resolution still handle those cases.
+    private func uniformNumericLiteralParameterType(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> TypeID? {
+        var result: TypeID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+            else {
+                return nil
+            }
+            let nonNullParameterType = sema.types.makeNonNullable(parameterType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
+                  primitive == .long || primitive == .uint || primitive == .ulong
+            else {
+                return nil
+            }
+            if let result, result != nonNullParameterType {
+                return nil
+            }
+            result = nonNullParameterType
+        }
+        return result
     }
 
     private func narrowedCallCandidates(

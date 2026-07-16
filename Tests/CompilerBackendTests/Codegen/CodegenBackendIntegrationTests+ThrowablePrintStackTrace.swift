@@ -24,7 +24,7 @@ extension CodegenBackendIntegrationTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStderr = normalizeThrowableStderr(result.stderr)
             XCTAssertEqual(result.stdout, "")
-            XCTAssertEqual(normalizedStderr, "stack message\n")
+            XCTAssertEqual(normalizedStderr, "RuntimeException: stack message\n")
         }
     }
 

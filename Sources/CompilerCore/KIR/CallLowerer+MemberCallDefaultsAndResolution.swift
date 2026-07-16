@@ -226,7 +226,8 @@ extension CallLowerer {
         isSuperCall: Bool,
         finalArguments: [KIRExprID],
         result: KIRExprID,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
         let hasExternalLink = sema.symbols.externalLinkName(for: chosenCallee)
@@ -234,7 +235,7 @@ extension CallLowerer {
         guard !hasExternalLink else { return nil }
         let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
         guard let dispatchKind = resolveVirtualDispatch(
-            callee: chosenCallee, receiverTypeID: receiverTypeForDispatch, sema: sema
+            callee: chosenCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
         var vcArguments = finalArguments
         if let sig = sema.symbols.functionSignature(for: chosenCallee),

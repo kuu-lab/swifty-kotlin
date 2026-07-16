@@ -27,7 +27,7 @@ private enum RuntimeCollectionEmptyExtremumResult {
         switch self {
         case .throwNoSuchElement:
             handleCollectionLambdaThrow(
-                runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."),
+                runtimeAllocateNoSuchElementException(message: "List is empty."),
                 outThrown
             )
         case .nullSentinel:
@@ -569,7 +569,7 @@ public func kk_list_shuffled(_ listRaw: Int) -> Int {
 public func kk_list_max(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let result = kk_list_maxOrNull(listRaw)
     guard result != runtimeNullSentinelInt else {
-        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."), outThrown)
+        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "List is empty."), outThrown)
     }
     return result
 }

@@ -367,7 +367,7 @@ public func kk_build_string_with_capacity(
 ) -> Int {
     // capacity is an optimization hint only; no semantic difference from kk_build_string.
     if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
         return 0
     }
     return kk_build_string(fnPtr, outThrown)
@@ -386,7 +386,7 @@ public func kk_build_string_builder_with_capacity(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
         return 0
     }
     return kk_build_string_builder(fnPtr, outThrown)
@@ -440,7 +440,7 @@ public func kk_build_list_with_capacity(
 ) -> Int {
     outThrown?.pointee = 0
     if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
         return 0
     }
     return kk_build_list(fnPtr, outThrown)
