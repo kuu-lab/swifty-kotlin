@@ -345,28 +345,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests touches shared runtime state; keep test execution serialized while preserving parallel builds.
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
-            parallel: "0"
-            workers: "1"
+            workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
@@ -414,7 +409,6 @@ jobs:
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
         env:
-          SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
@@ -424,7 +418,7 @@ jobs:
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
