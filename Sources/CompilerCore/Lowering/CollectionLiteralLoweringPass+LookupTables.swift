@@ -483,7 +483,6 @@ struct CollectionLiteralLookupTables {
     let filterNotName: InternedString
     let mapNotNullName: InternedString
     let filterNotNullName: InternedString
-    let filterIsInstanceName: InternedString
     let filterToName: InternedString
     let filterNotToName: InternedString
     let mapToName: InternedString
@@ -1283,7 +1282,6 @@ struct CollectionLiteralLookupTables {
         filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
         filterNotNullName = interner.intern("filterNotNull")
-        filterIsInstanceName = interner.intern("filterIsInstance")
         filterToName = interner.intern("filterTo")
         filterNotToName = interner.intern("filterNotTo")
         mapToName = interner.intern("mapTo")
