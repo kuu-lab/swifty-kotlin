@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-17（DEADCODE-CORE-034 完了: `SyntheticStubSurfaceSpec.swift` の未参照 static `ubyte` 型参照定数を削除。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -177,7 +177,7 @@
 - [ ] DEADCODE-CORE-031: [R0] `SyntheticStubSurfaceSpec.swift:18` の static `float` 型参照定数を削除する
 - [ ] DEADCODE-CORE-032: [R0] `SyntheticStubSurfaceSpec.swift:21` の static `uint` 型参照定数を削除する
 - [ ] DEADCODE-CORE-033: [R0] `SyntheticStubSurfaceSpec.swift:22` の static `ulong` 型参照定数を削除する
-- [ ] DEADCODE-CORE-034: [R0] `SyntheticStubSurfaceSpec.swift:23` の static `ubyte` 型参照定数を削除する
+- [x] DEADCODE-CORE-034: [R0] `SyntheticStubSurfaceSpec.swift:23` の static `ubyte` 型参照定数を削除する。2026-07-17 完了: `rg`で全ソース照合し宣言以外の参照ゼロを再確認して削除（`SyntheticStubBuiltinType.ubyte` enum case と `resolveSyntheticStubBuiltinType` 内の対応 case は exhaustive switch 維持のため残置、対象外）。`swift build` green。並列フルテストで `CompilerBackendTests` 17件のタイムアウトと Golden 実行中の `swiftpm-testing-helper` SIGBUS クラッシュが発生したが、いずれも ubyte/UByte 非依存かつ本変更と無関係の箇所（Int算術・コンストラクタ委譲等）で、直列再実行（`SWIFT_TEST_PARALLEL=0`）では `CompilerBackendTests` 全937件・Golden全13件/6スイートとも green となり、高負荷時の環境要因（既存 flaky 傾向、BUG-039系）による偽陽性と確認済み。`git diff --check` green。`diff_kotlinc.sh` は本変更が実行時コードパスに影響しない（宣言のみの削除）ため未実施
 - [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
 - [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
 - [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
