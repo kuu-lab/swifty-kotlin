@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine/channel/flow parity tracking
 import kotlinx.coroutines.*
 
 fun main() = runBlocking {

@@ -10,7 +10,9 @@ extension CollectionLiteralConstructionLoweringPass {
     /// so `Meters` boxes exactly like the `Int` it wraps — matching
     /// `ABILoweringPass`'s typeParam boxing boundary
     /// (`typeParamBoxingBoundaryCallees`), which every other reference-type
-    /// boxing boundary in this pass is documented to mirror.
+    /// boxing boundary in this pass is documented to mirror. A value class
+    /// implementing an interface stays boxed instead (see
+    /// `effectiveValueClassUnderlyingType`), so it never reaches this path.
     func primitiveBoxCalleeName(
         for type: TypeID,
         types: TypeSystem,
@@ -33,6 +35,7 @@ extension CollectionLiteralConstructionLoweringPass {
               let boxCallee = primitiveBoxCalleeName(
                   for: argumentType,
                   types: sema.types,
+                  symbols: sema.symbols,
                   interner: ctx.interner
               )
         else {

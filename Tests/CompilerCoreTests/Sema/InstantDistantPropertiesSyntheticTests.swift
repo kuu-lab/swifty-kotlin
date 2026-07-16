@@ -16,10 +16,11 @@ struct InstantDistantPropertiesSyntheticTests {
         return try #require(result)
     }
 
-    // KSP-472: epochSeconds, nanoOfSecond, isDistantPast, isDistantFuture, plus,
-    // minus, compareTo, and until are now Kotlin source extension
-    // properties/functions/operators in Stdlib/kotlin/time/Instant.kt that delegate
-    // to __kk_instant_* bridge methods registered on the Instant class itself.
+    // KSP-472: epochSeconds, nanosecondsOfSecond, isDistantPast, isDistantFuture,
+    // plus, minus (Duration and Instant overloads), and compareTo are now Kotlin
+    // source extension properties/functions/operators in Stdlib/kotlin/time/Instant.kt
+    // that delegate to __kk_instant_* bridge methods registered on the Instant class
+    // itself.
     @Test func testInstantBridgeMethodsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
@@ -89,11 +90,11 @@ struct InstantDistantPropertiesSyntheticTests {
         )))
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
 
-        // epochSeconds / nanoOfSecond / isDistantPast / isDistantFuture are Kotlin
-        // source extension properties at package scope.
+        // epochSeconds / nanosecondsOfSecond / isDistantPast / isDistantFuture are
+        // Kotlin source extension properties at package scope.
         let extensionProperties: [(name: String, type: TypeID)] = [
             ("epochSeconds", sema.types.longType),
-            ("nanoOfSecond", sema.types.intType),
+            ("nanosecondsOfSecond", sema.types.intType),
             ("isDistantPast", boolType),
             ("isDistantFuture", boolType),
         ]
@@ -111,10 +112,13 @@ struct InstantDistantPropertiesSyntheticTests {
             #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Instant.\(property.name) should have no C external link name (Kotlin source)")
         }
 
-        // plus / minus / compareTo are Kotlin source extension operator functions.
+        // plus / minus (Duration and Instant overloads) / compareTo are Kotlin
+        // source extension operator functions. minus(Instant) returns Duration
+        // (t2 - t1), matching real kotlin.time.Instant; there is no until().
         let operators: [(name: String, parameterTypes: [TypeID], returnType: TypeID)] = [
             ("plus", [durationType], instantType),
             ("minus", [durationType], instantType),
+            ("minus", [instantType], durationType),
             ("compareTo", [instantType], sema.types.intType),
         ]
         for op in operators {
@@ -130,18 +134,7 @@ struct InstantDistantPropertiesSyntheticTests {
             #expect(sema.symbols.externalLinkName(for: symbol) == nil, "Instant.\(op.name) should have no C external link name (Kotlin source)")
         }
 
-        // until / elapsed are Kotlin source extension functions.
-        let untilFQName = kotlinTime + [interner.intern("until")]
-        let untilSymbol = try #require(
-            sema.symbols.lookupAll(fqName: untilFQName).first { symbolID in
-                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return sig.receiverType == instantType && sig.parameterTypes == [instantType]
-            },
-            "Instant.until should be a Kotlin source extension function at kotlin.time scope"
-        )
-        #expect(sema.symbols.symbol(untilSymbol)?.declSite != nil)
-        #expect(sema.symbols.externalLinkName(for: untilSymbol) == nil)
-
+        // elapsed is a Kotlin source extension function.
         let elapsedFQName = kotlinTime + [interner.intern("elapsed")]
         let elapsedSymbol = try #require(
             sema.symbols.lookupAll(fqName: elapsedFQName).first { symbolID in
