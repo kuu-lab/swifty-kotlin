@@ -91,10 +91,14 @@ private func runtime_synchronized_reentrant_lambda(
     return result + 1
 }
 
+/// `.serialized` because tests share the file-global closure-thunk state.
+/// Must not call `kk_runtime_force_reset()`: Swift Testing suites run
+/// concurrently in one process, and a global reset deallocates handles owned
+/// by other suites. `kk_synchronized` unlocks on exit, so no lock state leaks
+/// between tests.
 @Suite(.serialized)
 struct RuntimeSynchronizedTests {
     init() {
-        kk_runtime_force_reset()
         synchronizedCapturedClosureRaw = 0
         synchronizedNestedFnPtr = 0
         synchronizedNestedClosureRaw = 0
@@ -102,10 +106,6 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedReturnsBlockResult() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let fn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -119,10 +119,6 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedPropagatesThrownValue() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let fn = unsafeBitCast(
             runtime_synchronized_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -136,10 +132,6 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedPassesClosureRawToThunk() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         synchronizedCapturedClosureRaw = 0
         let fn = unsafeBitCast(
             runtime_synchronized_capture_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -156,10 +148,6 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedSupportsReentrantLocking() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let nestedFn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
