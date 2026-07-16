@@ -33,4 +33,11 @@ fun main() {
 
     val hexLong = "8000000000000000".hexToLong()
     show(hexLong)
+
+    // A nullable ULong away from the sentinel boundary must render correctly
+    // through string-template interpolation, which dispatches via a compiler-
+    // emitted kk_any_to_string(_nullable) call carrying an explicit tag rather
+    // than going through generic Any-boxing dispatch.
+    val taggedU: ULong? = 17663719463477156090uL
+    println("taggedU=$taggedU")
 }

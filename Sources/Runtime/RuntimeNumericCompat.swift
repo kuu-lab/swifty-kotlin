@@ -119,17 +119,17 @@ private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
     return kk_bits_to_double(value)
 }
 
-/// ULong reuses Long's boxing (BoxingCalleeTable maps both `.long` and
-/// `.ulong` to kk_box_long/RuntimeLongBox, since there is no dedicated
-/// RuntimeULongBox), so a boxed ULong is a RuntimeLongBox holding the same
-/// bit pattern. This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue:
-/// unbox first when the raw value is a GC-tracked object pointer (e.g. a
-/// nullable ULong? data class property, which the ABI always boxes so its
-/// field slot can also represent null), otherwise reinterpret the raw bits.
+/// This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue: unbox first
+/// when the raw value is a GC-tracked object pointer (e.g. a nullable ULong?
+/// data class property, which the ABI always boxes so its field slot can
+/// also represent null), otherwise reinterpret the raw bits.
 private func runtimeTaggedULongValue(_ value: Int) -> UInt {
     if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+            return UInt(bitPattern: ulongBox.value)
         }
         if isObjectPointer, let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
             return UInt(bitPattern: longBox.value)

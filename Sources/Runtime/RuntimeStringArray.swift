@@ -512,14 +512,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
-    case RuntimeTypeTokenEncoding.longBase,
-         RuntimeTypeTokenEncoding.ulongBase:
-        // ULong boxes via kk_box_long into RuntimeLongBox, the same as Long
-        // (see BoxingCalleeTable) — it must be checked here rather than
-        // grouped with the RuntimeIntBox family above, or a genuinely-boxed
-        // ULong value would fail its own `is ULong` check. Long and ULong
-        // remain indistinguishable from each other (same pre-existing box
-        // representation limitation noted above).
+    case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
