@@ -46,6 +46,13 @@ Options:
   --shard-count <n>         Total shard count (default: 1 = no sharding;
                              the raw --list-filter/target-prefix filter is
                              used unsharded in this case)
+  --chunk-size <n>          (static) max suite/class names per --filter chunk
+                             (default: 50). Lower this for targets run with
+                             SWIFT_TEST_PARALLEL=0: SwiftPM's --no-parallel
+                             path resolves --filter to every matching
+                             individual test name before spawning the test
+                             binary, so the effective argument size scales
+                             with tests-per-class, not just class count.
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -59,6 +66,7 @@ tests_dir=""
 target_prefix=""
 shard_index=0
 shard_count=1
+static_chunk_size=50
 declare -a passthrough=()
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +83,8 @@ while [[ $# -gt 0 ]]; do
             shard_index="$2"; shift 2 ;;
         --shard-count)
             shard_count="$2"; shift 2 ;;
+        --chunk-size)
+            static_chunk_size="$2"; shift 2 ;;
         -h|--help)
             usage; exit 0 ;;
         --)
@@ -272,14 +282,13 @@ fi
 
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
-    chunk_size=50
     while IFS= read -r chunk; do
         filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
     done < <(
-        printf '%s\n' "${own_types[@]}" | chunk_alternations "$chunk_size"
+        printf '%s\n' "${own_types[@]}" | chunk_alternations "$static_chunk_size"
     )
 
-    echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $chunk_size names each." >&2
+    echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $static_chunk_size names each." >&2
 fi
 
 for f in "${filters[@]}"; do
