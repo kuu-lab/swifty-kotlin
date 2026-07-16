@@ -142,8 +142,19 @@ extension CallLowerer {
             return result
         }
 
+        // Object-literal properties don't currently get a dedicated backing-field
+        // symbol from ExprTypeChecker+ObjectLiteralInference.swift's header
+        // collection (unlike ordinary class members), so `backingFieldSymbol(for:)`
+        // is always nil here today and this falls back to `propertySymbol`
+        // unchanged. Kept for consistency with every other field-offset lookup
+        // in the codebase (CallLowerer+MemberAssignment.swift,
+        // tryLowerStoredMemberPropertyRead, the lateinit branch in
+        // KIRLoweringDriver+...+ConstructorsAndInitializers.swift) so this
+        // doesn't silently break if object literals ever gain backing fields.
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[propertySymbol]
+              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                  sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+              ]
         else {
             return nil
         }
