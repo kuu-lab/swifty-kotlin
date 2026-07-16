@@ -406,8 +406,9 @@ public func kk_string_substring(
     if start < 0 || start > length || end < 0 || end > length || start > end {
         runtimeSetThrown(
             outThrown,
-            message:
-            "StringIndexOutOfBoundsException: start=\(start), end=\(hasEnd ? end : length), length=\(length)"
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "start=\(start), end=\(hasEnd ? end : length), length=\(length)"
+            )
         )
         return 0
     }
@@ -484,7 +485,7 @@ public func kk_string_slice_iterable(
         if idx < 0 || idx >= length {
             runtimeSetThrown(
                 outThrown,
-                message: "IndexOutOfBoundsException: index \(idx) out of range [0, \(length))"
+                runtimeAllocateIndexOutOfBoundsException(message: "index \(idx) out of range [0, \(length))")
             )
             return 0
         }
@@ -503,7 +504,7 @@ private func runtimeStringCodePointCount(
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
         runtimeSetThrown(
             outThrown,
-            message: "IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)"
+            runtimeAllocateIndexOutOfBoundsException(message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)")
         )
         return 0
     }
@@ -734,7 +735,7 @@ public func kk_string_take(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutabl
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     outThrown?.pointee = 0
     if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
         return runtimeMakeStringRaw("")
     }
     let scalars = runtimeStringScalars(strRaw)
@@ -869,7 +870,7 @@ public func kk_string_removeSurrounding_pair_flat(
 public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
         return runtimeMakeStringRaw("")
     }
     let scalars = runtimeStringScalars(strRaw)
@@ -885,7 +886,7 @@ public func kk_string_drop(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutabl
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     outThrown?.pointee = 0
     if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
         return runtimeMakeStringRaw("")
     }
     let scalars = runtimeStringScalars(strRaw)
@@ -903,7 +904,7 @@ public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMu
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     outThrown?.pointee = 0
     if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
         return runtimeMakeStringRaw("")
     }
     let scalars = runtimeStringScalars(strRaw)
