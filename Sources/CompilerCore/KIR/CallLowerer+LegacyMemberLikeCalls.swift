@@ -2492,6 +2492,15 @@ extension CallLowerer {
                     "sumOf",
                     "maxByOrNull",
                     "minByOrNull",
+                    // STDLIB-pipeline §5: take/drop/chunked/windowed have real
+                    // require() validation in SequenceWindowChunk.kt as of
+                    // MIGRATION-SEQ-005. A resolved call to that source
+                    // declaration must not be short-circuited to the
+                    // unchecked kk_sequence_* runtime bridge below.
+                    "take",
+                    "drop",
+                    "chunked",
+                    "windowed",
                 ].contains(interner.resolve(calleeName)),
                     let chosenBase64Callee,
                     sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
@@ -3490,10 +3499,25 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-pipeline §5: windowed has real require(size > 0) /
+        // require(step > 0) validation in SequenceWindowChunk.kt as of
+        // MIGRATION-SEQ-005. When normal candidate lookup already resolved
+        // this call to that source declaration, this shortcut must not
+        // discard it and skip past the require() checks.
+        let windowedIsSourceBacked: Bool = {
+            guard let chosenBase64Callee,
+                  sema.symbols.symbol(chosenBase64Callee)?.declSite != nil
+            else {
+                return false
+            }
+            return (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+        }()
+
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
         // Lambda-bearing `windowed` calls use the synthetic iterable HOF overload
         // and must not be rewritten to the sequence ABI here.
         if !hasHOFLambdaArg,
+           !windowedIsSourceBacked,
            (1...3).contains(args.count),
            calleeName == interner.intern("windowed")
         {
@@ -3839,6 +3863,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }
@@ -3890,6 +3915,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }

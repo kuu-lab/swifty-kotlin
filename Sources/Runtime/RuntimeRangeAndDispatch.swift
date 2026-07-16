@@ -136,7 +136,7 @@ func runtimeUnsignedRangeFirstMatch(
     if orNull {
         return runtimeNullSentinelInt
     }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
     return 0
 }
 
@@ -175,7 +175,7 @@ func runtimeUnsignedRangeLastMatch(
     if orNull {
         return runtimeNullSentinelInt
     }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
     return 0
 }
 
@@ -249,7 +249,7 @@ func runtimeSignedRangeFirstMatch(
     if found { return match }
     if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
     if orNull { return runtimeNullSentinelInt }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
     return 0
 }
 
@@ -274,7 +274,7 @@ func runtimeSignedRangeLastMatch(
     if found { return match }
     if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
     if orNull { return runtimeNullSentinelInt }
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "No element matching the predicate was found.")
     return 0
 }
 
@@ -376,7 +376,7 @@ func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int) -> UInt64 {
 }
 
 func runtimeRangeRandomError(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: Range is empty.")
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Range is empty.")
     return 0
 }
 
@@ -455,7 +455,7 @@ func runtimeUnsignedRangeRandom(
 public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if value == runtimeNullSentinelInt {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "NullPointerException")
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
         return 0
     }
     return value
@@ -499,14 +499,14 @@ public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMut
     outThrown?.pointee = 0
     // Kotlin spec: step() requires a strictly positive argument (STDLIB-022).
     guard stepValue > 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Step must be positive, was: \(stepValue)."
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Step must be positive, was: \(stepValue)."
         )
         return rangeRaw
     }
     guard stepValue != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Step must be positive, was: \(stepValue)."
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Step must be positive, was: \(stepValue)."
         )
         return rangeRaw
     }
@@ -550,10 +550,14 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
-    // Raw arrays (IntArray, ByteArray, Array<T>, ...) reach this generic fallback
-    // when the for-loop's iterable has no compile-time-resolved iterator (e.g. a
-    // generic Iterable<T> parameter). The exact-type check excludes RuntimeObjectBox,
-    // a RuntimeArrayBox subclass used for ordinary class instances.
+    // `for (x in arrayOf(...))` (and other raw arrays: IntArray, ByteArray, ...)
+    // reaches this generic for-loop entry point same as List, when the iterable
+    // has no compile-time-resolved iterator (e.g. a generic Iterable<T>
+    // parameter); without this branch an array falls through to the range-box
+    // guard below, gets treated as an invalid range, and the loop silently
+    // iterates zero times (kk_range_hasNext sees no RuntimeRangeIteratorBox).
+    // The exact-type check excludes RuntimeObjectBox, a RuntimeArrayBox subclass
+    // used for ordinary class instances.
     if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
         return kk_list_iterator(rangeRaw)
     }
@@ -950,14 +954,14 @@ public func kk_char_range_isEmpty(_ rangeRaw: Int) -> Int {
 public func kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard stepValue > 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Step must be positive, was: \(stepValue)."
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Step must be positive, was: \(stepValue)."
         )
         return rangeRaw
     }
     guard stepValue != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Step must be positive, was: \(stepValue)."
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Step must be positive, was: \(stepValue)."
         )
         return rangeRaw
     }
@@ -1171,11 +1175,11 @@ public func kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart:
     _ = receiverRaw
     // Validate step constraints
     guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be non-zero.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
@@ -1189,11 +1193,11 @@ public func kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart
     // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
     // Validate step constraints
     guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be non-zero.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
@@ -1206,11 +1210,11 @@ public func kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart
     _ = receiverRaw
     // UIntProgression uses signed Int for step, UInt for range values
     guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be non-zero.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
@@ -1223,11 +1227,11 @@ public func kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStar
     _ = receiverRaw
     // ULongProgression uses signed Int for step, ULong for range values
     guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be non-zero.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
@@ -1239,11 +1243,11 @@ public func kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = receiverRaw
     guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be non-zero.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
         return 0
     }
     guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
         return 0
     }
     let startChar = kk_unbox_char(rangeStart)
