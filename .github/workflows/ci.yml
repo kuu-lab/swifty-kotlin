@@ -440,6 +440,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # RuntimeTests is intentionally not listed here: it now runs as its
+          # own sharded full-swift-tests-runtime job above (see the comment
+          # there for why: mixed Swift Testing/XCTest, serialized, and split
+          # to stay under Linux's exec() argument-length limit).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             parallel: "1"
