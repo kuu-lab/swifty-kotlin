@@ -343,6 +343,21 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 42, "supervisor_scope_run must return the block's result")
     }
 
+    /// A direct throw from the supervisorScope block itself (as opposed to a
+    /// child failing, which SupervisorJob semantics isolate) must still
+    /// propagate to the caller instead of being silently discarded. Regression
+    /// test for a fix flagged by PR review: this variant did not forward
+    /// outThrown to the suspend loop, unlike the identical kk_coroutine_scope_run.
+    func testSupervisorScopeRunPropagatesDirectThrow() {
+        let entryRaw = unsafeBitCast(
+            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        var outThrown = 0
+        _ = kk_supervisor_scope_run(entryRaw, 8827, &outThrown)
+        XCTAssertNotEqual(outThrown, 0, "A direct throw from the supervisorScope block must propagate, not be discarded")
+    }
+
     // MARK: - Test 9: Supervisor scope is active and not cancelled initially
 
     func testSupervisorScopeNewIsInitiallyActive() {
@@ -493,6 +508,42 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         )
         let result = kk_with_context_full(contextHandle, entryRaw, continuation)
         XCTAssertEqual(result, 11, "withContext_full should propagate both CoroutineName and dispatcher")
+    }
+
+    /// After a `withContext(NonCancellable) { }` block completes, cancellation
+    /// checks in the rest of the same coroutine must observe the ORIGINAL job
+    /// again -- not remain stuck on the NonCancellable override forever.
+    /// Regression test for a fix flagged by PR review: kk_with_context_full
+    /// overwrote contState.jobHandle with the NonCancellable singleton and
+    /// never restored it after the block returned.
+    func testWithContextFullRestoresJobHandleAfterNonCancellableBlock() {
+        let continuation = kk_coroutine_continuation_new(8828)
+        guard let state = runtimeContinuationState(from: continuation) else {
+            XCTFail("Expected continuation state to exist")
+            return
+        }
+        let originalJob = RuntimeJobHandle()
+        state.jobHandle = originalJob
+        _ = originalJob.cancel()
+
+        var precheckThrown = 0
+        XCTAssertEqual(
+            kk_coroutine_check_cancellation(continuation, &precheckThrown), 1,
+            "Sanity check: cancellation must be observed before entering withContext(NonCancellable)"
+        )
+
+        let nonCancellableHandle = kk_non_cancellable_instance()
+        let entryRaw = unsafeBitCast(
+            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        _ = kk_with_context_full(nonCancellableHandle, entryRaw, continuation)
+
+        var postThrown = 0
+        XCTAssertEqual(
+            kk_coroutine_check_cancellation(continuation, &postThrown), 1,
+            "Cancellation must be observed again after the NonCancellable block completes, not suppressed forever"
+        )
     }
 
     // MARK: - Test 17: coroutineScope run with continuation returns captured value

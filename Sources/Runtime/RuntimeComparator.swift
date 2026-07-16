@@ -1,10 +1,23 @@
 
+// All hand-built comparator objects below (selector-based, primitive, then-by
+// chains, CASE_INSENSITIVE_ORDER, ...) implement `Comparator<T>` at a fixed
+// itable slot (0, 0) but are constructed directly in Swift rather than
+// through compiler-emitted class construction, so they never go through the
+// normal per-class kk_object_register_itable_iface emission (see
+// KIRVtableRegistrationLowering.swift). Call sites that only see the static
+// interface type (e.g. a `Comparator<T>` parameter) resolve the slot
+// dynamically via kk_itable_lookup_dynamic -> runtimeRegisteredInterfaceSlot,
+// which reads this registration; without it, dispatch fails with
+// "method not found in vtable/itable" (e.g. `sortedWith(CASE_INSENSITIVE_ORDER)`).
+private let runtimeComparatorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparator")
+
 @inline(__always)
 private func runtimeRegisterComparatorCompareMethod(
     _ objectRaw: Int,
     _ method: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 ) {
     _ = kk_object_register_itable_method(objectRaw, 0, 0, unsafeBitCast(method, to: Int.self))
+    _ = kk_object_register_itable_iface(objectRaw, Int(runtimeComparatorInterfaceTypeID), 0)
 }
 
 // MARK: - Comparator from selector (STDLIB-175)
