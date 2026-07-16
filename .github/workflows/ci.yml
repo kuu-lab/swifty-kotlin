@@ -345,22 +345,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests touches shared runtime state; keep test execution serialized
-          # (workers: "1") while preserving parallel builds. This MUST stay
-          # `parallel: "1"` (--parallel --num-workers 1), not `parallel: "0"`
-          # (--no-parallel): swift_test.sh's --no-parallel path hands the xctest
-          # binary one combined --filter argument enumerating every matching test,
-          # and RuntimeTests' ~3000 tests blow past Linux's ~128KB MAX_ARG_STRLEN
-          # ("posix_spawn error: Argument list too long"), failing every run. The
-          # --parallel runner dispatches tests to workers incrementally instead of
-          # in one argument, so --num-workers 1 gives the same one-at-a-time
-          # execution without hitting that limit (see Scripts/lib/common.sh's
-          # chunk_alternations, which works around the identical limit for
-          # CompilerBackendTests' sharded --filter).
+          # RuntimeTests: keep `parallel: "1"` (--parallel), never `parallel: "0"`
+          # (--no-parallel). swift_test.sh's --no-parallel path hands the xctest
+          # binary one combined --filter argument enumerating every matching
+          # test, and RuntimeTests' ~3000 tests blow past Linux's ~128KB
+          # MAX_ARG_STRLEN ("posix_spawn error: Argument list too long"),
+          # failing every run (see Scripts/lib/common.sh's chunk_alternations,
+          # which works around the identical limit for CompilerBackendTests'
+          # sharded --filter).
+          #
+          # Do not try to "serialize" this job by dropping workers to "1"
+          # either: SWIFT_TEST_WORKERS only changes how SwiftPM distributes
+          # the XCTest portion across worker processes. RuntimeTests' ~200
+          # Swift Testing (@Suite/@Test) cases always execute concurrently in
+          # one process regardless of worker count, so lowering workers adds
+          # no isolation while making the XCTest portion much slower. Several
+          # of those suites call kk_runtime_force_reset() (a process-wide
+          # reset of the GC's live-object registry) from `@Suite(.serialized)`
+          # init()/teardown, which only serializes within that one suite and
+          # does not block unrelated suites also running in the same process
+          # — see BUG-023/BUG-024/BUG-040 in TODO.md for the resulting
+          # cross-suite corruption/crashes, which need a real fix in the test
+          # isolation helpers, not a CI worker-count workaround.
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
             parallel: "1"
-            workers: "1"
+            workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: RuntimeTestsParallel
