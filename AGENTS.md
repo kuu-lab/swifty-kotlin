@@ -13,7 +13,7 @@ AI 向けの補足。プロジェクトのクイックリファレンスは [`CL
 
 ### 概要
 
-KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.2**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
+KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.3**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
 
 ### 必須環境変数（Linux）
 
@@ -29,7 +29,7 @@ CI の [`.github/actions/setup-swift-llvm/action.yml`](.github/actions/setup-swi
 
 ### Swift ツールチェーン（Linux VM）
 
-- 公式 tarball を `/opt/swift-6.2` に展開し、`PATH` に `/opt/swift-6.2/usr/bin` を追加する（`swift-tools-version: 6.2` に合わせる）。
+- 公式 tarball を `/opt/swift-6.3` に展開し、`PATH` に `/opt/swift-6.3/usr/bin` を追加する（CI の `swift-version: "6.3"` に合わせる。`Package.swift` の `swift-tools-version` は 6.2 のまま）。
 - 新しいシェルでは `~/.bashrc` の KSwiftK ブロックが PATH / LLVM 変数を設定する想定。
 
 ### ビルド・テスト・実行

@@ -126,7 +126,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         uses: actions/cache@v5
         with:
@@ -139,9 +139,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests
@@ -188,7 +188,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -202,9 +202,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
@@ -276,7 +276,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -290,9 +290,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
@@ -378,12 +378,12 @@ jobs:
         if: ${{ !matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Setup Swift and LLVM
         if: ${{ matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -397,9 +397,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
@@ -447,7 +447,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
@@ -490,9 +490,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Build kswiftc (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         run: swift build -Xswiftc -swift-version -Xswiftc 6
