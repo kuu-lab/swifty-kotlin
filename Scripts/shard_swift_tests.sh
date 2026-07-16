@@ -24,9 +24,18 @@ Modes:
             <list-filter>, and shards at the individual-test level. Safe for pure
             XCTest targets, where `swift test list` prints the documented
             "Module.Class/method" specifier for every test. Do NOT use this
-            mode for targets that mix in Swift Testing (@Suite/@Test), since
-            this script does not depend on knowing that framework's list
-            output format.
+            mode for targets that mix in Swift Testing (@Suite/@Test) unless
+            the passthrough args also include --disable-swift-testing (or
+            --disable-xctest), since this script does not depend on knowing
+            that framework's list output format. Any of --enable-xctest,
+            --disable-xctest, --enable-swift-testing, --disable-swift-testing
+            found in the passthrough args are forwarded to `swift test list`
+            itself (in addition to the test run), so the listed identifiers
+            only ever cover the enabled framework.
+            Always chunks the matched tests across multiple --filter
+            invocations (see chunk_size below), even when --shard-count is 1,
+            since a single alternation regex covering a few thousand tests
+            overflows Linux's per-argument exec() limit on its own.
 
   static    Extracts test suite type names by scanning test sources under
             --tests-dir for XCTestCase classes and Swift Testing @Suite
@@ -43,9 +52,13 @@ Options:
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
-  --shard-count <n>         Total shard count (default: 1 = no sharding;
-                             the raw --list-filter/target-prefix filter is
-                             used unsharded in this case)
+  --shard-count <n>         Total shard count (default: 1 = no cross-job
+                             sharding). In --mode static this runs the raw
+                             --target-prefix filter unsharded. In --mode
+                             dynamic the matched tests are still chunked
+                             across multiple --filter invocations (see
+                             chunk_size), just without splitting across
+                             shard jobs first.
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -90,6 +103,20 @@ run_swift_test() {
     bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
 }
 
+# `swift test list` needs to see the same --enable/--disable-xctest and
+# --enable/--disable-swift-testing flags as the actual test run, otherwise it
+# lists identifiers from a framework that --mode dynamic's own test run then
+# excludes (or, worse, mixes in a framework whose list output format this
+# script does not understand). Extract just those flags from passthrough.
+declare -a list_framework_flags=()
+for arg in "${passthrough[@]+"${passthrough[@]}"}"; do
+    case "$arg" in
+        --enable-xctest|--disable-xctest|--enable-swift-testing|--disable-swift-testing)
+            list_framework_flags+=("$arg")
+            ;;
+    esac
+done
+
 run_filter_chunks() {
     local total=$(( $# / 2 ))
     local chunk=1
@@ -133,12 +160,8 @@ case "$mode" in
         ;;
 esac
 
-if (( shard_count <= 1 )); then
-    if [[ "$mode" == "dynamic" ]]; then
-        run_swift_test --filter "$list_filter"
-    else
-        run_swift_test --filter "^${target_prefix}\\."
-    fi
+if (( shard_count <= 1 )) && [[ "$mode" == "static" ]]; then
+    run_swift_test --filter "^${target_prefix}\\."
     exit $?
 fi
 
@@ -150,7 +173,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # `swift test list` does not honor --filter on every SwiftPM version.
     # List everything and apply the requested shard prefix locally.
     mapfile -t all_tests < <(
-        swift test list --skip-build \
+        swift test list --skip-build "${list_framework_flags[@]+"${list_framework_flags[@]}"}" \
             | awk -v filter="$list_filter" '$0 ~ filter { print }' \
             | sort
     )

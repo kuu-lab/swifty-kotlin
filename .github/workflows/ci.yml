@@ -340,7 +340,7 @@ jobs:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.timeout-minutes || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -351,13 +351,18 @@ jobs:
           # so they run serialized in a separate pass. The split is also load-
           # bearing: a serial XCTest run passes every --filter-matched test id
           # as one exec argument and overflows Linux MAX_ARG_STRLEN
-          # ("posix_spawn error: Argument list too long").
+          # ("posix_spawn error: Argument list too long"). The XCTest pass
+          # itself further chunks its ~3000 tests across many `swift test`
+          # invocations (shard_swift_tests.sh --mode dynamic) for the same
+          # reason, so this target gets a longer timeout than the rest of
+          # the matrix.
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
             split-testing-libraries: true
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            timeout-minutes: 90
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             workers: "4"
@@ -426,7 +431,20 @@ jobs:
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        # A plain --filter "${{ matrix.test-filter }}" run expands to one
+        # --filter argument alternating every matched XCTest id (~3000 for
+        # RuntimeTests) and overflows Linux MAX_ARG_STRLEN on its own, even
+        # with Swift Testing excluded via --disable-swift-testing ("posix_spawn
+        # error: Argument list too long"). shard_swift_tests.sh's dynamic mode
+        # lists the (XCTest-only, thanks to --disable-swift-testing forwarded
+        # to `swift test list`) identifiers and chunks them across many
+        # `swift test` invocations instead; --shard-count 1 keeps this to a
+        # single CI job while still getting that chunking.
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode dynamic --list-filter "${{ matrix.test-filter }}" \
+            --shard-index 0 --shard-count 1 \
+            -- --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run Swift Testing suites for ${{ matrix.test-target }} serialized with strict concurrency warnings
         if: ${{ matrix.split-testing-libraries }}
         env:
@@ -440,7 +458,7 @@ jobs:
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
             if [[ "${{ matrix.split-testing-libraries }}" == "true" ]]; then
-              echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+              echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter \"${{ matrix.test-filter }}\" --shard-index 0 --shard-count 1 -- --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
               echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" --disable-xctest -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             else
               echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
