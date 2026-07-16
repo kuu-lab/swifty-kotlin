@@ -71,6 +71,13 @@ public enum KIRExprKind: Equatable, Sendable {
 public enum KIRDispatchKind: Equatable, Sendable {
     case vtable(slot: Int)
     case itable(interfaceSlot: Int, methodSlot: Int)
+    /// Used when the receiver's static type is the interface itself (e.g. a
+    /// function parameter typed `d: SomeInterface`) rather than a concrete
+    /// class — the itable slot assigned to that interface varies per
+    /// implementing class and isn't known at this call site, so it's looked
+    /// up at runtime from the object's registered (interfaceTypeID -> slot)
+    /// map instead of being baked in as a fixed slot index.
+    case itableDynamic(interfaceTypeID: Int64, methodSlot: Int)
 }
 
 public enum KIRInstruction: Equatable, Sendable {
@@ -554,6 +561,8 @@ public final class KIRModule {
                 "vtable[\(slot)]"
             case let .itable(interfaceSlot, methodSlot):
                 "itable[\(interfaceSlot):\(methodSlot)]"
+            case let .itableDynamic(interfaceTypeID, methodSlot):
+                "itableDynamic[\(interfaceTypeID):\(methodSlot)]"
             }
             return "virtualCall \(calleeName) symbol=\(symbolLabel) receiver=r\(receiver.rawValue) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet) dispatch=\(dispatchLabel)"
         case let .jumpIfNotNull(value, target):

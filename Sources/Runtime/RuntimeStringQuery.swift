@@ -1,4 +1,4 @@
-// String query and predicate functions (isEmpty/isBlank,
+// String query and predicate functions (first/last/single, isEmpty/isBlank,
 // ifBlank/ifEmpty, get, compareTo, contentEquals, lines).
 // Split out from `RuntimeStringStdlib.swift`.
 
@@ -8,6 +8,81 @@ import Foundation
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // Match the flat String aggregate length field used by String.length lowering.
     runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+}
+
+// MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
+
+@_cdecl("kk_string_first")
+public func kk_string_first(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let first = codeUnits.first else {
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        return 0
+    }
+    return kk_box_char(Int(first))
+}
+
+@_cdecl("kk_string_last")
+public func kk_string_last(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let last = codeUnits.last else {
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        return 0
+    }
+    return kk_box_char(Int(last))
+}
+
+@_cdecl("kk_string_single")
+public func kk_string_single(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard codeUnits.count == 1 else {
+        if codeUnits.isEmpty {
+            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        } else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+        }
+        return 0
+    }
+    return kk_box_char(Int(codeUnits[0]))
+}
+
+@_cdecl("kk_string_firstOrNull")
+public func kk_string_firstOrNull(_ strRaw: Int) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let first = codeUnits.first else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(first))
+}
+
+@_cdecl("kk_string_lastOrNull")
+public func kk_string_lastOrNull(_ strRaw: Int) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let last = codeUnits.last else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(last))
+}
+
+@_cdecl("kk_string_singleOrNull")
+public func kk_string_singleOrNull(_ strRaw: Int) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard codeUnits.count == 1 else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(codeUnits[0]))
+}
+
+@_cdecl("kk_string_getOrNull")
+public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
+    let scalars = runtimeStringScalars(strRaw)
+    guard index >= 0, index < scalars.count else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(scalars[index].value))
 }
 
 // MARK: - STDLIB-187: isEmpty / isNotEmpty / isBlank / isNotBlank
@@ -125,7 +200,7 @@ public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMut
     guard indexRaw >= 0, indexRaw < scalars.count else {
         runtimeSetThrown(
             outThrown,
-            message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
         )
         return 0
     }
@@ -146,7 +221,7 @@ public func kk_string_get_flat(
     guard indexRaw >= 0, indexRaw < scalars.count else {
         runtimeSetThrown(
             outThrown,
-            message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
         )
         return 0
     }
@@ -272,7 +347,7 @@ public func __kk_string_random(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, message: "NoSuchElementException: Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     let index = Int.random(in: 0 ..< codeUnits.count)
@@ -284,7 +359,7 @@ public func __kk_string_random_random(_ strRaw: Int, _ randomRaw: Int, _ outThro
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, message: "NoSuchElementException: Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     let index = runtimeRandomIndex(count: codeUnits.count, randomRaw: randomRaw)

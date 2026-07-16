@@ -465,18 +465,18 @@ public func __kk_kfunction_call_0(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Invalid KFunction handle.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
     guard box.arity == 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: KFunction expects \(box.arity) argument(s) but call() was invoked with 0.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "KFunction expects \(box.arity) argument(s) but call() was invoked with 0.")
         return runtimeNullSentinelInt
     }
     guard box.fnPtr != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "UnsupportedOperationException: KFunction has no callable function pointer.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "KFunction has no callable function pointer.")
         return runtimeNullSentinelInt
     }
     if box.closureRaw != 0 {
@@ -497,18 +497,18 @@ public func __kk_kfunction_call_1(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Invalid KFunction handle.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
     guard box.arity == 1 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: KFunction expects \(box.arity) argument(s) but call() was invoked with 1.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "KFunction expects \(box.arity) argument(s) but call() was invoked with 1.")
         return runtimeNullSentinelInt
     }
     guard box.fnPtr != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "UnsupportedOperationException: KFunction has no callable function pointer.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "KFunction has no callable function pointer.")
         return runtimeNullSentinelInt
     }
     if box.closureRaw != 0 {
@@ -530,18 +530,18 @@ public func __kk_kfunction_call_2(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Invalid KFunction handle.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
     guard box.arity == 2 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: KFunction expects \(box.arity) argument(s) but call() was invoked with 2.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "KFunction expects \(box.arity) argument(s) but call() was invoked with 2.")
         return runtimeNullSentinelInt
     }
     guard box.fnPtr != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "UnsupportedOperationException: KFunction has no callable function pointer.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "KFunction has no callable function pointer.")
         return runtimeNullSentinelInt
     }
     if box.closureRaw != 0 {
@@ -564,18 +564,18 @@ public func __kk_kfunction_call_3(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Invalid KFunction handle.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
     guard box.arity == 3 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: KFunction expects \(box.arity) argument(s) but call() was invoked with 3.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "KFunction expects \(box.arity) argument(s) but call() was invoked with 3.")
         return runtimeNullSentinelInt
     }
     guard box.fnPtr != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "UnsupportedOperationException: KFunction has no callable function pointer.")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "KFunction has no callable function pointer.")
         return runtimeNullSentinelInt
     }
     if box.closureRaw != 0 {
@@ -597,8 +597,8 @@ public func __kk_kfunction_call_vararg(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Invalid KFunction handle.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Invalid KFunction handle.")
         return runtimeNullSentinelInt
     }
     // Unpack the argument list.
@@ -611,15 +611,15 @@ public func __kk_kfunction_call_vararg(
               let listPtr = UnsafeMutableRawPointer(bitPattern: argsListRaw),
               let listBox = tryCast(listPtr, to: RuntimeListBox.self)
         else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "IllegalArgumentException: Invalid argument list handle in KFunction.call().")
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Invalid argument list handle in KFunction.call().")
             return runtimeNullSentinelInt
         }
         args = listBox.elements
     }
     guard args.count == box.arity else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: KFunction expects \(box.arity) argument(s) but call() was invoked with \(args.count).")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "KFunction expects \(box.arity) argument(s) but call() was invoked with \(args.count).")
         return runtimeNullSentinelInt
     }
     switch args.count {
@@ -632,8 +632,8 @@ public func __kk_kfunction_call_vararg(
     case 3:
         return __kk_kfunction_call_3(kfunctionRaw, args[0], args[1], args[2], outThrown)
     default:
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "UnsupportedOperationException: KFunction.call() supports at most 3 arguments via vararg dispatch; got \(args.count).")
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "KFunction.call() supports at most 3 arguments via vararg dispatch; got \(args.count).")
         return runtimeNullSentinelInt
     }
 }

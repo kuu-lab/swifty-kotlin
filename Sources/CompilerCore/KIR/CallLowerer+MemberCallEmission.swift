@@ -1049,7 +1049,7 @@ extension CallLowerer {
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
-               result: result, sema: sema
+               result: result, sema: sema, interner: interner
            )
         {
             instructions.append(inst)

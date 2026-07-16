@@ -225,8 +225,8 @@ final class RuntimeKClassCastAndMembersTests: XCTestCase {
             return
         }
         XCTAssertTrue(
-            box.message.contains("ClassCastException"),
-            "Exception message '\(box.message)' should contain 'ClassCastException'"
+            box.renderedMessage.contains("ClassCastException"),
+            "Exception message '\(box.renderedMessage)' should contain 'ClassCastException'"
         )
     }
 
@@ -273,8 +273,8 @@ final class RuntimeKClassCastAndMembersTests: XCTestCase {
                 return
             }
             XCTAssertTrue(
-                box.message.contains("ClassCastException"),
-                "Message '\(box.message)' should contain 'ClassCastException'"
+                box.renderedMessage.contains("ClassCastException"),
+                "Message '\(box.renderedMessage)' should contain 'ClassCastException'"
             )
             XCTAssertTrue(
                 box.message.contains("Foo") || box.message.contains("com.example.Foo"),
