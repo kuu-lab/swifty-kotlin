@@ -422,16 +422,19 @@ jobs:
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
     steps:
       - uses: actions/checkout@v7
       - name: Free disk space
@@ -478,6 +481,7 @@ jobs:
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
+          SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
@@ -485,7 +489,7 @@ jobs:
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} SWIFT_TEST_PARALLEL=${{ matrix.parallel }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
