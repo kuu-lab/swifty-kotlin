@@ -1058,6 +1058,17 @@ final class CallLowerer {
         {
             finalArgIDs.insert(implicitReceiver, at: 0)
         }
+        if loweredCallable == nil {
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArgIDs
+            )
+        }
         if loweredCallable == nil, let chosen {
             finalArgIDs = appendClosureArgumentsIfNeeded(
                 finalArgIDs,
@@ -1260,7 +1271,7 @@ final class CallLowerer {
         return result
     }
 
-    private func runtimeCallableInvokeCallee(
+    func runtimeCallableInvokeCallee(
         callableValueCallBinding: CallableValueCallBinding?,
         sema: SemaModule,
         interner: StringInterner
@@ -1273,8 +1284,10 @@ final class CallLowerer {
             return nil
         }
 
+        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+
         if functionType.isSuspend {
-            switch functionType.params.count {
+            switch valueArity {
             case 0:
                 return interner.intern("kk_suspend_function_invoke_0")
             case 1:
@@ -1284,7 +1297,7 @@ final class CallLowerer {
             }
         }
 
-        switch functionType.params.count {
+        switch valueArity {
         case 0:
             return interner.intern("kk_function_invoke_0")
         case 1:

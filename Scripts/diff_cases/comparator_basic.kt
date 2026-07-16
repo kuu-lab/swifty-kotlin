@@ -35,10 +35,10 @@ fun main() {
     val nullableNums = listOf(14, null, 3, null, 25, 17, 4)
 
     println("-- nullsFirst --")
-    println(nullableNums.sortedWith(compareBy<Int?> { it }.nullsFirst()))
+    println(nullableNums.sortedWith(nullsFirst(compareBy<Int> { it })))
 
     println("-- nullsLast --")
-    println(nullableNums.sortedWith(compareBy<Int?> { it }.nullsLast()))
+    println(nullableNums.sortedWith(nullsLast(compareBy<Int> { it })))
 
     println("-- naturalOrder + reverseOrder --")
     val words = listOf("pear", "apple", "orange", "fig")

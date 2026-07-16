@@ -846,15 +846,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[1].type, .intptr)
     }
 
-    func testKKComparatorFromSelectorPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_comparator_from_selector_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .int32)
-    }
-
     func testKKListSortedSignature() throws {
         let spec = try requireSpec("kk_list_sorted")
         XCTAssertEqual(spec.returnType, .intptr)

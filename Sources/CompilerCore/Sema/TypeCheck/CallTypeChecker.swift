@@ -1557,7 +1557,12 @@ final class CallTypeChecker {
            args.count == 2 || args.count == 3,
            interner.resolve(calleeName) == "compareBy",
            args.allSatisfy({ isLambdaOrCallableRefArg($0.expr, ast: ast) }),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", "compareBy"],
+               ctx: ctx
+           ) != nil
         {
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
@@ -1621,9 +1626,13 @@ final class CallTypeChecker {
            args.count == 2,
            ["compareBy", "compareByDescending"].contains(interner.resolve(calleeName)),
            !isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", interner.resolve(calleeName)],
+               ctx: ctx
+           ) != nil
         {
-            let calleeNameStr = interner.resolve(calleeName)
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
             let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
@@ -1676,13 +1685,10 @@ final class CallTypeChecker {
             }
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
-            let expectedExternalLink = calleeNameStr == "compareBy"
-                ? "kk_comparator_from_comparator_selector"
-                : "kk_comparator_from_comparator_selector_descending"
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                 guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                return sig.parameterTypes.count == 2 &&
-                    sema.symbols.externalLinkName(for: candidate) == expectedExternalLink
+                return sig.parameterTypes.count == 2
+                    && sema.symbols.externalLinkName(for: candidate) == nil
             }) {
                 sema.bindings.bindCall(
                     id,
@@ -1702,7 +1708,12 @@ final class CallTypeChecker {
         if let calleeName,
            args.count >= 4,
            interner.resolve(calleeName) == "compareBy",
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", "compareBy"],
+               ctx: ctx
+           ) != nil
         {
             let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
                 explicitT
@@ -1763,10 +1774,15 @@ final class CallTypeChecker {
         // --- Comparator factory functions: compareBy, compareByDescending (STDLIB-649) ---
         if let calleeName,
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil
         {
             let calleeNameStr = interner.resolve(calleeName)
-            if calleeNameStr == "compareBy" || calleeNameStr == "compareByDescending" {
+            if (calleeNameStr == "compareBy" || calleeNameStr == "compareByDescending"),
+               sourceOrSyntheticStdlibFunctionSymbol(
+                   calleeName,
+                   fqComponents: ["kotlin", "comparisons", calleeNameStr],
+                   ctx: ctx
+               ) != nil {
                 // Resolve the Comparator<T> return type.
                 // The lambda selector has signature (T) -> Comparable<*>.
                 // T is inferred from explicit type args, calling context, or defaults to Any.
@@ -1785,7 +1801,7 @@ final class CallTypeChecker {
                 }
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -1806,33 +1822,14 @@ final class CallTypeChecker {
                     sema.types.anyType
                 }
 
-                // Bind to the synthetic function symbol
+                // Bind to the bundled Kotlin source symbol.
                 let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
                 let funcFQName = comparisonsPkg + [calleeName]
-                let primitiveCalleeName = calleeNameStr == "compareBy"
-                    ? interner.intern("compareByPrimitive")
-                    : interner.intern("compareByDescendingPrimitive")
-                let primitiveFQName = comparisonsPkg + [primitiveCalleeName]
-                let primitiveCompareKind: Bool = {
-                    switch sema.types.kind(of: sema.types.makeNonNullable(elementType)) {
-                    case .primitive(.int, _), .primitive(.ubyte, _), .primitive(.ushort, _),
-                         .primitive(.long, _), .primitive(.uint, _), .primitive(.ulong, _),
-                         .primitive(.boolean, _), .primitive(.char, _),
-                         .primitive(.float, _), .primitive(.double, _):
-                        return true
-                    default:
-                        return false
-                    }
-                }()
-                if let chosen = (primitiveCompareKind
-                    ? sema.symbols.lookupAll(fqName: primitiveFQName).first(where: { candidate in
-                        guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                        return sig.parameterTypes.count == 1
-                    })
-                    : nil)
-                    ?? sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
+                if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.count == 1
+                        && sig.valueParameterIsVararg != [true]
+                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -1852,10 +1849,15 @@ final class CallTypeChecker {
         // --- Comparator factory functions: naturalOrder, reverseOrder (STDLIB-649) ---
         if let calleeName,
            args.isEmpty,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil
         {
             let calleeNameStr = interner.resolve(calleeName)
-            if calleeNameStr == "naturalOrder" || calleeNameStr == "reverseOrder" {
+            if (calleeNameStr == "naturalOrder" || calleeNameStr == "reverseOrder"),
+               sourceOrSyntheticStdlibFunctionSymbol(
+                   calleeName,
+                   fqComponents: ["kotlin", "comparisons", calleeNameStr],
+                   ctx: ctx
+               ) != nil {
                 let elementType: TypeID = if let explicitTypeArg = explicitTypeArgs.first {
                     explicitTypeArg
                 } else if let expectedType,
@@ -1887,6 +1889,7 @@ final class CallTypeChecker {
                 if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.isEmpty
+                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
