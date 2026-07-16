@@ -336,6 +336,76 @@ jobs:
             exit 1
           fi
 
+  # RuntimeTests mixes plain XCTest with Swift Testing suites. Several
+  # migrated Swift Testing suites here share mutable runtime state that
+  # isn't concurrency-safe (tracked in TODO.md as BUG-021/023/024/028/039
+  # and siblings), so this target must run serialized (SWIFT_TEST_PARALLEL=0)
+  # rather than with the --parallel workers the other targets below use.
+  # Serial (--no-parallel) XCTest execution passes the *entire* matched-test
+  # list as a single exec() argument instead of fanning it out across
+  # workers, so shard_swift_tests.sh's "static" mode (suite-name filtering,
+  # chunked — safe for mixed XCTest/Swift Testing targets, unlike "dynamic"
+  # mode) is used to keep every --filter invocation well under Linux's
+  # per-argument exec() limit.
+  full-swift-tests-runtime:
+    name: Full Swift Tests (RuntimeTests)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: .build
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "0"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
+            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint
+        if: always()
+        run: |
+          {
+            echo '## Full Swift test reproduce (RuntimeTests)'
+            echo '```bash'
+            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
@@ -345,13 +415,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests touches shared runtime state; keep test execution serialized while preserving parallel builds.
-          - test-target: RuntimeTests
-            test-filter: '^RuntimeTests\\.'
-            parallel: "0"
-            workers: "1"
-            build-jobs: "4"
-            needs-llvm: true
+          # RuntimeTests runs as its own full-swift-tests-runtime job above
+          # (needs serialized, chunked execution — see the comment there).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             parallel: "1"
