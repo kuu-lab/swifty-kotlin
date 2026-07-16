@@ -123,7 +123,7 @@ enum GoldenHarnessDump {
         let requiredSymbols = sema.symbols.allSymbols()
             .filter { ctx.requiredSymbols.contains($0.id.rawValue) }
             .filter { !isExcludedBundledSymbol($0, excludedFileIDs: excludedFileIDs) }
-            .sorted { ctx.stableKey(for: $0.id) < ctx.stableKey(for: $1.id) }
+            .sorted { naturalOrderLess(ctx.stableKey(for: $0.id), ctx.stableKey(for: $1.id)) }
 
         var symbolLines: [String] = []
         for symbol in requiredSymbols {
@@ -131,6 +131,48 @@ enum GoldenHarnessDump {
         }
 
         return (symbolLines + bodyLines).joined(separator: "\n") + "\n"
+    }
+
+    /// Compares stable keys (e.g. `__local_23.a`) with embedded digit runs
+    /// compared numerically rather than lexicographically, so `__local_9`
+    /// sorts before `__local_10`. Plain string `<` puts `__local_10` first
+    /// because `'1' < '9'`, which silently reorders symbols in the golden
+    /// dump whenever unrelated bundled-stdlib growth pushes a raw ID's digit
+    /// count across a power-of-ten boundary.
+    private static func naturalOrderLess(_ lhs: String, _ rhs: String) -> Bool {
+        var lIdx = lhs.startIndex
+        var rIdx = rhs.startIndex
+        while lIdx < lhs.endIndex, rIdx < rhs.endIndex {
+            let lChar = lhs[lIdx]
+            let rChar = rhs[rIdx]
+            if lChar.isASCII, lChar.isNumber, rChar.isASCII, rChar.isNumber {
+                var lEnd = lIdx
+                while lEnd < lhs.endIndex, lhs[lEnd].isASCII, lhs[lEnd].isNumber {
+                    lEnd = lhs.index(after: lEnd)
+                }
+                var rEnd = rIdx
+                while rEnd < rhs.endIndex, rhs[rEnd].isASCII, rhs[rEnd].isNumber {
+                    rEnd = rhs.index(after: rEnd)
+                }
+                let lDigits = lhs[lIdx..<lEnd].drop { $0 == "0" }
+                let rDigits = rhs[rIdx..<rEnd].drop { $0 == "0" }
+                if lDigits.count != rDigits.count {
+                    return lDigits.count < rDigits.count
+                }
+                if lDigits != rDigits {
+                    return lDigits.lexicographicallyPrecedes(rDigits)
+                }
+                lIdx = lEnd
+                rIdx = rEnd
+                continue
+            }
+            if lChar != rChar {
+                return lChar < rChar
+            }
+            lIdx = lhs.index(after: lIdx)
+            rIdx = rhs.index(after: rIdx)
+        }
+        return lIdx == lhs.endIndex && rIdx < rhs.endIndex
     }
 
     private static func bundledStdlibFileIDs(in sourceManager: SourceManager) -> Set<Int32> {
