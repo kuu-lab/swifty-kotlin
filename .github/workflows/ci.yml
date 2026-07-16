@@ -336,6 +336,102 @@ jobs:
             exit 1
           fi
 
+  # RuntimeTests mixes Swift Testing (@Suite/@Test) and XCTest (like
+  # CompilerCoreTests above) and also touches shared runtime state, so tests
+  # must run serialized (SWIFT_TEST_PARALLEL=0). A single --filter covering
+  # the whole target under --no-parallel resolves to one exec() argument
+  # listing every matched XCTest method, which exceeded Linux's ~128KB
+  # MAX_ARG_STRLEN once combined with the remaining un-migrated XCTestCase
+  # classes ("posix_spawn error: Argument list too long", observed on master
+  # after #4846 and on PR #4793). Sharding via shard_swift_tests.sh's
+  # "static" mode keeps each shard's resolved argument well under that limit
+  # while preserving full serialization within and across shards. shard
+  # values MUST be a contiguous 0..N-1 range matching strategy.job-total
+  # below.
+  full-swift-tests-runtime:
+    name: Full Swift Tests (RuntimeTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: .build
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run RuntimeTests shard ${{ matrix.shard }} with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "0"
+          SWIFT_TEST_WORKERS: "1"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
+            --shard-index "${{ matrix.shard }}" --shard-count "${{ strategy.job-total }}" \
+            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint
+        if: always()
+        run: |
+          {
+            echo '## Full Swift test reproduce (RuntimeTests shard ${{ matrix.shard }}/${{ strategy.job-total }})'
+            echo '```bash'
+            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_WORKERS=1 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
+  # Keeping the "Full Swift Tests (RuntimeTests)" name lets this replace the
+  # old matrix entry without updating branch protection required checks.
+  full-swift-tests-runtime-gate:
+    name: Full Swift Tests (RuntimeTests)
+    runs-on: ubuntu-latest
+    needs: full-swift-tests-runtime
+    timeout-minutes: 10
+    if: always()
+    steps:
+      - name: Verify all RuntimeTests shards passed
+        run: |
+          result="${{ needs.full-swift-tests-runtime.result }}"
+          echo "Aggregate shard result: $result"
+          if [[ "$result" != "success" ]]; then
+            echo "One or more RuntimeTests shards did not pass." >&2
+            exit 1
+          fi
+
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
@@ -345,21 +441,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - test-target: RuntimeTests
-            test-filter: '^RuntimeTests\\.'
-            workers: "4"
-            build-jobs: "4"
-            needs-llvm: true
-            # RuntimeTests suites share process-global Runtime state (GC heap,
-            # handle tables) via kk_runtime_force_reset(). Swift Testing
-            # parallelizes @Suite types across threads by default, and
-            # `.serialized` only serializes within one suite — it does not
-            # exclude concurrently running suites in other files. That lets
-            # one suite's reset race another's live handles, producing
-            # "invalid handle" crashes and corrupted results (see TODO.md
-            # BUG-021..035). Force serial execution here until the isolation
-            # mechanism is restored across all migrated suites.
-            parallel: "0"
+          # RuntimeTests is intentionally not listed here: it now runs as its
+          # own sharded full-swift-tests-runtime job above (see the comment
+          # there for why: mixed Swift Testing/XCTest, serialized, and split
+          # to stay under Linux's exec() argument-length limit).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             workers: "4"
