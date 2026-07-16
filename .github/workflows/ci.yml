@@ -345,31 +345,39 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests touches shared runtime state; keep test execution serialized while preserving parallel builds.
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
-            parallel: "0"
             workers: "1"
             build-jobs: "4"
             needs-llvm: true
+            # RuntimeTests suites share process-global Runtime state (GC heap,
+            # handle tables) via kk_runtime_force_reset(). Swift Testing
+            # parallelizes @Suite types across threads by default, and
+            # `.serialized` only serializes within one suite — it does not
+            # exclude concurrently running suites in other files. That lets
+            # one suite's reset race another's live handles, producing
+            # "invalid handle" crashes and corrupted results (see TODO.md
+            # BUG-021..035, BUG-039). Force serial execution here until the
+            # isolation mechanism is restored across all migrated suites.
+            parallel: "0"
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
-            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
+            parallel: "1"
     steps:
       - uses: actions/checkout@v7
       - name: Free disk space
@@ -413,18 +421,41 @@ jobs:
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
+        if: matrix.test-target != 'RuntimeTests'
         env:
           SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run full Swift test suite for RuntimeTests with strict concurrency warnings
+        if: matrix.test-target == 'RuntimeTests'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
+        # RuntimeTests must run with SWIFT_TEST_PARALLEL=0 (see the matrix
+        # comment above), but `swift_test.sh --filter '^RuntimeTests\.'
+        # --no-parallel` resolves the whole ~3300-test target into a single
+        # exec() argument on Linux, exceeding MAX_ARG_STRLEN
+        # ("posix_spawn error: Argument list too long", not caught by a
+        # smaller manual reproduction — see TODO.md BUG-039). Route through
+        # shard_swift_tests.sh --mode static (--shard-count 1: no cross-job
+        # sharding, just its --filter chunking) to keep every invocation
+        # well under the exec() argument limit. RuntimeTests' suites have a
+        # very uneven per-file test count (some 200+, most under 30), so a
+        # smaller --chunk-size than the 50-suite default is used to keep the
+        # worst-case chunk (several heavy suites landing together) well
+        # clear of the limit rather than merely under it.
+        run: SWIFT_TEST_PARALLEL=0 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests --shard-index 0 --shard-count 1 --chunk-size 15 -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            if [ "${{ matrix.test-target }}" = "RuntimeTests" ]; then
+              echo "SWIFT_TEST_PARALLEL=0 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests --shard-index 0 --shard-count 1 --chunk-size 15 -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            else
+              echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} SWIFT_TEST_PARALLEL=${{ matrix.parallel }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

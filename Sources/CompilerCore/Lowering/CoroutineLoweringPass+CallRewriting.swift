@@ -430,20 +430,20 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.flowCollectCallee || call.callee == rewrite.flowCollectLatestCallee,
-              call.arguments.count == 3,
-              let collectorSymbol = symbolReference(
-                  for: call.arguments[1],
-                  module: rewrite.module,
-                  propagatedSymbols: symbolByExprRaw
-              )
+              call.arguments.count == 3
         else {
             return nil
         }
+        let collectorSymbol = symbolReference(
+            for: call.arguments[1],
+            module: rewrite.module,
+            propagatedSymbols: symbolByExprRaw
+        )
 
         var prefixInstructions: [KIRInstruction] = []
         let collectorEntryPoint: KIRExprID
         let collectorContinuationArg: KIRExprID
-        if let loweredCollector = rewrite.loweredBySymbol[collectorSymbol] {
+        if let collectorSymbol, let loweredCollector = rewrite.loweredBySymbol[collectorSymbol] {
             // Suspend collector: its body contains a suspend call (e.g.
             // `collect { delay(1); ... }`), so it was CPS-rewritten. Route
             // through its suspend entry point; the runtime treats a nonzero
@@ -457,7 +457,7 @@ extension CoroutineLoweringPass {
                 .intLiteral(Int64(loweredCollector.symbol.rawValue)),
                 type: rewrite.intType
             )
-        } else {
+        } else if let collectorSymbol {
             // Non-suspend collector: its lambda body never contained a
             // suspend call (e.g. `collect { println(it) }`, or a collector
             // stored in a local `val` and passed by reference), so it was
@@ -468,7 +468,7 @@ extension CoroutineLoweringPass {
             // treating a nonexistent suspend-lowered counterpart as the
             // entry point.
             //
-            // BUG-039 (TODO.md): this still crashes when collectorSymbol
+            // BUG-134 (TODO.md): this still crashes when collectorSymbol
             // refers to a lambda stored in a local `val` and passed by
             // reference (`val h = { v: Int -> ... }; flow.collect(h)`),
             // because such lambdas stay marked inline=true and are never
@@ -485,6 +485,25 @@ extension CoroutineLoweringPass {
                 .symbolRef(collectorSymbol),
                 type: rewrite.intType
             )
+            collectorContinuationArg = rewrite.module.arena.appendExpr(
+                .intLiteral(0),
+                type: rewrite.intType
+            )
+        } else {
+            // No resolvable symbol for the collector expression at all (e.g.
+            // it arrives via a computed/indexed lookup rather than a direct
+            // or simply-aliased reference, so none of symbolReference's
+            // strategies apply). Emitting nothing here would leave the
+            // original 3-argument kk_flow_collect(Latest) call unrewritten
+            // against a runtime ABI that now takes 4 arguments (flowHandle,
+            // collectorFnPtr, collectorEnvPtr, continuation) — every argument
+            // after the collector would shift by one slot and the runtime
+            // would read garbage for `continuation`. Fall back to the raw
+            // collector expression as the entry point (best effort — it is
+            // not guaranteed to be independently callable, same caveat as
+            // BUG-134 above) so the call at least keeps the ABI-correct
+            // argument count and shape instead of silently corrupting it.
+            collectorEntryPoint = call.arguments[1]
             collectorContinuationArg = rewrite.module.arena.appendExpr(
                 .intLiteral(0),
                 type: rewrite.intType

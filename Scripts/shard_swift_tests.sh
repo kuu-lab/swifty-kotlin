@@ -43,9 +43,15 @@ Options:
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
-  --shard-count <n>         Total shard count (default: 1 = no sharding;
-                             the raw --list-filter/target-prefix filter is
-                             used unsharded in this case)
+  --shard-count <n>         Total shard count (default: 1 = no cross-job
+                             sharding; the matched tests/suites still run
+                             through bounded --filter chunks, see below)
+  --chunk-size <n>          Max items per --filter chunk (default: 100 for
+                             --mode dynamic, 50 for --mode static). Lower
+                             this for targets whose suites have an uneven
+                             test-count distribution, where the default
+                             chunk size's worst case can still approach
+                             Linux's per-argument exec() limit.
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -59,6 +65,7 @@ tests_dir=""
 target_prefix=""
 shard_index=0
 shard_count=1
+chunk_size_override=""
 declare -a passthrough=()
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +82,8 @@ while [[ $# -gt 0 ]]; do
             shard_index="$2"; shift 2 ;;
         --shard-count)
             shard_count="$2"; shift 2 ;;
+        --chunk-size)
+            chunk_size_override="$2"; shift 2 ;;
         -h|--help)
             usage; exit 0 ;;
         --)
@@ -133,14 +142,13 @@ case "$mode" in
         ;;
 esac
 
-if (( shard_count <= 1 )); then
-    if [[ "$mode" == "dynamic" ]]; then
-        run_swift_test --filter "$list_filter"
-    else
-        run_swift_test --filter "^${target_prefix}\\."
-    fi
-    exit $?
-fi
+# NOTE: shard_count <= 1 (the common "one job, no cross-job sharding" case)
+# intentionally falls through to the same chunking logic below rather than
+# running the raw, unchunked filter directly. A large target run with
+# --no-parallel still needs its --filter split into bounded chunks to avoid
+# Linux's per-argument exec() limit (see chunk_alternations below) even when
+# there is only one shard; shard_interleave(0, 1) is an identity pass so
+# chunking-only callers can safely pass --shard-count 1 (the default).
 
 # ---------------------------------------------------------------------------
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
@@ -183,7 +191,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # too long" (observed with CompilerBackendTests: 9000+ tests total).
     # SwiftPM 6.2 does not reliably OR repeated --filter flags, so chunk the
     # alternation across multiple invocations instead of one huge argument.
-    chunk_size=100
+    chunk_size="${chunk_size_override:-100}"
     declare -a filter_args=()
     while IFS= read -r chunk; do
         filter_args+=(--filter "^(${chunk})\$")
@@ -272,7 +280,13 @@ fi
 
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
-    chunk_size=50
+    # Chunking here bounds the number of *suite/class names* per --filter,
+    # not the number of tests they expand to — a target whose suites have
+    # an uneven test-count distribution can still land many tests in one
+    # chunk if several heavy suites happen to sort into it together. Pass
+    # --chunk-size explicitly for such targets instead of assuming the
+    # default is small enough (see the dynamic-mode ARG_MAX note above).
+    chunk_size="${chunk_size_override:-50}"
     while IFS= read -r chunk; do
         filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
     done < <(
