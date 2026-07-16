@@ -43,16 +43,10 @@ Options:
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
-  --shard-count <n>         Total shard count (default: 1 = no sharding;
-                             the raw --list-filter/target-prefix filter is
-                             used unsharded in this case)
-  --chunk-size <n>          (static) max suite/class names per --filter chunk
-                             (default: 50). Lower this for targets run with
-                             SWIFT_TEST_PARALLEL=0: SwiftPM's --no-parallel
-                             path resolves --filter to every matching
-                             individual test name before spawning the test
-                             binary, so the effective argument size scales
-                             with tests-per-class, not just class count.
+  --shard-count <n>         Total shard count (default: 1 = no CI-level
+                             sharding; the full matched set still runs
+                             through this shard, chunked into --filter
+                             batches to stay under exec() argument limits)
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -66,7 +60,6 @@ tests_dir=""
 target_prefix=""
 shard_index=0
 shard_count=1
-static_chunk_size=50
 declare -a passthrough=()
 
 while [[ $# -gt 0 ]]; do
@@ -83,8 +76,6 @@ while [[ $# -gt 0 ]]; do
             shard_index="$2"; shift 2 ;;
         --shard-count)
             shard_count="$2"; shift 2 ;;
-        --chunk-size)
-            static_chunk_size="$2"; shift 2 ;;
         -h|--help)
             usage; exit 0 ;;
         --)
@@ -143,14 +134,14 @@ case "$mode" in
         ;;
 esac
 
-if (( shard_count <= 1 )); then
-    if [[ "$mode" == "dynamic" ]]; then
-        run_swift_test --filter "$list_filter"
-    else
-        run_swift_test --filter "^${target_prefix}\\."
-    fi
-    exit $?
-fi
+# shard_count defaults to 1 (no CI-level sharding), but every mode below
+# still lists tests and chunks the --filter regex: shard_interleave with
+# count=1 selects every line, so a lone shard just runs all chunks in
+# sequence. Skipping straight to a single raw --filter here would reintroduce
+# the "Argument list too long" exec() failure this chunking exists to avoid
+# once a shard's matched-test set gets large (observed with RuntimeTests
+# under --no-parallel: a serialized target invokes the whole matched list as
+# one process argument, unlike --parallel which fans it out across workers).
 
 # ---------------------------------------------------------------------------
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
@@ -282,13 +273,14 @@ fi
 
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
+    chunk_size=50
     while IFS= read -r chunk; do
         filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
     done < <(
-        printf '%s\n' "${own_types[@]}" | chunk_alternations "$static_chunk_size"
+        printf '%s\n' "${own_types[@]}" | chunk_alternations "$chunk_size"
     )
 
-    echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $static_chunk_size names each." >&2
+    echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $chunk_size names each." >&2
 fi
 
 for f in "${filters[@]}"; do
