@@ -43,9 +43,10 @@ Options:
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
-  --shard-count <n>         Total shard count (default: 1 = no sharding;
-                             the raw --list-filter/target-prefix filter is
-                             used unsharded in this case)
+  --shard-count <n>         Total shard count (default: 1 = no CI-level
+                             sharding; the full matched set still runs
+                             through this shard, chunked into --filter
+                             batches to stay under exec() argument limits)
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -133,14 +134,14 @@ case "$mode" in
         ;;
 esac
 
-if (( shard_count <= 1 )); then
-    if [[ "$mode" == "dynamic" ]]; then
-        run_swift_test --filter "$list_filter"
-    else
-        run_swift_test --filter "^${target_prefix}\\."
-    fi
-    exit $?
-fi
+# shard_count defaults to 1 (no CI-level sharding), but every mode below
+# still lists tests and chunks the --filter regex: shard_interleave with
+# count=1 selects every line, so a lone shard just runs all chunks in
+# sequence. Skipping straight to a single raw --filter here would reintroduce
+# the "Argument list too long" exec() failure this chunking exists to avoid
+# once a shard's matched-test set gets large (observed with RuntimeTests
+# under --no-parallel: a serialized target invokes the whole matched list as
+# one process argument, unlike --parallel which fans it out across workers).
 
 # ---------------------------------------------------------------------------
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
