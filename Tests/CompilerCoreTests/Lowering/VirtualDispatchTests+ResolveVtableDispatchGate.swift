@@ -27,7 +27,8 @@ extension VirtualDispatchTests {
         let dispatch = callLowerer.resolveVirtualDispatch(
             callee: fixture.methodSym,
             receiverTypeID: animalType,
-            sema: sema
+            sema: sema,
+            interner: fixture.interner
         )
 
         XCTAssertEqual(dispatch, .vtable(slot: 0))
@@ -81,7 +82,8 @@ extension VirtualDispatchTests {
         let dispatch = callLowerer.resolveVirtualDispatch(
             callee: methodSym,
             receiverTypeID: receiverType,
-            sema: sema
+            sema: sema,
+            interner: interner
         )
 
         XCTAssertNil(dispatch, "Class without subtypes should use static dispatch")
@@ -104,7 +106,8 @@ extension VirtualDispatchTests {
         let dispatch = callLowerer.resolveVirtualDispatch(
             callee: fixture.methodSym,
             receiverTypeID: animalType,
-            sema: sema
+            sema: sema,
+            interner: fixture.interner
         )
 
         guard case let .vtable(slot) = dispatch else {
@@ -181,12 +184,14 @@ extension VirtualDispatchTests {
         let drawDispatch = callLowerer.resolveVirtualDispatch(
             callee: drawSym,
             receiverTypeID: shapeType,
-            sema: sema
+            sema: sema,
+            interner: interner
         )
         let areaDispatch = callLowerer.resolveVirtualDispatch(
             callee: areaSym,
             receiverTypeID: shapeType,
-            sema: sema
+            sema: sema,
+            interner: interner
         )
 
         guard case let .vtable(drawSlot) = drawDispatch else {
