@@ -25,13 +25,24 @@ public fun <T> Sequence<T>.drop(n: Int): Sequence<T> {
 public fun <T> Sequence<T>.dropWhile(predicate: (T) -> Boolean): Sequence<T> =
     this.__kk_sequence_dropWhile(predicate)
 
+internal fun checkWindowSizeStep(size: Int, step: Int) {
+    if (size <= 0 || step <= 0) {
+        val message = if (size != step) {
+            "Both size $size and step $step must be greater than zero."
+        } else {
+            "size $size must be greater than zero."
+        }
+        throw IllegalArgumentException(message)
+    }
+}
+
 public fun <T> Sequence<T>.chunked(size: Int): Sequence<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
+    checkWindowSizeStep(size, size)
     return this.__kk_sequence_chunked(size)
 }
 
 public fun <T, R> Sequence<T>.chunked(size: Int, transform: (List<T>) -> R): Sequence<R> {
-    require(size > 0) { "size must be positive, but was $size" }
+    checkWindowSizeStep(size, size)
     return this.__kk_sequence_chunked_transform(size, transform)
 }
 
@@ -40,8 +51,7 @@ public fun <T> Sequence<T>.windowed(
     step: Int = 1,
     partialWindows: Boolean = false
 ): Sequence<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
+    checkWindowSizeStep(size, step)
     return this.__kk_sequence_windowed(size, step, partialWindows)
 }
 
@@ -51,8 +61,7 @@ public fun <T, R> Sequence<T>.windowed(
     partialWindows: Boolean = false,
     transform: (List<T>) -> R
 ): Sequence<R> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
+    checkWindowSizeStep(size, step)
     return this.__kk_sequence_windowed_transform(size, step, partialWindows, transform)
 }
 

@@ -814,8 +814,8 @@ public func kk_atomic_int_array_loadAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -830,8 +830,8 @@ public func kk_atomic_int_array_storeAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -847,8 +847,8 @@ public func kk_atomic_int_array_exchangeAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -863,8 +863,8 @@ public func kk_atomic_int_array_compareAndSetAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -879,8 +879,8 @@ public func kk_atomic_int_array_compareAndExchangeAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -903,8 +903,8 @@ public func kk_atomic_int_array_fetchAndUpdateAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -922,8 +922,8 @@ public func kk_atomic_int_array_fetchAndAddAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -938,8 +938,8 @@ public func kk_atomic_int_array_addAndFetchAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -954,8 +954,8 @@ public func kk_atomic_int_array_fetchAndIncrementAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -970,8 +970,8 @@ public func kk_atomic_int_array_incrementAndFetchAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -986,8 +986,8 @@ public func kk_atomic_int_array_fetchAndDecrementAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1002,8 +1002,8 @@ public func kk_atomic_int_array_decrementAndFetchAt(
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1134,8 +1134,8 @@ public func kk_atomic_long_array_loadAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1150,8 +1150,8 @@ public func kk_atomic_long_array_storeAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1167,8 +1167,8 @@ public func kk_atomic_long_array_exchangeAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1183,8 +1183,8 @@ public func kk_atomic_long_array_compareAndSetAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1199,8 +1199,8 @@ public func kk_atomic_long_array_compareAndExchangeAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1228,8 +1228,8 @@ public func kk_atomic_long_array_fetchAndUpdateAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1247,8 +1247,8 @@ public func kk_atomic_long_array_fetchAndAddAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1263,8 +1263,8 @@ public func kk_atomic_long_array_addAndFetchAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1279,8 +1279,8 @@ public func kk_atomic_long_array_fetchAndIncrementAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1295,8 +1295,8 @@ public func kk_atomic_long_array_incrementAndFetchAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1311,8 +1311,8 @@ public func kk_atomic_long_array_fetchAndDecrementAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
@@ -1327,8 +1327,8 @@ public func kk_atomic_long_array_decrementAndFetchAt(
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
     let size = box.size()
     guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: index \(index) out of bounds for size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "index \(index) out of bounds for size \(size)"
         )
         return 0
     }
