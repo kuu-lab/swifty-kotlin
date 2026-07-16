@@ -346,9 +346,13 @@ jobs:
       matrix:
         include:
           # RuntimeTests touches shared runtime state; keep test execution serialized while preserving parallel builds.
+          # Must stay on the --parallel code path (not --no-parallel): RuntimeTests mixes XCTest and
+          # Swift Testing, and swift test --no-parallel passes the full filtered XCTest name list as a
+          # single argv, which overflows Linux's argument-length limit (posix_spawn "Argument list too
+          # long") once the suite grows. --num-workers 1 keeps execution serialized without that path.
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
-            parallel: "0"
+            parallel: "1"
             workers: "1"
             build-jobs: "4"
             needs-llvm: true
