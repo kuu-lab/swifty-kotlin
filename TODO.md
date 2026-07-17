@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-17（Dead Code 削除タスク完了に伴い `HeaderHelpers+SyntheticW3CDomStubs.swift` を削除。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -166,8 +166,8 @@
 - [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
 - [ ] DEADCODE-CORE-021: [R0] `HeaderHelpers+SyntheticRegexStubs.swift:788` の private `registerRegexStringExtensionFunction(...)` を削除する
 - [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
-- [ ] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する
-- [ ] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する
+- [x] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロを再確認し、CORE-024 と合わせてファイルごと削除
+- [x] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する。2026-07-17 完了: 唯一の呼び出し元は CORE-023 の `registerSyntheticW3CDomStubs` のみで他に参照なし。ファイルが空になるため `HeaderHelpers+SyntheticW3CDomStubs.swift` ごと削除
 - [ ] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない
 - [ ] DEADCODE-CORE-026: [R0] `SemanticsModels.swift:1013` の private `areKindsCompatibleForExpectActual(expect:actual:)` を削除する
 - [ ] DEADCODE-CORE-027: [R0] `CallTypeChecker+MemberCallInferenceFallbacks.swift:386` の `isKotlinDurationType(_:sema:interner:)` を削除する
