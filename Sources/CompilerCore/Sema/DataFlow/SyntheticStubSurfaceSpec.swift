@@ -21,7 +21,6 @@ indirect enum SyntheticStubTypeRef: Hashable, Sendable {
     static let uint: SyntheticStubTypeRef = .builtin(.uint)
     static let ulong: SyntheticStubTypeRef = .builtin(.ulong)
     static let ubyte: SyntheticStubTypeRef = .builtin(.ubyte)
-    static let ushort: SyntheticStubTypeRef = .builtin(.ushort)
 
     static func namedClass(
         _ fqName: [String],
