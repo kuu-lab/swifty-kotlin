@@ -182,7 +182,7 @@
 - [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
 - [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
 - [ ] DEADCODE-CORE-038: [W0] 同ファイル `:749` の `kkPathNewName` と initializer `:1540` の代入を削除する
-- [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
+- [x] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する。2026-07-17 完了: 宣言(旧749行目)・初期化代入(旧1539行目)を削除。`kk_path_get` 自体は `HeaderHelpers+SyntheticPathStubs.swift` の文字列リテラル経由で解決されており本 lookup table エントリとは無関係、削除後も Path.get 関連ゴールデン/リグレッションは green
 - [ ] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
 - [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する
