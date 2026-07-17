@@ -390,7 +390,6 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
-    let kotlinRunCatchingFQName: [InternedString]
 
     package init(interner: StringInterner) {
 
@@ -594,7 +593,6 @@ package struct KnownCompilerNames {
 
         let resultName = interner.intern("Result")
         kotlinResultFQName = [kotlin, resultName]
-        kotlinRunCatchingFQName = [kotlin, runCatching]
     }
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
