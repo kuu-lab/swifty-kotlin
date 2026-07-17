@@ -195,13 +195,6 @@ extension CoroutineLoweringPass {
                 }
             }
 
-            func isSymbolBackedFlowExpr(_ exprID: KIRExprID) -> Bool {
-                if let expr = module.arena.expr(exprID), case .symbolRef = expr {
-                    return true
-                }
-                return symbolByExprRaw[exprID.rawValue] != nil
-            }
-
             func isFlowTransformEmitCall(_ callee: InternedString, _ arguments: [KIRExprID]) -> Bool {
                 guard callee == kkFlowEmitName, arguments.count == 3 else {
                     return false
