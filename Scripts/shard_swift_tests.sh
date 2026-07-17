@@ -24,18 +24,9 @@ Modes:
             <list-filter>, and shards at the individual-test level. Safe for pure
             XCTest targets, where `swift test list` prints the documented
             "Module.Class/method" specifier for every test. Do NOT use this
-            mode for targets that mix in Swift Testing (@Suite/@Test) unless
-            the passthrough args also include --disable-swift-testing (or
-            --disable-xctest), since this script does not depend on knowing
-            that framework's list output format. Any of --enable-xctest,
-            --disable-xctest, --enable-swift-testing, --disable-swift-testing
-            found in the passthrough args are forwarded to `swift test list`
-            itself (in addition to the test run), so the listed identifiers
-            only ever cover the enabled framework.
-            Always chunks the matched tests across multiple --filter
-            invocations (see chunk_size below), even when --shard-count is 1,
-            since a single alternation regex covering a few thousand tests
-            overflows Linux's per-argument exec() limit on its own.
+            mode for targets that mix in Swift Testing (@Suite/@Test), since
+            this script does not depend on knowing that framework's list
+            output format.
 
   static    Extracts test suite type names by scanning test sources under
             --tests-dir for XCTestCase classes and Swift Testing @Suite
@@ -52,13 +43,10 @@ Options:
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
-  --shard-count <n>         Total shard count (default: 1 = no cross-job
-                             sharding). In --mode static this runs the raw
-                             --target-prefix filter unsharded. In --mode
-                             dynamic the matched tests are still chunked
-                             across multiple --filter invocations (see
-                             chunk_size), just without splitting across
-                             shard jobs first.
+  --shard-count <n>         Total shard count (default: 1 = no CI-level
+                             sharding; the full matched set still runs
+                             through this shard, chunked into --filter
+                             batches to stay under exec() argument limits)
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -103,20 +91,6 @@ run_swift_test() {
     bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
 }
 
-# `swift test list` needs to see the same --enable/--disable-xctest and
-# --enable/--disable-swift-testing flags as the actual test run, otherwise it
-# lists identifiers from a framework that --mode dynamic's own test run then
-# excludes (or, worse, mixes in a framework whose list output format this
-# script does not understand). Extract just those flags from passthrough.
-declare -a list_framework_flags=()
-for arg in "${passthrough[@]+"${passthrough[@]}"}"; do
-    case "$arg" in
-        --enable-xctest|--disable-xctest|--enable-swift-testing|--disable-swift-testing)
-            list_framework_flags+=("$arg")
-            ;;
-    esac
-done
-
 run_filter_chunks() {
     local total=$(( $# / 2 ))
     local chunk=1
@@ -160,10 +134,14 @@ case "$mode" in
         ;;
 esac
 
-if (( shard_count <= 1 )) && [[ "$mode" == "static" ]]; then
-    run_swift_test --filter "^${target_prefix}\\."
-    exit $?
-fi
+# shard_count defaults to 1 (no CI-level sharding), but every mode below
+# still lists tests and chunks the --filter regex: shard_interleave with
+# count=1 selects every line, so a lone shard just runs all chunks in
+# sequence. Skipping straight to a single raw --filter here would reintroduce
+# the "Argument list too long" exec() failure this chunking exists to avoid
+# once a shard's matched-test set gets large (observed with RuntimeTests
+# under --no-parallel: a serialized target invokes the whole matched list as
+# one process argument, unlike --parallel which fans it out across workers).
 
 # ---------------------------------------------------------------------------
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
@@ -173,7 +151,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # `swift test list` does not honor --filter on every SwiftPM version.
     # List everything and apply the requested shard prefix locally.
     mapfile -t all_tests < <(
-        swift test list --skip-build "${list_framework_flags[@]+"${list_framework_flags[@]}"}" \
+        swift test list --skip-build \
             | awk -v filter="$list_filter" '$0 ~ filter { print }' \
             | sort
     )

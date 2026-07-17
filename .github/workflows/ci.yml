@@ -336,33 +336,87 @@ jobs:
             exit 1
           fi
 
+  # RuntimeTests mixes plain XCTest with Swift Testing suites. Several
+  # migrated Swift Testing suites here share mutable runtime state that
+  # isn't concurrency-safe (tracked in TODO.md as BUG-021/023/024/028/039
+  # and siblings), so this target must run serialized (SWIFT_TEST_PARALLEL=0)
+  # rather than with the --parallel workers the other targets below use.
+  # Serial (--no-parallel) XCTest execution passes the *entire* matched-test
+  # list as a single exec() argument instead of fanning it out across
+  # workers, so shard_swift_tests.sh's "static" mode (suite-name filtering,
+  # chunked — safe for mixed XCTest/Swift Testing targets, unlike "dynamic"
+  # mode) is used to keep every --filter invocation well under Linux's
+  # per-argument exec() limit.
+  full-swift-tests-runtime:
+    name: Full Swift Tests (RuntimeTests)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: .build
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
+          # snapshots) are listed explicitly in addition to the broader
+          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
+          # bundled Kotlin stdlib sources or regenerates golden fixtures
+          # otherwise computes the same hash as its parent commit, so CI
+          # reuses a stale cached .build that predates those changes
+          # (observed on PR #4625 / KSP-482).
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "0"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
+            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint
+        if: always()
+        run: |
+          {
+            echo '## Full Swift test reproduce (RuntimeTests)'
+            echo '```bash'
+            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.timeout-minutes || 45 }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests touches shared runtime state. XCTest suites isolate it
-          # via IsolatedRuntimeXCTestCase and stay parallel, but suites migrated
-          # to Swift Testing lost that cross-suite isolation (BUG-024/028..035),
-          # so they run serialized in a separate pass. The split is also load-
-          # bearing: a serial XCTest run passes every --filter-matched test id
-          # as one exec argument and overflows Linux MAX_ARG_STRLEN
-          # ("posix_spawn error: Argument list too long"). The XCTest pass
-          # itself further chunks its ~3000 tests across many `swift test`
-          # invocations (shard_swift_tests.sh --mode dynamic) for the same
-          # reason, so this target gets a longer timeout than the rest of
-          # the matrix.
-          - test-target: RuntimeTests
-            test-filter: '^RuntimeTests\\.'
-            split-testing-libraries: true
-            workers: "4"
-            build-jobs: "4"
-            needs-llvm: true
-            timeout-minutes: 90
+          # RuntimeTests runs as its own full-swift-tests-runtime job above
+          # (needs serialized, chunked execution — see the comment there).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             workers: "4"
@@ -421,48 +475,17 @@ jobs:
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
-        if: ${{ !matrix.split-testing-libraries }}
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run XCTest suites for ${{ matrix.test-target }} with strict concurrency warnings
-        if: ${{ matrix.split-testing-libraries }}
-        env:
-          SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
-          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        # A plain --filter "${{ matrix.test-filter }}" run expands to one
-        # --filter argument alternating every matched XCTest id (~3000 for
-        # RuntimeTests) and overflows Linux MAX_ARG_STRLEN on its own, even
-        # with Swift Testing excluded via --disable-swift-testing ("posix_spawn
-        # error: Argument list too long"). shard_swift_tests.sh's dynamic mode
-        # lists the (XCTest-only, thanks to --disable-swift-testing forwarded
-        # to `swift test list`) identifiers and chunks them across many
-        # `swift test` invocations instead; --shard-count 1 keeps this to a
-        # single CI job while still getting that chunking.
-        run: |
-          bash Scripts/shard_swift_tests.sh \
-            --mode dynamic --list-filter "${{ matrix.test-filter }}" \
-            --shard-index 0 --shard-count 1 \
-            -- --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run Swift Testing suites for ${{ matrix.test-target }} serialized with strict concurrency warnings
-        if: ${{ matrix.split-testing-libraries }}
-        env:
-          SWIFT_TEST_PARALLEL: "0"
-          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" --disable-xctest -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            if [[ "${{ matrix.split-testing-libraries }}" == "true" ]]; then
-              echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter \"${{ matrix.test-filter }}\" --shard-index 0 --shard-count 1 -- --disable-swift-testing -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
-              echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" --disable-xctest -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
-            else
-              echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
-            fi
+            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
