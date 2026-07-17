@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-17（Dead Code 削除タスク完了に伴い `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` の孤児 `registerSyntheticEmptyCollectionFunction` を削除。完了ゲート実行中に高負荷/低負荷それぞれで BUG-039・`DelegatePropertyKIRTests` 固定デッドラインの既知パターンを再観測したが本変更とは無関係と確認済み。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -165,7 +165,7 @@
 - [ ] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する
 - [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
 - [ ] DEADCODE-CORE-021: [R0] `HeaderHelpers+SyntheticRegexStubs.swift:788` の private `registerRegexStringExtensionFunction(...)` を削除する
-- [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
+- [x] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する。2026-07-17 完了: プロジェクト全体 grep で宣言以外の参照ゼロを確認して削除（emptyList/emptySet/emptyMap の実登録経路は同ファイルではなく `HeaderHelpers+SyntheticCollectionTypeAliases.swift` の `registerSyntheticCollectionFactoryStubs` が別途独立に担っており、本関数は完全な孤児だった）。doc comment込み71行を削除、`swift build` 成功。Golden(13 tests/6 suites、`Golden.Sema` 297ケース込み)は low-load 再実行で clean pass、`diff_kotlinc`(`--run-timeout 60 --compile-timeout 180 --jobs 4`)は639中0 failed/119 skipped。`swift_test.sh` フルスイートは高負荷時(load average 181→432件fail、うち431件timedOut)・低負荷再実行時(6.85→1件fail)のいずれも、本変更と無関係な既知の環境要因（`DelegatePropertyKIRTests` の固定5秒デッドライン、BUG-039 のSwift Testing並列ワーカー間GCハンドル競合パニック）以外の失敗はゼロ
 - [ ] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する
 - [ ] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する
 - [ ] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない
