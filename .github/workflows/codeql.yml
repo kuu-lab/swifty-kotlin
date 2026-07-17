@@ -14,20 +14,19 @@ name: "CodeQL Advanced"
 on:
   push:
     branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
   merge_group:
     branches: [ "master" ]
   schedule:
     - cron: '45 8 * * 0'
 
-# Required checks "Analyze (actions)"/"Analyze (swift)" are enforced at merge
-# time via merge_group (GitHub defers required checks that only trigger on
-# merge_group, so PRs can still enter the queue) instead of per PR push, since
-# the swift matrix entry does a full macOS build (~20+ min) and was a major
-# contributor to runner queue saturation across the many PRs open at once.
-# One run per event now; nothing to dedupe without a pull_request trigger.
+# Successive pushes to the same PR cancel the in-flight run (the swift matrix
+# entry does a full build on macOS, ~20+ minutes). Non-PR events get a unique
+# group per run and are never cancelled.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.run_id }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
