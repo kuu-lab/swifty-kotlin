@@ -767,7 +767,6 @@ struct CollectionLiteralLookupTables {
     let kkFileWalkTopDownName: InternedString
     let walkBottomUpName: InternedString
     let kkFileWalkBottomUpName: InternedString
-    let maxDepthName: InternedString
     let kkFileTreeWalkMaxDepthName: InternedString
     let kkFileTreeWalkToListName: InternedString
     let onEnterName: InternedString
@@ -1557,7 +1556,6 @@ struct CollectionLiteralLookupTables {
         kkFileWalkTopDownName = interner.intern("kk_file_walkTopDown")
         walkBottomUpName = interner.intern("walkBottomUp")
         kkFileWalkBottomUpName = interner.intern("kk_file_walkBottomUp")
-        maxDepthName = interner.intern("maxDepth")
         kkFileTreeWalkMaxDepthName = interner.intern("kk_file_tree_walk_max_depth")
         kkFileTreeWalkToListName = interner.intern("kk_file_tree_walk_to_list")
         onEnterName = interner.intern("onEnter")
