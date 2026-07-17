@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateSymbolicLinkTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateSymbolicLinkPointingToAttributesCreatesLink() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateSymbolicLinkTests {
+    @Test func pathCreateSymbolicLinkPointingToAttributesCreatesLink() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let targetURL = rootURL.appendingPathComponent("target.txt")
         let linkURL = rootURL.appendingPathComponent("link.txt")
@@ -20,13 +19,13 @@ final class RuntimePathCreateSymbolicLinkTests: IsolatedRuntimeXCTestCase {
         let targetRaw = runtimeTestPathHandle(targetURL.path)
         let resultRaw = kk_path_createSymbolicLinkPointingTo_attributes(linkRaw, targetRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, linkRaw)
-        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: linkURL.path), targetURL.path)
-        XCTAssertEqual(try String(contentsOf: linkURL, encoding: .utf8), "target")
+        #expect(thrown == 0)
+        #expect(resultRaw == linkRaw)
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: linkURL.path) == targetURL.path)
+        #expect(try String(contentsOf: linkURL, encoding: .utf8) == "target")
     }
 
-    func testPathCreateSymbolicLinkPointingToAttributesFailsWhenLinkExists() throws {
+    @Test func pathCreateSymbolicLinkPointingToAttributesFailsWhenLinkExists() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let targetURL = rootURL.appendingPathComponent("target.txt")
         let linkURL = rootURL.appendingPathComponent("link.txt")
@@ -42,9 +41,9 @@ final class RuntimePathCreateSymbolicLinkTests: IsolatedRuntimeXCTestCase {
         let targetRaw = runtimeTestPathHandle(targetURL.path)
         let resultRaw = kk_path_createSymbolicLinkPointingTo_attributes(linkRaw, targetRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, linkRaw)
-        XCTAssertEqual(try String(contentsOf: linkURL, encoding: .utf8), "existing")
+        #expect(thrown != 0)
+        #expect(resultRaw == linkRaw)
+        #expect(try String(contentsOf: linkURL, encoding: .utf8) == "existing")
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {
