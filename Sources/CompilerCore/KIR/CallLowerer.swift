@@ -664,11 +664,25 @@ final class CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
+            // KSP-500: expand the closure to (fnPtr, closureRaw) and box its
+            // returned primitive here, same as appendClosureArgumentsIfNeeded's
+            // "kk_sequence_generate_noarg" case — this call is constructed
+            // directly and never reaches that path, so without this the
+            // closure's captures are silently dropped (passed as closureRaw=0)
+            // and its returned elements are never boxed.
+            let expanded = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[0],
+                argExprID: args[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate_noarg"),
-                arguments: [loweredArgIDs[0]],
+                arguments: [expanded.fnPtr, expanded.closureRaw],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -692,11 +706,89 @@ final class CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            // KSP-500: box the seed function's result, same as the direct-seed-value
+            // overload's rewrite in CollectionLiteralLoweringPass+CallRewriteFactories.
+            var boxedSeedResult = seedResult
+            if let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                for: sema.types.makeNonNullable(functionType.returnType),
+                types: sema.types,
+                requireNonNull: true
+            ) {
+                boxedSeedResult = emitNonThrowingCall(
+                    callee: seedBoxCallee,
+                    arg: seedResult,
+                    resultType: sema.types.makeNonNullable(functionType.returnType),
+                    arena: arena,
+                    into: &instructions
+                )
+            }
+            // KSP-500: expand the nextFunction closure to (fnPtr, closureRaw) and
+            // box its returned primitive — see the 1-arg case above for why this
+            // can't be skipped (this call is constructed directly and never
+            // reaches appendClosureArgumentsIfNeeded's "kk_sequence_generate" case).
+            let expandedNextFunction = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[1],
+                argExprID: args[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate"),
-                arguments: [seedResult, loweredArgIDs[1]],
+                arguments: [boxedSeedResult, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // STDLIB-097: 2-arg direct-seed-value form generateSequence(seed: T?, nextFunction: (T) -> T?).
+        // KSP-500: Sema's dedicated type-check shortcut for generateSequence (see
+        // CallTypeChecker.swift) never populates sema.bindings.callBindings for
+        // this overload, so `chosen` is nil here and this call would otherwise
+        // never reach appendClosureArgumentsIfNeeded's "kk_sequence_generate"
+        // case (gated on `let chosen`) — the closure's captures would be
+        // silently dropped and its returned elements never boxed. Handle it
+        // directly, same as the other two generateSequence overloads above.
+        if sourceCalleeName == interner.intern("generateSequence"),
+           loweredArgIDs.count == 2
+        {
+            let expandedNextFunction = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[1],
+                argExprID: args[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            // Box the seed value. CollectionLiteralLoweringPass+CallRewriteFactories
+            // also boxes the seed on the (now-unreachable-for-this-overload, but
+            // kept as a defense-in-depth fallback) rewrite path; kk_box_int et al.
+            // are idempotent, so double-boxing here would be harmless anyway.
+            var seedArgument = loweredArgIDs[0]
+            if let seedType = sema.bindings.exprTypes[args[0].expr],
+               let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                   for: seedType,
+                   types: sema.types,
+                   requireNonNull: false
+               )
+            {
+                seedArgument = emitNonThrowingCall(
+                    callee: seedBoxCallee,
+                    arg: seedArgument,
+                    resultType: sema.types.anyType,
+                    arena: arena,
+                    into: &instructions
+                )
+            }
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            instructions.append(.call(
+                symbol: chosen,
+                callee: interner.intern("kk_sequence_generate"),
+                arguments: [seedArgument, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
