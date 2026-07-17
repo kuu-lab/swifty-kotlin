@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-17（Dead Code 削除タスク完了に伴い、`HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の未配線な合成 `KProperty0.isInitialized` 登録関数を `extension DataFlowSemaPhase` ブロックごと削除。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -163,7 +163,7 @@
 - [ ] DEADCODE-CORE-017: [D: CORE-014] 同ファイル `:136` の private `registerJsStringToStringMember(...)` を削除する
 - [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
 - [ ] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する
-- [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
+- [x] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する。2026-07-17 完了: `rg`/`grep` で全ソース照合し宣言以外の参照ゼロを再確認（同ファイル唯一のエントリポイント `registerSyntheticPropertyInterfaceStubs` は兄弟の private register* 関数を全て呼ぶ一方、本関数だけ未配線と判明。`setExternalLinkName` 等の RuntimeABI 登録も無く Runtime/Tests 側の参照も皆無）。`extension DataFlowSemaPhase` ブロックごと削除（2565→2520行）。`swift build` green、`git diff --check` green、`CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden` 297/297 green（並列worktree多数稼働の高負荷環境のため396秒）
 - [ ] DEADCODE-CORE-021: [R0] `HeaderHelpers+SyntheticRegexStubs.swift:788` の private `registerRegexStringExtensionFunction(...)` を削除する
 - [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
 - [ ] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する
