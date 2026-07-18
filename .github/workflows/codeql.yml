@@ -69,7 +69,7 @@ jobs:
       shell: bash
       run: |
         swift --version
-        swift build -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        swift build -Xswiftc -swift-version -Xswiftc 6
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
