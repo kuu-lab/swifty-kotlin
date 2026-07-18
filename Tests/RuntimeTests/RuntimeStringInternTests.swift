@@ -1,11 +1,12 @@
-import XCTest
+#if canImport(Testing)
 @testable import Runtime
+import Testing
 
 /// STDLIB-TEXT-FN-026: Tests for the kk_string_intern runtime ABI.
-final class RuntimeStringInternTests: XCTestCase {
+@Suite
+struct RuntimeStringInternTests {
 
-    override func setUp() {
-        super.setUp()
+    init() {
         kk_runtime_force_reset()
     }
 
@@ -23,22 +24,26 @@ final class RuntimeStringInternTests: XCTestCase {
         return box.value
     }
 
+    @Test
     func testInternReturnsEquivalentString() {
         let raw = makeRaw("hello")
         let interned = kk_string_intern(raw)
-        XCTAssertEqual(stringFromRaw(interned), "hello")
+        #expect(stringFromRaw(interned) == "hello")
     }
 
+    @Test
     func testInternOfEmptyString() {
         let raw = makeRaw("")
         let interned = kk_string_intern(raw)
-        XCTAssertEqual(stringFromRaw(interned), "")
+        #expect(stringFromRaw(interned) == "")
     }
 
+    @Test
     func testInternIsIdempotent() {
         let raw = makeRaw("idempotent")
         let interned1 = kk_string_intern(raw)
         let interned2 = kk_string_intern(interned1)
-        XCTAssertEqual(interned1, interned2)
+        #expect(interned1 == interned2)
     }
 }
+#endif
