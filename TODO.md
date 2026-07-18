@@ -186,7 +186,7 @@
 - [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
 - [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
 - [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
-- [ ] DEADCODE-CORE-038: [W0] 同ファイル `:749` の `kkPathNewName` と initializer `:1540` の代入を削除する
+- [x] DEADCODE-CORE-038: [W0] 同ファイル `:749` の `kkPathNewName` と initializer `:1540` の代入を削除する
 - [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
 - [ ] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
