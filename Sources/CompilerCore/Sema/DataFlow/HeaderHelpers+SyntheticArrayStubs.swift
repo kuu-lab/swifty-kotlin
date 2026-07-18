@@ -2088,6 +2088,44 @@ extension DataFlowSemaPhase {
                 ),
                 for: joinToStringSym
             )
+
+            // Register `Array<T>.joinToString(separator?, prefix?, postfix?, transform)` HOF
+            // overloads. See the matching comment in
+            // `HeaderHelpers+SyntheticIterableRegistry.swift`'s
+            // `registerIterableJoinToStringMember` for why these are four separate
+            // required-arity overloads rather than one signature with defaults.
+            let joinTransformType = types.make(.functionType(FunctionType(
+                params: [arrayTypeParamType],
+                returnType: types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            func registerJoinToStringTransformOverload(_ parameterTypes: [TypeID]) {
+                let memberSymbol = symbols.define(
+                    kind: .function,
+                    name: joinToStringName,
+                    fqName: joinToStringFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .inlineFunction]
+                )
+                symbols.setParentSymbol(arraySymbol, for: memberSymbol)
+                symbols.setExternalLinkName("kk_array_joinToString_transform", for: memberSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: arrayReceiverType,
+                        parameterTypes: parameterTypes,
+                        returnType: types.stringType,
+                        typeParameterSymbols: [tParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: memberSymbol
+                )
+            }
+            registerJoinToStringTransformOverload([joinTransformType])
+            registerJoinToStringTransformOverload([types.stringType, joinTransformType])
+            registerJoinToStringTransformOverload([types.stringType, types.stringType, joinTransformType])
+            registerJoinToStringTransformOverload([types.stringType, types.stringType, types.stringType, joinTransformType])
         }
 
     }

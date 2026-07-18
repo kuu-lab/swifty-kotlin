@@ -3,8 +3,7 @@ import Foundation
 import Testing
 
 /// Verifies CharSequence?.isNullOrBlank() (STDLIB-TEXT-FN-032) resolves cleanly
-/// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrBlank_flat`.
+/// in Sema through bundled Kotlin source.
 @Suite
 struct StringIsNullOrBlankFunctionTests {
     private func allMemberCallExprIDs(
@@ -77,9 +76,9 @@ struct StringIsNullOrBlankFunctionTests {
         }
     }
 
-    /// The compiler should lower nullable-receiver isNullOrBlank() to the runtime helper
-    /// `kk_string_isNullOrBlank_flat`, classified as non-throwing.
-    @Test func testIsNullOrBlankLowersToRuntimeHelperNonThrowing() throws {
+    /// The compiler should not lower nullable-receiver isNullOrBlank() to the legacy
+    /// String runtime helper after migration to bundled Kotlin source.
+    @Test func testIsNullOrBlankDoesNotLowerToLegacyRuntimeHelper() throws {
         let source = """
         fun main() {
             val maybe: String? = null
@@ -96,12 +95,9 @@ struct StringIsNullOrBlankFunctionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let isNullOrBlankFlags = try #require(
-                throwFlags["kk_string_isNullOrBlank_flat"],
-                "Expected kk_string_isNullOrBlank_flat calls to appear in main()"
-            )
-            #expect(isNullOrBlankFlags.count == 2)
-            #expect(isNullOrBlankFlags.allSatisfy { $0 == false })
+            #expect(throwFlags["kk_string_isNullOrBlank"] == nil)
+            #expect(throwFlags["kk_string_isNullOrBlank_flat"] == nil)
+            #expect(throwFlags["__string_isNullOrBlank_flat"] == nil)
         }
     }
 }
