@@ -1453,14 +1453,39 @@ public func kk_coroutine_continuation_new(_ functionID: Int) -> Int {
     return Int(bitPattern: ptr)
 }
 
+private final class RuntimeDirectSuspendCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hasReturned = false
+    private var outcome: (result: Int, thrown: Int)?
+
+    /// Record completion and report whether the caller already returned.
+    func record(result: Int, thrown: Int) -> Bool {
+        lock.lock()
+        outcome = (result, thrown)
+        let shouldSignal = hasReturned
+        lock.unlock()
+        return shouldSignal
+    }
+
+    /// Mark the initial invocation as returned and return a completion that
+    /// happened before that point, if any.
+    func markReturned() -> (result: Int, thrown: Int)? {
+        lock.lock()
+        hasReturned = true
+        let completed = outcome
+        lock.unlock()
+        return completed
+    }
+}
+
 /// STDLIB-CORO-BUG-01: runtime support for a suspend function calling another
 /// suspend function directly (not through launch/async/withContext). The
 /// callee runs on its own fresh continuation (childContinuation) via the
 /// standard entry loop; its completion is relayed into the caller's own
 /// continuation (callerContinuationRaw) instead of being dropped, so the
-/// caller's entry loop -- already about to suspend on this call -- gets
-/// woken up with the real result. Without this relay the callee's completion
-/// signal has nothing listening for it and the caller deadlocks forever.
+/// caller's entry loop -- already about to suspend on this call -- gets woken
+/// up with the real result. A synchronously completed child returns its result
+/// directly; only a child that remains suspended schedules a caller resume.
 @_cdecl("kk_coroutine_call_direct_suspend")
 public func kk_coroutine_call_direct_suspend(
     _ entryPointRaw: Int,
@@ -1474,6 +1499,7 @@ public func kk_coroutine_call_direct_suspend(
         childState.scope = callerState.scope
         childState.jobHandle = callerState.jobHandle
     }
+    let completion = RuntimeDirectSuspendCompletion()
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: childContinuation,
@@ -1483,10 +1509,21 @@ public func kk_coroutine_call_direct_suspend(
             } else {
                 callerState.completion = Int64(result)
             }
-            callerState.signalResume()
+            if completion.record(result: result, thrown: thrown) {
+                callerState.signalResume()
+            }
         }
     )
-    return Int(bitPattern: kk_coroutine_suspended())
+    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
+    if let outcome = completion.markReturned() {
+        if outcome.thrown != 0 {
+            // The state machine reads the thrown exception after a resume.
+            callerState.signalResume()
+            return suspendedToken
+        }
+        return outcome.result
+    }
+    return suspendedToken
 }
 
 @_cdecl("kk_create_coroutine_unintercepted")
