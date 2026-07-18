@@ -773,7 +773,6 @@ struct CollectionLiteralLookupTables {
     let kkFileTreeWalkOnEnterName: InternedString
     let onLeaveName: InternedString
     let kkFileTreeWalkOnLeaveName: InternedString
-    let onFailName: InternedString
     let kkFileTreeWalkOnFailName: InternedString
     let kkFileTreeWalkForEachName: InternedString
     let kkFileTreeWalkFilterName: InternedString
@@ -1562,7 +1561,6 @@ struct CollectionLiteralLookupTables {
         kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_onEnter")
         onLeaveName = interner.intern("onLeave")
         kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_onLeave")
-        onFailName = interner.intern("onFail")
         kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
         kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")
         kkFileTreeWalkFilterName = interner.intern("kk_file_tree_walk_filter")
