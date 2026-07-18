@@ -312,20 +312,12 @@ extension MemberLowerer {
 
         let returnType: TypeID
         let accessorName: InternedString
-        var backingFieldPrimeExprID: KIRExprID?
-        var backingFieldPrimeSymbol: SymbolID?
         switch accessorKind {
         case .getter:
             returnType = propertyType
             accessorName = interner.intern("get")
-            // Map the backing field symbol so `field` references in the getter
-            // resolve to a backing field access expression.
-            if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
-                let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
-                driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
-                backingFieldPrimeExprID = bfExprID
-                backingFieldPrimeSymbol = backingFieldSym
-            }
+            // Keep `field` bound to its backing-field symbol so ExprLowerer can
+            // resolve it through the active receiver's instance layout.
         case .setter:
             returnType = sema.types.unitType
             accessorName = interner.intern("set")
@@ -338,34 +330,13 @@ extension MemberLowerer {
             // and the backing field symbol.
             let semaSetterValueSymbol = SyntheticSymbolScheme.semaSetterValueSymbol(for: propertySymbol)
             driver.ctx.setLocalValue(valueExprID, for: semaSetterValueSymbol)
-            // Map the backing field symbol so `field` references in the setter
-            // resolve to backing field storage, not the value parameter.
-            if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
-                let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
-                driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
-                backingFieldPrimeExprID = bfExprID
-                backingFieldPrimeSymbol = backingFieldSym
-            }
+            // Keep `field` bound to its backing-field symbol so ExprLowerer can
+            // resolve it through the active receiver's instance layout.
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
-        }
-        // Prime the backing field's exprID with an explicit initial read before
-        // the accessor body runs. Every lexical `field` reference within this
-        // accessor shares this single exprID (see setLocalValue above); without
-        // an explicit instruction establishing its first value here, codegen
-        // only allocates a real memory slot (surviving conditional branches)
-        // for exprIDs assigned more than once (NativeEmitter+FunctionEmission's
-        // shouldSpillID). A `field = ...` write reachable through just one
-        // conditional branch — the common lazy-caching idiom
-        // `get() { if (field == null) field = compute(); return field }` —
-        // would otherwise be the *only* assignment to this exprID, so it
-        // stays a bare SSA value that does not dominate the post-branch read,
-        // silently producing stale or garbage values instead of the write.
-        if let bfExprID = backingFieldPrimeExprID, let backingFieldSym = backingFieldPrimeSymbol {
-            body.append(.constValue(result: bfExprID, value: .symbolRef(backingFieldSym)))
         }
 
         switch accessorBody {
