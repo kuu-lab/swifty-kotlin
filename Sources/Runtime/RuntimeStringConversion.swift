@@ -24,7 +24,7 @@ public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Unsa
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return 0
     }
@@ -57,7 +57,7 @@ public func kk_string_toIntOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -116,7 +116,7 @@ public func kk_string_toUByteOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -137,7 +137,7 @@ public func kk_string_toUShortOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -158,7 +158,7 @@ public func kk_string_toUIntOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -179,7 +179,7 @@ public func kk_string_toULongOrNull_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return runtimeNullSentinelInt
     }
@@ -241,8 +241,8 @@ private func runtimeParseDouble(_ trimmed: String) -> Double? {
     return Double(runtimeDroppingFloatingTypeSuffix(trimmed))
 }
 
-@_cdecl("kk_string_toDouble")
-public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toDouble")
+public func __kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -260,19 +260,19 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
-@_cdecl("kk_string_toDouble_flat")
-public func kk_string_toDouble_flat(
+@_cdecl("__kk_string_toDouble_flat")
+public func __kk_string_toDouble_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toDouble(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+    __kk_string_toDouble(kk_string_from_flat(data, length, byteCount, hash), outThrown)
 }
 
-@_cdecl("kk_string_toDoubleOrNull")
-public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toDoubleOrNull")
+public func __kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -285,14 +285,14 @@ public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
-@_cdecl("kk_string_toDoubleOrNull_flat")
-public func kk_string_toDoubleOrNull_flat(
+@_cdecl("__kk_string_toDoubleOrNull_flat")
+public func __kk_string_toDoubleOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toDoubleOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toDoubleOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 // MARK: - STDLIB-420 String.toLong / toLongOrNull / toFloat / toFloatOrNull
@@ -342,8 +342,8 @@ public func kk_string_toLongOrNull(_ strRaw: Int) -> Int {
     return Int(truncatingIfNeeded: value)
 }
 
-@_cdecl("kk_string_toFloat")
-public func kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toFloat")
+public func __kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -361,8 +361,8 @@ public func kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return runtimeFloatBitsToInt(parsed)
 }
 
-@_cdecl("kk_string_toFloatOrNull")
-public func kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toFloatOrNull")
+public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -402,7 +402,7 @@ public func kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutableP
     default:
         runtimeSetThrown(
             outThrown,
-            message: "The string doesn't represent a boolean value: \(source)"
+            runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)")
         )
         return 0
     }
@@ -467,7 +467,7 @@ public func kk_string_toByte_radix(
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
         )
         return 0
     }
@@ -547,13 +547,13 @@ private func isValidBigDecimalFormat(_ s: String) -> Bool {
     return i == s.endIndex
 }
 
-@_cdecl("kk_string_toBigDecimal")
-public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toBigDecimal")
+public func __kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
           let str = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimal received invalid string handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_toBigDecimal received invalid string handle")
     }
     // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
     // leading/trailing whitespace, so we validate the raw string as-is.
@@ -565,8 +565,8 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_string_toBigDecimal_flat")
-public func kk_string_toBigDecimal_flat(
+@_cdecl("__kk_string_toBigDecimal_flat")
+public func __kk_string_toBigDecimal_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -583,12 +583,12 @@ public func kk_string_toBigDecimal_flat(
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_string_toBigDecimalOrNull")
-public func kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toBigDecimalOrNull")
+public func __kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
           let str = extractString(from: ptr)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimalOrNull received invalid string handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_toBigDecimalOrNull received invalid string handle")
     }
     // No whitespace trimming: Kotlin/JVM returns null for whitespace-wrapped
     // input because the underlying BigDecimal parser rejects it.
@@ -599,8 +599,8 @@ public func kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_string_toBigDecimalOrNull_flat")
-public func kk_string_toBigDecimalOrNull_flat(
+@_cdecl("__kk_string_toBigDecimalOrNull_flat")
+public func __kk_string_toBigDecimalOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -614,14 +614,14 @@ public func kk_string_toBigDecimalOrNull_flat(
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_string_toBigInteger")
-public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_toBigInteger")
+public func __kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return kk_biginteger_fromString(strRaw, outThrown)
 }
 
-@_cdecl("kk_string_toBigInteger_flat")
-public func kk_string_toBigInteger_flat(
+@_cdecl("__kk_string_toBigInteger_flat")
+public func __kk_string_toBigInteger_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -633,15 +633,15 @@ public func kk_string_toBigInteger_flat(
     return kk_biginteger_fromString(runtimeMakeStringRaw(str), outThrown)
 }
 
-@_cdecl("kk_string_toBigIntegerOrNull")
-public func kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_toBigIntegerOrNull")
+public func __kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
     var thrown = 0
     let raw = kk_biginteger_fromString(strRaw, &thrown)
     return thrown == 0 ? raw : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_string_toBigIntegerOrNull_flat")
-public func kk_string_toBigIntegerOrNull_flat(
+@_cdecl("__kk_string_toBigIntegerOrNull_flat")
+public func __kk_string_toBigIntegerOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -653,12 +653,12 @@ public func kk_string_toBigIntegerOrNull_flat(
     return thrown == 0 ? raw : runtimeNullSentinelInt
 }
 
-@_cdecl("kk_bignum_toString")
-public func kk_bignum_toString(_ numRaw: Int) -> Int {
+@_cdecl("__kk_bignum_toString")
+public func __kk_bignum_toString(_ numRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: numRaw),
           let box = tryCast(ptr, to: RuntimeBigNumberBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bignum_toString received invalid BigNumber handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bignum_toString received invalid BigNumber handle")
     }
     return runtimeMakeStringRaw(box.value)
 }

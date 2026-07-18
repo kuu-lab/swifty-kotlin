@@ -67,17 +67,9 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "trim": "kk_string_trim_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
-            "toDouble": "kk_string_toDouble",
-            "hexToShort": "kk_string_hexToShort_flat",
-            "hexToUByte": "kk_string_hexToUByte_flat",
-            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
-            "hexToUInt": "kk_string_hexToUInt_flat",
-            "hexToULong": "kk_string_hexToULong_flat",
-            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -326,30 +318,33 @@ struct StringSyntheticMemberLinkTests {
             "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
         )
         #expect(
-            externalLink(
-                for: "toDoubleOrNull",
-                receiverType: sema.types.stringType,
-                parameterCount: 0,
-                sema: sema,
-                interner: interner
-            ) == "kk_string_toDoubleOrNull",
-            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+            !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
+                .contains("__kk_string_toDoubleOrNull"),
+            "String.toDoubleOrNull should be source-backed and not have a direct external link"
         )
         #expect(
-            externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
-            "String.toBigDecimal should link to kk_string_toBigDecimal"
+            externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
         )
         #expect(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
-            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+            externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
         )
         #expect(
-            externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
-            "String.toBigInteger should link to kk_string_toBigInteger"
+            externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
         )
         #expect(
-            externalLink(for: "toBigIntegerOrNull", sema: sema, interner: interner) == "kk_string_toBigIntegerOrNull",
-            "String.toBigIntegerOrNull should link to kk_string_toBigIntegerOrNull"
+            externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
+        )
+        #expect(
+            externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
         )
     }
 
@@ -421,6 +416,7 @@ struct StringSyntheticMemberLinkTests {
             ("asIterable", 0, "kk_string_asIterable_flat"),
             ("lines", 0, "kk_string_lines_flat"),
             ("lineSequence", 0, "kk_string_lineSequence_flat"),
+
             ("toByteArray", 0, "kk_string_toByteArray_flat"),
             ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
             ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
@@ -451,6 +447,33 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testKSP401StringHelpersAreBundledKotlinMembers() throws {
+        let (sema, interner) = try makeSema()
+
+        for member in [
+            "isEmpty",
+            "isNotEmpty",
+            "isBlank",
+            "isNotBlank",
+            "isNullOrEmpty",
+            "isNullOrBlank",
+            "ifEmpty",
+            "ifBlank",
+            "orEmpty",
+            "lines",
+            "lineSequence",
+        ] {
+            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+            let symbols = sema.symbols.lookupAll(fqName: fq)
+            #expect(!symbols.isEmpty, "kotlin.text.\(member) should be registered as a bundled Kotlin symbol")
+            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+            #expect(
+                links.isEmpty,
+                "kotlin.text.\(member) must not have C external links after KSP-401 migration, got \(links.sorted())"
+            )
+        }
+    }
+
     @Test func testNewSlicingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -468,21 +491,21 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testIfBlankStubHasCorrectExternalLink() throws {
+    @Test func testIfBlankStubIsBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "ifBlank", sema: sema, interner: interner) == "kk_string_ifBlank",
-            "CharSequence.ifBlank should link to kk_string_ifBlank"
+            externalLink(for: "ifBlank", sema: sema, interner: interner) == nil,
+            "CharSequence.ifBlank should be bundled Kotlin without a C external link"
         )
     }
 
-    @Test func testIfEmptyStubHasCorrectExternalLink() throws {
+    @Test func testIfEmptyStubIsBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "ifEmpty", sema: sema, interner: interner) == "kk_string_ifEmpty",
-            "CharSequence.ifEmpty should link to kk_string_ifEmpty"
+            externalLink(for: "ifEmpty", sema: sema, interner: interner) == nil,
+            "CharSequence.ifEmpty should be bundled Kotlin without a C external link"
         )
     }
 
@@ -541,8 +564,8 @@ struct StringSyntheticMemberLinkTests {
                     "Expected call binding for ifBlank"
                 )
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifBlank",
-                    "Expected ifBlank to resolve to kk_string_ifBlank"
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected ifBlank to resolve to bundled Kotlin without a C external link"
                 )
             }
         }
@@ -569,36 +592,33 @@ struct StringSyntheticMemberLinkTests {
                 "Expected call binding for ifEmpty"
             )
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifEmpty",
-                "Expected ifEmpty to resolve to kk_string_ifEmpty"
+                sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                "Expected ifEmpty to resolve to bundled Kotlin without a C external link"
             )
         }
     }
 
-    @Test func testTrimPredicateStubsHaveCorrectExternalLinks() throws {
+    @Test func testTrimMembersAreBundledKotlinFunctionsWithoutExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        let expected: [String: Set<String>] = [
-            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate_flat"],
-            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate_flat"],
-            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate_flat"],
-        ]
-
-        for (member, expectedLinks) in expected {
+        for member in ["trim", "trimStart", "trimEnd"] {
             #expect(
-                externalLinks(for: member, sema: sema, interner: interner).isSuperset(of: expectedLinks),
-                "String.\(member) should expose no-arg and predicate overload ABI links"
+                externalLinks(for: member, sema: sema, interner: interner).isEmpty,
+                "String.\(member) should be a bundled Kotlin function with no C external link"
             )
         }
     }
 
-    @Test func testTrimPredicateMembersResolveInCallExpressions() throws {
+    @Test func testTrimMembersResolveInCallExpressionsWithoutExternalLinks() throws {
         let source = """
         fun trimEdges(s: String): String {
-            val a = s.trim { it == 'x' }
-            val b = s.trimStart { it == 'x' }
-            val c = s.trimEnd { it == 'x' }
-            return a + b + c
+            val a = s.trim()
+            val b = s.trimStart()
+            val c = s.trimEnd()
+            val d = s.trim { it == 'x' }
+            val e = s.trimStart { it == 'x' }
+            val f = s.trimEnd { it == 'x' }
+            return a + b + c + d + e + f
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -608,25 +628,22 @@ struct StringSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedLinks: [String: String] = [
-                "trim": "kk_string_trim_predicate_flat",
-                "trimStart": "kk_string_trimStart_predicate_flat",
-                "trimEnd": "kk_string_trimEnd_predicate_flat",
-            ]
-
-            for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            for memberName in ["trim", "trimStart", "trimEnd"] {
+                let callExprs = allExprIDs(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                    "Expected \(memberName) predicate overload to resolve to \(externalLinkName)"
-                )
+                }
+                #expect(!callExprs.isEmpty, "Expected member call to \(memberName) in AST")
+                for callExpr in callExprs {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                        "Expected call binding for \(memberName)"
+                    )
+                    #expect(
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected \(memberName) overload to resolve to bundled Kotlin source"
+                    )
+                }
             }
         }
     }
@@ -1942,7 +1959,9 @@ struct StringSyntheticMemberLinkTests {
                 }
                 return exprID
             }
-            #expect(callExprIDs.count == 2, "Expected two decodeToString range calls")
+            // 2 user calls, plus 1 in bundled Base64.kt's decode(ByteArray)
+            // overload (`source.decodeToString()`, KSP-482).
+            #expect(callExprIDs.count == 3, "Expected two decodeToString range calls plus the bundled Base64 call")
 
             // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
             // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have

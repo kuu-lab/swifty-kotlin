@@ -234,12 +234,14 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol
         )
 
-        registerIterableWindowedTransformMember(
+        registerIterableFilterMember(
             symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
+            listInterfaceSymbol: listInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
+
         registerIterablePlusElementMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
@@ -314,6 +316,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             listInterfaceSymbol: listInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 
@@ -437,7 +440,14 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
+        // Keep collection aliases visible while bundled collection factories
+        // are loaded; their declarations reference MutableList/MutableMap
+        // symbols during the two-phase stdlib bootstrap.
         registerSyntheticCollectionTypeAliases(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
+        )
+        registerSyntheticCollectionFactoryStubs(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )

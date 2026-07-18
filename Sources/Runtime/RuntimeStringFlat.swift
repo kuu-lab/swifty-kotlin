@@ -91,7 +91,11 @@ public func kk_string_trim_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trim(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: true,
+            trimTrailing: true
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -112,7 +116,15 @@ public func kk_string_trim_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trim_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: true,
+            trimTrailing: true,
+            context: "trim predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -191,7 +203,7 @@ public func kk_string_repeat_flat(
     guard countRaw >= 0 else {
         runtimeSetThrown(
             outThrown,
-            message: "IllegalArgumentException: Requested element count \(countRaw) is less than zero."
+            runtimeAllocateIllegalArgumentException(message: "Requested element count \(countRaw) is less than zero.")
         )
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
@@ -243,7 +255,7 @@ public func kk_string_first_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let first = codeUnits.first else {
-        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     return Int(first)
@@ -260,7 +272,7 @@ public func kk_string_last_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let last = codeUnits.last else {
-        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         return 0
     }
     return Int(last)
@@ -277,8 +289,11 @@ public func kk_string_single_flat(
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard codeUnits.count == 1 else {
-        let msg = codeUnits.isEmpty ? "Char sequence is empty." : "Char sequence has more than one element."
-        runtimeSetThrown(outThrown, message: msg)
+        if codeUnits.isEmpty {
+            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        } else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+        }
         return 0
     }
     return Int(codeUnits[0])
@@ -719,7 +734,8 @@ public func kk_string_lines_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_lines(kk_string_from_flat(data, length, byteCount, hash))
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_toBoolean_flat")
@@ -749,7 +765,7 @@ public func kk_string_toBooleanStrict_flat(
     case "false":
         return 0
     default:
-        runtimeSetThrown(outThrown, message: "The string doesn't represent a boolean value: \(source)")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)"))
         return 0
     }
 }
@@ -892,25 +908,25 @@ public func kk_string_toByteOrNull_flat(
     kk_string_toByteOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-@_cdecl("kk_string_toFloat_flat")
-public func kk_string_toFloat_flat(
+@_cdecl("__kk_string_toFloat_flat")
+public func __kk_string_toFloat_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+    __kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
 }
 
-@_cdecl("kk_string_toFloatOrNull_flat")
-public func kk_string_toFloatOrNull_flat(
+@_cdecl("__kk_string_toFloatOrNull_flat")
+public func __kk_string_toFloatOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 @_cdecl("kk_string_toSortedSet_flat")
@@ -1063,7 +1079,10 @@ public func kk_string_lineSequence_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_lineSequence(kk_string_from_flat(data, length, byteCount, hash))
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
+    let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
+    return registerRuntimeObject(seq)
 }
 
 @_cdecl("kk_string_trimStart_flat")
@@ -1077,7 +1096,11 @@ public func kk_string_trimStart_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimStart(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: true,
+            trimTrailing: false
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1098,7 +1121,15 @@ public func kk_string_trimStart_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimStart_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: true,
+            trimTrailing: false,
+            context: "trimStart predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1116,7 +1147,11 @@ public func kk_string_trimEnd_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimEnd(kk_string_from_flat(data, length, byteCount, hash)),
+        runtimeStringTrimWhitespace(
+            kk_string_from_flat(data, length, byteCount, hash),
+            trimLeading: false,
+            trimTrailing: true
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -1137,7 +1172,15 @@ public func kk_string_trimEnd_predicate_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatStringResult(
-        kk_string_trimEnd_predicate(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
+        runtimeStringTrimWithPredicate(
+            kk_string_from_flat(data, length, byteCount, hash),
+            fnPtr,
+            closureRaw,
+            outThrown,
+            trimLeading: false,
+            trimTrailing: true,
+            context: "trimEnd predicate"
+        ),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash

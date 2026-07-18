@@ -584,7 +584,8 @@ public final class SymbolTable {
                 // extension properties sharing a short name may coexist as
                 // separate symbols. A non-extension property at the same FQ
                 // name is still a genuine clash: it has no receiver to
-                // disambiguate by.
+                // disambiguate by. Mirrors the diagnostic-level check in
+                // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
                         || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
@@ -968,6 +969,33 @@ public final class SymbolTable {
         valueClassUnderlyingTypes[symbol]
     }
 
+    /// Whether a value class directly implements at least one interface.
+    ///
+    /// Such a value class must keep its full boxed representation (vtable /
+    /// itable registered via `kk_object_new`, same as a regular class) rather
+    /// than being unboxed to its bare underlying primitive: an unboxed
+    /// primitive has no itable to dispatch through when the value is later
+    /// used as the interface type. Value classes are `final` in Kotlin, so
+    /// checking direct supertypes is sufficient — there is no deeper
+    /// interface-inheritance chain to walk.
+    public func valueClassImplementsInterface(_ symbol: SymbolID) -> Bool {
+        directSupertypes(for: symbol).contains { self.symbol($0)?.kind == .interface }
+    }
+
+    /// Returns `symbol`'s underlying primitive type only when it's safe to
+    /// treat the value class as unboxed — i.e. it has a recorded underlying
+    /// type AND implements no interface. Prefer this over
+    /// `valueClassUnderlyingType(for:)` at every box/unbox decision site
+    /// (`ValueClassUnboxingPass`, `resolveValueClassKind`, runtime type-check
+    /// token classification) so they all agree on which value classes stay
+    /// boxed; a mismatch between sites reintroduces the box/unbox corruption
+    /// this method was added to prevent.
+    public func effectiveValueClassUnderlyingType(for symbol: SymbolID) -> TypeID? {
+        guard let underlying = valueClassUnderlyingTypes[symbol] else { return nil }
+        guard !valueClassImplementsInterface(symbol) else { return nil }
+        return underlying
+    }
+
     public func setSealedSubclasses(_ subclasses: [SymbolID], for symbol: SymbolID) {
         sealedSubclassesStorage[symbol] = subclasses
     }
@@ -1087,9 +1115,17 @@ public final class BindingTable {
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
+    /// Maps a secondary constructor's own symbol to the constructor symbol chosen
+    /// by overload resolution for its `this(...)` / `super(...)` delegation call.
+    /// `ConstructorDelegationCall` has no `ExprID` of its own, so this is keyed by
+    /// the enclosing constructor's `SymbolID` instead. KIR lowering must consult
+    /// this rather than re-deriving the target via FQ-name lookup, which cannot
+    /// distinguish sibling overloads or exclude the constructor being lowered.
+    public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
@@ -1100,15 +1136,25 @@ public final class BindingTable {
     public private(set) var charRangeExprIDs: Set<ExprID> = []
     public private(set) var uintRangeExprIDs: Set<ExprID> = []
     public private(set) var ulongRangeExprIDs: Set<ExprID> = []
+    public private(set) var floatingPointRangeExprIDs: Set<ExprID> = []
     public private(set) var flowExprIDs: Set<ExprID> = []
     public private(set) var collectionSymbolIDs: Set<SymbolID> = []
     public private(set) var rangeSymbolIDs: Set<SymbolID> = []
     public private(set) var charRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var uintRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    /// Tracks the real element type produced by an `async { ... }` call, keyed by
+    /// expr and (once assigned to a `val`/`var`) by symbol. `Deferred` is
+    /// registered with no class-level type parameter, so this side-channel
+    /// mirrors the Flow element-type tracking above rather than relying on
+    /// `ClassType.args` (which would create an arity mismatch against the
+    /// zero-type-parameter `Deferred` symbol).
+    public private(set) var deferredElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var deferredElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var objectLiteralPropertySymbolIDs: Set<SymbolID> = []
     /// Maps `T::class` callable-ref expression IDs to the resolved type that
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
@@ -1175,6 +1221,10 @@ public final class BindingTable {
         callableTargets[expr] = target
     }
 
+    public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
+        constructorDelegationTargets[ctorSymbol] = target
+    }
+
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
         callableValueCalls[expr] = binding
     }
@@ -1185,6 +1235,13 @@ public final class BindingTable {
 
     public func bindCastTargetType(_ expr: ExprID, type: TypeID) {
         castTargetTypes[expr] = type
+    }
+
+    /// STDLIB-REFLECT-065: Records the reified `T` argument of a
+    /// `KClass<*>.findAnnotation<T>()` call so KIR lowering can compute the
+    /// runtime search name (see `RuntimeReflection.kk_kclass_find_annotation`).
+    public func bindFindAnnotationSearchType(_ expr: ExprID, type: TypeID) {
+        findAnnotationSearchTypes[expr] = type
     }
 
     public func bindCatchClause(_ catchBodyExpr: ExprID, binding: CatchClauseBinding) {
@@ -1246,6 +1303,14 @@ public final class BindingTable {
 
     public func isULongRangeExpr(_ expr: ExprID) -> Bool {
         ulongRangeExprIDs.contains(expr)
+    }
+
+    public func markFloatingPointRangeExpr(_ expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+    }
+
+    public func isFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        floatingPointRangeExprIDs.contains(expr)
     }
 
     public func markFlowExpr(_ expr: ExprID) {
@@ -1313,6 +1378,14 @@ public final class BindingTable {
         ulongRangeSymbolIDs.contains(symbol)
     }
 
+    public func markFloatingPointRangeSymbol(_ symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+    }
+
+    public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        floatingPointRangeSymbolIDs.contains(symbol)
+    }
+
     public func markFlowSymbol(_ symbol: SymbolID) {
         flowSymbolIDs.insert(symbol)
     }
@@ -1333,6 +1406,22 @@ public final class BindingTable {
 
     public func flowElementType(forSymbol symbol: SymbolID) -> TypeID? {
         flowElementTypesBySymbol[symbol]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forExpr expr: ExprID) {
+        deferredElementTypesByExpr[expr] = type
+    }
+
+    public func deferredElementType(forExpr expr: ExprID) -> TypeID? {
+        deferredElementTypesByExpr[expr]
+    }
+
+    public func bindDeferredElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        deferredElementTypesBySymbol[symbol] = type
+    }
+
+    public func deferredElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        deferredElementTypesBySymbol[symbol]
     }
 
     public func bindClassRefTargetType(_ expr: ExprID, type: TypeID) {
@@ -1363,6 +1452,10 @@ public final class BindingTable {
         callableTargets[expr]
     }
 
+    public func constructorDelegationTarget(for ctorSymbol: SymbolID) -> SymbolID? {
+        constructorDelegationTargets[ctorSymbol]
+    }
+
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {
         callableValueCalls[expr]
     }
@@ -1373,6 +1466,10 @@ public final class BindingTable {
 
     public func castTargetType(for expr: ExprID) -> TypeID? {
         castTargetTypes[expr]
+    }
+
+    public func findAnnotationSearchType(for expr: ExprID) -> TypeID? {
+        findAnnotationSearchTypes[expr]
     }
 
     public func catchClauseBinding(for catchBodyExpr: ExprID) -> CatchClauseBinding? {
@@ -1523,6 +1620,16 @@ public final class SemaModule {
     public let bindings: BindingTable
     public let diagnostics: DiagnosticEngine
     public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// KSP-499 Stage 3: the bundled/user declaration index built once per
+    /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
+    /// in the transient `BundledSyntheticStubRegistration` thread-local, which
+    /// is cleared once header registration finishes — so later phases (body
+    /// type-checking, KIR lowering) can still ask "does a real declaration
+    /// exist for this (owner, name, arity)?" before applying a hard-coded
+    /// compiler intrinsic special-case (e.g. the Flow operator dispatch in
+    /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
+    /// CallLowerer+MemberCalls.swift).
+    var bundledIndex: BundledDeclarationIndex
 
     public init(
         symbols: SymbolTable,
@@ -1536,5 +1643,27 @@ public final class SemaModule {
         self.bindings = bindings
         self.diagnostics = diagnostics
         self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = .empty
+    }
+
+    /// Module-internal overload that also accepts the bundled declaration
+    /// index at construction time (see `bundledIndex` above). Not `public`
+    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
+    /// callers outside the module get the public initializer above, which
+    /// defaults `bundledIndex` to `.empty`.
+    init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = bundledIndex
     }
 }

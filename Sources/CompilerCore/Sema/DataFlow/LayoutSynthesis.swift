@@ -1,13 +1,13 @@
 
 extension DataFlowSemaPhase {
-    func synthesizeNominalLayouts(symbols: SymbolTable) {
+    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         guard !nominalIDs.isEmpty else { return }
         let topoOrder = buildTopoOrder(nominalIDs: nominalIDs, symbols: symbols)
         for nominalID in topoOrder {
-            synthesizeLayoutForNominal(nominalID, symbols: symbols)
+            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types)
         }
     }
 
@@ -35,7 +35,7 @@ extension DataFlowSemaPhase {
         return topoOrder
     }
 
-    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable) {
+    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem) {
         guard let nominalSymbol = symbols.symbol(nominalID) else { return }
         if nominalSymbol.flags.contains(.synthetic),
            symbols.nominalLayout(for: nominalID) != nil
@@ -54,12 +54,27 @@ extension DataFlowSemaPhase {
         let inheritedVtable = superClass.flatMap { symbols.nominalLayout(for: $0)?.vtableSlots } ?? [:]
         let inheritedVtableSize = superClass.flatMap { symbols.nominalLayout(for: $0)?.vtableSize } ?? 0
         var vtableSlots = inheritedVtable
-        var vtableSlotByKey: [MethodDispatchKey: Int] = [:]
+        // Bucketed by the coarse (name, arity, isSuspend) key: two sibling overloads
+        // that merely share arity (e.g. `nextBytes(array: ByteArray)` and
+        // `nextBytes(size: Int)`) must not be conflated into one vtable slot, so each
+        // key can hold multiple candidates disambiguated by parameter types below.
+        // Built once from genuine inheritance and never mutated afterwards, so that:
+        // (1) a multi-level generic override chain doesn't see spurious "multiple
+        // candidates" just because each ancestor level stored its own distinct
+        // type-parameter symbols for what is really the same slot — deduped by slot
+        // number below; (2) a same-class non-override sibling can never leak into
+        // the candidate set that a later override in this same class consults.
+        var inheritedCandidatesByKey: [MethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] = [:]
         for methodID in inheritedVtable.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let methodSymbol = symbols.symbol(methodID),
                   let slot = inheritedVtable[methodID]
             else { continue }
-            vtableSlotByKey[methodDispatchKey(for: methodSymbol, symbols: symbols)] = slot
+            let key = methodDispatchKey(for: methodSymbol, symbols: symbols)
+            if inheritedCandidatesByKey[key]?.contains(where: { $0.slot == slot }) == true {
+                continue
+            }
+            let parameterTypes = symbols.functionSignature(for: methodID)?.parameterTypes ?? []
+            inheritedCandidatesByKey[key, default: []].append((parameterTypes, slot))
         }
 
         var nextVtableSlot = max(inheritedVtableSize, (vtableSlots.values.max() ?? -1) + 1)
@@ -69,12 +84,35 @@ extension DataFlowSemaPhase {
             .compactMap { symbols.symbol($0) }
         for method in ownMethods {
             let key = methodDispatchKey(for: method, symbols: symbols)
-            if let inheritedSlot = vtableSlotByKey[key] {
-                vtableSlots[method.id] = inheritedSlot
+            let candidates = inheritedCandidatesByKey[key]
+            let parameterTypes = symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+            // Only a genuine `override` may reuse an inherited slot: a
+            // freshly-declared (non-override) method can share (name, arity) with
+            // an unrelated inherited overload without ever being in an override
+            // relationship with it (Kotlin disallows two identical-signature
+            // siblings, so any same-key sibling is necessarily a distinct overload
+            // needing its own slot).
+            if method.flags.contains(.overrideMember), let candidates {
+                if let matchedSlot = resolveOverriddenSlot(parameterTypes: parameterTypes, candidates: candidates, types: types) {
+                    vtableSlots[method.id] = matchedSlot
+                    continue
+                }
+            }
+            if let candidates,
+               let matchedSlot = resolveImplicitImportedOverrideSlot(
+                   method: method,
+                   owner: nominalSymbol,
+                   declaredVtableSize: layoutHint?.declaredVtableSize,
+                   nextVtableSlot: nextVtableSlot,
+                   parameterTypes: parameterTypes,
+                   candidates: candidates,
+                   types: types
+               )
+            {
+                vtableSlots[method.id] = matchedSlot
                 continue
             }
             vtableSlots[method.id] = nextVtableSlot
-            vtableSlotByKey[key] = nextVtableSlot
             nextVtableSlot += 1
         }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
@@ -94,9 +132,24 @@ extension DataFlowSemaPhase {
             []
         } else {
             symbols.children(ofFQName: nominalSymbol.fqName)
-                .filter { id in
-                    guard let kind = symbols.symbol(id)?.kind else { return false }
-                    return kind == .field || kind == .property
+                .compactMap { id -> SymbolID? in
+                    guard let kind = symbols.symbol(id)?.kind else { return nil }
+                    switch kind {
+                    case .field:
+                        return id
+                    case .property:
+                        // Properties with a dedicated backing field (custom
+                        // getter/setter bodies referencing `field`, or Kotlin 2.0
+                        // explicit backing fields) store their value in that
+                        // symbol's slot, not the property symbol's own — the
+                        // property itself has no storage in that case. This must
+                        // match the `backingFieldSymbol(for:) ?? propertySymbol`
+                        // lookup convention used throughout KIR lowering (reads,
+                        // writes, lateinit checks, synthesized toString/equals).
+                        return symbols.backingFieldSymbol(for: id) ?? id
+                    default:
+                        return nil
+                    }
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
                 .compactMap { symbols.symbol($0) }
@@ -186,5 +239,72 @@ extension DataFlowSemaPhase {
             arity: signature?.parameterTypes.count ?? 0,
             isSuspend: signature?.isSuspend ?? false
         )
+    }
+
+    /// Picks which same-(name, arity) candidate an `override` member actually
+    /// overrides. A single candidate is used as-is. With multiple candidates —
+    /// e.g. a base class declaring both `nextBytes(array: ByteArray)` and
+    /// `nextBytes(size: Int)` — a candidate whose parameter type is a bare type
+    /// parameter (e.g. `fun foo(x: T)`) is treated as a wildcard, since a generic
+    /// override's substituted concrete type will never textually equal it; every
+    /// other position must match exactly. Returning `nil` when zero or 2+
+    /// candidates are compatible is deliberate: the caller then allocates a fresh
+    /// slot rather than guessing, since aliasing the override onto the wrong
+    /// candidate could silently corrupt an unrelated overload's vtable entry.
+    private func resolveOverriddenSlot(
+        parameterTypes: [TypeID],
+        candidates: [(parameterTypes: [TypeID], slot: Int)],
+        types: TypeSystem
+    ) -> Int? {
+        if candidates.count == 1 {
+            return candidates[0].slot
+        }
+        let compatibleSlots = Set(candidates.filter {
+            isOverrideParameterMatch(candidateParameterTypes: $0.parameterTypes, overrideParameterTypes: parameterTypes, types: types)
+        }.map(\.slot))
+        return compatibleSlots.count == 1 ? compatibleSlots.first : nil
+    }
+
+    /// Legacy imported metadata can provide only the final vtable size without
+    /// per-method slot entries or override flags. If allocating a fresh slot
+    /// would exceed that imported size, preserve the metadata layout by reusing
+    /// the one compatible inherited slot.
+    private func resolveImplicitImportedOverrideSlot(
+        method: SemanticSymbol,
+        owner: SemanticSymbol,
+        declaredVtableSize: Int?,
+        nextVtableSlot: Int,
+        parameterTypes: [TypeID],
+        candidates: [(parameterTypes: [TypeID], slot: Int)],
+        types: TypeSystem
+    ) -> Int? {
+        guard method.flags.contains(.importedLibrary),
+              owner.flags.contains(.importedLibrary),
+              let declaredVtableSize,
+              nextVtableSlot + 1 > declaredVtableSize
+        else {
+            return nil
+        }
+        let compatibleSlots = Set(candidates.filter {
+            isOverrideParameterMatch(candidateParameterTypes: $0.parameterTypes, overrideParameterTypes: parameterTypes, types: types)
+        }.map(\.slot))
+        return compatibleSlots.count == 1 ? compatibleSlots.first : nil
+    }
+
+    private func isOverrideParameterMatch(
+        candidateParameterTypes: [TypeID],
+        overrideParameterTypes: [TypeID],
+        types: TypeSystem
+    ) -> Bool {
+        guard candidateParameterTypes.count == overrideParameterTypes.count else { return false }
+        for (candidateType, overrideType) in zip(candidateParameterTypes, overrideParameterTypes) {
+            if case .typeParam = types.kind(of: candidateType) {
+                continue
+            }
+            if candidateType != overrideType {
+                return false
+            }
+        }
+        return true
     }
 }

@@ -46,12 +46,6 @@ extension DataFlowSemaPhase {
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let floatType = types.floatType
         let doubleType = types.doubleType
-        let stringProducerType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: stringType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
         let collectionStringType = makeCollectionType(
             symbols: symbols,
@@ -170,17 +164,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -564,27 +547,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "toDouble",
-            externalLinkName: "kk_string_toDouble",
-            receiverType: stringType,
-            parameters: [],
-            returnType: doubleType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toDoubleOrNull",
-            externalLinkName: "kk_string_toDoubleOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableDoubleType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
@@ -629,27 +591,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "toFloat",
-            externalLinkName: "kk_string_toFloat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: floatType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toFloatOrNull",
-            externalLinkName: "kk_string_toFloatOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableFloatType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
@@ -1578,6 +1519,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "get",
+            externalLinkName: "kk_string_get_flat",
+            receiverType: charSequenceType,
+            parameters: [
+                ("index", intType, false, false),
+            ],
+            returnType: charType,
+            flags: [.synthetic, .operatorFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-141: String.compareTo ---
 
@@ -1608,51 +1562,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-187: isEmpty / isNotEmpty / isBlank / isNotBlank ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "isEmpty",
-            externalLinkName: "kk_string_isEmpty_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isBlank",
-            externalLinkName: "kk_string_isBlank_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: isEmpty/isBlank/ifEmpty/ifBlank are bundled Kotlin source.
 
         // --- STDLIB-TEXT-FN-026: String.intern ---
         registerSyntheticStringExtensionFunction(
@@ -1660,72 +1570,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_intern",
             receiverType: stringType,
             parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
-        registerSyntheticStringExtensionFunction(
-            named: "isBlank",
-            externalLinkName: "kk_string_isBlank_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-029: CharSequence.isNotBlank ---
-        registerSyntheticStringExtensionFunction(
-            named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-004: CharSequence.ifBlank(defaultValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "ifBlank",
-            externalLinkName: "kk_string_ifBlank",
-            receiverType: charSequenceType,
-            parameters: [
-                ("defaultValue", stringProducerType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-005: CharSequence.ifEmpty(defaultValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "ifEmpty",
-            externalLinkName: "kk_string_ifEmpty",
-            receiverType: charSequenceType,
-            parameters: [
-                ("defaultValue", stringProducerType, false, false),
-            ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
@@ -2547,59 +2391,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-144: String.trim (predicate overload) ---
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_predicate_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         registerSyntheticStringExtensionFunction(
             named: "find",
             externalLinkName: "kk_string_find",
@@ -2616,6 +2407,16 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: listStringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2759,58 +2560,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-143: String.lines ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lines",
-            externalLinkName: "kk_string_lines_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-666: String.lineSequence ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lineSequence",
-            externalLinkName: "kk_string_lineSequence_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: lines/lineSequence are bundled Kotlin source.
 
         // --- STDLIB-145: String.toByteArray / encodeToByteArray ---
 
-        let listIntType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        let byteArrayTypeForEncode = makeNominalType(
-            symbols: symbols,
-            types: types,
-            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-581: String.toByteArray(charset: Charset)
         let charsetSymbol = ensureClassSymbol(
             named: "Charset", in: kotlinTextPkg,
             symbols: symbols, interner: interner
@@ -2819,99 +2572,6 @@ extension DataFlowSemaPhase {
             classSymbol: charsetSymbol, args: [], nullability: .nonNull
         )))
         symbols.setPropertyType(charsetType, for: charsetSymbol)
-
-        let charsetsSymbol = ensureSyntheticObjectSymbol(
-            named: "Charsets",
-            in: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let charsetsType = types.make(.classType(ClassType(
-            classSymbol: charsetsSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(charsetsType, for: charsetsSymbol)
-
-        for charsetName in [
-            "UTF_8", "ISO_8859_1", "US_ASCII",
-            "UTF_16", "UTF_16BE", "UTF_16LE",
-            "UTF_32", "UTF_32BE", "UTF_32LE",
-        ] {
-            registerSyntheticObjectProperty(
-                ownerSymbol: charsetsSymbol,
-                ownerType: charsetsType,
-                name: charsetName,
-                propertyType: charsetType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        registerSyntheticStringExtensionFunction(
-            named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_charset_flat",
-            receiverType: stringType,
-            parameters: [
-                ("charset", charsetType, false, false),
-            ],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
-        registerSyntheticStringExtensionFunction(
-            named: "toByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_range_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MIGRATION-TEXT-007: Private primitives — called from BundledKotlinStdlib encodeToByteArray wrappers
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_encodeToByteArray_range",
-            externalLinkName: "kk_string_encodeToByteArray_range_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_encodeToByteArray_charset",
-            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
-            receiverType: stringType,
-            parameters: [
-                ("charset", charsetType, false, false),
-            ],
-            returnType: byteArrayTypeForEncode,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         let javaMathPkg = ensurePackage(
             path: ["java", "math"],
@@ -2945,200 +2605,18 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
         let nullableBigIntegerType = types.makeNullable(bigIntegerType)
 
-        registerSyntheticStringExtensionFunction(
-            named: "toBigDecimal",
-            externalLinkName: "kk_string_toBigDecimal",
-            receiverType: stringType,
-            parameters: [],
-            returnType: bigDecimalType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigDecimalOrNull",
-            externalLinkName: "kk_string_toBigDecimalOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(bigDecimalType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigInteger",
-            externalLinkName: "kk_string_toBigInteger",
-            receiverType: stringType,
-            parameters: [],
-            returnType: bigIntegerType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "toBigIntegerOrNull",
-            externalLinkName: "kk_string_toBigIntegerOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableBigIntegerType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticBigNumberMemberFunction(
-            ownerSymbol: bigDecimalSymbol,
-            ownerType: bigDecimalType,
-            name: "toString",
-            returnType: stringType,
-            externalLinkName: "kk_bignum_toString",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticBigNumberMemberFunction(
-            ownerSymbol: bigIntegerSymbol,
-            ownerType: bigIntegerType,
-            name: "toString",
-            returnType: stringType,
-            externalLinkName: "kk_bignum_toString",
-            symbols: symbols,
-            interner: interner
-        )
 
         // STDLIB-574: ByteArray / List<Int> internal representation
+        let listIntType = makeListType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: intType
+        )
         let byteArrayType = makeNominalType(
             symbols: symbols,
             types: types,
             fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "decodeToString",
-            externalLinkName: "kk_bytearray_decodeToString",
-            receiverType: listIntType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        for charsetPropName in ["UTF_8", "US_ASCII", "ISO_8859_1"] {
-            let propName = interner.intern(charsetPropName)
-            let propFQName = [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charsets"), propName]
-            guard symbols.lookup(fqName: propFQName) == nil else { continue }
-            let propSymbol = symbols.define(
-                kind: .property,
-                name: propName,
-                fqName: propFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(charsetsSymbol, for: propSymbol)
-            symbols.setPropertyType(charsetType, for: propSymbol)
-        }
-
-        // STDLIB-574: List<Int>.decodeToString(charset) — internal path only
-        registerSyntheticStringExtensionFunction(
-            named: "decodeToString",
-            externalLinkName: "kk_bytearray_decodeToString_charset",
-            receiverType: listIntType,
-            parameters: [
-                ("charset", charsetType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-EDGE-006: List<Int>.decodeToString range variants — internal path only
-        registerSyntheticStringExtensionFunction(
-            named: "decodeToString",
-            externalLinkName: "kk_bytearray_decodeToString_range",
-            receiverType: listIntType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "decodeToString",
-            externalLinkName: "kk_bytearray_decodeToString_range_throw",
-            receiverType: listIntType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-                ("throwOnInvalidSequence", types.booleanType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MIGRATION-TEXT-007: Private primitives for ByteArray.decodeToString — called from BundledKotlinStdlib wrappers
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_decodeToString",
-            externalLinkName: "kk_bytearray_decodeToString",
-            receiverType: byteArrayType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_decodeToString_charset",
-            externalLinkName: "kk_bytearray_decodeToString_charset",
-            receiverType: byteArrayType,
-            parameters: [
-                ("charset", charsetType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_decodeToString_range",
-            externalLinkName: "kk_bytearray_decodeToString_range",
-            receiverType: byteArrayType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "__kk_decodeToString_range_throw",
-            externalLinkName: "kk_bytearray_decodeToString_range_throw",
-            receiverType: byteArrayType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-                ("throwOnInvalidSequence", types.booleanType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
         )
 
         // STDLIB-STR-125
@@ -3159,7 +2637,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: stringClassSymbol,
                 ownerType: stringType,
                 parameters: [("bytes", bytesType), ("charset", charsetType)],
-                externalLinkName: "kk_bytearray_decodeToString_charset",
+                externalLinkName: "__kk_bytearray_decodeToString_charset",
                 symbols: symbols,
                 interner: interner
             )
@@ -3168,7 +2646,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: stringClassSymbol,
                 ownerType: stringType,
                 parameters: [("bytes", bytesType)],
-                externalLinkName: "kk_bytearray_decodeToString",
+                externalLinkName: "__kk_bytearray_decodeToString",
                 symbols: symbols,
                 interner: interner
             )
@@ -3736,18 +3214,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-534: String?.orEmpty() ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "orEmpty",
-            externalLinkName: "kk_string_orEmpty_flat",
-            receiverType: nullableStringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: String?.orEmpty() is bundled Kotlin source.
 
         // --- STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals ---
 

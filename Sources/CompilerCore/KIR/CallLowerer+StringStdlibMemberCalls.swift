@@ -181,7 +181,14 @@ extension CallLowerer {
         }
 
         // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
-        if args.isEmpty, interner.resolve(calleeName) == "filterIsInstance" {
+        if args.isEmpty,
+           interner.resolve(calleeName) == "filterIsInstance",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from List<R> or Sequence<R>.
@@ -199,13 +206,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let runtimeCallee = isSequenceLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
-                ? "kk_sequence_filterIsInstance"
-                : "kk_list_filterIsInstance"
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(runtimeCallee),
+                callee: interner.intern("kk_sequence_filterIsInstance"),
                 arguments: [loweredReceiverID, tokenExpr],
                 result: result,
                 canThrow: false,
@@ -215,7 +218,14 @@ extension CallLowerer {
         }
 
         // filterIsInstanceTo<R>(destination) — encode type token from result type (STDLIB-021)
-        if args.count == 1, interner.resolve(calleeName) == "filterIsInstanceTo" {
+        if args.count == 1,
+           interner.resolve(calleeName) == "filterIsInstanceTo",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from MutableCollection<R>
@@ -233,15 +243,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let nonNullReceiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
-            let runtimeCallee = if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                interner.intern("kk_sequence_filterIsInstanceTo")
-            } else {
-                interner.intern("kk_list_filterIsInstanceTo")
-            }
             instructions.append(.call(
                 symbol: nil,
-                callee: runtimeCallee,
+                callee: interner.intern("kk_sequence_filterIsInstanceTo"),
                 arguments: [loweredReceiverID, loweredArgIDs[0], tokenExpr],
                 result: result,
                 canThrow: false,
@@ -250,39 +254,23 @@ extension CallLowerer {
             return result
         }
 
-        // String stdlib: nullable-receiver 0-arg methods (NULL-002)
-        // isNullOrEmpty/isNullOrBlank pass the raw (potentially null) receiver pointer to C runtime.
+        // Collection nullable-receiver isNullOrEmpty fallback.
+        // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
             if sema.bindings.callBindings[exprID] == nil,
-               calleeStr == "isNullOrEmpty" || calleeStr == "isNullOrBlank"
+               calleeStr == "isNullOrEmpty"
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                if calleeStr == "isNullOrEmpty",
-                   let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
+                if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
                     receiverType: receiverType,
                     sema: sema,
                     interner: interner
-                   )
+                )
                 {
                     instructions.append(.call(
                         symbol: nil,
                         callee: runtimeCallee,
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                    let runtimeCallee = calleeStr == "isNullOrEmpty"
-                        ? "kk_string_isNullOrEmpty"
-                        : "kk_string_isNullOrBlank"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -295,17 +283,6 @@ extension CallLowerer {
             if sema.bindings.callBindings[exprID] == nil, calleeStr == "orEmpty" {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_orEmpty_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     instructions.append(.call(
                         symbol: nil,
@@ -373,7 +350,7 @@ extension CallLowerer {
                 if calleeStr == "toDouble" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDouble"),
+                        callee: interner.intern("__kk_string_toDouble"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -384,7 +361,7 @@ extension CallLowerer {
                 if calleeStr == "toDoubleOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDoubleOrNull"),
+                        callee: interner.intern("__kk_string_toDoubleOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -395,7 +372,7 @@ extension CallLowerer {
                 if calleeStr == "toFloatOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toFloatOrNull"),
+                        callee: interner.intern("__kk_string_toFloatOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -406,7 +383,7 @@ extension CallLowerer {
                 if calleeStr == "toBigInteger" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigInteger"),
+                        callee: interner.intern("__kk_string_toBigInteger"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -417,7 +394,7 @@ extension CallLowerer {
                 if calleeStr == "toBigIntegerOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigIntegerOrNull"),
+                        callee: interner.intern("__kk_string_toBigIntegerOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -428,7 +405,7 @@ extension CallLowerer {
                 if calleeStr == "toBigDecimal" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimal"),
+                        callee: interner.intern("__kk_string_toBigDecimal"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -439,7 +416,7 @@ extension CallLowerer {
                 if calleeStr == "toBigDecimalOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimalOrNull"),
+                        callee: interner.intern("__kk_string_toBigDecimalOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -534,12 +511,29 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "lines" || calleeStr == "lineSequence" {
-                    let rtName = calleeStr == "lineSequence"
-                        ? "kk_string_lineSequence_flat" : "kk_string_lines_flat"
+                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
+                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
+                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
+                        : calleeStr == "last" ? "kk_string_last_flat"
+                        : "kk_string_single_flat"
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern(rtName),
+                        callee: interner.intern(kkName),
+                        arguments: [loweredReceiverID, thrownExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
+                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
+                        : "kk_string_singleOrNull_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(kkName),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -615,39 +609,6 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_intern"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trim" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trim_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimStart_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimEnd_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -863,10 +824,6 @@ extension CallLowerer {
                     ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "ifBlank":
-                    ("kk_string_ifBlank", [loweredReceiverID] + normalizedArgIDs)
-                case "ifEmpty":
-                    ("kk_string_ifEmpty", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "take":
@@ -879,26 +836,13 @@ extension CallLowerer {
                     ("kk_string_dropLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
-                case "toByteArray":
-                    if loweredArgIDs.count == 1 {
-                        // toByteArray(charset) — Sema types this as List<Int>, so use the ListBox-returning function.
-                        ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    } else {
-                        // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
-                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    }
+
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
                     ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "trim":
-                    ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimStart":
-                    ("kk_string_trimStart_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimEnd":
-                    ("kk_string_trimEnd_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 default:
                     nil
                 }
@@ -910,9 +854,6 @@ extension CallLowerer {
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
                         || calleeStr == "onEach"
-                        || calleeStr == "trim"
-                        || calleeStr == "trimStart"
-                        || calleeStr == "trimEnd"
                         || calleeStr == "take"
                         || calleeStr == "drop"
                         || calleeStr == "takeLast"
@@ -1387,6 +1328,7 @@ extension CallLowerer {
                         interner: interner,
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
+                        types: sema.types,
                         instructions: &instructions
                     )
                 }

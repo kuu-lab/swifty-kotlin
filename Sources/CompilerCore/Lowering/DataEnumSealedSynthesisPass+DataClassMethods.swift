@@ -584,12 +584,41 @@ extension DataEnumSealedSynthesisPass {
                 )
                 body.append(.constValue(result: fieldOffsetExpr, value: .intLiteral(fieldOffsetValue)))
 
+                // Read the stored field first (matching appendSyntheticDataClassEqualsIfNeeded /
+                // synthesizeDataClassComponentN). Passing `receiverRef` itself straight to
+                // kk_any_hashCode — as this used to do — hashed the *receiver's own pointer*
+                // on every iteration (kk_any_hashCode only reads its `tag` arg for non-pointer
+                // values), so every property contributed the same identity-based hash and
+                // equal-by-content instances ended up with different hashCode()s.
+                let propType = sema.symbols.propertyType(for: propSym.id) ?? sema.types.anyType
+                let fieldValueExpr = module.arena.appendTemporary(type: propType
+                )
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_get_inbounds"),
+                    arguments: [receiverRef, fieldOffsetExpr],
+                    result: fieldValueExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+
+                // Tag only disambiguates Boolean's JVM-matching 1231/1237 sentinel from a raw
+                // int/long/char bit pattern; pointer-shaped values (String/class instances) are
+                // dispatched by kk_any_hashCode via runtime type inspection regardless of tag.
+                let tagValue: Int64 = switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
+                case .primitive(.boolean, _): 2
+                default: 1
+                }
+                let tagExpr = module.arena.appendTemporary(type: intType
+                )
+                body.append(.constValue(result: tagExpr, value: .intLiteral(tagValue)))
+
                 let propHashExpr = module.arena.appendTemporary(type: intType
                 )
                 body.append(.call(
                     symbol: nil,
                     callee: hashCodeCallee,
-                    arguments: [receiverRef, fieldOffsetExpr],
+                    arguments: [fieldValueExpr, tagExpr],
                     result: propHashExpr,
                     canThrow: false,
                     thrownResult: nil
@@ -706,6 +735,14 @@ extension DataEnumSealedSynthesisPass {
         let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
 
         var body: [KIRInstruction] = []
+        // Freshly synthesized function body, so label numbers only need to be
+        // unique within it — safe to start from 0 (mirrors the equals()
+        // synthesis below).
+        var nextLabel: Int32 = 0
+        func allocateLabel() -> Int32 {
+            defer { nextLabel += 1 }
+            return nextLabel
+        }
 
         // STDLIB-DATA-014: If data class inherits from another class, start with super.toString()
         let explicitSuperclass = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner)
@@ -824,21 +861,51 @@ extension DataEnumSealedSynthesisPass {
 
             // Convert to string via kk_any_to_string using the same tag convention
             // as Any.toString lowering.
-            let anyTag = anyToStringTag(for: propType, sema: sema)
+            let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
             let tagExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
 
             let propStr = module.arena.appendTemporary(type: stringType
             )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_any_to_string"),
-                arguments: [propValue, tagExpr],
-                result: propStr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // Nullable Float?/Double?/ULong? properties need an explicit null
+            // guard before kk_any_to_string: tags 5/6/7 are decoded before the
+            // null-sentinel check (their in-range values can share Int.min's
+            // bit pattern), so an actually-null property would otherwise
+            // render as -0.0/a large ULong instead of "null" (see
+            // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
+            let propIsNullable = sema.types.makeNonNullable(propType) != propType
+            if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
+                let nonNullLabel = allocateLabel()
+                let endLabel = allocateLabel()
+                let nullStr = interner.intern("null")
+                let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                body.append(.copy(from: nullStrExpr, to: propStr))
+                body.append(.jump(endLabel))
+                body.append(.label(nonNullLabel))
+                let innerPropStr = module.arena.appendTemporary(type: stringType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [propValue, tagExpr],
+                    result: innerPropStr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                body.append(.copy(from: innerPropStr, to: propStr))
+                body.append(.label(endLabel))
+            } else {
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [propValue, tagExpr],
+                    result: propStr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
 
             body.append(.call(
                 symbol: nil,

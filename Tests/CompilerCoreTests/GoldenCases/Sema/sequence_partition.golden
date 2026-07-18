@@ -17,6 +17,9 @@ symbol fq=kotlin.Pair.second kind=property vis=public flags=synthetic type=kotli
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.asSequence kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[] ret=kotlin.sequences.Sequence<out kotlin.collections.List.E>
+symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
+symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
@@ -66,7 +69,7 @@ expr e@15:27 int(20) type=Int
 expr e@15:31 int(30) type=Int
 expr e@15:35 int(40) type=Int
 expr e@15:39 int(50) type=Int
-expr e@15:16 call callee=e@15:16#1 args=[_:e@15:23,_:e@15:27,_:e@15:31,_:e@15:35,_:e@15:39] type=kotlin.collections.List<out Int>
+expr e@15:16 call callee=e@15:16#1 args=[_:e@15:23,_:e@15:27,_:e@15:31,_:e@15:35,_:e@15:39] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@15:5 localDecl list mutable=0 type=_ init=e@15:16 type=Unit ref=__local_2.list
 expr e@16:24 name(list) type=kotlin.collections.List<out Int> ref=__local_2.list
 expr e@16:24#1 memberCall recv=e@16:24 callee=asSequence args=[] type=Any call=kotlin.collections.List.asSequence

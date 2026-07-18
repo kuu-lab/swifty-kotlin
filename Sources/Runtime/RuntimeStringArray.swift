@@ -478,9 +478,23 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
 
     case RuntimeTypeTokenEncoding.intBase,
          RuntimeTypeTokenEncoding.uintBase,
-         RuntimeTypeTokenEncoding.ulongBase,
          RuntimeTypeTokenEncoding.ubyteBase,
          RuntimeTypeTokenEncoding.ushortBase:
+        // NOTE: an unboxed (non-object-pointer) value here is treated as a
+        // match. That's unsound in general — Int/UInt/UByte/UShort share no
+        // value-range heuristic that distinguishes them from Long/Double/
+        // Float/Char once unboxed (all reinterpret the same 64-bit word) — but
+        // some existing callers (e.g. Sequence element storage) still hand
+        // kk_op_is genuinely unboxed primitives, so tightening this to a
+        // mismatch regresses them. The `is`/`as`/`as?` call sites themselves
+        // are fixed to always box their operand before reaching here (see
+        // ABILoweringPass's typeCheckValueCallees); see also the follow-up
+        // tracking sequenceOf's missing element boxing.
+        //
+        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
+        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
+        // indistinguishable from each other here — a separate, pre-existing
+        // limitation of the box representation itself, not fixed by this check.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -490,9 +504,22 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if !isObjectPointer {
             return 1
         }
+        // A box tagged with a nominal type ID (kk_tag_value_class_box) represents
+        // a boxed value class, which is a distinct type from its underlying
+        // primitive even though it shares the same physical box.
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
-    case RuntimeTypeTokenEncoding.longBase:
+    case RuntimeTypeTokenEncoding.longBase,
+         RuntimeTypeTokenEncoding.ulongBase:
+        // ULong boxes via kk_box_long into RuntimeLongBox, the same as Long
+        // (see BoxingCalleeTable) — it must be checked here rather than
+        // grouped with the RuntimeIntBox family above, or a genuinely-boxed
+        // ULong value would fail its own `is ULong` check. Long and ULong
+        // remain indistinguishable from each other (same pre-existing box
+        // representation limitation noted above).
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -500,6 +527,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeLongBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.doubleBase:
@@ -510,6 +540,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeDoubleBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.floatBase:
@@ -520,6 +553,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeFloatBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.charBase:
@@ -530,6 +566,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeCharBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.booleanBase:
@@ -541,6 +580,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         if !isObjectPointer {
             return (value == 0 || value == 1) ? 1 : 0
+        }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
         }
         return tryCast(ptr, to: RuntimeBoolBox.self) == nil ? 0 : 1
 
@@ -566,17 +608,18 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         guard let throwable else {
             return 0
         }
+        // Every built-in exception class now allocates a RuntimeThrowableBox
+        // subclass with a correctly populated exceptionHierarchyFQNames (see
+        // RuntimeAssertions.swift / RuntimeTypes.swift), so this hierarchy check
+        // is authoritative: a real mismatch must not be treated as a match, or
+        // `catch (e: T)` would incorrectly catch any unrelated sibling exception.
         if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
             return 1
         }
-        // Typed RuntimeThrowableBox subclasses (STDLIB-LOG-149 and friends) know
-        // their exact exception hierarchy, so a lookup miss here is a genuine type
-        // mismatch (e.g. a ClassCastException checked against an IllegalStateException
-        // catch clause) and must NOT match. Only the untyped base RuntimeThrowableBox
-        // — used by external/runtime calls that don't carry Kotlin exception-hierarchy
-        // metadata — falls back to the broad "matches any catch clause" behaviour so
-        // it stays catchable despite the missing type info.
-        return ObjectIdentifier(type(of: throwable)) == ObjectIdentifier(RuntimeThrowableBox.self) ? 1 : 0
+        // A base RuntimeThrowableBox has no Kotlin-level type information. Keep
+        // the historical broad catch fallback for those internal throwables,
+        // while typed subclasses must obey their explicit hierarchy above.
+        return throwable.exceptionHierarchyFQNames == ["kotlin.Throwable"] ? 1 : 0
 
     default:
         return 0
@@ -634,6 +677,20 @@ public func kk_array_new(_ length: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
+}
+
+/// Same as `kk_array_new`, but validates `length` first and throws
+/// `NegativeArraySizeException` for negative sizes instead of silently
+/// clamping to an empty array. Used by the `Array(size) { init }` family of
+/// pseudo-constructors (Array, IntArray, ByteArray, ...), which must reject
+/// negative sizes the way real Kotlin does.
+@_cdecl("kk_array_new_checked")
+public func kk_array_new_checked(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard length >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        return 0
+    }
+    return kk_array_new(length)
 }
 
 @_cdecl("kk_object_new")
@@ -1209,7 +1266,7 @@ public func kk_kclass_cast(
 ) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         outThrown?.pointee = runtimeAllocateClassCastException(
-            message: "ClassCastException: Invalid KClass handle."
+            message: "Invalid KClass handle."
         )
         return runtimeNullSentinelInt
     }
@@ -1224,7 +1281,7 @@ public func kk_kclass_cast(
         typeName = "Unknown"
     }
     outThrown?.pointee = runtimeAllocateClassCastException(
-        message: "ClassCastException: Value cannot be cast to \(typeName)."
+        message: "Value cannot be cast to \(typeName)."
     )
     return runtimeNullSentinelInt
 }
@@ -1418,13 +1475,13 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
         outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
         return 0
     }
-    guard array.elements.indices.contains(index) else {
+    guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+            message: "Array index \(index) out of bounds for length \(array.count)."
         )
         return 0
     }
-    return array.elements[index]
+    return array[index]
 }
 
 @_cdecl("kk_array_get_inbounds")
@@ -1444,13 +1501,13 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
         outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
         return 0
     }
-    guard array.elements.indices.contains(index) else {
+    guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+            message: "Array index \(index) out of bounds for length \(array.count)."
         )
         return 0
     }
-    array.elements[index] = value
+    array[index] = value
     return value
 }
 
@@ -1704,7 +1761,7 @@ public func kk_readline() -> Int {
 public func kk_readln(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let line = readLine() else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "EOF has already been reached")
+        outThrown?.pointee = runtimeAllocateRuntimeException(message: "EOF has already been reached")
         return 0
     }
     let utf8 = Array(line.utf8)
@@ -1774,7 +1831,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         if let scalar = UnicodeScalar(charBox.value) {
             return String(Character(scalar))
         }
-        return "�"
+        return "?"
     }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
@@ -1995,14 +2052,6 @@ public func kk_string_isNullOrEmpty_flat(
         byteCount: byteCount,
         hash: hash
     )
-    return str.isEmpty ? 1 : 0
-}
-
-@_cdecl("kk_string_isNullOrEmpty")
-public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
-    guard let str = runtimeStringFromRaw(strRaw) else {
-        return 1
-    }
     return str.isEmpty ? 1 : 0
 }
 

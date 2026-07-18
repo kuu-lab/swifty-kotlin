@@ -285,36 +285,19 @@ extension CallTypeChecker {
                 }()
                 if let chosen = sema.symbols.lookupAll(fqName: functionFQName).first(where: { candidate in
                     guard let signature = sema.symbols.functionSignature(for: candidate),
-                          signature.receiverType == receiverTypeForCheck
-                    else {
+                          signature.receiverType == receiverTypeForCheck,
+                          args.count <= signature.parameterTypes.count
+                    else { return false }
+                    if args.count < signature.parameterTypes.count,
+                       !signature.valueParameterHasDefaultValues.dropFirst(args.count).allSatisfy({ $0 }) {
                         return false
                     }
-                    guard args.count <= signature.parameterTypes.count else {
-                        return false
-                    }
-                    if args.count < signature.parameterTypes.count {
-                        let remainingDefaults = signature.valueParameterHasDefaultValues.dropFirst(args.count)
-                        guard remainingDefaults.allSatisfy({ $0 }) else {
-                            return false
-                        }
-                    }
-                    if args.count == 1,
-                       let expectedType = hexFormatType,
-                       signature.parameterTypes.first != expectedType
-                    {
-                        return false
-                    }
-                    return true
+                    return args.isEmpty || signature.parameterTypes.first == hexFormatType
                 }) {
-                    if args.count == 1, let expectedType = hexFormatType {
-                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                    if args.count == 1, let hexFormatType {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: hexFormatType)
                     }
-                    driver.helpers.checkOptIn(
-                        for: chosen,
-                        ctx: ctx,
-                        range: range,
-                        diagnostics: ctx.semaCtx.diagnostics
-                    )
+                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
                     let returnType = bindCallAndResolveReturnType(
                         id,
                         chosen: chosen,
@@ -326,9 +309,8 @@ extension CallTypeChecker {
                         ),
                         sema: sema
                     )
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
+                    sema.bindings.bindExprType(id, type: safeCall ? sema.types.makeNullable(returnType) : returnType)
+                    return safeCall ? sema.types.makeNullable(returnType) : returnType
                 }
             }
         }
@@ -1733,6 +1715,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType
@@ -1872,7 +1855,7 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             case "await":
-                let resultType = sema.types.nullableAnyType
+                let resultType = deferredAwaitResultType(receiverID: receiverID, fallback: sema.types.nullableAnyType, ast: ast, sema: sema)
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -1947,6 +1930,7 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             expectedType: expectedType,
+            admitNominalIterableReceiver: true,
             locals: &locals
         ) {
             return fallbackType

@@ -6,7 +6,8 @@ extension MemberLowerer {
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext? = nil
+        compilationCtx: CompilationContext? = nil,
+        isInterfaceContext: Bool = false
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         lowerMemberDecls(
             memberFunctions: memberFunctions,
@@ -18,7 +19,8 @@ extension MemberLowerer {
             arena: shared.arena,
             interner: shared.interner,
             propertyConstantInitializers: shared.propertyConstantInitializers,
-            compilationCtx: compilationCtx
+            compilationCtx: compilationCtx,
+            isInterfaceContext: isInterfaceContext
         )
     }
 
@@ -119,7 +121,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [],
+                    ) : [delegateHandleExprID],
                     result: resultExprID,
                     canThrow: notNullThrows,
                     thrownResult: thrownExprID
@@ -153,7 +155,7 @@ extension MemberLowerer {
                         arena: arena,
                         interner: interner,
                         body: &body
-                    ) : [valueExprID],
+                    ) : [delegateHandleExprID, valueExprID],
                     result: resultExprID,
                     canThrow: false,
                     thrownResult: nil
@@ -314,12 +316,8 @@ extension MemberLowerer {
         case .getter:
             returnType = propertyType
             accessorName = interner.intern("get")
-            // Map the backing field symbol so `field` references in the getter
-            // resolve to a backing field access expression.
-            if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
-                let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
-                driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
-            }
+            // Keep `field` bound to its backing-field symbol so ExprLowerer can
+            // resolve it through the active receiver's instance layout.
         case .setter:
             returnType = sema.types.unitType
             accessorName = interner.intern("set")
@@ -332,12 +330,8 @@ extension MemberLowerer {
             // and the backing field symbol.
             let semaSetterValueSymbol = SyntheticSymbolScheme.semaSetterValueSymbol(for: propertySymbol)
             driver.ctx.setLocalValue(valueExprID, for: semaSetterValueSymbol)
-            // Map the backing field symbol so `field` references in the setter
-            // resolve to backing field storage, not the value parameter.
-            if let backingFieldSym = sema.symbols.backingFieldSymbol(for: propertySymbol) {
-                let bfExprID = arena.appendExpr(.symbolRef(backingFieldSym), type: propertyType)
-                driver.ctx.setLocalValue(bfExprID, for: backingFieldSym)
-            }
+            // Keep `field` bound to its backing-field symbol so ExprLowerer can
+            // resolve it through the active receiver's instance layout.
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]

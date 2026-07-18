@@ -79,8 +79,8 @@ private let kkUuidLexicalOrderComparator: @convention(c) (
     guard let lhs = runtimeUuidBox(from: lhsRaw),
           let rhs = runtimeUuidBox(from: rhsRaw)
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: Uuid.LEXICAL_ORDER.compare expected Uuid arguments"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Uuid.LEXICAL_ORDER.compare expected Uuid arguments"
         )
         return 0
     }
@@ -105,6 +105,9 @@ private func runtimeCompareUuidLexically(_ lhs: RuntimeUuidBox, _ rhs: RuntimeUu
 public func __kk_uuid_lexicalOrder() -> Int {
     let raw = registerRuntimeObject(RuntimeUuidLexicalOrderComparatorBox())
     _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self))
+    // Needed for itableDynamic dispatch (e.g. `sortedWith(Uuid.lexicalOrder())`)
+    // — see the identical Comparator gap fixed in RuntimeComparator.swift.
+    _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID("kotlin.Comparator")), 0)
     return raw
 }
 
@@ -230,7 +233,6 @@ public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
 
 // Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
 // object shape (object header slots plus most/least significant bits).
-@_cdecl("kk_uuid_toKotlinUuid")
 func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     guard let box = runtimeUuidBox(from: receiver) else {
         return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
@@ -241,9 +243,15 @@ func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     )
 }
 
+// Keep the private bridge name used by the Kotlin source implementation and
+// ABI inventory while retaining the public compatibility entry point above.
+@_cdecl("__kk_uuid_toKotlinUuid")
+func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+    kk_uuid_toKotlinUuid(receiver)
+}
+
 // MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
 
-@_cdecl("kk_byteArray_putUuid")
 public func kk_byteArray_putUuid(
     _ arrayRaw: Int,
     _ at: Int,
@@ -255,29 +263,29 @@ public func kk_byteArray_putUuid(
     guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
           let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) is out of bounds for array of size 0"
         )
         return 0
     }
 
     let size = arrayBox.elements.count
     if at < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) < 0"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) < 0"
         )
         return 0
     }
     if at + 16 > size {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) + 16 > size (\(size))"
         )
         return 0
     }
 
     guard let uuidBox = runtimeUuidBox(from: uuidRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: uuid must not be null"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "uuid must not be null"
         )
         return 0
     }
@@ -291,7 +299,6 @@ public func kk_byteArray_putUuid(
 
 // MARK: - ByteArray.uuid(at: Int): Uuid
 
-@_cdecl("kk_byteArray_uuid")
 public func kk_byteArray_uuid(
     _ arrayRaw: Int,
     _ at: Int,
@@ -302,22 +309,22 @@ public func kk_byteArray_uuid(
     guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
           let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) is out of bounds for array of size 0"
         )
         return 0
     }
 
     let size = arrayBox.elements.count
     if at < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) < 0"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) < 0"
         )
         return 0
     }
     if at + 16 > size {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "at (\(at)) + 16 > size (\(size))"
         )
         return 0
     }
@@ -341,23 +348,22 @@ public func kk_byteArray_uuid(
 
 /// Read a UUID from 16 bytes at [offset, offset+16) of the ByteArray.
 /// Throws IndexOutOfBoundsException when offset < 0 or offset + 16 > size.
-@_cdecl("kk_uuid_getUuid")
 public func kk_uuid_getUuid(_ arrayRaw: Int, _ offset: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
 
     guard let ptr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
           let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: offset out of bounds for empty reference"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "offset out of bounds for empty reference"
         )
         return 0
     }
 
     let size = arrayBox.elements.count
     guard offset >= 0, offset + 16 <= size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: offset \(offset) out of bounds for array of size \(size)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "offset \(offset) out of bounds for array of size \(size)"
         )
         return 0
     }

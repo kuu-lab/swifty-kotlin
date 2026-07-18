@@ -134,7 +134,15 @@ enum RuntimeTypeCheckToken {
         case .primitive(.char, _):      category = .char
         case .unit:                     category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
-        case let .classType(classType): category = .nominal(classType.classSymbol)
+        case let .classType(classType):
+            // Value classes (boxed or not) are checked by nominal identity,
+            // not by their underlying representation: kk_tag_value_class_box
+            // (see emitBoxCallWithValueClassTag) tags a value class's boxed
+            // primitive with its own stable nominal type ID at every
+            // reference-type boundary, so `is`/`as`/`KClass.isInstance`
+            // against the value class name can match that tag directly —
+            // the same way a plain nominal class/interface check does.
+            category = .nominal(classType.classSymbol)
         default:                        category = .unknown
         }
         return RuntimeTypeDescriptor(category: category, nullable: nullable)
@@ -268,7 +276,16 @@ enum RuntimeTypeCheckToken {
     }
 
     static func stableNominalTypeID(symbol: SymbolID, sema: SemaModule, interner: StringInterner) -> Int64 {
-        guard let semanticSymbol = sema.symbols.symbol(symbol) else {
+        stableNominalTypeID(symbol: symbol, symbols: sema.symbols, interner: interner)
+    }
+
+    /// Same computation as the `sema:`-based overload, for lowering passes
+    /// (e.g. ABILoweringPass) that only have a `SymbolTable` in scope. Keep
+    /// the hash formula identical to Runtime's `runtimeStableNominalTypeID`
+    /// so a value class's box-time tag (kk_tag_value_class_box) always
+    /// matches its check-time payload (kk_op_is).
+    static func stableNominalTypeID(symbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> Int64 {
+        guard let semanticSymbol = symbols.symbol(symbol) else {
             return 0
         }
         let fqName = semanticSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")

@@ -42,8 +42,6 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
 
 private let listClosureBridgeNames = [
     "kk_list_distinctBy",
-    "kk_list_filterIndexed",
-    "kk_list_filterNot",
     "kk_list_maxOf",
     "kk_list_maxWith",
     "kk_list_maxWithOrNull",
@@ -368,7 +366,6 @@ public extension RuntimeABISpec {
     static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
             bridgeSpec("kk_duration_div_int", section: "Duration", params: ["durationRaw", "scale"]),
-            bridgeSpec("kk_duration_isFinite", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_duration_isInfinite", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_duration_isNegative", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_duration_isPositive", section: "Duration", params: ["durationRaw"]),
@@ -476,6 +473,7 @@ public extension RuntimeABISpec {
 
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [
         bridgeSpec("kk_itable_lookup", section: "Delegate", params: ["receiver", "ifaceSlot", "methodSlot"]),
+        bridgeSpec("kk_itable_lookup_dynamic", section: "Delegate", params: ["receiver", "interfaceTypeID", "methodSlot"]),
         bridgeSpec("kk_vtable_lookup", section: "Delegate", params: ["receiver", "slot"]),
     ]
 

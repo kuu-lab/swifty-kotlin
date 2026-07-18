@@ -17,6 +17,13 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         expectedType: TypeID? = nil,
+        // Only set by call sites reached when ordinary symbol lookup already
+        // found zero candidates (see CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift).
+        // Call sites reached while real overload candidates exist (e.g.
+        // Iterable.reduceRightIndexed, which is a registered symbol) must NOT
+        // set this, or this fallback would short-circuit ahead of the normal
+        // overload resolver for members it does not model precisely.
+        admitNominalIterableReceiver: Bool = false,
         locals: inout LocalBindings
     ) -> TypeID? {
         let sema = ctx.sema
@@ -79,12 +86,30 @@ extension CallTypeChecker {
             && receiverClassification.isIterableReceiver
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
+        // A receiver whose static type is nominally `Iterable<T>` (e.g. a local
+        // variable explicitly typed `Iterable<T>`, or a function parameter typed
+        // `Iterable<T>`) but isn't otherwise recognized as collection/sequence-like
+        // must still be admitted when ordinary symbol lookup found no candidates at
+        // all (isCollectionReceiver/isSequenceReceiver rely on either a concrete
+        // List/Set/Map/Sequence type or the isCollectionExpr propagation heuristic,
+        // which only fires for a fixed set of collection-factory call forms like
+        // listOf(...), not arbitrary functions returning List<T>). Restricted to the
+        // no-candidates case so members already resolved as real Iterable-owned
+        // symbols (e.g. Iterable.reduceRightIndexed) keep going through the normal
+        // overload resolver instead of this fallback's approximate typing.
+        let admitIterableReceiver = admitNominalIterableReceiver && receiverClassification.isIterableReceiver
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionReceiver
                 || isSequenceReceiver
+                // Array factories intentionally stay out of the generic
+                // collection-expression marker so List-only extensions do not
+                // receive an Array runtime representation. Keep the safe
+                // conversion members available from their static Array type.
+                || (isArrayReceiver && (memberName == "asSequence" || memberName == "asIterable" || memberName == "joinToString"))
+                || admitIterableReceiver
                 || isIterableWindowedTransformCall
                 || isIterableChunkedTransformCall
                 || isIterableFirstNotNullOfCall
@@ -266,7 +291,83 @@ extension CallTypeChecker {
             return true
         }()
 
+        let didBindListZipSource: Bool = {
+            guard memberName == "zip",
+                  !args.isEmpty,
+                  !isSequenceReceiver,
+                  isCollectionReceiver
+            else {
+                return false
+            }
+            let otherType = sema.bindings.exprTypes[args[0].expr]
+                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let otherElementType: TypeID
+            if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+               let firstArg = otherClassType.args.first
+            {
+                otherElementType = switch firstArg {
+                case let .invariant(t), let .out(t), let .in(t): t
+                case .star: sema.types.anyType
+                }
+            } else {
+                otherElementType = sema.types.anyType
+            }
+            let typeArguments: [TypeID]
+            if args.count >= 2,
+               let transformType = sema.bindings.exprTypes[args[1].expr],
+               case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType))
+            {
+                typeArguments = [receiverElementType, otherElementType, fnType.returnType]
+            } else if args.count >= 2 {
+                typeArguments = [receiverElementType, otherElementType, sema.types.anyType]
+            } else {
+                typeArguments = [receiverElementType, otherElementType]
+            }
+
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner) {
+                    return true
+                }
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }()
+
         if !didBindListFilterNotNullSource,
+           !didBindListZipSource,
            let fallbackCallee = resolveCollectionFallbackCallee(
             memberName: calleeName,
             receiverID: receiverID,
@@ -492,10 +593,15 @@ extension CallTypeChecker {
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
-        guard let root = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types) else {
+        let roots = driver.helpers.allNominalSymbols(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard !roots.isEmpty else {
             return nil
         }
-        var queue: [SymbolID] = [root]
+        var queue: [SymbolID] = roots
         var visited: Set<SymbolID> = []
         while !queue.isEmpty {
             let owner = queue.removeFirst()
@@ -575,22 +681,6 @@ extension CallTypeChecker {
                     return comparatorMatch
                 }
             }
-            if memberName == interner.intern("nextInt"),
-               argCount == 1,
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_until" }),
-               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_random_nextInt_rangeObject" }),
-               let firstArgExpr = argExprs.first
-            {
-                let firstArgType = sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType
-                let isIntRangeArg = sema.bindings.isRangeExpr(firstArgExpr)
-                    || nominalRangeElementType(for: firstArgType, sema: sema, interner: interner) == sema.types.intType
-                let targetLinkName = isIntRangeArg ? "kk_random_nextInt_rangeObject" : "kk_random_nextInt_until"
-                if let match = allCandidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == targetLinkName
-                }) {
-                    return match
-                }
-            }
             if memberName == interner.intern("addAll"),
                argCount == 1,
                let firstArgExpr = argExprs.first,
@@ -646,34 +736,48 @@ extension CallTypeChecker {
         } else {
             false
         }
+        func hasFunctionTypedLastParam(_ candidate: SymbolID) -> Bool {
+            guard let sig = sema.symbols.functionSignature(for: candidate),
+                  let lastParamType = sig.parameterTypes.last
+            else {
+                return false
+            }
+            switch sema.types.kind(of: sema.types.makeNonNullable(lastParamType)) {
+            case .functionType:
+                return true
+            default:
+                return false
+            }
+        }
         if lastArgIsFunctionLike,
            let lambdaMatch = allCandidates.first(where: { candidate in
                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-               guard sig.parameterTypes.count == argCount,
-                     let lastParamType = sig.parameterTypes.last
-               else {
-                   return false
-               }
-               switch sema.types.kind(of: sema.types.makeNonNullable(lastParamType)) {
-               case .functionType:
-                   return true
-               default:
-                   return false
-               }
+               guard sig.parameterTypes.count == argCount else { return false }
+               return hasFunctionTypedLastParam(candidate)
            }) {
             return lambdaMatch
         }
+        // When the call site has no trailing lambda, an overload whose last parameter
+        // is a function type (e.g. a `joinToString(..., transform)` HOF overload) can
+        // never be the intended target. Excluding those candidates here prevents the
+        // arity-only matching below from misrouting a plain call — e.g.
+        // `joinToString(prefix = "<", postfix = ">")` (2 args, no lambda) must resolve
+        // to the 3-param `(separator, prefix, postfix)` overload, not to a same-arity
+        // `(separator, transform)` HOF overload registered for a different call shape.
+        let arityCandidates = lastArgIsFunctionLike
+            ? allCandidates
+            : allCandidates.filter { !hasFunctionTypedLastParam($0) }
         // Prefer the overload whose parameter count matches the call-site
         // argument count so that e.g. windowed(3, 2, true) resolves to the
         // 3-param overload (kk_list_windowed_partial) instead of the 2-param
         // one (kk_list_windowed).
-        if let exactMatch = allCandidates.first(where: { candidate in
+        if let exactMatch = arityCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount
         }) {
             return exactMatch
         }
-        if let first = allCandidates.first {
+        if let first = arityCandidates.first {
             return first
         }
         queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
@@ -786,7 +890,6 @@ extension CallTypeChecker {
         let collectionMembers: Set = [
             knownNames.size,
             knownNames.isEmpty,
-            interner.intern("get"),
             interner.intern("contains"),
             interner.intern("containsAll"),
             interner.intern("first"),
@@ -797,6 +900,7 @@ extension CallTypeChecker {
             interner.intern("indexOfLast"),
             interner.intern("count"),
             interner.intern("iterator"),
+            interner.intern("filter"),
             interner.intern("filterNotNull"),
             interner.intern("filterIsInstanceTo"),
             interner.intern("filterNotNullTo"),
@@ -874,6 +978,7 @@ extension CallTypeChecker {
             interner.intern("minusElement"),
         ]
         let listOnlyMembers: Set = [
+            interner.intern("get"),
             interner.intern("subList"),
             interner.intern("slice"),
             interner.intern("getOrNull"),
@@ -933,6 +1038,7 @@ extension CallTypeChecker {
         if mutableCollectionMembers.contains(memberName) {
             return isMutableListReceiver
                 || isMutableSetReceiver
+                || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                 || (
                     memberName == interner.intern("addAll")
                         && isMutableCollectionReceiver
@@ -974,6 +1080,7 @@ extension CallTypeChecker {
 
         let collectionReturningMembers: Set = [
             interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("filterNotNull"), interner.intern("requireNoNulls"),
+            interner.intern("filter"),
             interner.intern("filterIsInstanceTo"), interner.intern("reduceTo"),
             interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"),
@@ -1046,8 +1153,10 @@ extension CallTypeChecker {
              interner.intern("toMutableList"), interner.intern("sum"), interner.intern("average"),
              interner.intern("requireNoNulls"):
             return argCount == 0
+        case interner.intern("filter"):
+            return argCount == 1
         case interner.intern("joinToString"):
-            return (0 ... 3).contains(argCount)
+            return (0 ... 4).contains(argCount)
         case interner.intern("shuffled"):
             return argCount == 0 || argCount == 1
         case interner.intern("filterNotNull"), interner.intern("unzip"), interner.intern("eachCount"):
@@ -1092,6 +1201,7 @@ extension CallTypeChecker {
             return (
                 isMutableListReceiver
                     || isMutableSetReceiver
+                    || (memberName == interner.intern("add") && isMutableCollectionReceiver)
                     || (
                         memberName == interner.intern("addAll")
                             && isMutableCollectionReceiver
@@ -1284,6 +1394,14 @@ extension CallTypeChecker {
             interner: interner
            ) {
             return resultType
+        }
+        if memberName == interner.intern("filter") {
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
         }
         let intReturningMembers: Set = [
             interner.intern("size"),
@@ -1551,9 +1669,18 @@ extension CallTypeChecker {
                     interner.intern("collections"),
                     interner.intern("Map"),
                 ]) {
+                    // Map.Entry<out K, out V> declares K covariantly, but the enclosing
+                    // Map<K, V> declares K invariant. Reusing keyArg's `.out` projection
+                    // as-is here would make this reconstructed type a strict supertype of
+                    // Map<K, V>, which callers expecting the exact type (e.g. a data class
+                    // copy() parameter) would then reject. Project K back to `.invariant`.
+                    let keyType: TypeID = switch keyArg {
+                    case let .invariant(t), let .out(t), let .in(t): t
+                    case .star: sema.types.anyType
+                    }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: mapSymbol,
-                        args: [keyArg, valueArg],
+                        args: [.invariant(keyType), valueArg],
                         nullability: .nonNull
                     )))
                 }
@@ -2291,6 +2418,7 @@ extension CallTypeChecker {
             return surfaceExpectation
         }
         let boolOneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("count"),
             interner.intern("first"),
             interner.intern("last"),
@@ -2302,6 +2430,7 @@ extension CallTypeChecker {
         ]
         let knownNames = KnownCompilerNames(interner: interner)
         let oneParamMembers: Set = [
+            interner.intern("filter"),
             interner.intern("sortedBy"),
             interner.intern("count"),
             interner.intern("first"),
@@ -2459,6 +2588,27 @@ extension CallTypeChecker {
                 }
                 let expectedType = sema.types.make(.functionType(FunctionType(
                     params: [listType],
+                    returnType: sema.types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                return (argumentIndex: argCount - 1, expectedType: expectedType)
+            }
+        }
+
+        // joinToString(separator?, prefix?, postfix?, transform): transform receives the
+        // element and returns a CharSequence (modeled loosely as Any, like chunked/windowed
+        // above); it is always the trailing argument when the call site supplies one.
+        if memberName == interner.intern("joinToString"), (1...4).contains(argCount) {
+            let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
+                                                 let lastExprNode = ctx.ast.arena.expr(lastExpr) {
+                lastExprNode.isLambdaOrCallableRef
+            } else {
+                false
+            }
+            if lastArgIsFunctionLike {
+                let expectedType = sema.types.make(.functionType(FunctionType(
+                    params: [receiverElementType],
                     returnType: sema.types.anyType,
                     isSuspend: false,
                     nullability: .nonNull
@@ -2686,11 +2836,46 @@ extension CallTypeChecker {
         return nil
     }
 
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule,
+        visitedTypeParams: inout Set<SymbolID>
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        let nonNullType = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNullType) {
+        case let .classType(classType):
+            guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                return []
+            }
+            return [(classType, symbol)]
+        case let .intersection(parts):
+            return parts.flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        case let .typeParam(typeParam):
+            guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                return []
+            }
+            return sema.symbols.typeParameterUpperBounds(for: typeParam.symbol).flatMap {
+                collectionFallbackClassTypes($0, sema: sema, visitedTypeParams: &visitedTypeParams)
+            }
+        default:
+            return []
+        }
+    }
+
+    private func collectionFallbackClassTypes(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> [(classType: ClassType, symbol: SemanticSymbol)] {
+        var visitedTypeParams: Set<SymbolID> = []
+        return collectionFallbackClassTypes(type, sema: sema, visitedTypeParams: &visitedTypeParams)
+    }
+
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-        else {
+        guard let (classType, symbol) = collectionFallbackClassTypes(receiverType, sema: sema).first else {
             return sema.types.anyType
         }
         if knownNames.isMapLikeSymbol(symbol),

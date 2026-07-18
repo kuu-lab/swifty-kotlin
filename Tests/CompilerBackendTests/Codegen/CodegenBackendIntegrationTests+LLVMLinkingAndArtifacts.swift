@@ -341,7 +341,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatIfBlankEmptyRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendDoesNotEmitLegacyIfBlankEmptyRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
             val blank = "   "
@@ -366,8 +366,8 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertFalse(ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
             XCTAssertFalse(ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
-            XCTAssertTrue(ir.contains("@kk_string_ifBlank_flat"), "Missing flat String ifBlank call")
-            XCTAssertTrue(ir.contains("@kk_string_ifEmpty_flat"), "Missing flat String ifEmpty call")
+            XCTAssertFalse(ir.contains("@kk_string_ifBlank_flat"), "Unexpected flat String ifBlank call after KSP-401")
+            XCTAssertFalse(ir.contains("@kk_string_ifEmpty_flat"), "Unexpected flat String ifEmpty call after KSP-401")
         }
     }
 
@@ -534,10 +534,13 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatTrimPredicateRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendEmitsKotlinTrimCallsWithoutRuntimeTrimABI() throws {
         let source = """
         fun main() {
             val value = "xxbodyxx"
+            println(value.trim())
+            println(value.trimStart())
+            println(value.trimEnd())
             println(value.trim { it == 'x' })
             println(value.trimStart { it == 'x' })
             println(value.trimEnd { it == 'x' })
@@ -558,13 +561,26 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let rawNames = [
+                "kk_string_trim",
+                "kk_string_trimStart",
+                "kk_string_trimEnd",
                 "kk_string_trim_predicate",
                 "kk_string_trimStart_predicate",
                 "kk_string_trimEnd_predicate",
             ]
             for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim predicate call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String trim predicate call: \(rawName)_flat")
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
+            }
+            let flatNames = [
+                "kk_string_trim_flat",
+                "kk_string_trimStart_flat",
+                "kk_string_trimEnd_flat",
+                "kk_string_trim_predicate_flat",
+                "kk_string_trimStart_predicate_flat",
+                "kk_string_trimEnd_predicate_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertFalse(ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
             }
         }
     }
@@ -964,19 +980,19 @@ extension CodegenBackendIntegrationTests {
         appendParsingCall("kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
         appendParsingCall("kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
         appendParsingCall("kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
-        appendParsingCall("kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
-        appendParsingCall("kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
+        appendParsingCall("__kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
+        appendParsingCall("__kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
         appendParsingCall("kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
         appendParsingCall("kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
-        appendParsingCall("kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
-        appendParsingCall("kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
+        appendParsingCall("__kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
+        appendParsingCall("__kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
         appendParsingCall("kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
         appendParsingCall("kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("__kk_string_toBigInteger_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToUByte_flat", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
@@ -1027,19 +1043,19 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toUShortOrNull_radix",
             "kk_string_toUIntOrNull_radix",
             "kk_string_toULongOrNull_radix",
-            "kk_string_toDouble",
-            "kk_string_toDoubleOrNull",
+            "__kk_string_toDouble",
+            "__kk_string_toDoubleOrNull",
             "kk_string_toLong",
             "kk_string_toLongOrNull",
-            "kk_string_toFloat",
-            "kk_string_toFloatOrNull",
+            "__kk_string_toFloat",
+            "__kk_string_toFloatOrNull",
             "kk_string_toShort",
             "kk_string_toShortOrNull",
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
-            "kk_string_toBigDecimal",
-            "kk_string_toBigInteger",
+            "__kk_string_toBigDecimal",
+            "__kk_string_toBigInteger",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
@@ -1977,11 +1993,11 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendByteArrayCall("kk_string_toByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_toByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_flat", [textExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
+        appendByteArrayCall("__kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
         appendByteArrayCall("kk_string_byteInputStream_flat", [textExpr])
         appendByteArrayCall("kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
@@ -2013,16 +2029,16 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_toByteArray",
-            "kk_string_toByteArray_charset",
-            "kk_string_encodeToByteArray",
-            "kk_string_encodeToByteArray_range",
-            "kk_string_encodeToByteArray_charset",
+        let flatPrefixes = [
+            "kk_string_toByteArray": "__kk_string_toByteArray_flat",
+            "kk_string_toByteArray_charset": "__kk_string_toByteArray_charset_flat",
+            "kk_string_encodeToByteArray": "__kk_string_encodeToByteArray_flat",
+            "kk_string_encodeToByteArray_range": "__kk_string_encodeToByteArray_range_flat",
+            "kk_string_encodeToByteArray_charset": "__kk_string_encodeToByteArray_charset_flat",
         ]
-        for rawName in rawNames {
+        for (rawName, flatName) in flatPrefixes {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String byte-array call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
         }
         let removedRawStringStreamNames = ["", "_charset"].map {
             ["kk", "string", "byteInputStream"].joined(separator: "_") + $0

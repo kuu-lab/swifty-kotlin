@@ -4,7 +4,60 @@ import Foundation
 import XCTest
 
 // STDLIB-033: kotlin.concurrent / kotlin.concurrent.atomics parity edge cases
-extension CodegenBackendIntegrationTests {
+/// Keeps the large atomic edge-case suite out of the monolithic XCTest
+/// discovery expression generated for CodegenBackendIntegrationTests.
+class CodegenExtendedEdgeCaseTestCase: XCTestCase {
+    func runCodegenPipeline(
+        inputPath: String,
+        moduleName: String,
+        emit: EmitMode,
+        outputPath: String
+    ) throws -> CompilationContext {
+        let options = CompilerOptions(
+            moduleName: moduleName,
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: emit,
+            target: defaultTargetTriple()
+        )
+        let ctx = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+        return ctx
+    }
+
+    func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, expected, file: file, line: line)
+        }
+    }
+}
+
+final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
 
     func testCodegenAtomicIntCASSuccessReturnsTrueAndUpdatesValue() throws {
         let source = """
@@ -34,6 +87,21 @@ extension CodegenBackendIntegrationTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntAsJavaAtomic", expected: "ok\n")
+    }
+
+    func testCodegenJavaAtomicIntegerDirectConstruction() throws {
+        let source = """
+        import java.util.concurrent.atomic.AtomicInteger
+
+        fun main() {
+            val counter = AtomicInteger(0)
+            counter.incrementAndGet()
+            counter.incrementAndGet()
+            counter.addAndGet(3)
+            println(counter.get())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "JavaAtomicIntegerDirectConstruction", expected: "5\n")
     }
 
     func testCodegenAtomicIntCASFailureReturnsFalseAndLeavesValue() throws {
@@ -1247,5 +1315,31 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBStore", expected: "caught\n")
     }
-}
 
+    func testCodegenAtomicArrayOfBoxesPrimitiveElementsForIsChecks() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.atomicArrayOf
+
+        fun main() {
+            val mixed = atomicArrayOf<Any>(1.5, "x", 2.5, 7L, true)
+            for (i in 0 until mixed.size) {
+                val v = mixed.loadAt(i)
+                println("${v is Double} ${v is Long} ${v is Boolean} ${v is String}")
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "AtomicArrayOfBoxesPrimitives",
+            expected:
+                """
+                true false false false
+                false false false true
+                true false false false
+                false true false false
+                false false true false
+                """ + "\n"
+        )
+    }
+}

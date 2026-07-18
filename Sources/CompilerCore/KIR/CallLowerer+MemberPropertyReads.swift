@@ -63,7 +63,7 @@ extension CallLowerer {
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets
         {
-            let runtimeCallee = interner.intern("kk_charset_\(interner.resolve(info.name).lowercased())")
+            let runtimeCallee = interner.intern("__kk_charset_\(interner.resolve(info.name).lowercased())")
             let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
@@ -142,8 +142,19 @@ extension CallLowerer {
             return result
         }
 
+        // Object-literal properties don't currently get a dedicated backing-field
+        // symbol from ExprTypeChecker+ObjectLiteralInference.swift's header
+        // collection (unlike ordinary class members), so `backingFieldSymbol(for:)`
+        // is always nil here today and this falls back to `propertySymbol`
+        // unchanged. Kept for consistency with every other field-offset lookup
+        // in the codebase (CallLowerer+MemberAssignment.swift,
+        // tryLowerStoredMemberPropertyRead, the lateinit branch in
+        // KIRLoweringDriver+...+ConstructorsAndInitializers.swift) so this
+        // doesn't silently break if object literals ever gain backing fields.
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[propertySymbol]
+              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                  sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+              ]
         else {
             return nil
         }
@@ -180,11 +191,18 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // `object` member properties never reach this point: they're always
+        // intercepted earlier by `tryLowerObjectMemberPropertyRead`, which
+        // reads them from their global slot via `loadGlobal` (mirroring how
+        // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
+        // Restricting this guard to `.class`/`.interface` keeps the read and
+        // write sides symmetric instead of relying on call-order to keep a
+        // dead `.object` field-offset arm harmless.
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+              ownerInfo.kind == .class || ownerInfo.kind == .interface
         else {
             return nil
         }
@@ -204,7 +222,7 @@ extension CallLowerer {
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
@@ -389,27 +407,62 @@ extension CallLowerer {
         return false
     }
 
+    /// Mirrors `memberPropertyUsesAccessor` for the write side: true when the
+    /// property has a custom setter body that assignment must route through,
+    /// rather than writing the backing storage directly. Delegated properties
+    /// are deliberately excluded — their write dispatch already goes through
+    /// the existing chosenCallee-based fallback below, which this helper does
+    /// not need to (and should not) alter.
+    func memberPropertyHasCustomSetterBody(
+        _ propertySymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        for rawDecl in ast.arena.decls.indices {
+            let declID = DeclID(rawValue: Int32(rawDecl))
+            guard sema.bindings.declSymbols[declID] == propertySymbol,
+                  let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if let setter = propertyDecl.setter {
+                return setter.body != .unit
+            }
+            return false
+        }
+        return false
+    }
+
     func tryLowerClassNameMemberValueExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
         args: [CallArgument],
-        ast: ASTModule,
+        ast _: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The receiver may itself be a qualified member-access chain (e.g. the
+        // `Base64.PaddingOption` prefix of `Base64.PaddingOption.ABSENT`, where
+        // `PaddingOption` is nested inside `Base64`), not just a bare name
+        // reference. `identifierSymbol` already carries the resolved nominal
+        // type regardless of the receiver expression's AST shape.
         guard args.isEmpty,
-              sema.bindings.callBindings[exprID] == nil,
-              let receiverExprNode = ast.arena.expr(receiverExpr),
-              case .nameRef = receiverExprNode,
               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr),
-              let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
+              let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
+              receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass
         else {
             return nil
         }
-        guard receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass,
-              let valueSymbolID = sema.bindings.identifierSymbol(for: exprID),
-              let valueSymbol = sema.symbols.symbol(valueSymbolID)
+        // A qualified static member (enum entry, nested object, const val) is
+        // sometimes bound via `identifierSymbol` and sometimes via a 0-arg
+        // `CallBinding` (the same resolution path ordinary property reads use)
+        // depending on how the type checker resolved the member — both carry
+        // the same target symbol, so accept either.
+        guard let valueSymbolID = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+            let valueSymbol = sema.symbols.symbol(valueSymbolID)
         else {
             return nil
         }

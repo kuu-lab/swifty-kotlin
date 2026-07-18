@@ -2,7 +2,7 @@
 /// Synthetic stdlib stubs for java.math.BigInteger (STDLIB-NUM-129).
 /// Registers the BigInteger class, companion factory method (valueOf),
 /// constructor (String), and instance methods (add, subtract, multiply,
-/// divide, gcd, abs, pow, toInt, toLong, toString).
+/// divide, gcd, abs, pow, toInt, toLong).
 extension DataFlowSemaPhase {
     func registerSyntheticBigIntegerStubs(
         symbols: SymbolTable,
@@ -198,18 +198,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // toString() -> String
-        registerBigIntegerInstanceMethod(
-            named: "toString",
-            externalLinkName: "kk_biginteger_toString",
-            returnType: stringType,
-            parameters: [],
-            ownerSymbol: bigIntegerSymbol,
-            ownerType: bigIntegerType,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- Bitwise and shift operations (kotlin stdlib extension functions, STDLIB-GAP-PH1) ---
 
         // infix fun BigInteger.or(other: BigInteger): BigInteger
@@ -268,6 +256,48 @@ extension DataFlowSemaPhase {
             parameters: [("n", intType)],
             returnType: bigIntegerType,
             packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- Raw java.math.BigInteger instance methods (STDLIB-NUM-129) ---
+        // The Kotlin idioms above (inv/shl/shr) wrap these but do not shadow
+        // them: real Kotlin/JVM code can also call the underlying Java method
+        // names directly (a.not(), a.shiftLeft(n), a.shiftRight(n)), so they
+        // must be registered as instance methods on BigInteger itself.
+
+        // not() -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "not",
+            externalLinkName: "kk_biginteger_not",
+            returnType: bigIntegerType,
+            parameters: [],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // shiftLeft(n: Int) -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "shiftLeft",
+            externalLinkName: "kk_biginteger_shiftLeft",
+            returnType: bigIntegerType,
+            parameters: [("n", intType)],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // shiftRight(n: Int) -> BigInteger
+        registerBigIntegerInstanceMethod(
+            named: "shiftRight",
+            externalLinkName: "kk_biginteger_shiftRight",
+            returnType: bigIntegerType,
+            parameters: [("n", intType)],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
             symbols: symbols,
             interner: interner
         )

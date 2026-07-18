@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
 import kotlinx.coroutines.*
 
 // TEST-CORO-003: Advanced cancellation — cooperative cancellation via
@@ -43,6 +42,9 @@ fun main() = runBlocking {
             println("finally ran")
         }
     }
+    // Let the child enter its try/finally block before cancellation so this case
+    // compares cleanup semantics instead of depending on a launch scheduling race.
+    delay(1)
     job3.cancel()
     job3.join()
 
@@ -57,6 +59,8 @@ fun main() = runBlocking {
             }
         }
     }
+    // Ensure the child reaches the NonCancellable cleanup block before cancelling it.
+    delay(1)
     job4.cancel()
     job4.join()
 

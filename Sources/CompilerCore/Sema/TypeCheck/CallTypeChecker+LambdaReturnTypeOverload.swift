@@ -40,6 +40,21 @@ extension CallTypeChecker {
                 lambdaLiteralIndices.insert(index)
             case .callableRef:
                 break
+            case .intLiteral:
+                if inferredNonLambdaArgTypes[index] != nil {
+                    continue
+                }
+                // An unsuffixed int literal must see the candidates' parameter
+                // type (e.g. Long) before inference, or it defaults to Int and
+                // every candidate rejects it (`Millis(1500)` with `value: Long`).
+                let literalExpectedType = uniformNumericLiteralParameterType(
+                    at: index,
+                    candidates: candidates,
+                    sema: sema
+                )
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                )
             default:
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
@@ -79,6 +94,8 @@ extension CallTypeChecker {
                     candidates: expectedTypeCandidates,
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: receiverType,
+                    inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                    resolver: ctx.resolver,
                     sema: sema
                 )
                 contextualArgExpectedTypes[index] = expectation.type
@@ -289,6 +306,39 @@ extension CallTypeChecker {
         return ambiguousCallResult(range: range)
     }
 
+    /// Returns the expected numeric type (Long/UInt/ULong) for an unsuffixed
+    /// int-literal argument if every candidate agrees on that parameter being
+    /// one of those types, so the literal can be widened before overload
+    /// resolution instead of defaulting to Int and rejecting every candidate.
+    /// Returns nil (leaving the literal as Int) when candidates disagree or
+    /// none expect a wideable numeric type — the normal Int-literal path and
+    /// existing overload resolution still handle those cases.
+    private func uniformNumericLiteralParameterType(
+        at index: Int,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> TypeID? {
+        var result: TypeID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+            else {
+                return nil
+            }
+            let nonNullParameterType = sema.types.makeNonNullable(parameterType)
+            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType),
+                  primitive == .long || primitive == .uint || primitive == .ulong
+            else {
+                return nil
+            }
+            if let result, result != nonNullParameterType {
+                return nil
+            }
+            result = nonNullParameterType
+        }
+        return result
+    }
+
     private func narrowedCallCandidates(
         candidates: [SymbolID],
         args: [CallArgument],
@@ -400,6 +450,41 @@ extension CallTypeChecker {
         )
     }
 
+    /// Substitutes `parameterType`'s type parameters using bindings inferred
+    /// from the call's non-lambda arguments, which are already type-checked by
+    /// the time a lambda argument's expected type is computed. Without this,
+    /// a generic higher-order function's lambda parameter keeps the raw,
+    /// unsubstituted type parameter as its static type (e.g. `T` instead of
+    /// `Int`), which then fails operator/member resolution inside the lambda
+    /// body even though the type is fully determined by the other arguments.
+    private func applyInferredArgumentTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        resolver: OverloadResolver?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let resolver,
+              !inferredNonLambdaArgTypes.isEmpty,
+              !signature.typeParameterSymbols.isEmpty
+        else {
+            return parameterType
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let substitution = resolver.probeArgumentTypeSubstitution(
+            signature: signature,
+            typeVarBySymbol: typeVarBySymbol,
+            knownArgumentTypes: inferredNonLambdaArgTypes,
+            typeSystem: sema.types
+        )
+        guard !substitution.isEmpty else { return parameterType }
+        return sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
     private func callableReferenceExpectedType(
         at index: Int,
         candidates: [SymbolID],
@@ -453,6 +538,8 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
         // When all candidates share the same input-only HOF link name (e.g. String and
@@ -496,11 +583,18 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 sema: sema
             )
-            let substituted = applyReceiverClassTypeArgs(
+            let receiverSubstituted = applyReceiverClassTypeArgs(
                 to: explicitSubstituted,
                 signature: signature,
                 candidate: candidates[0],
                 receiverType: receiverType,
+                sema: sema
+            )
+            let substituted = applyInferredArgumentTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                resolver: resolver,
                 sema: sema
             )
             return (substituted, false, false)

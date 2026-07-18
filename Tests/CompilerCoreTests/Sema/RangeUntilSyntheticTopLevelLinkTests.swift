@@ -15,12 +15,22 @@ struct RangeUntilSyntheticTopLevelLinkTests {
         return try #require(result)
     }
 
-    private func memberCallExprIDs(named name: String, in ast: ASTModule, interner: StringInterner) -> [ExprID] {
+    private func memberCallExprIDs(
+        named name: String,
+        in ast: ASTModule,
+        interner: StringInterner,
+        sourceManager: SourceManager
+    ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
+                  interner.resolve(callee) == name,
+                  // Exclude bundled stdlib source (e.g. kotlin.random.Random's own
+                  // `until` usage) so this only counts calls from the test's own
+                  // fixture, regardless of how the stdlib itself uses `until`.
+                  let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
             }
@@ -103,7 +113,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let rangeUntilCalls = memberCallExprIDs(named: "rangeUntil", in: ast, interner: interner)
+            let rangeUntilCalls = memberCallExprIDs(named: "rangeUntil", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(rangeUntilCalls.count == 1)
             let rangeUntilCall = try #require(rangeUntilCalls.first)
             let rangeUntilType = try #require(sema.bindings.exprType(for: rangeUntilCall))
@@ -115,7 +125,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
             )
             #expect(sema.bindings.isRangeExpr(rangeUntilCall))
 
-            let endExclusiveCalls = memberCallExprIDs(named: "endExclusive", in: ast, interner: interner)
+            let endExclusiveCalls = memberCallExprIDs(named: "endExclusive", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(endExclusiveCalls.count == 1)
             if let endExclusiveCall = endExclusiveCalls.first {
                 #expect(sema.bindings.exprType(for: endExclusiveCall) == sema.types.intType)
@@ -182,7 +192,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
                 Comment(rawValue: "until calls should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
 
-            let untilCalls = memberCallExprIDs(named: "until", in: ast, interner: interner)
+            let untilCalls = memberCallExprIDs(named: "until", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(untilCalls.count == 5, "Expected five until calls in the sample")
 
             let expectedUntilSignatures: [(receiver: TypeID, parameter: TypeID, returnType: TypeID)] = [
@@ -225,7 +235,7 @@ struct RangeUntilSyntheticTopLevelLinkTests {
                 )
             }
 
-            let countCalls = memberCallExprIDs(named: "count", in: ast, interner: interner)
+            let countCalls = memberCallExprIDs(named: "count", in: ast, interner: interner, sourceManager: ctx.sourceManager)
             #expect(countCalls.count == 5, "Expected five count calls in the sample")
             for (index, countCallID) in countCalls.enumerated() {
                 #expect(

@@ -29,6 +29,23 @@ reuse the existing build products:
 bash Scripts/swift_test.sh --skip-build
 ```
 
+### macOS toolchain requirement (XCTest)
+
+Testing requires a toolchain that ships XCTest: full Xcode on macOS, or any
+Linux Swift toolchain. The macOS **Command Line Tools alone are not enough** —
+with `xcode-select` pointing at them, `swift test` first rejects the
+auto-added `--num-workers` with a misleading `'--num-workers' is only
+supported when testing with XCTest` (independent of `--filter`), and test
+files importing XCTest cannot build at all. `swift_test.sh` probes the active
+toolchain (`xcrun --find xctest`) and fails fast with instructions. Fix
+either way:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app
+# or per-invocation:
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/swift_test.sh ...
+```
+
 ## Runtime ABI link validation
 
 Validate compiler runtime link names against `RuntimeABISpec`:
@@ -190,8 +207,10 @@ bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTe
 
 ## Refactoring guard metrics
 
-`loc_report.sh` emits the metrics used as the RF-series refactor gate
-(see `docs/refactoring-metrics.md` for the tracked baseline):
+`loc_report.sh` emits the metrics used as the RF-series refactor gate,
+including phase-target path counts for Sema/DataFlow, TypeCheck, and legacy
+CallLowerer files (see `docs/refactoring-metrics.md` for the tracked baseline
+and CI artifact name):
 
 ```bash
 bash Scripts/loc_report.sh > after.tsv
@@ -205,3 +224,7 @@ path can emit (see `docs/dead-code-audit.md` for the exclusion pipeline):
 ```bash
 bash Scripts/dead_code_audit.sh --verbose
 ```
+
+The `Quarterly Audits` workflow runs this audit with the fiction audit on the
+first day of January, April, July, and October. Its summary and the intermediate
+audit files are retained as a 90-day GitHub Actions artifact.

@@ -33,7 +33,7 @@ final class RuntimeBigIntegerTests: XCTestCase {
     func testStringToBigIntegerAcceptsSignedDigits() {
         var thrown = 0
         let raw = withFlatString("-12345678901234567890") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "-12345678901234567890")
@@ -42,7 +42,7 @@ final class RuntimeBigIntegerTests: XCTestCase {
     func testStringToBigIntegerAcceptsLeadingPlusAndZeros() {
         var thrown = 0
         let raw = withFlatString("+00012345678901234567890") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
@@ -51,7 +51,7 @@ final class RuntimeBigIntegerTests: XCTestCase {
     func testStringToBigIntegerReturnsBigIntegerBoxUsableByOperations() {
         var thrown = 0
         let lhs = withFlatString("12345678901234567890") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
         let rhs = bigInteger("10")
@@ -62,21 +62,21 @@ final class RuntimeBigIntegerTests: XCTestCase {
     func testStringToBigIntegerRejectsDecimalPoint() {
         var thrown = 0
         _ = withFlatString("12.5") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
+            __kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertNotEqual(thrown, 0)
     }
 
     func testStringToBigIntegerOrNullAcceptsSignedDigits() {
-        let raw = kk_string_toBigIntegerOrNull(runtimeString("+00012345678901234567890"))
+        let raw = __kk_string_toBigIntegerOrNull(runtimeString("+00012345678901234567890"))
         XCTAssertNotEqual(raw, runtimeNullSentinelInt)
         XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
     }
 
     func testStringToBigIntegerOrNullRejectsInvalidInput() {
-        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("12.5")), runtimeNullSentinelInt)
-        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("")), runtimeNullSentinelInt)
-        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString(" 12 ")), runtimeNullSentinelInt)
+        XCTAssertEqual(__kk_string_toBigIntegerOrNull(runtimeString("12.5")), runtimeNullSentinelInt)
+        XCTAssertEqual(__kk_string_toBigIntegerOrNull(runtimeString("")), runtimeNullSentinelInt)
+        XCTAssertEqual(__kk_string_toBigIntegerOrNull(runtimeString(" 12 ")), runtimeNullSentinelInt)
     }
 
     func testBigIntegerAndHandlesPositiveOperands() {
@@ -239,6 +239,48 @@ final class RuntimeBigIntegerTests: XCTestCase {
         let value = bigInteger("-8")
         let result = kk_biginteger_shiftRight(value, 1)
         XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-4")
+    }
+
+    // Regression coverage for a big-endian/little-endian mismatch in the
+    // carry propagation: shiftLeft/shiftRight only exercised single-byte
+    // magnitudes above, which masked the bug (e.g. BigInteger("100").shiftLeft(3)
+    // produced 8195 instead of 800 because the generated carry byte landed on
+    // the wrong side of the big-endian result).
+
+    func testBigIntegerShiftLeftCrossesByteBoundary() {
+        let value = bigInteger("100")
+        let result = kk_biginteger_shiftLeft(value, 3)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "800")
+    }
+
+    func testBigIntegerShiftLeftCrossesByteBoundaryNegative() {
+        let value = bigInteger("-100")
+        let result = kk_biginteger_shiftLeft(value, 3)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-800")
+    }
+
+    func testBigIntegerShiftRightCrossesByteBoundary() {
+        let value = bigInteger("291")
+        let result = kk_biginteger_shiftRight(value, 4)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "18")
+    }
+
+    func testBigIntegerShiftRightCrossesByteBoundaryNegative() {
+        let value = bigInteger("-291")
+        let result = kk_biginteger_shiftRight(value, 4)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-19")
+    }
+
+    func testBigIntegerShiftLeftLargeMagnitude() {
+        let value = bigInteger("12345678901234567890")
+        let result = kk_biginteger_shiftLeft(value, 9)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "6320987597432098759680")
+    }
+
+    func testBigIntegerShiftRightLargeMagnitude() {
+        let value = bigInteger("12345678901234567890")
+        let result = kk_biginteger_shiftRight(value, 9)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "24112654103973765")
     }
 
     func testBigIntegerModInverse() {

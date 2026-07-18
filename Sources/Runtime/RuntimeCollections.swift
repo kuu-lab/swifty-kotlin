@@ -107,7 +107,7 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
             }
         }
     }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
 }
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
@@ -213,6 +213,8 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         list.elements
     } else if let set = runtimeSetBox(from: listRaw) {
         set.elements
+    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        array.elements
     } else {
         []
     }
@@ -317,6 +319,40 @@ public func kk_list_joinToString(
     }
 }
 
+@_cdecl("kk_list_joinToString_transform")
+public func kk_list_joinToString_transform(
+    _ listRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeListBox(from: listRaw)?.elements ?? []
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
+}
+
 @_cdecl("kk_iterable_joinTo")
 public func kk_iterable_joinTo(
     _ iterableRaw: Int,
@@ -355,6 +391,40 @@ public func kk_iterable_joinToString(
     return utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     }
+}
+
+@_cdecl("kk_iterable_joinToString_transform")
+public func kk_iterable_joinToString_transform(
+    _ iterableRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeIterableValues(from: iterableRaw)?.map(\.legacyRawValue) ?? []
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
 }
 
 // MARK: - List toMap (STDLIB-200)
@@ -440,6 +510,24 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
         return
     }
     invalidContainerPanic(#function, "mutable collection")
+}
+
+@_cdecl("kk_mutable_collection_add")
+public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int {
+    if let list = runtimeListBox(from: collectionRaw) {
+        var values = list.values
+        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        list.values = values
+        return kk_box_bool(1)
+    }
+    if let set = runtimeSetBox(from: collectionRaw) {
+        if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
+            return kk_box_bool(0)
+        }
+        set.elements.append(elem)
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(0)
 }
 
 @_cdecl("kk_mutable_collection_addAll")
@@ -565,8 +653,8 @@ public func kk_list_elementAt(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeM
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_list_elementAt received invalid list handle")
     }
     guard list.elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IndexOutOfBoundsException: Index \(index) out of bounds for length \(list.elements.count)"
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "Index \(index) out of bounds for length \(list.elements.count)"
         )
         return 0
     }
@@ -604,10 +692,11 @@ public func kk_list_single(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int
         invalidContainerPanic(#function, "list")
     }
     guard list.elements.count == 1 else {
-        let message = list.elements.isEmpty
-            ? "Collection is empty."
-            : "Collection has more than one element."
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: message))
+        if list.elements.isEmpty {
+            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
+        } else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Collection has more than one element."))
+        }
         return 0
     }
     return list.elements[0]
@@ -760,7 +849,7 @@ public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutab
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
     var values = list.values
@@ -788,7 +877,7 @@ public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutabl
     guard let list = runtimeListBox(from: listRaw),
           !list.values.isEmpty
     else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
         return 0
     }
     var values = list.values
@@ -1237,7 +1326,7 @@ public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePoint
     outThrown?.pointee = 0
     let values = runtimeIterableValues(from: iterableRaw) ?? []
     guard let last = values.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
         return 0
     }
     return last.legacyRawValue

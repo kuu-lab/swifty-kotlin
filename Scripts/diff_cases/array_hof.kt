@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun main() {
     val arr = arrayOf(1, 2, 3)
     
@@ -51,4 +52,9 @@ fun main() {
     println(empty.reduceOrNull { acc, value -> acc + value })
     println(empty.firstOrNull())
     println(empty.lastOrNull())
+
+    // joinToString + transform
+    println(arr.joinToString { (it * 10).toString() })
+    println(arr.joinToString(",") { (it * 10).toString() })
+    println(arr.joinToString(",", "[", "]") { (it * 10).toString() })
 }

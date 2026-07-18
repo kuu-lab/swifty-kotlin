@@ -50,27 +50,6 @@ private let throwingThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> I
     return 0
 }
 
-private let durationComponentsSecondsThunk: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, seconds, nanoseconds, _ in
-    seconds * 1_000_000_000 + nanoseconds
-}
-
-private let durationComponentsMinutesThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, minutes, seconds, nanoseconds, _ in
-    (minutes * 100 + seconds) * 1_000 + nanoseconds
-}
-
-private let durationComponentsHoursThunk: @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, hours, minutes, seconds, nanoseconds, _ in
-    (((hours * 100) + minutes) * 100 + seconds) * 1_000 + nanoseconds
-}
-
-private let durationComponentsDaysThunk: @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, days, hours, minutes, seconds, nanoseconds, _ in
-    ((((days * 100) + hours) * 100 + minutes) * 100 + seconds) * 1_000 + nanoseconds
-}
-
-private let durationComponentsDaysTopOnlyThunk:
-    @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, days, hours, minutes, seconds, nanoseconds, _ in
-        days + hours + minutes + seconds + nanoseconds
-    }
-
 final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -112,150 +91,153 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    // MARK: - Factory: kk_duration_from_nanoseconds
+    // KSP-471: Duration construction/inWhole* helpers (durationFrom*, durationInWhole*)
+    // live in RuntimeTestIsolationSupport.swift, shared across Runtime test files.
+
+    // MARK: - Factory: durationFromNanoseconds
 
     func testFromNanosecondsStoresExactValue() {
-        let handle = kk_duration_from_nanoseconds(500)
+        let handle = durationFromNanoseconds(500)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 500)
     }
 
     func testFromNanosecondsZero() {
-        let handle = kk_duration_from_nanoseconds(0)
+        let handle = durationFromNanoseconds(0)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
     }
 
     func testFromNanosecondsNegative() {
-        let handle = kk_duration_from_nanoseconds(-1000)
+        let handle = durationFromNanoseconds(-1000)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), -1000)
     }
 
-    // MARK: - Factory: kk_duration_from_microseconds
+    // MARK: - Factory: durationFromMicroseconds
 
     func testFromMicrosecondsConvertsToNanoseconds() {
-        let handle = kk_duration_from_microseconds(3)
+        let handle = durationFromMicroseconds(3)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 3000)
     }
 
     func testFromMicrosecondsZero() {
-        let handle = kk_duration_from_microseconds(0)
+        let handle = durationFromMicroseconds(0)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
     }
 
-    // MARK: - Factory: kk_duration_from_milliseconds
+    // MARK: - Factory: durationFromMilliseconds
 
     func testFromMillisecondsConvertsToNanoseconds() {
-        let handle = kk_duration_from_milliseconds(5)
+        let handle = durationFromMilliseconds(5)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 5_000_000)
     }
 
     func testFromMillisecondsRoundTrip() {
-        let handle = kk_duration_from_milliseconds(42)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 42)
+        let handle = durationFromMilliseconds(42)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 42)
     }
 
     func testFromMillisecondsZero() {
-        let handle = kk_duration_from_milliseconds(0)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 0)
+        let handle = durationFromMilliseconds(0)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 0)
     }
 
     func testFromMillisecondsNegative() {
-        let handle = kk_duration_from_milliseconds(-100)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), -100)
+        let handle = durationFromMilliseconds(-100)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), -100)
     }
 
-    // MARK: - Factory: kk_duration_from_seconds
+    // MARK: - Factory: durationFromSeconds
 
     func testFromSecondsConvertsToNanoseconds() {
-        let handle = kk_duration_from_seconds(2)
+        let handle = durationFromSeconds(2)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 2_000_000_000)
     }
 
     func testFromSecondsRoundTrip() {
-        let handle = kk_duration_from_seconds(7)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 7)
+        let handle = durationFromSeconds(7)
+        XCTAssertEqual(durationInWholeSeconds(handle), 7)
     }
 
     func testFromSecondsZero() {
-        let handle = kk_duration_from_seconds(0)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 0)
+        let handle = durationFromSeconds(0)
+        XCTAssertEqual(durationInWholeSeconds(handle), 0)
     }
 
     func testFromSecondsNegative() {
-        let handle = kk_duration_from_seconds(-3)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), -3)
+        let handle = durationFromSeconds(-3)
+        XCTAssertEqual(durationInWholeSeconds(handle), -3)
     }
 
-    // MARK: - Factory: kk_duration_from_minutes
+    // MARK: - Factory: durationFromMinutes
 
     func testFromMinutesConvertsToNanoseconds() {
-        let handle = kk_duration_from_minutes(1)
+        let handle = durationFromMinutes(1)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 60_000_000_000)
     }
 
     func testFromMinutesRoundTripSeconds() {
-        let handle = kk_duration_from_minutes(2)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 120)
+        let handle = durationFromMinutes(2)
+        XCTAssertEqual(durationInWholeSeconds(handle), 120)
     }
 
     func testFromMinutesZero() {
-        let handle = kk_duration_from_minutes(0)
+        let handle = durationFromMinutes(0)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
     }
 
-    // MARK: - Factory: kk_duration_from_hours
+    // MARK: - Factory: durationFromHours
 
     func testFromHoursConvertsToNanoseconds() {
-        let handle = kk_duration_from_hours(1)
+        let handle = durationFromHours(1)
         let expected = Int(3600) * 1_000_000_000
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), expected)
     }
 
     func testFromHoursRoundTripSeconds() {
-        let handle = kk_duration_from_hours(2)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 7200)
+        let handle = durationFromHours(2)
+        XCTAssertEqual(durationInWholeSeconds(handle), 7200)
     }
 
     func testFromHoursZero() {
-        let handle = kk_duration_from_hours(0)
+        let handle = durationFromHours(0)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 0)
     }
 
     // MARK: - inWholeHours
 
     func testInWholeHoursFromHoursRoundTrip() {
-        let handle = kk_duration_from_hours(3)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 3)
+        let handle = durationFromHours(3)
+        XCTAssertEqual(durationInWholeHours(handle), 3)
     }
 
     func testInWholeHoursFromMinutes() {
-        let handle = kk_duration_from_minutes(150)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 2)
+        let handle = durationFromMinutes(150)
+        XCTAssertEqual(durationInWholeHours(handle), 2)
     }
 
     func testInWholeHoursFromSeconds() {
-        let handle = kk_duration_from_seconds(7200)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 2)
+        let handle = durationFromSeconds(7200)
+        XCTAssertEqual(durationInWholeHours(handle), 2)
     }
 
     func testInWholeHoursTruncatesSubHour() {
         // 90 minutes = 1.5 hours -> inWholeHours should return 1
-        let handle = kk_duration_from_minutes(90)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 1)
+        let handle = durationFromMinutes(90)
+        XCTAssertEqual(durationInWholeHours(handle), 1)
     }
 
     func testInWholeHoursSubHourReturnsZero() {
-        let handle = kk_duration_from_minutes(59)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 0)
+        let handle = durationFromMinutes(59)
+        XCTAssertEqual(durationInWholeHours(handle), 0)
     }
 
     func testInWholeHoursZero() {
-        let handle = kk_duration_from_hours(0)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 0)
+        let handle = durationFromHours(0)
+        XCTAssertEqual(durationInWholeHours(handle), 0)
     }
 
     func testInWholeHoursNegative() {
-        let handle = kk_duration_from_hours(-5)
-        XCTAssertEqual(kk_duration_inWholeHours(handle), -5)
+        let handle = durationFromHours(-5)
+        XCTAssertEqual(durationInWholeHours(handle), -5)
     }
 
     // MARK: - Duration companion constants
@@ -265,23 +247,20 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         let infinite = kk_duration_infinite()
 
         XCTAssertEqual(kk_duration_inWholeNanoseconds(zero), 0)
-        XCTAssertEqual(kk_duration_isFinite(zero), 1)
         XCTAssertEqual(kk_duration_isInfinite(zero), 0)
-
         XCTAssertEqual(kk_duration_isInfinite(infinite), 1)
-        XCTAssertEqual(kk_duration_isFinite(infinite), 0)
     }
 
     // MARK: - Double receiver factories
 
     func testDoubleReceiverSecondsConvertsFractionalDuration() {
-        let handle = kk_duration_from_seconds_double(kk_double_to_bits(1.5))
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 1_500)
+        let handle = durationFromSecondsDouble(kk_double_to_bits(1.5))
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 1_500)
     }
 
     func testDoubleReceiverDaysConvertsFractionalDuration() {
-        let handle = kk_duration_from_days_double(kk_double_to_bits(1.25))
-        XCTAssertEqual(kk_duration_inWholeHours(handle), 30)
+        let handle = durationFromDaysDouble(kk_double_to_bits(1.25))
+        XCTAssertEqual(durationInWholeHours(handle), 30)
     }
 
     // MARK: - Numeric.toDuration(unit)
@@ -291,118 +270,32 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         let milliseconds = kk_duration_toDuration_long(1500, 2)
         let minutes = kk_duration_toDuration_double(kk_double_to_bits(1.5), 4)
 
-        XCTAssertEqual(kk_duration_inWholeSeconds(seconds), 2)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(milliseconds), 1500)
-        XCTAssertEqual(kk_duration_inWholeSeconds(minutes), 90)
+        XCTAssertEqual(durationInWholeSeconds(seconds), 2)
+        XCTAssertEqual(durationInWholeMilliseconds(milliseconds), 1500)
+        XCTAssertEqual(durationInWholeSeconds(minutes), 90)
     }
 
     // MARK: - Duration / Duration -> Double
 
     func testDurationDivisionReturnsDoubleBits() {
-        let lhs = kk_duration_from_seconds(3)
-        let rhs = kk_duration_from_seconds(2)
+        let lhs = durationFromSeconds(3)
+        let rhs = durationFromSeconds(2)
         let resultBits = kk_duration_div_duration(lhs, rhs)
         XCTAssertEqual(kk_bits_to_double(resultBits), 1.5)
-    }
-
-    // MARK: - toComponents
-
-    func testToComponentsSplitsFiniteDuration() {
-        let composite = kk_duration_plus(
-            kk_duration_plus(kk_duration_from_days(1), kk_duration_from_hours(2)),
-            kk_duration_plus(
-                kk_duration_from_minutes(3),
-                kk_duration_plus(kk_duration_from_seconds(4), kk_duration_from_nanoseconds(5))
-            )
-        )
-
-        var thrown = 0
-        XCTAssertEqual(
-            kk_duration_toComponents_days(
-                composite,
-                unsafeBitCast(durationComponentsDaysThunk, to: Int.self),
-                0,
-                &thrown
-            ),
-            1_020_304_005
-        )
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        XCTAssertEqual(
-            kk_duration_toComponents_hours(
-                composite,
-                unsafeBitCast(durationComponentsHoursThunk, to: Int.self),
-                0,
-                &thrown
-            ),
-            260_304_005
-        )
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        XCTAssertEqual(
-            kk_duration_toComponents_minutes(
-                composite,
-                unsafeBitCast(durationComponentsMinutesThunk, to: Int.self),
-                0,
-                &thrown
-            ),
-            156_304_005
-        )
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        XCTAssertEqual(
-            kk_duration_toComponents_seconds(
-                composite,
-                unsafeBitCast(durationComponentsSecondsThunk, to: Int.self),
-                0,
-                &thrown
-            ),
-            93_784_000_000_005
-        )
-        XCTAssertEqual(thrown, 0)
-    }
-
-    func testToComponentsKeepsNegativeRemainders() {
-        let duration = kk_duration_from_milliseconds(-1_500)
-        var thrown = 0
-        let result = kk_duration_toComponents_seconds(
-            duration,
-            unsafeBitCast(durationComponentsSecondsThunk, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, -1_500_000_000)
-    }
-
-    func testToComponentsRepresentsInfinityAtTopUnit() {
-        let duration = kk_duration_infinite()
-        var thrown = 0
-        let result = kk_duration_toComponents_days(
-            duration,
-            unsafeBitCast(durationComponentsDaysTopOnlyThunk, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Int64.max))
     }
 
     // MARK: - inWholeDays
 
     func testInWholeDaysRoundTrip() {
-        let handle = kk_duration_from_days(2)
-        XCTAssertEqual(kk_duration_inWholeDays(handle), 2)
+        let handle = durationFromDays(2)
+        XCTAssertEqual(durationInWholeDays(handle), 2)
     }
 
     // MARK: - Saturation on overflow
 
     func testFromSecondsLargeValueSaturates() {
         // Int64.max / 1_000_000_000 = 9_223_372_036, so 9_223_372_037 will overflow.
-        let handle = kk_duration_from_seconds(9_223_372_037)
+        let handle = durationFromSeconds(9_223_372_037)
         let ns = kk_duration_inWholeNanoseconds(handle)
         // The result must be saturated to Int64.max.
         XCTAssertEqual(ns, Int(Int64.max))
@@ -410,7 +303,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
     func testFromMillisecondsLargeNegativeValueSaturates() {
         // Int64.min / 1_000_000 = -9_223_372_036_854, so -9_223_372_036_855 will overflow.
-        let handle = kk_duration_from_milliseconds(-9_223_372_036_855)
+        let handle = durationFromMilliseconds(-9_223_372_036_855)
         let ns = kk_duration_inWholeNanoseconds(handle)
         // The result must be saturated to Int64.min.
         XCTAssertEqual(ns, Int(Int64.min))
@@ -419,148 +312,127 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // MARK: - inWholeMicroseconds
 
     func testInWholeMicrosecondsFromSeconds() {
-        let handle = kk_duration_from_seconds(3)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 3_000_000)
+        let handle = durationFromSeconds(3)
+        XCTAssertEqual(durationInWholeMicroseconds(handle), 3_000_000)
     }
 
     func testInWholeMicrosecondsFromMilliseconds() {
-        let handle = kk_duration_from_milliseconds(2500)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 2_500_000)
+        let handle = durationFromMilliseconds(2500)
+        XCTAssertEqual(durationInWholeMicroseconds(handle), 2_500_000)
     }
 
     func testInWholeMicrosecondsRoundTrip() {
-        let handle = kk_duration_from_microseconds(42)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 42)
+        let handle = durationFromMicroseconds(42)
+        XCTAssertEqual(durationInWholeMicroseconds(handle), 42)
     }
 
     func testInWholeMicrosecondsTruncatesSubMicrosecond() {
         // 1500 ns = 1.5 us -> inWholeMicroseconds should return 1
-        let handle = kk_duration_from_nanoseconds(1500)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 1)
+        let handle = durationFromNanoseconds(1500)
+        XCTAssertEqual(durationInWholeMicroseconds(handle), 1)
     }
 
     func testInWholeMicrosecondsSubMicrosecondReturnsZero() {
         // 999 ns < 1 us -> inWholeMicroseconds should return 0
-        let handle = kk_duration_from_nanoseconds(999)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 0)
+        let handle = durationFromNanoseconds(999)
+        XCTAssertEqual(durationInWholeMicroseconds(handle), 0)
     }
 
     // MARK: - inWholeMilliseconds truncation
 
     func testInWholeMillisecondsTruncatesSubMillisecond() {
         // 1_500_000 ns = 1.5 ms -> inWholeMilliseconds should return 1
-        let handle = kk_duration_from_nanoseconds(1_500_000)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 1)
+        let handle = durationFromNanoseconds(1_500_000)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 1)
     }
 
     func testInWholeMillisecondsSubMillisecondReturnsZero() {
         // 999_999 ns < 1 ms -> inWholeMilliseconds should return 0
-        let handle = kk_duration_from_nanoseconds(999_999)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 0)
+        let handle = durationFromNanoseconds(999_999)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 0)
     }
 
     // MARK: - inWholeSeconds truncation
 
     func testInWholeSecondsTruncatesSubSecond() {
         // 1500 ms = 1.5 s -> inWholeSeconds should return 1
-        let handle = kk_duration_from_milliseconds(1500)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 1)
+        let handle = durationFromMilliseconds(1500)
+        XCTAssertEqual(durationInWholeSeconds(handle), 1)
     }
 
     func testInWholeSecondsSubSecondReturnsZero() {
-        let handle = kk_duration_from_milliseconds(999)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 0)
+        let handle = durationFromMilliseconds(999)
+        XCTAssertEqual(durationInWholeSeconds(handle), 0)
     }
 
     // MARK: - toString formatting
 
     func testToStringZeroSeconds() {
-        let handle = kk_duration_from_nanoseconds(0)
+        let handle = durationFromNanoseconds(0)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "0s")
     }
 
     func testToStringWholeSeconds() {
-        let handle = kk_duration_from_seconds(5)
+        let handle = durationFromSeconds(5)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "5s")
     }
 
     func testToStringNegativeWholeSeconds() {
-        let handle = kk_duration_from_seconds(-3)
+        let handle = durationFromSeconds(-3)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "-3s")
     }
 
     func testToStringWholeMilliseconds() {
-        let handle = kk_duration_from_milliseconds(42)
+        let handle = durationFromMilliseconds(42)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "42ms")
     }
 
     func testToStringWholeMicroseconds() {
-        let handle = kk_duration_from_microseconds(7)
+        let handle = durationFromMicroseconds(7)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "7us")
     }
 
     func testToStringNanoseconds() {
-        let handle = kk_duration_from_nanoseconds(123)
+        let handle = durationFromNanoseconds(123)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "123ns")
     }
 
     func testToStringOneMinuteRendersAsSeconds() {
-        let handle = kk_duration_from_minutes(1)
+        let handle = durationFromMinutes(1)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "1m")
     }
 
     func testToStringOneHourRendersAsSeconds() {
-        let handle = kk_duration_from_hours(1)
+        let handle = durationFromHours(1)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "1h")
     }
 
-    // MARK: - toIsoString / parse
-
-    func testToIsoStringFormatsZeroAndFractionalSeconds() {
-        let zero = kk_duration_from_nanoseconds(0)
-        XCTAssertEqual(stringFromHandle(kk_duration_toIsoString(zero)), "PT0S")
-
-        let fractional = kk_duration_from_nanoseconds(25)
-        XCTAssertEqual(stringFromHandle(kk_duration_toIsoString(fractional)), "PT0.000000025S")
-    }
-
-    func testToIsoStringFormatsCompositeAndNegativeDurations() {
-        let composite = kk_duration_plus(kk_duration_from_hours(1), kk_duration_from_seconds(30))
-        XCTAssertEqual(stringFromHandle(kk_duration_toIsoString(composite)), "PT1H0M30S")
-
-        let negative = kk_duration_from_seconds(-330)
-        XCTAssertEqual(stringFromHandle(kk_duration_toIsoString(negative)), "-PT5M30S")
-    }
-
-    func testToIsoStringFormatsInfiniteDuration() {
-        let infinite = kk_duration_infinite()
-        XCTAssertEqual(stringFromHandle(kk_duration_toIsoString(infinite)), "PT9999999999999H")
-    }
+    // MARK: - parse
 
     func testParseAcceptsIsoAndDefaultFormats() {
         var thrown = 0
         let iso = kk_duration_parse(stringHandle("PT1H30M"), &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_duration_inWholeMinutes(iso), 90)
+        XCTAssertEqual(durationInWholeMinutes(iso), 90)
 
         let defaultFormat = kk_duration_parse(stringHandle("1h 30m"), &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_duration_inWholeMinutes(defaultFormat), 90)
+        XCTAssertEqual(durationInWholeMinutes(defaultFormat), 90)
     }
 
     func testParseAcceptsSingleUnitDecimalFormat() {
         var thrown = 0
         let parsed = kk_duration_parse(stringHandle("1.5h"), &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_duration_inWholeMinutes(parsed), 90)
+        XCTAssertEqual(durationInWholeMinutes(parsed), 90)
     }
 
     func testParseInvalidStringSetsThrownChannel() {
@@ -572,7 +444,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
     func testParseOrNullReturnsDurationOrNullSentinel() {
         let valid = kk_duration_parseOrNull(stringHandle("PT0.120300S"))
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(valid), 120_300)
+        XCTAssertEqual(durationInWholeMicroseconds(valid), 120_300)
 
         let invalid = kk_duration_parseOrNull(stringHandle("1 hour 30 minutes"))
         XCTAssertEqual(invalid, runtimeNullSentinelInt)
@@ -587,7 +459,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
     func testParseIsoStringOrNullAcceptsOnlyIsoFormat() {
         let valid = kk_duration_parseIsoStringOrNull(stringHandle("P1DT2H3M4.005S"))
-        XCTAssertEqual(kk_duration_inWholeSeconds(valid), 93_784)
+        XCTAssertEqual(durationInWholeSeconds(valid), 93_784)
 
         let invalid = kk_duration_parseIsoStringOrNull(stringHandle("1h 30m"))
         XCTAssertEqual(invalid, runtimeNullSentinelInt)
@@ -596,10 +468,10 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // MARK: - Multiple independent durations
 
     func testMultipleDurationsAreIndependent() {
-        let h1 = kk_duration_from_seconds(10)
-        let h2 = kk_duration_from_milliseconds(500)
-        XCTAssertEqual(kk_duration_inWholeSeconds(h1), 10)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(h2), 500)
+        let h1 = durationFromSeconds(10)
+        let h2 = durationFromMilliseconds(500)
+        XCTAssertEqual(durationInWholeSeconds(h1), 10)
+        XCTAssertEqual(durationInWholeMilliseconds(h2), 500)
     }
 
     // MARK: - RuntimeDurationBox accessor chain
@@ -609,8 +481,8 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // manually and confirming the accessor chain works end-to-end.
         let box = RuntimeDurationBox(nanoseconds: 42_000_000)
         let handle = registerRuntimeObject(box)
-        XCTAssertEqual(kk_duration_inWholeMilliseconds(handle), 42)
-        XCTAssertEqual(kk_duration_inWholeSeconds(handle), 0)
+        XCTAssertEqual(durationInWholeMilliseconds(handle), 42)
+        XCTAssertEqual(durationInWholeSeconds(handle), 0)
         XCTAssertEqual(kk_duration_inWholeNanoseconds(handle), 42_000_000)
     }
 
@@ -618,8 +490,8 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // Verify that a box with Int64.max nanoseconds does not crash accessors.
         let box = RuntimeDurationBox(nanoseconds: Int64.max)
         let handle = registerRuntimeObject(box)
-        let ms = kk_duration_inWholeMilliseconds(handle)
-        let s = kk_duration_inWholeSeconds(handle)
+        let ms = durationInWholeMilliseconds(handle)
+        let s = durationInWholeSeconds(handle)
         XCTAssertGreaterThan(ms, 0)
         XCTAssertGreaterThan(s, 0)
     }
@@ -627,50 +499,50 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // MARK: - inWholeMinutes
 
     func testInWholeMinutesFromMinutesRoundTrip() {
-        let handle = kk_duration_from_minutes(5)
-        XCTAssertEqual(kk_duration_inWholeMinutes(handle), 5)
+        let handle = durationFromMinutes(5)
+        XCTAssertEqual(durationInWholeMinutes(handle), 5)
     }
 
     func testInWholeMinutesTruncatesSubMinute() {
         // 90 seconds = 1.5 minutes -> inWholeMinutes should return 1
-        let handle = kk_duration_from_seconds(90)
-        XCTAssertEqual(kk_duration_inWholeMinutes(handle), 1)
+        let handle = durationFromSeconds(90)
+        XCTAssertEqual(durationInWholeMinutes(handle), 1)
     }
 
     func testInWholeMinutesSubMinuteReturnsZero() {
-        let handle = kk_duration_from_seconds(59)
-        XCTAssertEqual(kk_duration_inWholeMinutes(handle), 0)
+        let handle = durationFromSeconds(59)
+        XCTAssertEqual(durationInWholeMinutes(handle), 0)
     }
 
     func testInWholeMinutesFromHours() {
-        let handle = kk_duration_from_hours(2)
-        XCTAssertEqual(kk_duration_inWholeMinutes(handle), 120)
+        let handle = durationFromHours(2)
+        XCTAssertEqual(durationInWholeMinutes(handle), 120)
     }
 
     func testInWholeMinutesNegative() {
-        let handle = kk_duration_from_minutes(-3)
-        XCTAssertEqual(kk_duration_inWholeMinutes(handle), -3)
+        let handle = durationFromMinutes(-3)
+        XCTAssertEqual(durationInWholeMinutes(handle), -3)
     }
 
     // MARK: - Saturation edge cases
 
     func testFromMicrosecondsLargePositiveSaturates() {
         // Int64.max / 1_000 overflows, should saturate
-        let handle = kk_duration_from_microseconds(Int(Int64.max / 999))
+        let handle = durationFromMicroseconds(Int(Int64.max / 999))
         let ns = kk_duration_inWholeNanoseconds(handle)
         XCTAssertEqual(ns, Int(Int64.max))
     }
 
     func testFromMinutesLargePositiveSaturates() {
         // Very large minutes value should saturate
-        let handle = kk_duration_from_minutes(Int(Int64.max / 1_000_000_000))
+        let handle = durationFromMinutes(Int(Int64.max / 1_000_000_000))
         let ns = kk_duration_inWholeNanoseconds(handle)
         XCTAssertEqual(ns, Int(Int64.max))
     }
 
     func testFromHoursLargePositiveSaturates() {
         // Very large hours value should saturate
-        let handle = kk_duration_from_hours(Int(Int64.max / 1_000_000_000))
+        let handle = durationFromHours(Int(Int64.max / 1_000_000_000))
         let ns = kk_duration_inWholeNanoseconds(handle)
         XCTAssertEqual(ns, Int(Int64.max))
     }
@@ -678,33 +550,103 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // MARK: - toString edge cases
 
     func testToStringSubMicrosecondRendersAsNanoseconds() {
-        let handle = kk_duration_from_nanoseconds(1_500)
+        let handle = durationFromNanoseconds(1_500)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "1.5us")
     }
 
     func testToStringExactlyOneMicrosecond() {
-        let handle = kk_duration_from_microseconds(1)
+        let handle = durationFromMicroseconds(1)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "1us")
     }
 
     func testToStringExactlyOneNanosecond() {
-        let handle = kk_duration_from_nanoseconds(1)
+        let handle = durationFromNanoseconds(1)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "1ns")
     }
 
     func testToStringNegativeMilliseconds() {
-        let handle = kk_duration_from_milliseconds(-7)
+        let handle = durationFromMilliseconds(-7)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "-7ms")
     }
 
     func testToStringNegativeNanoseconds() {
-        let handle = kk_duration_from_nanoseconds(-123)
+        let handle = durationFromNanoseconds(-123)
         let result = kk_duration_toString(handle)
         XCTAssertEqual(stringFromHandle(result), "-123ns")
+    }
+
+    // MARK: - toString multi-component formatting (JVM kotlin-stdlib parity)
+    // Expected values were captured by compiling and running the equivalent
+    // Kotlin snippets against JVM kotlinc 2.4.0 (kotlin-stdlib Duration.toString()).
+
+    func testToStringCombinesMinutesAndSeconds() {
+        // 90 seconds -> "1m 30s"
+        let handle = durationFromSeconds(90)
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1m 30s")
+    }
+
+    func testToStringCombinesHoursAndMinutes() {
+        let handle = kk_duration_plus(durationFromHours(2), durationFromMinutes(5))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "2h 5m")
+    }
+
+    func testToStringSecondsComponentCarriesSubsecondFraction() {
+        // 1h + 30m + 340ms -> seconds component is 0 but nanoseconds carry the fraction: "1h 30m 0.34s"
+        let handle = kk_duration_plus(
+            kk_duration_plus(durationFromHours(1), durationFromMinutes(30)),
+            durationFromMilliseconds(340)
+        )
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1h 30m 0.34s")
+    }
+
+    func testToStringRollsUpDaysPastTwentyFourHours() {
+        // 25 hours -> "1d 1h"
+        let handle = durationFromHours(25)
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 1h")
+    }
+
+    func testToStringKeepsIntermediateZeroComponent() {
+        // 1 day + 5 minutes -> hours stays visible between nonzero days and minutes: "1d 0h 5m"
+        let handle = kk_duration_plus(durationFromDays(1), durationFromMinutes(5))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1d 0h 5m")
+    }
+
+    func testToStringNegativeMultiComponentIsParenthesized() {
+        let handle = kk_duration_unary_minus(
+            kk_duration_plus(durationFromHours(1), durationFromMinutes(30))
+        )
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "-(1h 30m)")
+    }
+
+    func testToStringInfiniteDuration() {
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(kk_duration_infinite())), "Infinity")
+    }
+
+    func testToStringNegativeInfiniteDuration() {
+        let negInfinite = kk_duration_unary_minus(kk_duration_infinite())
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(negInfinite)), "-Infinity")
+    }
+
+    func testToStringFractionalSecondsPadsToNineDigits() {
+        // 1s + 4500ns -> 7 significant fractional digits round up to 9: "1.000004500s"
+        let handle = kk_duration_plus(durationFromSeconds(1), durationFromNanoseconds(4_500))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000004500s")
+    }
+
+    func testToStringFractionalSecondsPadsToSixDigits() {
+        // 1s + 500_000ns -> 4 significant fractional digits round up to 6: "1.000500s"
+        let handle = kk_duration_plus(durationFromSeconds(1), durationFromNanoseconds(500_000))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "1.000500s")
+    }
+
+    func testToStringFractionalSecondsKeepsTwoDigitsAsIs() {
+        // 30s + 340ms -> 2 significant fractional digits stay untrimmed: "30.34s"
+        let handle = kk_duration_plus(durationFromSeconds(30), durationFromMilliseconds(340))
+        XCTAssertEqual(stringFromHandle(kk_duration_toString(handle)), "30.34s")
     }
 
     // MARK: - kk_measureTime: basic timing
@@ -726,7 +668,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        let ms = kk_duration_inWholeMilliseconds(result)
+        let ms = durationInWholeMilliseconds(result)
         XCTAssertGreaterThanOrEqual(ms, 40, "Should be at least ~40ms")
         XCTAssertLessThan(ms, 500, "Should not exceed 500ms")
     }
@@ -737,7 +679,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         var thrown: Int = 0
         let result = kk_measureTime(fnPtr, 0, &thrown)
         XCTAssertEqual(thrown, 0)
-        let ms = kk_duration_inWholeMilliseconds(result)
+        let ms = durationInWholeMilliseconds(result)
         XCTAssertLessThan(ms, 100, "No-op should complete in < 100ms")
     }
 
@@ -803,9 +745,9 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
         // All accessors should work without crashing
         let ns = kk_duration_inWholeNanoseconds(result)
-        let ms = kk_duration_inWholeMilliseconds(result)
-        let s = kk_duration_inWholeSeconds(result)
-        let min = kk_duration_inWholeMinutes(result)
+        let ms = durationInWholeMilliseconds(result)
+        let s = durationInWholeSeconds(result)
+        let min = durationInWholeMinutes(result)
 
         XCTAssertGreaterThan(ns, 0)
         XCTAssertGreaterThanOrEqual(ms, 40)
@@ -882,7 +824,7 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
         // Verify all measurements are in reasonable range
         for result in results {
-            let ms = kk_duration_inWholeMilliseconds(result)
+            let ms = durationInWholeMilliseconds(result)
             XCTAssertGreaterThanOrEqual(ms, 40, "Parallel measurement should be at least ~40ms")
             XCTAssertLessThan(ms, 500, "Parallel measurement should not exceed 500ms")
         }
@@ -959,8 +901,8 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         XCTAssertLessThan(ns, Int(Int64.max), "Should not overflow Int64")
 
         // Verify the duration can be safely used with all accessors
-        let ms = kk_duration_inWholeMilliseconds(result)
-        let s = kk_duration_inWholeSeconds(result)
+        let ms = durationInWholeMilliseconds(result)
+        let s = durationInWholeSeconds(result)
         XCTAssertGreaterThan(ms, 1000, "Milliseconds should be > 1000")
         XCTAssertGreaterThanOrEqual(s, 2, "Seconds should be >= 2")
     }
@@ -1000,36 +942,36 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         XCTAssertLessThan(totalTestTime, 10_000_000_000, "50 rapid measurements should complete within 10 seconds")
     }
 
-    // MARK: - Long factory: kk_duration_from_days_long (TEST-TIME-020)
+    // MARK: - Long factory: durationFromDaysLong (TEST-TIME-020)
 
     func testDurationFromDaysLongNormalValues() {
-        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(5)), 5)
-        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(0)), 0)
-        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(-3)), -3)
+        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(5)), 5)
+        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(0)), 0)
+        XCTAssertEqual(durationInWholeDays(durationFromDaysLong(-3)), -3)
     }
 
-    // MARK: - Long factory: kk_duration_from_hours_long (TEST-TIME-020)
+    // MARK: - Long factory: durationFromHoursLong (TEST-TIME-020)
 
     func testDurationFromHoursLongNormalValues() {
-        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(5)), 5)
-        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(0)), 0)
-        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(-2)), -2)
+        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(5)), 5)
+        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(0)), 0)
+        XCTAssertEqual(durationInWholeHours(durationFromHoursLong(-2)), -2)
     }
 
-    // MARK: - Long factory: kk_duration_from_minutes_long (TEST-TIME-020)
+    // MARK: - Long factory: durationFromMinutesLong (TEST-TIME-020)
 
     func testDurationFromMinutesLongNormalValues() {
-        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(5)), 5)
-        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(0)), 0)
-        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(-10)), -10)
+        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(5)), 5)
+        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(0)), 0)
+        XCTAssertEqual(durationInWholeMinutes(durationFromMinutesLong(-10)), -10)
     }
 
-    // MARK: - Long factory: kk_duration_from_microseconds_long (TEST-TIME-020)
+    // MARK: - Long factory: durationFromMicrosecondsLong (TEST-TIME-020)
 
     func testDurationFromMicrosecondsLongNormalValues() {
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(5)), 5)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(0)), 0)
-        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(-100)), -100)
+        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(5)), 5)
+        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(0)), 0)
+        XCTAssertEqual(durationInWholeMicroseconds(durationFromMicrosecondsLong(-100)), -100)
     }
 
     // MARK: - Long.MAX_VALUE saturation (TEST-TIME-020)
@@ -1037,9 +979,9 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     func testDurationLongMaxValueSaturatesToInfinite() {
         // Long.MAX_VALUE = Int64.max; all factories with a multiplier > 1 overflow to INFINITE
         let longMax = Int(Int64.max)
-        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_days_long(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_hours_long(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_minutes_long(longMax)), 1)
-        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_microseconds_long(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(durationFromDaysLong(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(durationFromHoursLong(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(durationFromMinutesLong(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)), 1)
     }
 }

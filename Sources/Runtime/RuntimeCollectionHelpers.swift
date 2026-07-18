@@ -510,6 +510,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        return "Throwable(\(throwable.renderedMessage))"
+    }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
@@ -615,6 +618,18 @@ func runtimeInvokeCollectionLambda1(
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
     return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
+}
+
+/// Like `runtimeInvokeCollectionLambda1`, but leaves `value` boxed for statically-`Any` lambda parameters (LambdaLowerer unboxes concrete-primitive ones itself).
+@inline(__always)
+func runtimeInvokeCollectionLambda1PreservingBox(
+    fnPtr: Int,
+    closureRaw: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
+    return fn(maybeUnbox(closureRaw), value, outThrown)
 }
 
 @inline(__always)

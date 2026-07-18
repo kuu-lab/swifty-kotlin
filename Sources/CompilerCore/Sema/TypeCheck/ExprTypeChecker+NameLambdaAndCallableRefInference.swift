@@ -13,7 +13,16 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let operatorNames = operatorFunctionNames(for: op, interner: interner)
+        // Kotlin resolves `a += b` in two phases: first the dedicated in-place
+        // operator (e.g. `plusAssign`, which must return Unit), then the
+        // corresponding binary operator (e.g. `plus`) rebinding as `a = a.plus(b)`.
+        // Each phase must search its own operator name — otherwise a type that
+        // defines only `plus` (no `plusAssign`) is never found here, and the
+        // caller silently falls back to the builtin numeric/string compound-assign
+        // path even though the receiver isn't numeric/string.
+        let operatorNames = requireUnitReturn
+            ? operatorFunctionNames(for: op, interner: interner)
+            : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
         let operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
@@ -215,6 +224,28 @@ extension ExprTypeChecker {
             return sema.types.unitType
         }
 
+        // Members declared on a supertype are never found by
+        // `cachedScopeLookup`: a `ClassMemberScope`'s parent is the
+        // enclosing *lexical* scope (file/package), not the superclass's
+        // scope, so scope lookup never walks the inheritance chain. Plain
+        // reads and simple `=` reassignment already resolve inherited
+        // properties through the inheritance-aware `lookupMemberProperty`
+        // (see resolveImplicitReceiverMember above); reuse it here so that
+        // `inheritedField += 1` resolves the same member, taking priority
+        // over lexically scope-visible candidates just like
+        // inferNameRefExpr does for plain reads.
+        var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID)?
+        if let receiverType = ctx.implicitReceiverType,
+           let member = driver.helpers.lookupMemberProperty(
+               named: name,
+               receiverType: sema.types.makeNonNullable(receiverType),
+               sema: sema
+           ),
+           let memberSymbol = ctx.cachedSymbol(member.symbol)
+        {
+            implicitReceiverMember = (memberSymbol, member.type)
+        }
+
         // Fall back to scope-visible property lookup for compound assignments
         // like `counter += 1` where `counter` is a top-level var or a member
         // property accessed via implicit receiver (inside a class/object
@@ -224,15 +255,19 @@ extension ExprTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        if let propSymbol = candidates.first(where: { sym in
+        let scopeVisibleProperty = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = sema.symbols.symbol(parentID) else { return true }
             return parentSym.kind == .package || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
-        }) {
+        })
+        if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
-            let propType = sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
+            if implicitReceiverMember != nil {
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+            }
+            let propType = implicitReceiverMember?.type ?? sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
                 op: op,
@@ -500,6 +535,9 @@ extension ExprTypeChecker {
             }
             if sema.bindings.isULongRangeSymbol(local.symbol) {
                 sema.bindings.markULongRangeExpr(id)
+            }
+            if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
+                sema.bindings.markFloatingPointRangeExpr(id)
             }
             if sema.bindings.isFlowSymbol(local.symbol) {
                 sema.bindings.markFlowExpr(id)
@@ -836,11 +874,20 @@ extension ExprTypeChecker {
                 contextReceiverTypes: ctx.contextReceiverTypes + expectedFunctionType.contextReceivers
             )
         }
+        // Kotlin discards a Unit-expected lambda body's value rather than requiring
+        // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
+        // Passing Unit down as the body's expectedType would incorrectly propagate
+        // into the body's own call resolution -- e.g. rejecting `addOne(i): Int` as
+        // "no viable overload" because Int isn't a subtype of the pushed-down Unit.
+        // Only push the expected return type down when it isn't Unit.
+        let bodyExpectedType = expectedFunctionType?.returnType == sema.types.unitType
+            ? nil
+            : expectedFunctionType?.returnType
         let inferredBodyType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
-            expectedType: expectedFunctionType?.returnType
+            expectedType: bodyExpectedType
         )
         let captures = driver.captureAnalyzer.collectCapturedOuterSymbols(
             in: body,

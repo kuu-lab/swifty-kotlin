@@ -1,3 +1,35 @@
+/// Resolves a value class's `TypeKind` to the `TypeKind` of its underlying
+/// primitive, so the caller's boxing-callee lookup treats a value class like
+/// its underlying representation (value classes are unboxed everywhere
+/// except at reference-type boundaries — ValueClassUnboxingPass — and except
+/// when the value class implements an interface, in which case it stays
+/// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
+/// Non-value-class kinds, and nullable value classes, pass through unchanged.
+///
+/// Shared as a free function (rather than an `ABILoweringPass` method) so
+/// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
+/// which must stay in sync with ABILoweringPass's typeParam boxing boundary,
+/// per `typeParamBoxingBoundaryCallees` below — can resolve value classes the
+/// same way.
+func resolveValueClassKind(
+    _ kind: TypeKind,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> TypeKind {
+    guard let symbols else { return kind }
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull
+    else {
+        return kind
+    }
+    guard let sym = symbols.symbol(classType.classSymbol),
+          sym.flags.contains(.valueType),
+          let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+    else {
+        return kind
+    }
+    return types.kind(of: underlyingType)
+}
 
 extension ABILoweringPass {
     /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
@@ -10,6 +42,7 @@ extension ABILoweringPass {
     static let typeParamBoxingBoundaryCallees: Set<String> = [
         "kk_pair_new",
         "kk_triple_new",
+        "kk_mutable_collection_add",
         "kk_mutable_list_add",
         "kk_mutable_list_add_at",
         "kk_mutable_list_set",
@@ -19,26 +52,6 @@ extension ABILoweringPass {
         "kk_mutable_map_getOrPut",
         "kk_mutable_map_plusAssign_pair",
     ]
-
-    func resolveValueClassKind(
-        _ kind: TypeKind,
-        types: TypeSystem,
-        symbols: SymbolTable?
-    ) -> TypeKind {
-        guard let symbols else { return kind }
-        guard case let .classType(classType) = kind,
-              classType.nullability == .nonNull
-        else {
-            return kind
-        }
-        guard let sym = symbols.symbol(classType.classSymbol),
-              sym.flags.contains(.valueType),
-              let underlyingType = symbols.valueClassUnderlyingType(for: classType.classSymbol)
-        else {
-            return kind
-        }
-        return types.kind(of: underlyingType)
-    }
 
     func boxingCallee(
         argType: TypeID,
@@ -51,7 +64,14 @@ extension ABILoweringPass {
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
-        let paramKind = types.kind(of: paramType)
+        // Resolve the parameter's value-class type to its underlying kind too —
+        // otherwise a parameter declared as a value class (e.g. `s: SecondsXYZ`)
+        // looks like any other `.classType` reference boundary and gets boxed,
+        // even though the callee (post-ValueClassUnboxingPass) expects the raw
+        // unboxed underlying value. That mismatch corrupted arithmetic: a boxed
+        // Double pointer fed into `kk_op_dmul` as if it were the raw bit pattern.
+        let rawParamKind = types.kind(of: paramType)
+        let paramKind = resolveValueClassKind(rawParamKind, types: types, symbols: symbols)
 
         // Treat Any/Any?, reference types, and type parameters as boxing boundaries.
         // Type parameters are erased to Any at runtime, so primitives must be boxed.

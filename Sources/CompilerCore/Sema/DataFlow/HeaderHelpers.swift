@@ -491,7 +491,9 @@ extension DataFlowSemaPhase {
             return existing.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
-            return existing.contains { !isCallableLike($0.kind) && $0.kind != .property }
+            return existing.contains {
+                !(isCallableLike($0.kind) || $0.kind == .property || isNominalTypeSymbol($0.kind))
+            }
         }
         if isOverloadableSymbol(newKind) {
             return existing.contains(where: { !isOverloadableSymbol($0.kind) })
@@ -1198,7 +1200,6 @@ extension DataFlowSemaPhase {
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
@@ -1222,7 +1223,13 @@ extension DataFlowSemaPhase {
         registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
+        registerLateListIndexedMembers(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }

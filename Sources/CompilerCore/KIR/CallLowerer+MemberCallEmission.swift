@@ -160,10 +160,8 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "kk_list_joinToString"
-            || externalLinkName == "kk_array_joinToString"
-            || externalLinkName == "kk_iterable_joinTo"
-            || externalLinkName == "kk_iterable_joinToString"
+           externalLinkName == "kk_iterable_joinTo"
+            || externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
@@ -234,15 +232,33 @@ extension CallLowerer {
             sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema, interner: interner
         )
-        if (loweredCallee == interner.intern("kk_random_nextLong_until")
-            || (receiverIsRandom && loweredCallee == interner.intern("nextLong"))),
+        // KSP-466: nextInt(until: Int)/nextLong(until: Long) are now real Kotlin
+        // members (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt), so Sema
+        // resolves `r.nextInt(someIntRange)` to that (wrong) overload's real,
+        // internally-compiled symbol with loweredCallee == "nextInt"/"nextLong"
+        // (never the old synthetic-stub names "kk_random_nextInt_until"/
+        // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
+        // registration since Random stopped being a synthetic object). loweredCallee
+        // gets corrected to the range-object bridge name below, but
+        // emitCallInstruction (NativeEmitter+CallEmission.swift) prefers calling
+        // `symbol`'s own internal compiled body over `callee`'s name whenever
+        // `symbol` resolves to a known internal function — so without also
+        // clearing the symbol here, the corrected callee *name* is silently
+        // ignored and the wrong (real Int-arity) overload's compiled body still
+        // runs with the range handle reinterpreted as an Int. Confirmed via a
+        // hung/garbage-value repro before this fix (Random(7).nextInt(10..15)
+        // returned an out-of-range value). Resetting callSymbol to nil restores
+        // the originally-intended "chosenCallee == nil" fallback path so codegen
+        // resolves purely by the (corrected) external ABI name.
+        var callSymbol = chosenCallee
+        if receiverIsRandom, loweredCallee == interner.intern("nextLong"),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
         {
             loweredCallee = interner.intern("kk_random_nextLong_rangeObject")
+            callSymbol = nil
         }
-        if (loweredCallee == interner.intern("kk_random_nextInt_until")
-            || (receiverIsRandom && loweredCallee == interner.intern("nextInt"))),
+        if receiverIsRandom, loweredCallee == interner.intern("nextInt"),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
             || nominalRangeElementType(
@@ -252,6 +268,7 @@ extension CallLowerer {
             ) == sema.types.intType
         {
             loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
+            callSymbol = nil
         }
         // When Sema failed to resolve nextLong/nextInt on Random (chosenCallee == nil),
         // appendReceiverToMemberArguments skips the receiver. Insert it now so the
@@ -268,6 +285,20 @@ extension CallLowerer {
             let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
             instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
             finalArguments.append(radixExpr)
+        }
+        // Array.count() with no predicate: kk_array_count's native signature always
+        // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
+        // lambda argument, finalArguments only has the receiver. Without this padding,
+        // fnPtr/closureRaw read whatever garbage occupies those ABI slots, and
+        // kk_array_count's `if fnPtr == 0` fast path is skipped, crashing when it tries
+        // to invoke the garbage pointer as a closure.
+        if loweredCallee == interner.intern("kk_array_count"),
+           finalArguments.count == 1
+        {
+            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            finalArguments.append(zeroExpr)
+            finalArguments.append(zeroExpr)
         }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
@@ -416,7 +447,7 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_byteArray_toKString")
+           loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
                 normalized.defaultMask,
@@ -427,34 +458,32 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
-        if loweredCallee == interner.intern("kk_list_windowed_transform") {
+        if loweredCallee == interner.intern("kk_list_joinToString_transform")
+            || loweredCallee == interner.intern("kk_iterable_joinToString_transform")
+            || loweredCallee == interner.intern("kk_array_joinToString_transform")
+        {
             let originalArgumentCount = finalArguments.count
-            if originalArgumentCount >= 3 {
-                let lambdaArgIndex = originalArgumentCount - 1
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[lambdaArgIndex],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments[lambdaArgIndex] = fnPtrExpr
-                finalArguments.append(envPtrExpr)
-            }
-            if originalArgumentCount == 3 {
-                // `windowed(size, transform)` expands to `windowed(size, 1, false, transform)`.
-                let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
-                instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(oneExpr, at: 2)
-                finalArguments.insert(zeroExpr, at: 3)
-            } else if originalArgumentCount == 4 {
-                // `windowed(size, step, transform)` expands to
-                // `windowed(size, step, false, transform)`.
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(zeroExpr, at: 3)
+            let lambdaArgIndex = originalArgumentCount - 1
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[lambdaArgIndex],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[lambdaArgIndex] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+            // `joinToString(transform)` / `joinToString(separator, transform)` / ... each
+            // expand to the full `(separator, prefix, postfix, transform)` shape the
+            // runtime ABI expects, materializing whichever trailing string defaults
+            // (from the end of the real parameter list) the call site omitted.
+            let stringDefaults = [", ", "", ""]
+            let missingCount = Swift.max(0, 5 - originalArgumentCount)
+            for (offset, defaultValue) in stringDefaults.suffix(missingCount).enumerated() {
+                let interned = interner.intern(defaultValue)
+                let exprID = arena.appendExpr(.stringLiteral(interned), type: sema.types.stringType)
+                instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+                finalArguments.insert(exprID, at: lambdaArgIndex + offset)
             }
         }
         if loweredCallee == interner.intern("kk_sequence_windowed_transform")
@@ -909,13 +938,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
-        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation): split the lambda
-        // argument at index 1 into a function pointer and environment pointer,
+        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation) and
+        // kk_semaphore_withPermit(handle, actionFnPtr, actionEnvPtr, continuation): split the
+        // lambda argument at index 1 into a function pointer and environment pointer,
         // following the standard closure-conversion ABI used by collection HOFs.
         // A zero continuation placeholder is appended as the 4th argument because the
         // current runtime path blocks on contention and keeps the ABI shape aligned
-        // with the suspend-aware mutex entry point.
-        if loweredCallee == interner.intern("kk_mutex_withLock"),
+        // with the suspend-aware entry point.
+        if loweredCallee == interner.intern("kk_mutex_withLock")
+            || loweredCallee == interner.intern("kk_semaphore_withPermit"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -1046,7 +1077,7 @@ extension CallLowerer {
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
-               result: result, sema: sema
+               result: result, sema: sema, interner: interner
            )
         {
             instructions.append(inst)
@@ -1065,6 +1096,25 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_clock_system_now") {
             callArguments = []
         }
+        if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            calleeName: loweredCallee,
+            receiverExpr: receiver.expr,
+            argumentCount: callArguments.count,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.call(
+                symbol: nil,
+                callee: bridgeCall.callee,
+                arguments: callArguments,
+                result: result,
+                canThrow: bridgeCall.canThrow,
+                thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,
+                isSuperCall: isSuperCall,
+                qualifiedSuperType: qualifiedSuperType
+            ))
+            return
+        }
         let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
         let needsOutThrown = needsThrownChannel(calleeName: loweredCallee, interner: interner)
         let thrownResult: KIRExprID? = needsOutThrown
@@ -1072,7 +1122,7 @@ extension CallLowerer {
             : nil
         let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
         instructions.append(.call(
-            symbol: chosenCallee,
+            symbol: callSymbol,
             callee: loweredCallee,
             arguments: callArguments,
             result: result,
@@ -1099,15 +1149,6 @@ extension CallLowerer {
     /// invocations to avoid repeated interning in the hot lowering path.
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
-            interner.intern("kk_base64_decode_default"),
-            interner.intern("kk_base64_decode_urlsafe"),
-            interner.intern("kk_base64_decode_mime"),
-            interner.intern("kk_base64_decodeFromByteArray_default"),
-            interner.intern("kk_base64_decodeFromByteArray_urlsafe"),
-            interner.intern("kk_base64_decodeFromByteArray_mime"),
-            interner.intern("kk_base64_decode_instance"),
-            interner.intern("kk_base64_decodeFromByteArray_instance"),
-            interner.intern("kk_base64_decodingWith"),
             interner.intern("kk_list_random"),
             interner.intern("kk_list_elementAt"),
             interner.intern("kk_list_take"),
@@ -1136,7 +1177,6 @@ extension CallLowerer {
             interner.intern("kk_list_runningFold"),
             interner.intern("kk_list_runningReduce"),
             interner.intern("kk_list_scanReduce"),
-            interner.intern("kk_list_filterIndexed"),
             interner.intern("kk_list_foldIndexed"),
             interner.intern("kk_list_foldRightIndexed"),
             interner.intern("kk_list_reduceIndexed"),
@@ -1234,10 +1274,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_flatMapIndexedTo"),
             interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
-            interner.intern("kk_string_ifBlank"),
-            interner.intern("kk_string_ifBlank_flat"),
-            interner.intern("kk_string_ifEmpty"),
-            interner.intern("kk_string_ifEmpty_flat"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_random"),
             interner.intern("kk_sequence_last"),
@@ -1261,7 +1297,6 @@ extension CallLowerer {
             interner.intern("kk_string_chunked_sequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),
             interner.intern("kk_sequence_to_list"),
-            interner.intern("kk_list_windowed_transform"),
             interner.intern("kk_sequence_chunked_transform"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
@@ -1277,6 +1312,55 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
+    }
+
+    private func listWindowChunkMemberSourceBridgeCall(
+        calleeName: InternedString,
+        receiverExpr: ExprID,
+        argumentCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (callee: InternedString, canThrow: Bool)? {
+        let receiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
+        let isListWindowChunkReceiver = isConcreteListLikeType(receiverType, sema: sema, interner: interner)
+            || isSetLikeType(receiverType, sema: sema, interner: interner)
+            || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
+            || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
+        guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        let callee: String
+        let canThrow: Bool
+        switch (interner.resolve(calleeName), argumentCount) {
+        case ("chunked", 2):
+            callee = "__kk_list_chunked"
+            canThrow = false
+        case ("chunked", 4):
+            callee = "__kk_list_chunked_transform"
+            canThrow = true
+        case ("windowed", 4):
+            callee = "__kk_list_windowed"
+            canThrow = false
+        case ("windowed", 6):
+            callee = "__kk_list_windowed_transform"
+            canThrow = true
+        case ("zip", 2):
+            callee = "__kk_list_zip"
+            canThrow = false
+        case ("zip", 4):
+            callee = "__kk_list_zip_transform"
+            canThrow = true
+        case ("zipWithNext", 1):
+            callee = "__kk_list_zipWithNext"
+            canThrow = false
+        case ("zipWithNext", 3):
+            callee = "__kk_list_zipWithNextTransform"
+            canThrow = true
+        default:
+            return nil
+        }
+        return (interner.intern(callee), canThrow)
     }
 
     func splitCallableLambdaArgument(

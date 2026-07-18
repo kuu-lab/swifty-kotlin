@@ -143,6 +143,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let negativeArraySizeSymbol = ensureClassSymbol(
+            named: "NegativeArraySizeException",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let unsupportedOperationSymbol = ensureClassSymbol(
             named: "UnsupportedOperationException",
             in: kotlinPkg,
@@ -201,11 +207,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: runtimeExceptionSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: uninitializedSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: nullPointerSymbol)
-        symbols.setDirectSupertypes([exceptionSymbol], for: numberFormatSymbol)
+        symbols.setDirectSupertypes([illegalArgumentSymbol], for: numberFormatSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: illegalArgumentSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: illegalStateSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: indexOutOfBoundsSymbol)
         symbols.setDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexOutOfBoundsSymbol)
+        symbols.setDirectSupertypes([runtimeExceptionSymbol], for: negativeArraySizeSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: unsupportedOperationSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: noSuchElementSymbol)
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: arithmeticSymbol)
@@ -221,11 +228,12 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([exceptionSymbol], for: runtimeExceptionSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: uninitializedSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: nullPointerSymbol)
-        types.setNominalDirectSupertypes([exceptionSymbol], for: numberFormatSymbol)
+        types.setNominalDirectSupertypes([illegalArgumentSymbol], for: numberFormatSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: illegalArgumentSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: illegalStateSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: indexOutOfBoundsSymbol)
         types.setNominalDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexOutOfBoundsSymbol)
+        types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: negativeArraySizeSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: unsupportedOperationSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: noSuchElementSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: arithmeticSymbol)
@@ -249,6 +257,7 @@ extension DataFlowSemaPhase {
             illegalStateSymbol,
             indexOutOfBoundsSymbol,
             arrayIndexOutOfBoundsSymbol,
+            negativeArraySizeSymbol,
             unsupportedOperationSymbol,
             noSuchElementSymbol,
             arithmeticSymbol,
@@ -269,7 +278,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             includeMessageOverload: false,
-            throwableSymbol: throwableSymbol
+            throwableSymbol: throwableSymbol,
+            noArgLinkName: "kk_exception_new"
         )
         let characterCodingType = types.make(.classType(ClassType(
             classSymbol: characterCodingSymbol,
@@ -343,7 +353,10 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             includeMessageOverload: true,
-            throwableSymbol: throwableSymbol
+            throwableSymbol: throwableSymbol,
+            noArgLinkName: "kk_runtime_exception_new",
+            messageLinkName: "kk_runtime_exception_new_message",
+            messageCauseLinkName: "kk_runtime_exception_new_message_cause"
         )
         registerSyntheticExceptionConstructors(
             ownerSymbol: uninitializedSymbol,
@@ -352,7 +365,10 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             includeMessageOverload: true,
-            throwableSymbol: throwableSymbol
+            throwableSymbol: throwableSymbol,
+            noArgLinkName: "kk_uninitialized_property_access_exception_new",
+            messageLinkName: "kk_uninitialized_property_access_exception_new_message",
+            messageCauseLinkName: "kk_uninitialized_property_access_exception_new_message_cause"
         )
         registerSyntheticExceptionConstructors(
             ownerSymbol: nullPointerSymbol,
@@ -361,7 +377,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             includeMessageOverload: false,
-            throwableSymbol: throwableSymbol
+            throwableSymbol: throwableSymbol,
+            noArgLinkName: "kk_null_pointer_exception_new"
         )
         registerSyntheticExceptionConstructors(
             ownerSymbol: numberFormatSymbol,
@@ -370,19 +387,27 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             includeMessageOverload: true,
-            throwableSymbol: throwableSymbol
+            throwableSymbol: throwableSymbol,
+            noArgLinkName: "kk_number_format_exception_new",
+            messageLinkName: "kk_number_format_exception_new_message",
+            messageCauseLinkName: "kk_number_format_exception_new_message_cause"
         )
-        for exSymbol in [
-            illegalArgumentSymbol,
-            illegalStateSymbol,
-            indexOutOfBoundsSymbol,
-            unsupportedOperationSymbol,
-            noSuchElementSymbol,
-            arithmeticSymbol,
-            classCastSymbol,
-            errorSymbol,
-            assertionErrorSymbol,
-        ] {
+        // Each entry gives its constructor's external link name a distinct
+        // per-type prefix (instead of sharing the type-erased kk_throwable_new),
+        // so the allocated box's runtime identity matches the Kotlin-level type
+        // and `catch (e: T)` can discriminate between unrelated sibling exceptions.
+        let genericExceptionLinkPrefixes: [(symbol: SymbolID, prefix: String)] = [
+            (illegalArgumentSymbol, "kk_illegal_argument_exception"),
+            (illegalStateSymbol, "kk_illegal_state_exception"),
+            (indexOutOfBoundsSymbol, "kk_index_out_of_bounds_exception"),
+            (unsupportedOperationSymbol, "kk_unsupported_operation_exception"),
+            (noSuchElementSymbol, "kk_no_such_element_exception"),
+            (arithmeticSymbol, "kk_arithmetic_exception"),
+            (classCastSymbol, "kk_class_cast_exception"),
+            (errorSymbol, "kk_error"),
+            (assertionErrorSymbol, "kk_assertion_error"),
+        ]
+        for (exSymbol, linkPrefix) in genericExceptionLinkPrefixes {
             registerSyntheticExceptionConstructors(
                 ownerSymbol: exSymbol,
                 ownerType: types.make(.classType(ClassType(classSymbol: exSymbol, args: [], nullability: .nonNull))),
@@ -390,7 +415,10 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 includeMessageOverload: true,
-                throwableSymbol: throwableSymbol
+                throwableSymbol: throwableSymbol,
+                noArgLinkName: "\(linkPrefix)_new",
+                messageLinkName: "\(linkPrefix)_new_message",
+                messageCauseLinkName: "\(linkPrefix)_new_message_cause"
             )
         }
         registerSyntheticNullableExceptionConstructors(
@@ -414,6 +442,13 @@ extension DataFlowSemaPhase {
         registerSyntheticArrayIndexOutOfBoundsExceptionConstructors(
             ownerSymbol: arrayIndexOutOfBoundsSymbol,
             ownerType: types.make(.classType(ClassType(classSymbol: arrayIndexOutOfBoundsSymbol, args: [], nullability: .nonNull))),
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNegativeArraySizeExceptionConstructors(
+            ownerSymbol: negativeArraySizeSymbol,
+            ownerType: types.make(.classType(ClassType(classSymbol: negativeArraySizeSymbol, args: [], nullability: .nonNull))),
             symbols: symbols,
             types: types,
             interner: interner
@@ -625,13 +660,16 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         includeMessageOverload: Bool,
-        throwableSymbol: SymbolID? = nil
+        throwableSymbol: SymbolID? = nil,
+        noArgLinkName: String = "kk_throwable_new",
+        messageLinkName: String = "kk_throwable_new",
+        messageCauseLinkName: String = "kk_throwable_new_with_cause"
     ) {
         registerSyntheticExceptionConstructor(
             ownerSymbol: ownerSymbol,
             ownerType: ownerType,
             parameters: [],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: noArgLinkName,
             symbols: symbols,
             interner: interner
         )
@@ -640,7 +678,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: ownerSymbol,
                 ownerType: ownerType,
                 parameters: [("message", types.stringType)],
-                externalLinkName: "kk_throwable_new",
+                externalLinkName: messageLinkName,
                 symbols: symbols,
                 interner: interner
             )
@@ -654,7 +692,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: ownerSymbol,
                 ownerType: ownerType,
                 parameters: [("message", types.stringType), ("cause", nullableThrowableType)],
-                externalLinkName: "kk_throwable_new_with_cause",
+                externalLinkName: messageCauseLinkName,
                 symbols: symbols,
                 interner: interner
             )
@@ -772,6 +810,30 @@ extension DataFlowSemaPhase {
         let overloads: [(parameters: [(name: String, type: TypeID)], link: String)] = [
             ([], "kk_array_index_out_of_bounds_exception_new"),
             ([("message", nullableStringType)], "kk_array_index_out_of_bounds_exception_new_message"),
+        ]
+        for overload in overloads {
+            registerSyntheticExceptionConstructor(
+                ownerSymbol: ownerSymbol,
+                ownerType: ownerType,
+                parameters: overload.parameters,
+                externalLinkName: overload.link,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    private func registerSyntheticNegativeArraySizeExceptionConstructors(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nullableStringType = types.makeNullable(types.stringType)
+        let overloads: [(parameters: [(name: String, type: TypeID)], link: String)] = [
+            ([], "kk_negative_array_size_exception_new"),
+            ([("message", nullableStringType)], "kk_negative_array_size_exception_new_message"),
         ]
         for overload in overloads {
             registerSyntheticExceptionConstructor(

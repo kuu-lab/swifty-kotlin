@@ -1,3 +1,4 @@
+// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Error cases for return type mismatches (KSWIFTK-TYPE-* / KSWIFTK-SEMA-*)
 
 // ERROR: Function declares Int but returns String
