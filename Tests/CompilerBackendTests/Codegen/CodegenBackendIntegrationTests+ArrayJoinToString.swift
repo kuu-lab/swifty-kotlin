@@ -9,10 +9,11 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val arr = arrayOf(1, 2, 3)
             println(arr.joinToString())
+            println(arr.joinToString { (it * 10).toString() })
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringDefault", expected: "1, 2, 3\n")
+        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringDefault", expected: "1, 2, 3\n10, 20, 30\n")
     }
 
     func testCodegenArrayJoinToStringWithCustomSeparator() throws {
@@ -20,10 +21,11 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val arr = arrayOf(1, 2, 3)
             println(arr.joinToString(" | "))
+            println(arr.joinToString(",") { (it * 10).toString() })
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringSeparator", expected: "1 | 2 | 3\n")
+        try assertKotlinOutput(source, moduleName: "ArrayJoinToStringSeparator", expected: "1 | 2 | 3\n10,20,30\n")
     }
 
     func testCodegenArrayJoinToStringWithPrefixAndPostfix() throws {
@@ -48,5 +50,5 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "ArrayJoinToStringEmpty", expected: "\n<>\n")
     }
-}
 
+}
