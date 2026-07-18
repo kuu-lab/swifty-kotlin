@@ -15,7 +15,6 @@ indirect enum SyntheticStubTypeRef: Hashable, Sendable {
     static let char: SyntheticStubTypeRef = .builtin(.char)
     static let int: SyntheticStubTypeRef = .builtin(.int)
     static let long: SyntheticStubTypeRef = .builtin(.long)
-    static let float: SyntheticStubTypeRef = .builtin(.float)
     static let double: SyntheticStubTypeRef = .builtin(.double)
     static let string: SyntheticStubTypeRef = .builtin(.string)
     static let uint: SyntheticStubTypeRef = .builtin(.uint)

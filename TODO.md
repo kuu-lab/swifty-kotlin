@@ -179,7 +179,7 @@
 - [ ] DEADCODE-CORE-028: [R0] `CallTypeChecker+SyntheticDispatchHelpers.swift:187` の `shouldUseRuntimeStdlibSpecialCall(...)` を削除する
 - [ ] DEADCODE-CORE-029: [R0] `BundledDeclarationIndex.swift:67` の `build(symbols:types:sourceManager:interner:)` overload を削除する。`Phase.swift` が使う `build(ast:symbols:types:sourceManager:interner:)` は残す
 - [ ] DEADCODE-CORE-030: [R0] `TypeInferenceContext.swift:80` の `with(enclosingClassSymbol:)` を削除する。`copying(...enclosingClassSymbol:)` は別 API として残す
-- [ ] DEADCODE-CORE-031: [R0] `SyntheticStubSurfaceSpec.swift:18` の static `float` 型参照定数を削除する
+- [x] DEADCODE-CORE-031: [R0] `SyntheticStubSurfaceSpec.swift:18` の static `float` 型参照定数を削除する
 - [ ] DEADCODE-CORE-032: [R0] `SyntheticStubSurfaceSpec.swift:21` の static `uint` 型参照定数を削除する
 - [x] DEADCODE-CORE-033: [R0] `SyntheticStubSurfaceSpec.swift:22` の static `ulong` 型参照定数を削除する。2026-07-17 完了: `SyntheticStubTypeRef.ulong` は宣言以外の参照ゼロ（呼び出し元 4 ファイル — `HeaderHelpers+SyntheticExceptionStubs.swift` / `+SyntheticIteratorStubs.swift` / `+SyntheticCharStubs.swift` / `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` — で `.ulong` 未使用と確認済み、テストからの直接参照もなし）を確認し削除。`SyntheticStubBuiltinType.ulong` ケースと `resolveSyntheticStubBuiltinType` 内の対応 switch アームは、`.error`/`.nothing` 同様に convenience `static let` を持たない他ケースと同型の型ボキャブラリ定義のため残置。`swift build` 成功・`git diff --check` クリーン・`CompilerCoreTests` green を確認済み
 - [ ] DEADCODE-CORE-034: [R0] `SyntheticStubSurfaceSpec.swift:23` の static `ubyte` 型参照定数を削除する
