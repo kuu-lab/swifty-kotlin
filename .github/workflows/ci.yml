@@ -125,6 +125,7 @@ jobs:
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
+        id: spm-cache
         uses: actions/cache@v5
         with:
           path: .build
@@ -141,7 +142,8 @@ jobs:
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
-      - name: Build compiler and tests
+      - name: Build compiler and tests (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
         run: bash Scripts/build_swift_tests.sh -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       # Smoke tests take ~10s once the build exists, so they run here instead
       # of a dedicated job whose checkout/toolchain/cache setup cost ~2 minutes.
@@ -160,10 +162,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # CompilerCoreTests mixes Swift Testing (@Suite/@Test) and XCTest, so it is
-  # split at the suite level via shard_swift_tests.sh's "static" mode (safe
-  # regardless of listing-format differences between the two frameworks;
-  # see the script for details). shard values MUST be a contiguous 0..N-1
-  # range matching strategy.job-total below.
+  # split at the weighted suite level via shard_swift_tests.sh's "static" mode
+  # (safe regardless of listing-format differences between the two frameworks;
+  # see the script for details). shard values MUST be a contiguous 0..N-1 range
+  # matching strategy.job-total below.
   full-swift-tests-core:
     name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
@@ -182,8 +184,8 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           df -h
-      - name: Setup Swift and LLVM
-        uses: ./.github/actions/setup-swift-llvm
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
@@ -363,8 +365,8 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           df -h
-      - name: Setup Swift and LLVM
-        uses: ./.github/actions/setup-swift-llvm
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
@@ -398,13 +400,27 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
             -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run RuntimeTestsParallel with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "1"
+          SWIFT_TEST_WORKERS: "4"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run LSPServerTests with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "1"
+          SWIFT_TEST_WORKERS: "4"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
         run: |
           {
-            echo '## Full Swift test reproduce (RuntimeTests)'
+            echo '## Full Swift test reproduce (RuntimeTests, RuntimeTestsParallel, LSPServerTests)'
             echo '```bash'
             echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -417,22 +433,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests runs as its own full-swift-tests-runtime job above
-          # (needs serialized, chunked execution — see the comment there).
-          - test-target: RuntimeTestsParallel
-            test-filter: '^RuntimeTestsParallel\\.'
-            parallel: "1"
-            workers: "4"
-            build-jobs: "4"
-            needs-llvm: true
+          # RuntimeTests, RuntimeTestsParallel, and LSPServerTests run in the
+          # Swift-only full-swift-tests-runtime job above. Keeping them there
+          # avoids two extra runner allocations while preserving coverage.
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
-            parallel: "1"
-            workers: "4"
-            build-jobs: "4"
-            needs-llvm: true
-          - test-target: LSPServerTests
-            test-filter: '^LSPServerTests\\.'
             parallel: "1"
             workers: "4"
             build-jobs: "4"
