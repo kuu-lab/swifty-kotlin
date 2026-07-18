@@ -649,19 +649,25 @@ extension CollectionLiteralConstructionLoweringPass {
             var rewrittenCallee: InternedString?
             let isStringBuilderCallee = builderCallee == lookup.buildStringName
                 || builderCallee == lookup.buildStringBuilderName
-            if isStringBuilderCallee, callee == lookup.appendName, arguments.count == 1 {
+            let builderArguments = stringBuilderBuilderArguments(
+                arguments,
+                isStringBuilderCallee: isStringBuilderCallee,
+                function: function,
+                module: module
+            )
+            if isStringBuilderCallee, callee == lookup.appendName, builderArguments.count == 1 {
                 rewrittenCallee = lookup.kkStringBuilderAppendName
-            } else if isStringBuilderCallee, callee == lookup.appendLineName, arguments.count == 1 {
+            } else if isStringBuilderCallee, callee == lookup.appendLineName, builderArguments.count == 1 {
                 rewrittenCallee = lookup.kkStringBuilderAppendLineName
-            } else if isStringBuilderCallee, callee == lookup.appendLineName, arguments.count == 0 {
+            } else if isStringBuilderCallee, callee == lookup.appendLineName, builderArguments.count == 0 {
                 rewrittenCallee = lookup.kkStringBuilderAppendLineNoargName
-            } else if isStringBuilderCallee, callee == lookup.insertName, arguments.count == 2 {
+            } else if isStringBuilderCallee, callee == lookup.insertName, builderArguments.count == 2 {
                 rewrittenCallee = lookup.kkStringBuilderInsertName
-            } else if isStringBuilderCallee, callee == lookup.deleteName, arguments.count == 2 {
+            } else if isStringBuilderCallee, callee == lookup.deleteName, builderArguments.count == 2 {
                 rewrittenCallee = lookup.kkStringBuilderDeleteName
-            } else if isStringBuilderCallee, callee == lookup.lengthName, arguments.count == 0 {
+            } else if isStringBuilderCallee, callee == lookup.lengthName, builderArguments.count == 0 {
                 rewrittenCallee = lookup.kkStringBuilderLengthName
-            } else if isStringBuilderCallee, callee == lookup.appendRangeName, arguments.count == 3 {
+            } else if isStringBuilderCallee, callee == lookup.appendRangeName, builderArguments.count == 3 {
                 rewrittenCallee = lookup.kkStringBuilderAppendRangeName
             } else if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderListAddName
@@ -678,18 +684,18 @@ extension CollectionLiteralConstructionLoweringPass {
                 let runtimeArguments: [KIRExprID]
                 if builderCallee == lookup.buildStringName,
                    (callee == lookup.appendName || callee == lookup.appendLineName),
-                   arguments.count == 1
+                   builderArguments.count == 1
                 {
                     runtimeArguments = [
                         boxedBuildStringTextArgumentIfNeeded(
-                            arguments[0],
+                            builderArguments[0],
                             module: module,
                             ctx: ctx,
                             loweredBody: &loweredBody
                         ),
                     ]
                 } else {
-                    runtimeArguments = arguments
+                    runtimeArguments = builderArguments
                 }
                 loweredBody.append(.call(
                     symbol: nil,
@@ -738,5 +744,22 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         return false
+    }
+
+    private func stringBuilderBuilderArguments(
+        _ arguments: [KIRExprID],
+        isStringBuilderCallee: Bool,
+        function: KIRFunction,
+        module: KIRModule
+    ) -> [KIRExprID] {
+        guard isStringBuilderCallee,
+              let firstArgument = arguments.first,
+              let receiverParameter = function.params.first,
+              case let .symbolRef(symbol) = module.arena.expr(firstArgument),
+              symbol == receiverParameter.symbol
+        else {
+            return arguments
+        }
+        return Array(arguments.dropFirst())
     }
 }
