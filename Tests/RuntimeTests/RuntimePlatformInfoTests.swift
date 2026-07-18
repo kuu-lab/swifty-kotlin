@@ -1,5 +1,6 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
 /// Tests for `kotlin.native.Platform` runtime APIs:
 /// `kk_platform_osFamily`, `kk_platform_cpuArchitecture`,
@@ -8,204 +9,227 @@ import XCTest
 ///
 /// `memoryModel` and `isDebugBinary` runtime coverage lives in
 /// RuntimePlatformTests.swift.
-final class RuntimePlatformInfoTests: XCTestCase {
+@Suite
+struct RuntimePlatformInfoTests {
 
     // MARK: - OsFamily
 
     /// On macOS the host OS family ordinal must equal 1 (MACOSX).
+    @Test
     func testOsFamilyOnMacOSReturnsMACOSX() {
         let ordinal = kk_platform_osFamily(0)
         let unboxed = kk_unbox_int(ordinal)
 #if os(macOS)
         // OsFamily.macosx == 1
-        XCTAssertEqual(unboxed, 1, "Expected OsFamily.MACOSX (1) on macOS, got \(unboxed)")
+        #expect(unboxed == 1, "Expected OsFamily.MACOSX (1) on macOS, got \(unboxed)")
 #else
         // On non-macOS platforms (e.g. Linux CI), the ordinal will reflect the host OS.
-        XCTAssertGreaterThanOrEqual(unboxed, 0, "OsFamily ordinal must be non-negative")
-        XCTAssertLessThanOrEqual(unboxed, 8, "OsFamily ordinal must be within the defined range [0,8]")
+        #expect(unboxed >= 0, "OsFamily ordinal must be non-negative")
+        #expect(unboxed <= 8, "OsFamily ordinal must be within the defined range [0,8]")
 #endif
     }
 
     /// The ordinal must be within the known enum range [0, 8].
+    @Test
     func testOsFamilyOrdinalIsWithinKnownRange() {
         let ordinal = kk_unbox_int(kk_platform_osFamily(0))
-        XCTAssertGreaterThanOrEqual(ordinal, 0)
-        XCTAssertLessThanOrEqual(ordinal, 8, "OsFamily ordinal \(ordinal) is outside the defined range [0,8]")
+        #expect(ordinal >= 0)
+        #expect(ordinal <= 8, "OsFamily ordinal \(ordinal) is outside the defined range [0,8]")
     }
 
     /// Repeated calls must return the identical boxed value (singleton cache).
+    @Test
     func testOsFamilyIsStableAcrossRepeatedCalls() {
         let first  = kk_platform_osFamily(0)
         let second = kk_platform_osFamily(0)
-        XCTAssertEqual(first, second, "kk_platform_osFamily should return a stable cached value")
+        #expect(first == second, "kk_platform_osFamily should return a stable cached value")
     }
 
     /// The platform argument is ignored; passing different values still returns the same ordinal.
+    @Test
     func testOsFamilyIgnoresPlatformArgument() {
         let a = kk_unbox_int(kk_platform_osFamily(0))
         let b = kk_unbox_int(kk_platform_osFamily(42))
         let c = kk_unbox_int(kk_platform_osFamily(-1))
-        XCTAssertEqual(a, b)
-        XCTAssertEqual(b, c)
+        #expect(a == b)
+        #expect(b == c)
     }
 
     // MARK: - CpuArchitecture
 
     /// On Apple Silicon the architecture ordinal must equal 4 (ARM64);
     /// on Intel it must equal 2 (X64).
+    @Test
     func testCpuArchitectureIsARM64orX64() {
         let ordinal = kk_unbox_int(kk_platform_cpuArchitecture(0))
 #if arch(arm64)
-        XCTAssertEqual(ordinal, 4, "Expected CpuArchitecture.ARM64 (4) on Apple Silicon, got \(ordinal)")
+        #expect(ordinal == 4, "Expected CpuArchitecture.ARM64 (4) on Apple Silicon, got \(ordinal)")
 #elseif arch(x86_64)
-        XCTAssertEqual(ordinal, 2, "Expected CpuArchitecture.X64 (2) on Intel, got \(ordinal)")
+        #expect(ordinal == 2, "Expected CpuArchitecture.X64 (2) on Intel, got \(ordinal)")
 #else
-        XCTAssertGreaterThanOrEqual(ordinal, 0)
+        #expect(ordinal >= 0)
 #endif
     }
 
     /// The ordinal must be within the known enum range [0, 7].
+    @Test
     func testCpuArchitectureOrdinalIsWithinKnownRange() {
         let ordinal = kk_unbox_int(kk_platform_cpuArchitecture(0))
-        XCTAssertGreaterThanOrEqual(ordinal, 0)
-        XCTAssertLessThanOrEqual(ordinal, 7, "CpuArchitecture ordinal \(ordinal) is outside the defined range [0,7]")
+        #expect(ordinal >= 0)
+        #expect(ordinal <= 7, "CpuArchitecture ordinal \(ordinal) is outside the defined range [0,7]")
     }
 
     /// Repeated calls must return the identical boxed value (singleton cache).
+    @Test
     func testCpuArchitectureIsStableAcrossRepeatedCalls() {
         let first  = kk_platform_cpuArchitecture(0)
         let second = kk_platform_cpuArchitecture(0)
-        XCTAssertEqual(first, second)
+        #expect(first == second)
     }
 
     /// The platform argument is ignored.
+    @Test
     func testCpuArchitectureIgnoresPlatformArgument() {
         let a = kk_unbox_int(kk_platform_cpuArchitecture(0))
         let b = kk_unbox_int(kk_platform_cpuArchitecture(99))
-        XCTAssertEqual(a, b)
+        #expect(a == b)
     }
 
     // MARK: - isLittleEndian
 
     /// Apple platforms (macOS arm64 and x86_64) and Linux x86_64 are little-endian.
+    @Test
     func testIsLittleEndianIsTrueOnApplePlatforms() {
         let result = kk_platform_isLittleEndian(0)
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || (os(Linux) && (arch(x86_64) || arch(arm64)))
-        XCTAssertEqual(result, 1, "Expected isLittleEndian == true on this platform, got \(result)")
+        #expect(result == 1, "Expected isLittleEndian == true on this platform, got \(result)")
 #else
-        XCTAssertTrue(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
+        #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
 #endif
     }
 
     /// The result must be a boolean-like integer: 0 or 1.
+    @Test
     func testIsLittleEndianReturnsBooleanInt() {
         let result = kk_platform_isLittleEndian(0)
-        XCTAssertTrue(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
+        #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
     }
 
     /// Repeated calls must be consistent (idempotent).
+    @Test
     func testIsLittleEndianIsIdempotent() {
         let first  = kk_platform_isLittleEndian(0)
         let second = kk_platform_isLittleEndian(0)
-        XCTAssertEqual(first, second)
+        #expect(first == second)
     }
 
     /// The platform argument is ignored.
+    @Test
     func testIsLittleEndianIgnoresPlatformArgument() {
         let a = kk_platform_isLittleEndian(0)
         let b = kk_platform_isLittleEndian(999)
-        XCTAssertEqual(a, b)
+        #expect(a == b)
     }
 
     // MARK: - canAccessUnaligned
 
     /// On x86_64 and arm64, unaligned access is permitted (returns 1).
+    @Test
     func testCanAccessUnalignedIsTrueOnCommonArchitectures() {
         let result = kk_platform_canAccessUnaligned(0)
 #if arch(x86_64) || arch(arm64) || arch(i386)
-        XCTAssertEqual(result, 1, "Expected canAccessUnaligned == true on x86_64/arm64, got \(result)")
+        #expect(result == 1, "Expected canAccessUnaligned == true on x86_64/arm64, got \(result)")
 #else
-        XCTAssertTrue(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
+        #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
 #endif
     }
 
     /// The result must be a boolean-like integer: 0 or 1.
+    @Test
     func testCanAccessUnalignedReturnsBooleanInt() {
         let result = kk_platform_canAccessUnaligned(0)
-        XCTAssertTrue(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
+        #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
     }
 
     /// Repeated calls must be consistent.
+    @Test
     func testCanAccessUnalignedIsIdempotent() {
         let first  = kk_platform_canAccessUnaligned(0)
         let second = kk_platform_canAccessUnaligned(0)
-        XCTAssertEqual(first, second)
+        #expect(first == second)
     }
 
     /// The platform argument is ignored.
+    @Test
     func testCanAccessUnalignedIgnoresPlatformArgument() {
         let a = kk_platform_canAccessUnaligned(0)
         let b = kk_platform_canAccessUnaligned(-42)
-        XCTAssertEqual(a, b)
+        #expect(a == b)
     }
 
     // MARK: - isLittleEndian / canAccessUnaligned consistency
 
     /// On architectures where canAccessUnaligned is true, isLittleEndian is also
     /// always true on all currently supported Apple targets.
+    @Test
     func testIsLittleEndianAndCanAccessUnalignedAreConsistentOnApplePlatforms() {
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         let le  = kk_platform_isLittleEndian(0)
         let cau = kk_platform_canAccessUnaligned(0)
-        XCTAssertEqual(le, 1, "Apple platforms are little-endian")
-        XCTAssertEqual(cau, 1, "Apple arm64/x86_64 support unaligned access")
+        #expect(le == 1, "Apple platforms are little-endian")
+        #expect(cau == 1, "Apple arm64/x86_64 support unaligned access")
 #endif
     }
 
     // MARK: - getAvailableProcessors
 
     /// Available processors must be at least 1.
+    @Test
     func testGetAvailableProcessorsReturnsAtLeastOne() {
         let count = kk_platform_getAvailableProcessors(0)
-        XCTAssertGreaterThanOrEqual(count, 1)
+        #expect(count >= 1)
     }
 
     /// Available processors must be a plausible upper bound (≤ 1024).
+    @Test
     func testGetAvailableProcessorsIsPlausible() {
         let count = kk_platform_getAvailableProcessors(0)
-        XCTAssertLessThanOrEqual(count, 1024, "Unexpectedly large processor count: \(count)")
+        #expect(count <= 1024, "Unexpectedly large processor count: \(count)")
     }
 
     /// Repeated calls must agree (stable within a process).
+    @Test
     func testGetAvailableProcessorsIsStable() {
         let first  = kk_platform_getAvailableProcessors(0)
         let second = kk_platform_getAvailableProcessors(0)
-        XCTAssertEqual(first, second)
+        #expect(first == second)
     }
 
     // MARK: - Enum stability: OsFamily raw values
 
     /// OsFamily enum ordinals are part of the ABI and must not change.
+    @Test
     func testOsFamilyEnumOrdinalStability() {
         // Ordinals are checked by decoding the boxed value from the runtime.
         // We can only observe the host platform's value here, but we verify
         // that the returned ordinal is non-negative and within the declared range.
         let ordinal = kk_unbox_int(kk_platform_osFamily(0))
-        XCTAssertGreaterThanOrEqual(ordinal, 0)
+        #expect(ordinal >= 0)
         // If the host is macOS the value must be 1 per the spec.
 #if os(macOS)
-        XCTAssertEqual(ordinal, 1, "OsFamily.MACOSX must be 1 (ABI stability)")
+        #expect(ordinal == 1, "OsFamily.MACOSX must be 1 (ABI stability)")
 #endif
     }
 
     /// CpuArchitecture enum ordinals are part of the ABI and must not change.
+    @Test
     func testCpuArchitectureEnumOrdinalStability() {
         let ordinal = kk_unbox_int(kk_platform_cpuArchitecture(0))
-        XCTAssertGreaterThanOrEqual(ordinal, 0)
+        #expect(ordinal >= 0)
 #if arch(arm64)
-        XCTAssertEqual(ordinal, 4, "CpuArchitecture.ARM64 must be 4 (ABI stability)")
+        #expect(ordinal == 4, "CpuArchitecture.ARM64 must be 4 (ABI stability)")
 #elseif arch(x86_64)
-        XCTAssertEqual(ordinal, 2, "CpuArchitecture.X64 must be 2 (ABI stability)")
+        #expect(ordinal == 2, "CpuArchitecture.X64 must be 2 (ABI stability)")
 #endif
     }
 }
@@ -220,3 +244,4 @@ final class RuntimePlatformInfoTests: XCTestCase {
 //
 //   • Platform.isDebugBinary — implemented as kk_platform_isDebugBinary using
 //     _isDebugAssertConfiguration(). Tests in RuntimePlatformTests.swift.
+#endif
