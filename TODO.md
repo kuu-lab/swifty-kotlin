@@ -169,7 +169,7 @@
 - [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
 - [ ] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する
 - [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
-- [ ] DEADCODE-CORE-021: [R0] `HeaderHelpers+SyntheticRegexStubs.swift:788` の private `registerRegexStringExtensionFunction(...)` を削除する
+- [x] DEADCODE-CORE-021: [R0] `HeaderHelpers+SyntheticRegexStubs.swift:788` の private `registerRegexStringExtensionFunction(...)` を削除する。2026-07-17 完了: 宣言以外の参照が全リポジトリでゼロ（`rg registerRegexStringExtensionFunction` で宣言 1 件のみ）であることを確認し削除。`swift build` 成功・`git diff --check` クリーン・Regex 関連 Swift Testing 6 suite（`RegexSemaLoweringTests` / `RegexAPISurfaceInventoryTests` / `RegexOptionEnumTests` / `MatchResultTypeTests` / `MatchGroupTypeTests` / `StringContainsFunctionTests`、計103テスト）シリアル実行 green・Golden Sema 297 ケース（`regex_basic.kt` 含む）シリアル実行 green を確認済み
 - [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
 - [ ] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する
 - [ ] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する
