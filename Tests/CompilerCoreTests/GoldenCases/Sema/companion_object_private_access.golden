@@ -1,19 +1,19 @@
-symbol fq=__local_0.client2 kind=local vis=private flags=_ type=golden.sema.NetworkClient
-symbol fq=__local_1.file1 kind=local vis=private flags=_ type=golden.sema.FileManager
-symbol fq=__local_2.file2 kind=local vis=private flags=_ type=golden.sema.FileManager
-symbol fq=__local_3.adult kind=local vis=private flags=_ type=golden.sema.User
-symbol fq=__local_4.child kind=local vis=private flags=_ type=golden.sema.User
-symbol fq=__local_5.custom kind=local vis=private flags=_ type=golden.sema.User
-symbol fq=__local_6.db kind=local vis=private flags=_ type=golden.sema.Database
-symbol fq=__local_7.calc kind=local vis=private flags=_ type=golden.sema.Calculator
-symbol fq=__local_8.logger kind=local vis=private flags=_ type=golden.sema.Logger
-symbol fq=__local_9.basic kind=local vis=private flags=_ type=golden.sema.Product
-symbol fq=__local_10.premium kind=local vis=private flags=_ type=golden.sema.Product
-symbol fq=__local_11.catalog kind=local vis=private flags=_ type=golden.sema.Product
-symbol fq=__local_12.validEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
-symbol fq=__local_13.invalidEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
-symbol fq=__local_14.outer kind=local vis=private flags=_ type=golden.sema.OuterClass
-symbol fq=__local_15.client1 kind=local vis=private flags=_ type=golden.sema.NetworkClient
+symbol fq=__local_0.adult kind=local vis=private flags=_ type=golden.sema.User
+symbol fq=__local_1.child kind=local vis=private flags=_ type=golden.sema.User
+symbol fq=__local_2.custom kind=local vis=private flags=_ type=golden.sema.User
+symbol fq=__local_3.db kind=local vis=private flags=_ type=golden.sema.Database
+symbol fq=__local_4.calc kind=local vis=private flags=_ type=golden.sema.Calculator
+symbol fq=__local_5.logger kind=local vis=private flags=_ type=golden.sema.Logger
+symbol fq=__local_6.basic kind=local vis=private flags=_ type=golden.sema.Product
+symbol fq=__local_7.premium kind=local vis=private flags=_ type=golden.sema.Product
+symbol fq=__local_8.catalog kind=local vis=private flags=_ type=golden.sema.Product
+symbol fq=__local_9.validEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
+symbol fq=__local_10.invalidEmail kind=local vis=private flags=_ type=golden.sema.EmailAddress?
+symbol fq=__local_11.outer kind=local vis=private flags=_ type=golden.sema.OuterClass
+symbol fq=__local_12.client1 kind=local vis=private flags=_ type=golden.sema.NetworkClient
+symbol fq=__local_13.client2 kind=local vis=private flags=_ type=golden.sema.NetworkClient
+symbol fq=__local_14.file1 kind=local vis=private flags=_ type=golden.sema.FileManager
+symbol fq=__local_15.file2 kind=local vis=private flags=_ type=golden.sema.FileManager
 symbol fq=golden.sema.Calculator kind=class vis=public flags=_
 symbol fq=golden.sema.Calculator.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Calculator params=[] ret=golden.sema.Calculator
 symbol fq=golden.sema.Calculator.Companion kind=object vis=public flags=_
@@ -232,124 +232,124 @@ expr e@112:47 int(1000) type=Int
 expr e@115:17 name(User) type=golden.sema.User.Companion ref=golden.sema.User
 expr e@115:34 string(Alice) type=String
 expr e@115:17#1 memberCall recv=e@115:17 callee=createAdult args=[_:e@115:34] type=golden.sema.User call=golden.sema.User.Companion.createAdult
-expr e@115:5 localDecl adult mutable=0 type=_ init=e@115:17#1 type=Unit ref=__local_3.adult
+expr e@115:5 localDecl adult mutable=0 type=_ init=e@115:17#1 type=Unit ref=__local_0.adult
 expr e@116:17 name(User) type=golden.sema.User.Companion ref=golden.sema.User
 expr e@116:34 string(Bob) type=String
 expr e@116:17#1 memberCall recv=e@116:17 callee=createChild args=[_:e@116:34] type=golden.sema.User call=golden.sema.User.Companion.createChild
-expr e@116:5 localDecl child mutable=0 type=_ init=e@116:17#1 type=Unit ref=__local_4.child
+expr e@116:5 localDecl child mutable=0 type=_ init=e@116:17#1 type=Unit ref=__local_1.child
 expr e@117:18 name(User) type=golden.sema.User.Companion ref=golden.sema.User
 expr e@117:38 string(Charlie) type=String
 expr e@117:49 int(25) type=Int
 expr e@117:18#1 memberCall recv=e@117:18 callee=fromNameAndAge args=[_:e@117:38,_:e@117:49] type=golden.sema.User call=golden.sema.User.Companion.fromNameAndAge
-expr e@117:5 localDecl custom mutable=0 type=_ init=e@117:18#1 type=Unit ref=__local_5.custom
-expr e@119:13 name(adult) type=golden.sema.User ref=__local_3.adult
+expr e@117:5 localDecl custom mutable=0 type=_ init=e@117:18#1 type=Unit ref=__local_2.custom
+expr e@119:13 name(adult) type=golden.sema.User ref=__local_0.adult
 expr e@119:13#1 memberCall recv=e@119:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
 expr e@119:5 call callee=e@119:5#1 args=[_:e@119:13#1] type=Unit call=kotlin.io.println#1
-expr e@120:13 name(child) type=golden.sema.User ref=__local_4.child
+expr e@120:13 name(child) type=golden.sema.User ref=__local_1.child
 expr e@120:13#1 memberCall recv=e@120:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
 expr e@120:5 call callee=e@120:5#1 args=[_:e@120:13#1] type=Unit call=kotlin.io.println#1
-expr e@121:13 name(custom) type=golden.sema.User ref=__local_5.custom
+expr e@121:13 name(custom) type=golden.sema.User ref=__local_2.custom
 expr e@121:13#1 memberCall recv=e@121:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
 expr e@121:5 call callee=e@121:5#1 args=[_:e@121:13#1] type=Unit call=kotlin.io.println#1
 expr e@123:14 call callee=e@123:14#1 args=[] type=golden.sema.Database call=golden.sema.Database.<init>
-expr e@123:5 localDecl db mutable=0 type=_ init=e@123:14 type=Unit ref=__local_6.db
+expr e@123:5 localDecl db mutable=0 type=_ init=e@123:14 type=Unit ref=__local_3.db
 expr e@124:13 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
-expr e@124:36 name(db) type=golden.sema.Database ref=__local_6.db
+expr e@124:36 name(db) type=golden.sema.Database ref=__local_3.db
 expr e@124:13#1 memberCall recv=e@124:13 callee=getConnection args=[_:e@124:36] type=String call=golden.sema.Database.Companion.getConnection
 expr e@124:5 call callee=e@124:5#1 args=[_:e@124:13#1] type=Unit call=kotlin.io.println#1
 expr e@125:13 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
-expr e@125:40 name(db) type=golden.sema.Database ref=__local_6.db
+expr e@125:40 name(db) type=golden.sema.Database ref=__local_3.db
 expr e@125:13#1 memberCall recv=e@125:13 callee=getMaxConnections args=[_:e@125:40] type=Int call=golden.sema.Database.Companion.getMaxConnections
 expr e@125:5 call callee=e@125:5#1 args=[_:e@125:13#1] type=Unit call=kotlin.io.println#1
 expr e@127:16 call callee=e@127:16#1 args=[] type=golden.sema.Calculator call=golden.sema.Calculator.<init>
-expr e@127:5 localDecl calc mutable=0 type=_ init=e@127:16 type=Unit ref=__local_7.calc
+expr e@127:5 localDecl calc mutable=0 type=_ init=e@127:16 type=Unit ref=__local_4.calc
 expr e@128:13 name(Calculator) type=golden.sema.Calculator.Companion ref=golden.sema.Calculator
-expr e@128:35 name(calc) type=golden.sema.Calculator ref=__local_7.calc
+expr e@128:35 name(calc) type=golden.sema.Calculator ref=__local_4.calc
 expr e@128:41 int(5) type=Int
 expr e@128:13#1 memberCall recv=e@128:13 callee=safeSquare args=[_:e@128:35,_:e@128:41] type=Int call=golden.sema.Calculator.Companion.safeSquare
 expr e@128:5 call callee=e@128:5#1 args=[_:e@128:13#1] type=Unit call=kotlin.io.println#1
 expr e@129:13 name(Calculator) type=golden.sema.Calculator.Companion ref=golden.sema.Calculator
-expr e@129:35 name(calc) type=golden.sema.Calculator ref=__local_7.calc
+expr e@129:35 name(calc) type=golden.sema.Calculator ref=__local_4.calc
 expr e@129:42 int(1) type=Int
 expr e@129:41 unary(unaryMinus) operand=e@129:42 type=Int
 expr e@129:13#1 memberCall recv=e@129:13 callee=safeSquare args=[_:e@129:35,_:e@129:41] type=Int call=golden.sema.Calculator.Companion.safeSquare
 expr e@129:5 call callee=e@129:5#1 args=[_:e@129:13#1] type=Unit call=kotlin.io.println#1
 expr e@131:18 call callee=e@131:18#1 args=[] type=golden.sema.Logger call=golden.sema.Logger.<init>
-expr e@131:5 localDecl logger mutable=0 type=_ init=e@131:18 type=Unit ref=__local_8.logger
-expr e@132:13 name(logger) type=golden.sema.Logger ref=__local_8.logger
+expr e@131:5 localDecl logger mutable=0 type=_ init=e@131:18 type=Unit ref=__local_5.logger
+expr e@132:13 name(logger) type=golden.sema.Logger ref=__local_5.logger
 expr e@132:24 string(Test message) type=String
 expr e@132:13#1 memberCall recv=e@132:13 callee=log args=[_:e@132:24] type=String call=golden.sema.Logger.log
 expr e@132:5 call callee=e@132:5#1 args=[_:e@132:13#1] type=Unit call=kotlin.io.println#1
-expr e@133:13 name(logger) type=golden.sema.Logger ref=__local_8.logger
+expr e@133:13 name(logger) type=golden.sema.Logger ref=__local_5.logger
 expr e@133:13#1 memberCall recv=e@133:13 callee=getTag args=[] type=String call=golden.sema.Logger.getTag
 expr e@133:5 call callee=e@133:5#1 args=[_:e@133:13#1] type=Unit call=kotlin.io.println#1
 expr e@135:17 name(Product) type=golden.sema.Product.Companion ref=golden.sema.Product
 expr e@135:44 string(Widget) type=String
 expr e@135:17#1 memberCall recv=e@135:17 callee=createBasicProduct args=[_:e@135:44] type=golden.sema.Product call=golden.sema.Product.Companion.createBasicProduct
-expr e@135:5 localDecl basic mutable=0 type=_ init=e@135:17#1 type=Unit ref=__local_9.basic
+expr e@135:5 localDecl basic mutable=0 type=_ init=e@135:17#1 type=Unit ref=__local_6.basic
 expr e@136:19 name(Product) type=golden.sema.Product.Companion ref=golden.sema.Product
 expr e@136:48 string(Gadget) type=String
 expr e@136:58 double(99.99) type=Double
 expr e@136:19#1 memberCall recv=e@136:19 callee=createPremiumProduct args=[_:e@136:48,_:e@136:58] type=golden.sema.Product call=golden.sema.Product.Companion.createPremiumProduct
-expr e@136:5 localDecl premium mutable=0 type=_ init=e@136:19#1 type=Unit ref=__local_10.premium
+expr e@136:5 localDecl premium mutable=0 type=_ init=e@136:19#1 type=Unit ref=__local_7.premium
 expr e@137:19 name(Product) type=golden.sema.Product.Companion ref=golden.sema.Product
 expr e@137:39 string(P123) type=String
 expr e@137:47 string(Thingamajig) type=String
 expr e@137:62 double(49.95) type=Double
 expr e@137:19#1 memberCall recv=e@137:19 callee=fromCatalog args=[_:e@137:39,_:e@137:47,_:e@137:62] type=golden.sema.Product call=golden.sema.Product.Companion.fromCatalog
-expr e@137:5 localDecl catalog mutable=0 type=_ init=e@137:19#1 type=Unit ref=__local_11.catalog
-expr e@139:13 name(basic) type=golden.sema.Product ref=__local_9.basic
+expr e@137:5 localDecl catalog mutable=0 type=_ init=e@137:19#1 type=Unit ref=__local_8.catalog
+expr e@139:13 name(basic) type=golden.sema.Product ref=__local_6.basic
 expr e@139:13#1 memberCall recv=e@139:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
 expr e@139:5 call callee=e@139:5#1 args=[_:e@139:13#1] type=Unit call=kotlin.io.println#1
-expr e@140:13 name(premium) type=golden.sema.Product ref=__local_10.premium
+expr e@140:13 name(premium) type=golden.sema.Product ref=__local_7.premium
 expr e@140:13#1 memberCall recv=e@140:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
 expr e@140:5 call callee=e@140:5#1 args=[_:e@140:13#1] type=Unit call=kotlin.io.println#1
-expr e@141:13 name(catalog) type=golden.sema.Product ref=__local_11.catalog
+expr e@141:13 name(catalog) type=golden.sema.Product ref=__local_8.catalog
 expr e@141:13#1 memberCall recv=e@141:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
 expr e@141:5 call callee=e@141:5#1 args=[_:e@141:13#1] type=Unit call=kotlin.io.println#1
 expr e@143:22 name(EmailAddress) type=golden.sema.EmailAddress.Companion ref=golden.sema.EmailAddress
 expr e@143:42 string(test@example.com) type=String
 expr e@143:22#1 memberCall recv=e@143:22 callee=create args=[_:e@143:42] type=golden.sema.EmailAddress? call=golden.sema.EmailAddress.Companion.create
-expr e@143:5 localDecl validEmail mutable=0 type=_ init=e@143:22#1 type=Unit ref=__local_12.validEmail
+expr e@143:5 localDecl validEmail mutable=0 type=_ init=e@143:22#1 type=Unit ref=__local_9.validEmail
 expr e@144:24 name(EmailAddress) type=golden.sema.EmailAddress.Companion ref=golden.sema.EmailAddress
 expr e@144:44 string(invalid-email) type=String
 expr e@144:24#1 memberCall recv=e@144:24 callee=create args=[_:e@144:44] type=golden.sema.EmailAddress? call=golden.sema.EmailAddress.Companion.create
-expr e@144:5 localDecl invalidEmail mutable=0 type=_ init=e@144:24#1 type=Unit ref=__local_13.invalidEmail
-expr e@146:13 name(validEmail) type=golden.sema.EmailAddress? ref=__local_12.validEmail
+expr e@144:5 localDecl invalidEmail mutable=0 type=_ init=e@144:24#1 type=Unit ref=__local_10.invalidEmail
+expr e@146:13 name(validEmail) type=golden.sema.EmailAddress? ref=__local_9.validEmail
 expr e@146:13#1 safeMemberCall recv=e@146:13 callee=toString args=[] type=String? call=golden.sema.EmailAddress.toString
 expr e@146:5 call callee=e@146:5#1 args=[_:e@146:13#1] type=Unit call=kotlin.io.println#1
-expr e@147:13 name(invalidEmail) type=golden.sema.EmailAddress? ref=__local_13.invalidEmail
+expr e@147:13 name(invalidEmail) type=golden.sema.EmailAddress? ref=__local_10.invalidEmail
 expr e@147:13#1 safeMemberCall recv=e@147:13 callee=toString args=[] type=String? call=golden.sema.EmailAddress.toString
 expr e@147:5 call callee=e@147:5#1 args=[_:e@147:13#1] type=Unit call=kotlin.io.println#1
 expr e@149:17 call callee=e@149:17#1 args=[] type=golden.sema.OuterClass call=golden.sema.OuterClass.<init>
-expr e@149:5 localDecl outer mutable=0 type=_ init=e@149:17 type=Unit ref=__local_14.outer
+expr e@149:5 localDecl outer mutable=0 type=_ init=e@149:17 type=Unit ref=__local_11.outer
 expr e@150:13 name(OuterClass) type=golden.sema.OuterClass.Companion ref=golden.sema.OuterClass
-expr e@150:39 name(outer) type=golden.sema.OuterClass ref=__local_14.outer
+expr e@150:39 name(outer) type=golden.sema.OuterClass ref=__local_11.outer
 expr e@150:13#1 memberCall recv=e@150:13 callee=getOuterSecret args=[_:e@150:39] type=String call=golden.sema.OuterClass.Companion.getOuterSecret
 expr e@150:5 call callee=e@150:5#1 args=[_:e@150:13#1] type=Unit call=kotlin.io.println#1
 expr e@151:13 name(OuterClass) type=golden.sema.OuterClass.Companion ref=golden.sema.OuterClass
 expr e@151:13#1 memberCall recv=e@151:13 callee=getCompanionSecret args=[] type=String call=golden.sema.OuterClass.Companion.getCompanionSecret
 expr e@151:5 call callee=e@151:5#1 args=[_:e@151:13#1] type=Unit call=kotlin.io.println#1
-expr e@152:13 name(outer) type=golden.sema.OuterClass ref=__local_14.outer
+expr e@152:13 name(outer) type=golden.sema.OuterClass ref=__local_11.outer
 expr e@152:13#1 memberCall recv=e@152:13 callee=getCompanionSecretFromOuter args=[] type=String call=golden.sema.OuterClass.getCompanionSecretFromOuter
 expr e@152:5 call callee=e@152:5#1 args=[_:e@152:13#1] type=Unit call=kotlin.io.println#1
 expr e@154:19 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@154:19#1 memberCall recv=e@154:19 callee=createDefault args=[] type=golden.sema.NetworkClient call=golden.sema.createDefault
-expr e@154:5 localDecl client1 mutable=0 type=_ init=e@154:19#1 type=Unit ref=__local_15.client1
+expr e@154:5 localDecl client1 mutable=0 type=_ init=e@154:19#1 type=Unit ref=__local_12.client1
 expr e@155:19 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@155:51 int(5000) type=Int
 expr e@155:19#1 memberCall recv=e@155:19 callee=createWithTimeout args=[_:e@155:51] type=golden.sema.NetworkClient call=golden.sema.createWithTimeout
-expr e@155:5 localDecl client2 mutable=0 type=_ init=e@155:19#1 type=Unit ref=__local_0.client2
+expr e@155:5 localDecl client2 mutable=0 type=_ init=e@155:19#1 type=Unit ref=__local_13.client2
 expr e@157:33 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@157:33#1 memberCall recv=e@157:33 callee=defaultTimeout args=[] type=Int call=golden.sema.defaultTimeout.$get
 expr e@157:13 stringTemplate[lit(Default timeout: ),expr(e@157:33#1)] type=String
 expr e@157:5 call callee=e@157:5#1 args=[_:e@157:13] type=Unit call=kotlin.io.println#1
 expr e@159:17 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
 expr e@159:17#1 memberCall recv=e@159:17 callee=createFile args=[] type=golden.sema.FileManager call=golden.sema.createFile
-expr e@159:5 localDecl file1 mutable=0 type=_ init=e@159:17#1 type=Unit ref=__local_1.file1
+expr e@159:5 localDecl file1 mutable=0 type=_ init=e@159:17#1 type=Unit ref=__local_14.file1
 expr e@160:17 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
 expr e@160:17#1 memberCall recv=e@160:17 callee=createReadOnly args=[] type=golden.sema.FileManager call=golden.sema.createReadOnly
-expr e@160:5 localDecl file2 mutable=0 type=_ init=e@160:17#1 type=Unit ref=__local_2.file2
+expr e@160:5 localDecl file2 mutable=0 type=_ init=e@160:17#1 type=Unit ref=__local_15.file2
 expr e@162:27 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
 expr e@162:27#1 memberCall recv=e@162:27 callee=maxFiles args=[] type=Int call=golden.sema.maxFiles.$get
 expr e@162:13 stringTemplate[lit(Max files: ),expr(e@162:27#1)] type=String
