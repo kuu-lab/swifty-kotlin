@@ -132,10 +132,14 @@ extension KIRLoweringDriver {
         for (index, param) in classDecl.primaryConstructorParams.enumerated() {
             guard param.isProperty,
                   index < ctorSignature.valueParameterSymbols.count,
-                  let propertySymbol = propertySymbolsByName[param.name],
-                  let fieldOffset = sema.symbols.nominalLayout(for: sema.symbols.parentSymbol(for: propertySymbol) ?? .invalid)?
-                  .fieldOffsets[propertySymbol]
+                  let propertySymbol = propertySymbolsByName[param.name]
             else {
+                continue
+            }
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            guard let fieldOffset = sema.symbols.nominalLayout(
+                for: sema.symbols.parentSymbol(for: propertySymbol) ?? .invalid
+            )?.fieldOffsets[targetSymbol] else {
                 continue
             }
 
@@ -331,7 +335,7 @@ extension KIRLoweringDriver {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
                 emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: propSymbol,
+                    propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
                     shared: shared, compilationCtx: compilationCtx, body: &body
                 )
@@ -389,6 +393,8 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         if let receiverID = ctx.activeImplicitReceiverExprID(),
            let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)

@@ -458,6 +458,34 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
+        if loweredCallee == interner.intern("kk_list_joinToString_transform")
+            || loweredCallee == interner.intern("kk_iterable_joinToString_transform")
+            || loweredCallee == interner.intern("kk_array_joinToString_transform")
+        {
+            let originalArgumentCount = finalArguments.count
+            let lambdaArgIndex = originalArgumentCount - 1
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[lambdaArgIndex],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[lambdaArgIndex] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+            // `joinToString(transform)` / `joinToString(separator, transform)` / ... each
+            // expand to the full `(separator, prefix, postfix, transform)` shape the
+            // runtime ABI expects, materializing whichever trailing string defaults
+            // (from the end of the real parameter list) the call site omitted.
+            let stringDefaults = [", ", "", ""]
+            let missingCount = Swift.max(0, 5 - originalArgumentCount)
+            for (offset, defaultValue) in stringDefaults.suffix(missingCount).enumerated() {
+                let interned = interner.intern(defaultValue)
+                let exprID = arena.appendExpr(.stringLiteral(interned), type: sema.types.stringType)
+                instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+                finalArguments.insert(exprID, at: lambdaArgIndex + offset)
+            }
+        }
         if loweredCallee == interner.intern("kk_sequence_windowed_transform")
             || (loweredCallee == interner.intern("kk_sequence_windowed") && hasHOFLambdaArg)
         {
@@ -1246,10 +1274,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_flatMapIndexedTo"),
             interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
-            interner.intern("kk_string_ifBlank"),
-            interner.intern("kk_string_ifBlank_flat"),
-            interner.intern("kk_string_ifEmpty"),
-            interner.intern("kk_string_ifEmpty_flat"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_random"),
             interner.intern("kk_sequence_last"),

@@ -773,6 +773,26 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if isNullLiteralReceiver,
+           args.isEmpty,
+           interner.resolve(calleeName) == "isNullOrEmpty",
+           let charSequenceType = syntheticCharSequenceType(sema: sema),
+           candidates.contains(where: { candidate in
+               sema.symbols.functionSignature(for: candidate)?.receiverType == sema.types.makeNullable(charSequenceType)
+           })
+        {
+            // Kotlin stdlib also provides Array/Collection/Map nullable-receiver
+            // isNullOrEmpty overloads. They are still lowered through synthetic
+            // typed-receiver fallbacks here, but a bare null receiver must see the
+            // same ambiguous overload set as kotlinc.
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous overload resolution.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if hasLeadingLocaleArgument {
             candidates.removeAll { candidate in
                 isSyntheticStringFormatCandidate(candidate, sema: sema, interner: interner)
