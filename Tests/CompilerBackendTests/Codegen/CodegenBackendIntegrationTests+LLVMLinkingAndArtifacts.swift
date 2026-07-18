@@ -341,7 +341,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatIfBlankEmptyRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendDoesNotEmitLegacyIfBlankEmptyRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
             val blank = "   "
@@ -366,8 +366,8 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertFalse(ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
             XCTAssertFalse(ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
-            XCTAssertTrue(ir.contains("@kk_string_ifBlank_flat"), "Missing flat String ifBlank call")
-            XCTAssertTrue(ir.contains("@kk_string_ifEmpty_flat"), "Missing flat String ifEmpty call")
+            XCTAssertFalse(ir.contains("@kk_string_ifBlank_flat"), "Unexpected flat String ifBlank call after KSP-401")
+            XCTAssertFalse(ir.contains("@kk_string_ifEmpty_flat"), "Unexpected flat String ifEmpty call after KSP-401")
         }
     }
 
