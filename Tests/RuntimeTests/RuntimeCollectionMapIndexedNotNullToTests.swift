@@ -1,23 +1,24 @@
+#if canImport(Testing)
 import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private let mapIndexedNotNullToEvenIndex: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
     index.isMultiple(of: 2) ? value + index : runtimeNullSentinelInt
 }
 
-final class RuntimeCollectionMapIndexedNotNullToTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
+@Suite
+struct RuntimeCollectionMapIndexedNotNullToTests {
+    init() {
         kk_runtime_force_reset()
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+    @Test
     func testMapIndexedNotNullToAppendsOnlyNonNullResults() {
+        defer {
+            kk_runtime_force_reset()
+        }
+
         let source = makeList([10, 20, 30, 40])
         let destination = makeList([])
         let returned = kk_list_mapIndexedNotNullTo(
@@ -28,8 +29,8 @@ final class RuntimeCollectionMapIndexedNotNullToTests: XCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
 
-        XCTAssertEqual(returned, destination)
-        XCTAssertEqual(listElements(destination), [10, 32])
+        #expect(returned == destination)
+        #expect(listElements(destination) == [10, 32])
     }
 
     private func makeList(_ elements: [Int]) -> Int {
@@ -40,3 +41,4 @@ final class RuntimeCollectionMapIndexedNotNullToTests: XCTestCase {
         runtimeListBox(from: listRaw)?.elements ?? []
     }
 }
+#endif
