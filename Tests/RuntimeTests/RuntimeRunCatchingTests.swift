@@ -22,12 +22,10 @@ private func runtime_runcatching_failure_lambda(
 
 @Suite(.serialized)
 struct RuntimeRunCatchingTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     @Test
     func testRunCatchingWrapsSuccessAsResult() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
@@ -44,6 +42,8 @@ struct RuntimeRunCatchingTests {
 
     @Test
     func testRunCatchingWrapsFailureWithoutThrowingOutward() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }

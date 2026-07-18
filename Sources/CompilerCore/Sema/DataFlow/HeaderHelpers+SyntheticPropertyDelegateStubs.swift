@@ -136,11 +136,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerCreateInstanceFunction(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -365,11 +360,34 @@ extension DataFlowSemaPhase {
                 kind: .function, name: lazyName, fqName: lazyFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
+            let typeParamName = interner.intern("T")
+            let typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: lazyFQName + [typeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(lazySymbol, for: typeParamSymbol)
+            let typeParamType = types.make(.typeParam(TypeParamType(
+                symbol: typeParamSymbol,
+                nullability: .nonNull
+            )))
             let initializerType = types.make(.functionType(FunctionType(
-                params: [], returnType: anyType, isSuspend: false, nullability: .nonNull
+                params: [], returnType: typeParamType, isSuspend: false, nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: rootLazyInterfaceSymbol,
+                args: [.invariant(typeParamType)],
+                nullability: .nonNull
             )))
             symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [initializerType], returnType: legacyLazyInterfaceType),
+                FunctionSignature(
+                    parameterTypes: [initializerType],
+                    returnType: returnType,
+                    typeParameterSymbols: [typeParamSymbol]
+                ),
                 for: lazySymbol
             )
         }
@@ -442,11 +460,34 @@ extension DataFlowSemaPhase {
                 kind: .function, name: lazyName, fqName: lazyModeFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
+            let typeParamName = interner.intern("T")
+            let typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: lazyModeFQName + [typeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(lazyModeSymbol, for: typeParamSymbol)
+            let typeParamType = types.make(.typeParam(TypeParamType(
+                symbol: typeParamSymbol,
+                nullability: .nonNull
+            )))
             let initializerType = types.make(.functionType(FunctionType(
-                params: [], returnType: anyType, isSuspend: false, nullability: .nonNull
+                params: [], returnType: typeParamType, isSuspend: false, nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: rootLazyInterfaceSymbol,
+                args: [.invariant(typeParamType)],
+                nullability: .nonNull
             )))
             symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [anyType, initializerType], returnType: legacyLazyInterfaceType),
+                FunctionSignature(
+                    parameterTypes: [anyType, initializerType],
+                    returnType: returnType,
+                    typeParameterSymbols: [typeParamSymbol]
+                ),
                 for: lazyModeSymbol
             )
         }

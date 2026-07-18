@@ -315,7 +315,7 @@ extension CallTypeChecker {
                     ? sema.types.makeNonNullable(lookupReceiverType)
                     : lookupReceiverType
                 if receiverForCheck == intType || receiverForCheck == longType {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
+                    let finalType = safeCall ? sema.types.makeNullable(intType) : intType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
