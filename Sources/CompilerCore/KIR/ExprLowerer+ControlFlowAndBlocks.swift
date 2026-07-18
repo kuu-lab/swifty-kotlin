@@ -247,6 +247,29 @@ extension ExprLowerer {
                     return result
                 }
 
+                // A custom getter must run for implicit-receiver reads just as
+                // it does for an explicit `receiver.property` read.
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
+                   ownerKind == .class || ownerKind == .interface,
+                   driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
+                {
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    instructions.append(.call(
+                        symbol: getterSymbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+
                 if let symbol = sema.bindings.identifierSymbols[exprID],
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -340,7 +363,7 @@ extension ExprLowerer {
                 // from the current implicit receiver instance rather than treating
                 // the property symbol as a standalone value.
                 if let sym = sema.symbols.symbol(symbol),
-                   sym.kind == .property || sym.kind == .field,
+                   sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
                    let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
@@ -381,7 +404,7 @@ extension ExprLowerer {
                 // provided default getter is just `return field` — the same
                 // backing-field global that MemberLowerer+
                 // DelegatedAndAccessorLowering.swift's lowerAccessorBody
-                // seeds `field` references to inside accessor bodies.
+                // resolves through the active receiver's instance layout.
                 if let sym = sema.symbols.symbol(symbol),
                    sym.kind == .property,
                    let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
@@ -1011,6 +1034,12 @@ extension ExprLowerer {
                 ) {
                 } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                          ownerInfo.kind == .class || ownerInfo.kind == .interface,
+                          !(
+                              sema.symbols.symbol(symbol)?.kind == .property
+                                  && driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
+                          ),
                           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                           ]
@@ -1043,7 +1072,7 @@ extension ExprLowerer {
                     // write straight to the backing field's own storage —
                     // the same backing-field global that MemberLowerer+
                     // DelegatedAndAccessorLowering.swift's lowerAccessorBody
-                    // seeds `field` references to inside accessor bodies.
+                    // resolves through the active receiver's instance layout.
                     // (`.object` is deliberately excluded: the branch above
                     // already routes every object-member property through
                     // global-copy storage before reaching here.)
