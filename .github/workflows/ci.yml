@@ -555,13 +555,20 @@ jobs:
             curl -sSL -o "${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" \
               "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINX_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINX_COROUTINES_VERSION}.jar"
           fi
-          echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" >> "$GITHUB_ENV"
-          # Lets diff_kotlinc.sh compile reference cases with -classpath
-          # instead of -include-runtime (avoids repackaging kotlin-stdlib
-          # into every one of the ~700 case jars). Set explicitly rather
-          # than relying on the script's own auto-discovery so this stays
-          # correct if the unzipped layout ever changes.
-          echo "KOTLINC_STDLIB_JAR=${KOTLIN_DIR}/kotlinc/lib/kotlin-stdlib.jar" >> "$GITHUB_ENV"
+          # KOTLINC_STDLIB_JAR/KOTLINC_REFLECT_JAR let diff_kotlinc.sh compile
+          # reference cases with -classpath instead of -include-runtime
+          # (avoids repackaging both into every one of the ~700 case jars).
+          # Set explicitly rather than relying on the script's own
+          # auto-discovery so this stays correct if the unzipped layout ever
+          # changes. kotlin-reflect.jar is required alongside stdlib:
+          # -include-runtime used to bundle it too, and cases using
+          # kotlin.reflect (KClass.isAbstract, etc.) throw/fall back to
+          # plain-Java rendering without it on the classpath.
+          {
+            echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar"
+            echo "KOTLINC_STDLIB_JAR=${KOTLIN_DIR}/kotlinc/lib/kotlin-stdlib.jar"
+            echo "KOTLINC_REFLECT_JAR=${KOTLIN_DIR}/kotlinc/lib/kotlin-reflect.jar"
+          } >> "$GITHUB_ENV"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -587,6 +594,7 @@ jobs:
           kotlinc -version
           test -f "$KOTLINC_CLASSPATH"
           test -f "$KOTLINC_STDLIB_JAR"
+          test -f "$KOTLINC_REFLECT_JAR"
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
