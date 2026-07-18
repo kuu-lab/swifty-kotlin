@@ -263,7 +263,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+        # Full 6-way split for merge_group/push/workflow_dispatch; pull_request
+        # gets a thinner 3-way split to ease runner queue pressure from PR
+        # churn (CI queue saturation mitigation). shard values MUST be a
+        # contiguous 0..N-1 range matching strategy.job-total, used below for
+        # --shard-count, so it always tracks whichever list actually runs.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2]' || '[0, 1, 2, 3, 4, 5]') }}
     steps:
       - uses: actions/checkout@v7
       - name: Free disk space
@@ -419,16 +424,19 @@ jobs:
           # (needs serialized, chunked execution — see the comment there).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
+            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
+            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
+            parallel: "1"
             workers: "4"
             build-jobs: "4"
             needs-llvm: true
@@ -476,6 +484,7 @@ jobs:
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
         env:
+          SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
         run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
@@ -485,7 +494,7 @@ jobs:
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -503,9 +512,12 @@ jobs:
         # (case i runs when i % DIFF_SHARD_COUNT == shard) by
         # Scripts/diff_kotlinc.sh, so each shard gets a balanced cost mix.
         # shard values MUST be a contiguous 0..N-1 range. DIFF_SHARD_COUNT is
-        # derived from strategy.job-total below, so just editing this list
-        # resizes the split — the divisor can never drift out of sync.
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        # derived from strategy.job-total below, so editing either list
+        # resizes its split — the divisor can never drift out of sync.
+        # Full 11-way split for merge_group/push/workflow_dispatch; pull_request
+        # gets a thinner 4-way split to ease runner queue pressure from PR
+        # churn (CI queue saturation mitigation).
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2, 3]' || '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]') }}
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"

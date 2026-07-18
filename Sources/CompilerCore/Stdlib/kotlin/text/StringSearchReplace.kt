@@ -15,13 +15,19 @@ import kotlin.internal.KsSymbolName
  * @param ignoreCase `true` to ignore character case when matching [oldValue]. Default is `false`.
  */
 public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
-    val oldLength = __string_struct_get_length(oldValue)
+    // Use the runtime string-to-list bridge for character traversal. The flat
+    // String aggregate stores UTF-8 byte length, while Kotlin indexing is
+    // character-based; using `length`/`this[i]` here can walk past non-ASCII
+    // input and raise StringIndexOutOfBoundsException.
+    val sourceChars = this.toList()
+    val oldLength = oldValue.toList().size
+    val sourceLength = sourceChars.size
     if (oldLength == 0) {
         val sb = StringBuilder()
         sb.append(newValue)
         var i = 0
-        while (i < length) {
-            sb.append(this[i])
+        while (i < sourceLength) {
+            sb.append(sourceChars[i])
             sb.append(newValue)
             i++
         }
@@ -32,10 +38,10 @@ public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolea
     while (true) {
         val idx = this.indexOf(oldValue, start, ignoreCase)
         if (idx == -1) {
-            __kk_appendStringRange(sb, this, start, length)
+            __kk_appendStringRange(sb, sourceChars, start, sourceLength)
             break
         }
-        __kk_appendStringRange(sb, this, start, idx)
+        __kk_appendStringRange(sb, sourceChars, start, idx)
         sb.append(newValue)
         start = idx + oldLength
     }
@@ -80,13 +86,15 @@ public fun String.replace(regex: Regex, replacement: String): String =
  * @param ignoreCase `true` to ignore character case when finding [oldValue]. Default is `false`.
  */
 public fun String.replaceFirst(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
-    val oldLength = __string_struct_get_length(oldValue)
+    val sourceChars = this.toList()
+    val oldLength = oldValue.toList().size
+    val sourceLength = sourceChars.size
     val idx = this.indexOf(oldValue, 0, ignoreCase)
     if (idx == -1) return this
     val sb = StringBuilder()
-    __kk_appendStringRange(sb, this, 0, idx)
+    __kk_appendStringRange(sb, sourceChars, 0, idx)
     sb.append(newValue)
-    __kk_appendStringRange(sb, this, idx + oldLength, length)
+    __kk_appendStringRange(sb, sourceChars, idx + oldLength, sourceLength)
     return sb.toString()
 }
 
@@ -136,7 +144,7 @@ private external fun String.__kk_replaceFirst_regex(regex: Regex, replacement: S
 @KsSymbolName("kk_string_split_regex_flat")
 private external fun String.__kk_split_regex(regex: Regex): List<String>
 
-private fun __kk_appendStringRange(sb: StringBuilder, value: String, startIndex: Int, endIndex: Int) {
+private fun __kk_appendStringRange(sb: StringBuilder, value: List<Char>, startIndex: Int, endIndex: Int) {
     var i = startIndex
     while (i < endIndex) {
         sb.append(value[i])
