@@ -61,13 +61,12 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 `Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数の悪化がないことも確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。意図的に悪化を許容する場合は、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
 
-## バグ報告ルール
+## バグ発見時の対応
 
-作業中に発見したコンパイラ / ランタイムのバグは、その場で修正しない場合でも**必ず [`TODO.md`](TODO.md) にタスクとして追記する**。spawn_task などセッション外への報告や、修正 PR の作成だけではリポジトリに追跡が残らない（報告済みバグが修正マージ後も TODO.md 未反映のまま放置された実例あり）。
+作業中に発見したコンパイラ / ランタイムのバグは、TODO.md には追記せず、その場で修正する。修正後は通常の変更と同様にテストを通し、コミット/PR 化する。
 
-- 追記先: `TODO.md` の「バグバックログ」セクション（無ければ作成）。ID は `BUG-NNN` 連番（重複は `Scripts/check_todo_ids.sh` で検出）
-- 必須記載: 症状 / 最小再現 Kotlin コード（または `Scripts/diff_cases/` のケースパス）/ 発見元タスク ID
-- 修正 PR を作成したら PR 番号をタスク行へ追記し、マージ後に `[x]` 化する（PR だけ作って TODO.md 未記載、は禁止）
+- 現在のタスクと無関係、または規模が大きく即時修正が難しい場合のみ、spawn_task で別セッションに切り出す
+- 単なるコードの臭いや低確信度の推測は報告不要（spawn_task 自体のガイドラインに準拠）
 
 ## アーキテクチャ概要
 
