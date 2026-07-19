@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-020: Verifies the dedicated Char-overload runtime entry
 /// `kk_string_indexOf_char_flat` behaves consistently with Kotlin's
 /// `CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boolean = false)`.
-final class RuntimeStringIndexOfCharTests: XCTestCase {
+@Suite
+struct RuntimeStringIndexOfCharTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -44,39 +46,49 @@ final class RuntimeStringIndexOfCharTests: XCTestCase {
         }
     }
 
+    @Test
     func testIndexOfCharBasicMatchAtStart() {
-        XCTAssertEqual(indexOfChar("hello", "h", startIndex: 0, ignoreCase: 0), 0)
+        #expect(indexOfChar("hello", "h", startIndex: 0, ignoreCase: 0) == 0)
     }
 
+    @Test
     func testIndexOfCharBasicMatchInMiddle() {
-        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 0, ignoreCase: 0), 2)
+        #expect(indexOfChar("hello", "l", startIndex: 0, ignoreCase: 0) == 2)
     }
 
+    @Test
     func testIndexOfCharNotFoundReturnsNegativeOne() {
-        XCTAssertEqual(indexOfChar("hello", "z", startIndex: 0, ignoreCase: 0), -1)
+        #expect(indexOfChar("hello", "z", startIndex: 0, ignoreCase: 0) == -1)
     }
 
+    @Test
     func testIndexOfCharRespectsStartIndex() {
-        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 3, ignoreCase: 0), 3)
+        #expect(indexOfChar("hello", "l", startIndex: 3, ignoreCase: 0) == 3)
     }
 
+    @Test
     func testIndexOfCharStartIndexBeyondLengthReturnsNegativeOne() {
-        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 10, ignoreCase: 0), -1)
+        #expect(indexOfChar("hello", "l", startIndex: 10, ignoreCase: 0) == -1)
     }
 
+    @Test
     func testIndexOfCharIgnoreCaseFindsUppercase() {
-        XCTAssertEqual(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 1), 2)
+        #expect(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 1) == 2)
     }
 
+    @Test
     func testIndexOfCharCaseSensitiveDoesNotFindUppercase() {
-        XCTAssertEqual(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 0), -1)
+        #expect(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 0) == -1)
     }
 
+    @Test
     func testIndexOfCharNegativeStartIndexIsClamped() {
-        XCTAssertEqual(indexOfChar("hello", "h", startIndex: -5, ignoreCase: 0), 0)
+        #expect(indexOfChar("hello", "h", startIndex: -5, ignoreCase: 0) == 0)
     }
 
+    @Test
     func testIndexOfCharOnEmptyStringReturnsNegativeOne() {
-        XCTAssertEqual(indexOfChar("", "a", startIndex: 0, ignoreCase: 0), -1)
+        #expect(indexOfChar("", "a", startIndex: 0, ignoreCase: 0) == -1)
     }
 }
+#endif

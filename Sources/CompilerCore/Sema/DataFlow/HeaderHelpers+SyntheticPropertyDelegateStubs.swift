@@ -136,11 +136,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerCreateInstanceFunction(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -365,11 +360,34 @@ extension DataFlowSemaPhase {
                 kind: .function, name: lazyName, fqName: lazyFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
+            let typeParamName = interner.intern("T")
+            let typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: lazyFQName + [typeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(lazySymbol, for: typeParamSymbol)
+            let typeParamType = types.make(.typeParam(TypeParamType(
+                symbol: typeParamSymbol,
+                nullability: .nonNull
+            )))
             let initializerType = types.make(.functionType(FunctionType(
-                params: [], returnType: anyType, isSuspend: false, nullability: .nonNull
+                params: [], returnType: typeParamType, isSuspend: false, nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: rootLazyInterfaceSymbol,
+                args: [.invariant(typeParamType)],
+                nullability: .nonNull
             )))
             symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [initializerType], returnType: legacyLazyInterfaceType),
+                FunctionSignature(
+                    parameterTypes: [initializerType],
+                    returnType: returnType,
+                    typeParameterSymbols: [typeParamSymbol]
+                ),
                 for: lazySymbol
             )
         }
@@ -442,11 +460,34 @@ extension DataFlowSemaPhase {
                 kind: .function, name: lazyName, fqName: lazyModeFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
+            let typeParamName = interner.intern("T")
+            let typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: lazyModeFQName + [typeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(lazyModeSymbol, for: typeParamSymbol)
+            let typeParamType = types.make(.typeParam(TypeParamType(
+                symbol: typeParamSymbol,
+                nullability: .nonNull
+            )))
             let initializerType = types.make(.functionType(FunctionType(
-                params: [], returnType: anyType, isSuspend: false, nullability: .nonNull
+                params: [], returnType: typeParamType, isSuspend: false, nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: rootLazyInterfaceSymbol,
+                args: [.invariant(typeParamType)],
+                nullability: .nonNull
             )))
             symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [anyType, initializerType], returnType: legacyLazyInterfaceType),
+                FunctionSignature(
+                    parameterTypes: [anyType, initializerType],
+                    returnType: returnType,
+                    typeParameterSymbols: [typeParamSymbol]
+                ),
                 for: lazyModeSymbol
             )
         }
@@ -1809,7 +1850,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(boolType, for: propSym)
-                symbols.setExternalLinkName("kk_ktype_isMarkedNullable", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_isMarkedNullable", for: propSym)
             }
 
             let classifierName = interner.intern("classifier")
@@ -1821,7 +1862,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(types.makeNullable(anyType), for: propSym)
-                symbols.setExternalLinkName("kk_ktype_classifier", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_classifier", for: propSym)
             }
 
             let argumentsName = interner.intern("arguments")
@@ -1833,7 +1874,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(kTypeSymbol, for: propSym)
                 symbols.setPropertyType(anyType, for: propSym)
-                symbols.setExternalLinkName("kk_ktype_arguments", for: propSym)
+                symbols.setExternalLinkName("__kk_ktype_arguments", for: propSym)
             }
         }
 
@@ -2048,11 +2089,11 @@ extension DataFlowSemaPhase {
         )))
 
         let propertySpecs: [(name: String, type: TypeID, externalLinkName: String)] = [
-            ("index", types.intType, "kk_kparameter_get_index"),
-            ("name", types.makeNullable(types.stringType), "kk_kparameter_get_name"),
-            ("type", kTypeType, "kk_kparameter_get_type"),
-            ("isOptional", types.booleanType, "kk_kparameter_is_optional"),
-            ("kind", types.intType, "kk_kparameter_get_kind"),
+            ("index", types.intType, "__kk_kparameter_get_index"),
+            ("name", types.makeNullable(types.stringType), "__kk_kparameter_get_name"),
+            ("type", kTypeType, "__kk_kparameter_get_type"),
+            ("isOptional", types.booleanType, "__kk_kparameter_is_optional"),
+            ("kind", types.intType, "__kk_kparameter_get_kind"),
         ]
         for spec in propertySpecs {
             registerSyntheticKParameterProperty(
@@ -2309,7 +2350,7 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkg, for: functionSymbol)
         }
         symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setExternalLinkName("kk_kclass_find_associated_object", for: functionSymbol)
+        symbols.setExternalLinkName("__kk_kclass_find_associated_object", for: functionSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: types.makeKClassType(argument: types.anyType),
