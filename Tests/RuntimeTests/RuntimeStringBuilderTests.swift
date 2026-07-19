@@ -4,10 +4,6 @@ import Testing
 
 @Suite(.serialized)
 struct RuntimeStringBuilderTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     @Test
     func testBridgeCreatesAppendsAndRendersStringBuilder() {
         let builder = kk_string_builder_new()
