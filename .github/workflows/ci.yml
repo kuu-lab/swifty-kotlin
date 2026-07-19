@@ -399,7 +399,7 @@ jobs:
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
-            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+            -- -Xswiftc -swift-version -Xswiftc 6
       - name: Run RuntimeTestsParallel
         env:
           SWIFT_TEST_PARALLEL: "1"
