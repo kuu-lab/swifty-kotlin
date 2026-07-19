@@ -1,15 +1,11 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeRegexNamedGroupTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
+@Suite(.serialized)
+struct RuntimeRegexNamedGroupTests {
+    init() {
         kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
     }
 
     private func withFlatString<T>(
@@ -47,7 +43,9 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
         return box.value
     }
 
+    @Test
     func testNamedGroupsExposeValuesByName() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
@@ -55,43 +53,50 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
         let lhsGroupRaw = group(groupsRaw, named: "lhs")
         let rhsGroupRaw = group(groupsRaw, named: "rhs")
 
-        XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertNotEqual(rhsGroupRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_group_value(lhsGroupRaw)), "ab")
-        XCTAssertEqual(runtimeString(kk_match_group_value(rhsGroupRaw)), "cd")
+        #expect(lhsGroupRaw != runtimeNullSentinelInt)
+        #expect(rhsGroupRaw != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
+        #expect(runtimeString(kk_match_group_value(rhsGroupRaw)) == "cd")
     }
 
+    @Test
     func testMissingNamedGroupReturnsNullSentinel() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
 
         let missing = group(groupsRaw, named: "missing")
-        XCTAssertEqual(missing, runtimeNullSentinelInt)
+        #expect(missing == runtimeNullSentinelInt)
     }
 
+    @Test
     func testGroupNamesReturnsAllNamedGroups() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
         let setRaw = kk_regex_group_names(regexRaw)
 
         guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
               let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            XCTFail("Expected RuntimeSetBox")
+            Issue.record("Expected RuntimeSetBox")
             return
         }
         let names = Set(setBox.elements.map { runtimeString($0) })
-        XCTAssertEqual(names, ["year", "month", "day"])
+        #expect(names == Set(["year", "month", "day"]))
     }
 
+    @Test
     func testGroupNamesEmptyForUnnamedPattern() {
+        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
         let setRaw = kk_regex_group_names(regexRaw)
 
         guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
               let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            XCTFail("Expected RuntimeSetBox")
+            Issue.record("Expected RuntimeSetBox")
             return
         }
-        XCTAssertTrue(setBox.elements.isEmpty)
+        #expect(setBox.elements.isEmpty)
     }
 }
+#endif
