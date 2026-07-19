@@ -33,7 +33,7 @@ func emitKClassAnnotationRegistration(
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_register_single_annotation"),
+            callee: interner.intern("__kk_kclass_register_single_annotation"),
             arguments: [typeTokenExpr, nameExpr, argsExpr, argCountExpr],
             result: registerResult,
             canThrow: false,

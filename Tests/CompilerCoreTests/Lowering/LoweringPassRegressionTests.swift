@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 @Suite
-@MainActor
 struct LoweringPassRegressionTests {
     @Test
     func testLoweringRewritesMainCallSites() throws {
