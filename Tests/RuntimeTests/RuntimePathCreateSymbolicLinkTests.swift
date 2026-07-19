@@ -1,3 +1,4 @@
+#if canImport(Testing)
 import Foundation
 @testable import Runtime
 import Testing
@@ -58,3 +59,4 @@ struct RuntimePathCreateSymbolicLinkTests {
         }
     }
 }
+#endif
