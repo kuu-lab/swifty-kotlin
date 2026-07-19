@@ -5,7 +5,6 @@ import Testing
 private let rangeMapDouble: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value * 2
 }
-#endif
 
 private let rangeFilterNotEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 2 == 0 ? 1 : 0
@@ -448,3 +447,4 @@ struct RuntimeRangeHOFTests {
         return (0 ..< size).map { kk_list_get(listRaw, $0) }
     }
 }
+#endif
