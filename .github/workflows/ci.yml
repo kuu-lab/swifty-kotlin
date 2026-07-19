@@ -169,7 +169,7 @@ jobs:
   full-swift-tests-core:
     name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -177,13 +177,6 @@ jobs:
         shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
@@ -236,7 +229,7 @@ jobs:
   # to list each shard.
   full-swift-tests-core-gate:
     name: Full Swift Tests (CompilerCoreTests)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: full-swift-tests-core
     timeout-minutes: 10
     if: always()
@@ -257,7 +250,7 @@ jobs:
   full-swift-tests-backend:
     name: Full Swift Tests (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -326,7 +319,7 @@ jobs:
   # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
   full-swift-tests-backend-gate:
     name: Full Swift Tests (CompilerBackendTests)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: full-swift-tests-backend
     timeout-minutes: 10
     if: always()
