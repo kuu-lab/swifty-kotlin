@@ -443,6 +443,49 @@ extension CallLowerer {
         return fallback
     }
 
+    func resultRuntimeHOFMemberCalleeName(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard isKotlinResultType(receiverType, sema: sema, interner: interner) else {
+            return nil
+        }
+        switch memberName {
+        case "getOrElse":
+            return "kk_result_getOrElse"
+        case "map":
+            return "kk_result_map"
+        case "fold":
+            return "kk_result_fold"
+        case "onSuccess":
+            return "kk_result_onSuccess"
+        case "onFailure":
+            return "kk_result_onFailure"
+        case "recover":
+            return "kk_result_recover"
+        case "recoverCatching":
+            return "kk_result_recoverCatching"
+        default:
+            return nil
+        }
+    }
+
+    func isKotlinResultType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(type)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName.map(interner.resolve) == ["kotlin", "Result"]
+    }
+
     func closedRangeInterfaceRuntimeName(
         memberName: String,
         receiverType: TypeID,

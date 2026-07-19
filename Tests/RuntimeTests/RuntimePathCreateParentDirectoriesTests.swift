@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateParentDirectoriesTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateParentDirectoriesAttributesCreatesOnlyParentTree() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateParentDirectoriesTests {
+    @Test func pathCreateParentDirectoriesAttributesCreatesOnlyParentTree() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let fileURL = rootURL.appendingPathComponent("a").appendingPathComponent("b").appendingPathComponent("file.txt")
         let parentURL = fileURL.deletingLastPathComponent()
@@ -18,14 +17,14 @@ final class RuntimePathCreateParentDirectoriesTests: IsolatedRuntimeXCTestCase {
         let resultRaw = kk_path_createParentDirectories_attributes(pathRaw, 0, &thrown)
 
         var isDirectory: ObjCBool = false
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: parentURL.path, isDirectory: &isDirectory))
-        XCTAssertTrue(isDirectory.boolValue)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
+        #expect(FileManager.default.fileExists(atPath: parentURL.path, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path))
     }
 
-    func testPathCreateParentDirectoriesAttributesFailsWhenParentIsFile() throws {
+    @Test func pathCreateParentDirectoriesAttributesFailsWhenParentIsFile() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let parentFileURL = rootURL.appendingPathComponent("parent-file")
         let childURL = parentFileURL.appendingPathComponent("child.txt")
@@ -39,10 +38,10 @@ final class RuntimePathCreateParentDirectoriesTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(childURL.path)
         let resultRaw = kk_path_createParentDirectories_attributes(pathRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
-        XCTAssertEqual(try String(contentsOf: parentFileURL, encoding: .utf8), "parent")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: childURL.path))
+        #expect(thrown != 0)
+        #expect(resultRaw == pathRaw)
+        #expect(try String(contentsOf: parentFileURL, encoding: .utf8) == "parent")
+        #expect(!FileManager.default.fileExists(atPath: childURL.path))
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {

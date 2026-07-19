@@ -6,10 +6,6 @@ import Testing
 @Suite
 struct RuntimeStringInternTests {
 
-    init() {
-        kk_runtime_force_reset()
-    }
-
     private func makeRaw(_ value: String) -> Int {
         value.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, value.utf8.count)) { ptr in
