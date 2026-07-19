@@ -179,6 +179,33 @@ public extension RuntimeABISpec {
         ),
         // Long bit manipulation functions
         RuntimeABIFunctionSpec(
+            name: "kk_long_countOneBits",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_long_countLeadingZeroBits",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_long_countTrailingZeroBits",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Bitwise",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_long_rotateLeft",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

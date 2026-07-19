@@ -1,6 +1,7 @@
+#if canImport(Testing)
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-020 lambda thunks for forEachLine
 //
@@ -42,10 +43,8 @@ private func fnPtrInt1(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
 ///
 /// Covers kk_path_forEachLine and kk_path_forEachLine_default — the runtime
 /// entries for the kotlin.io.path.forEachLine extension.
-final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimePathForEachLineTests {
     // MARK: - Helpers
 
     private func makeRuntimeString(_ value: String) -> Int {
@@ -62,7 +61,7 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_path_forEachLine_default
 
-    func testForEachLineDefaultInvokesOncePerLine() throws {
+    @Test func testForEachLineDefaultInvokesOncePerLine() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -72,11 +71,11 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_forEachLine_default(pathRaw, fnPtrInt1(forEachLineCounter), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachLineCount, 3)
+        #expect(thrown == 0)
+        #expect(_forEachLineCount == 3)
     }
 
-    func testForEachLineDefaultEmptyFileProducesNoInvocations() throws {
+    @Test func testForEachLineDefaultEmptyFileProducesNoInvocations() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -86,11 +85,11 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_forEachLine_default(pathRaw, fnPtrInt1(forEachLineCounter), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachLineCount, 0)
+        #expect(thrown == 0)
+        #expect(_forEachLineCount == 0)
     }
 
-    func testForEachLineDefaultTrailingNewlineDoesNotProduceEmptyLine() throws {
+    @Test func testForEachLineDefaultTrailingNewlineDoesNotProduceEmptyLine() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         // trailing newline should not produce a final empty element
@@ -101,18 +100,18 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_forEachLine_default(pathRaw, fnPtrInt1(forEachLineCounter), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachLineCount, 2)
+        #expect(thrown == 0)
+        #expect(_forEachLineCount == 2)
     }
 
-    func testForEachLineDefaultNonExistentFileThrows() {
+    @Test func testForEachLineDefaultNonExistentFileThrows() {
         let pathRaw = runtimeTestPathHandle("/nonexistent/\(UUID().uuidString).txt")
         var thrown = 0
         _ = kk_path_forEachLine_default(pathRaw, fnPtrInt1(forEachLineCounter), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
-    func testForEachLineDefaultLambdaThrownPropagates() throws {
+    @Test func testForEachLineDefaultLambdaThrownPropagates() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "line1\nline2".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -120,12 +119,12 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
         _ = kk_path_forEachLine_default(pathRaw, fnPtrInt1(forEachLineAlwaysThrows), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(thrown != 0)
     }
 
     // MARK: - kk_path_forEachLine (with charset)
 
-    func testForEachLineWithDefaultCharsetInvokesOncePerLine() throws {
+    @Test func testForEachLineWithDefaultCharsetInvokesOncePerLine() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "one\ntwo\nthree".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -136,11 +135,11 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         // charsetRaw == 0 selects UTF-8 (default)
         _ = kk_path_forEachLine(pathRaw, 0, fnPtrInt1(forEachLineCounter), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachLineCount, 3)
+        #expect(thrown == 0)
+        #expect(_forEachLineCount == 3)
     }
 
-    func testForEachLinePassesLineContentToAction() throws {
+    @Test func testForEachLinePassesLineContentToAction() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try "hello".write(to: fileURL, atomically: true, encoding: .utf8)
@@ -150,8 +149,9 @@ final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_forEachLine(pathRaw, 0, fnPtrInt1(forEachLineRecordLength), &thrown)
 
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         // "hello" has 5 characters
-        XCTAssertEqual(_forEachLineLastLength, 5)
+        #expect(_forEachLineLastLength == 5)
     }
 }
+#endif

@@ -51,6 +51,21 @@ public func kk_int_takeLowestOneBit(_ value: Int) -> Int {
 
 // Long bit manipulation functions (64-bit)
 
+@_cdecl("kk_long_countOneBits")
+public func kk_long_countOneBits(_ value: Int) -> Int {
+    value.nonzeroBitCount
+}
+
+@_cdecl("kk_long_countLeadingZeroBits")
+public func kk_long_countLeadingZeroBits(_ value: Int) -> Int {
+    value.leadingZeroBitCount
+}
+
+@_cdecl("kk_long_countTrailingZeroBits")
+public func kk_long_countTrailingZeroBits(_ value: Int) -> Int {
+    value.trailingZeroBitCount
+}
+
 @_cdecl("kk_long_rotateLeft")
 public func kk_long_rotateLeft(_ value: Int, _ distance: Int) -> Int {
     let u = UInt(bitPattern: value)

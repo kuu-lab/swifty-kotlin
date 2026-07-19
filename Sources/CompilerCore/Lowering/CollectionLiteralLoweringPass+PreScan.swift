@@ -53,7 +53,43 @@ extension CollectionLiteralLoweringSupport {
         if semanticSymbol.flags.contains(.synthetic) {
             return true
         }
-        return sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true
+        if sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true {
+            return true
+        }
+        return isSourceBackedStdlibBuilderDSLCall(
+            semanticSymbol: semanticSymbol,
+            callee: callee,
+            lookup: lookup,
+            ctx: ctx
+        )
+    }
+
+    private func isSourceBackedStdlibBuilderDSLCall(
+        semanticSymbol: SemanticSymbol,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        let textName = ctx.interner.intern("text")
+        let collectionsName = ctx.interner.intern("collections")
+        let fqName = semanticSymbol.fqName
+        guard fqName.count == 3,
+              fqName[0] == lookup.kotlinName,
+              fqName[2] == callee
+        else {
+            return false
+        }
+
+        if fqName[1] == textName {
+            return callee == lookup.buildStringName
+                || callee == lookup.buildStringBuilderName
+        }
+        if fqName[1] == collectionsName {
+            return callee == lookup.buildListName
+                || callee == lookup.buildSetName
+                || callee == lookup.buildMapName
+        }
+        return false
     }
 
     private func scanBuilderLambdaEntries(

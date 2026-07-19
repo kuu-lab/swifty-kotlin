@@ -33,6 +33,25 @@ public final class TypeSystem {
     /// Used in subtyping to allow numeric primitives (Int, Long, …) to satisfy `Number` upper bounds.
     public internal(set) var numberClassSymbol: SymbolID?
 
+    /// The symbol ID of the synthetic `kotlin.String` `.class`-kind symbol registered by
+    /// `HeaderHelpers.ensureClassSymbol` purely to host member declarations (CharSequence
+    /// conformance, byte-array constructors). Scope-based lookup for `String::class` finds
+    /// this symbol before ever reaching the builtin-name fallback, so `classRefTargetType`
+    /// resolves to `.classType(ClassType(classSymbol: stringClassSymbol))` — a disguised
+    /// nominal type distinct from the canonical `stringType` (`.stringStruct`) that an
+    /// ordinary `is String` check resolves to. `isSubtype` normalizes the disguise back to
+    /// `stringType` so the two representations compare as equal.
+    public internal(set) var stringClassSymbol: SymbolID?
+
+    /// The symbol ID of the synthetic `kotlin.Char` `.class`-kind symbol (hosts companion
+    /// helpers). Same disguise-vs-canonical-`charType` situation as `stringClassSymbol`.
+    public internal(set) var charClassSymbol: SymbolID?
+
+    /// The symbol ID of the synthetic `kotlin.Any` `.class`-kind symbol (hosts toString/
+    /// hashCode/equals member declarations). Same disguise-vs-canonical-`anyType` situation
+    /// as `stringClassSymbol`.
+    public internal(set) var anyClassSymbol: SymbolID?
+
 
     /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.
     public weak var symbolTable: SymbolTable?

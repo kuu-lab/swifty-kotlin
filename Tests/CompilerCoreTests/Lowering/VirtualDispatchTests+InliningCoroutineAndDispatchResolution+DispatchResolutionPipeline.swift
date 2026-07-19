@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension VirtualDispatchTests {
-    func testResolveVirtualDispatchViaFullPipelineOpenClass() throws {
+    @Test func testResolveVirtualDispatchViaFullPipelineOpenClass() throws {
         let source = """
         open class Animal {
             open fun speak(): String = "..."
@@ -25,20 +26,20 @@ extension VirtualDispatchTests {
                 return
             }
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "callSpeak", in: module, interner: ctx.interner)
             let hasVirtualCall = body.contains { instruction in
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            XCTAssertTrue(
+            #expect(
                 hasVirtualCall,
                 "Open class with subtypes should use vtable virtualCall"
             )
         }
     }
 
-    func testSafeCallOpenClassMethodUsesVtableDispatch() throws {
+    @Test func testSafeCallOpenClassMethodUsesVtableDispatch() throws {
         let source = """
         open class Animal {
             open fun speak(): String = "..."
@@ -53,16 +54,16 @@ extension VirtualDispatchTests {
             do {
                 try runToKIR(ctx)
             } catch {
-                throw XCTSkip("Frontend failed: \(error)")
+                return
             }
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "callSpeak", in: module, interner: ctx.interner)
             let hasVirtualCall = body.contains { instruction in
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            XCTAssertTrue(
+            #expect(
                 hasVirtualCall,
                 "Safe call on open class should use vtable virtualCall on the non-null branch"
             )
@@ -71,7 +72,7 @@ extension VirtualDispatchTests {
 
     // MARK: - 16. resolveVirtualDispatch: final class -> static dispatch (no virtualCall)
 
-    func testFinalClassMethodUsesStaticDispatch() throws {
+    @Test func testFinalClassMethodUsesStaticDispatch() throws {
         let source = """
         class FinalClass {
             fun doSomething(): Int = 42
@@ -83,23 +84,23 @@ extension VirtualDispatchTests {
             do {
                 try runToKIR(ctx)
             } catch {
-                throw XCTSkip("Frontend failed: \(error)")
+                return
             }
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "callFinal", in: module, interner: ctx.interner)
             let hasVirtualCall = body.contains { instruction in
                 if case .virtualCall = instruction { return true }
                 return false
             }
             // Final class (no subtypes in Kotlin) should use static dispatch
-            XCTAssertFalse(hasVirtualCall, "Final class method should use static dispatch (.call), not virtualCall")
+            #expect(!hasVirtualCall, "Final class method should use static dispatch (.call), not virtualCall")
         }
     }
 
     // MARK: - 17. virtualCall with multiple arguments: receiver separate, args correct count
 
-    func testVirtualCallWithMultipleArgumentsPreservesCount() throws {
+    @Test func testVirtualCallWithMultipleArgumentsPreservesCount() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -175,13 +176,14 @@ extension VirtualDispatchTests {
             return false
         }
         guard case let .virtualCall(_, _, receiver, arguments, _, _, _, _) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction")
+            Issue.record("Expected virtualCall instruction")
             return
         }
         // Receiver is separate; arguments should have exactly 2 entries
-        XCTAssertEqual(arguments.count, 2, "virtualCall should have exactly 2 value arguments (not including receiver)")
-        XCTAssertEqual(receiver, receiverExpr, "Receiver should be the original receiver expression")
-        XCTAssertEqual(arguments[0], arg1, "First argument should be arg1")
-        XCTAssertEqual(arguments[1], arg2, "Second argument should be arg2")
+        #expect(arguments.count == 2, "virtualCall should have exactly 2 value arguments (not including receiver)")
+        #expect(receiver == receiverExpr, "Receiver should be the original receiver expression")
+        #expect(arguments[0] == arg1, "First argument should be arg1")
+        #expect(arguments[1] == arg2, "Second argument should be arg2")
     }
 }
+#endif
