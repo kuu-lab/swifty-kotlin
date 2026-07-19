@@ -3,8 +3,7 @@ import Foundation
 import Testing
 
 /// STDLIB-TEXT-FN-036: Validates that `CharSequence.lineSequence()` resolves
-/// through Sema for `String` / `CharSequence` receivers, dispatches to the
-/// runtime helper `kk_string_lineSequence_flat` for String receivers, and is classified as non-throwing.
+/// through Sema for `String` / `CharSequence` receivers via bundled Kotlin source.
 @Suite
 struct StringLineSequenceFunctionTests {
     private func allMemberCallExprIDs(
@@ -99,9 +98,9 @@ struct StringLineSequenceFunctionTests {
         }
     }
 
-    /// The lowered KIR should call the runtime helper `kk_string_lineSequence_flat`,
-    /// and the call must be classified as non-throwing.
-    @Test func testLineSequenceLowersToRuntimeHelperNonThrowing() throws {
+    /// The lowered KIR should not call the legacy runtime helper after migration
+    /// to bundled Kotlin source.
+    @Test func testLineSequenceDoesNotLowerToLegacyRuntimeHelper() throws {
         let source = """
         fun main() {
             val text = "a\\nb\\nc"
@@ -122,15 +121,10 @@ struct StringLineSequenceFunctionTests {
                 interner: ctx.interner
             )
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let lineSequenceFlags = try #require(
-                throwFlags["kk_string_lineSequence_flat"],
-                "Expected kk_string_lineSequence_flat calls to appear in main()"
-            )
-            #expect(lineSequenceFlags.count == 1)
-            #expect(
-                lineSequenceFlags.allSatisfy { $0 == false },
-                "lineSequence should be classified as non-throwing"
-            )
+            #expect(throwFlags["kk_string_lineSequence"] == nil)
+            #expect(throwFlags["kk_string_lineSequence_flat"] == nil)
+            #expect(throwFlags["kk_string_lines"] == nil)
+            #expect(throwFlags["kk_string_lines_flat"] == nil)
         }
     }
 }

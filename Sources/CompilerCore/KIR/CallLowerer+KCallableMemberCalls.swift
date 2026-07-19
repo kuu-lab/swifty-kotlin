@@ -83,12 +83,12 @@ extension CallLowerer {
 
     /// Known KFunction member names and their corresponding runtime function.
     private static let kFunctionMemberMap: [String: String] = [
-        "name": "kk_kfunction_get_name",
-        "returnType": "kk_kfunction_get_return_type",
-        "parameters": "kk_kfunction_get_parameters",
-        "valueParameters": "kk_kfunction_get_value_parameters",
-        "isSuspend": "kk_kfunction_is_suspend",
-        "type": "kk_kfunction_get_type",
+        "name": "__kk_kfunction_get_name",
+        "returnType": "__kk_kfunction_get_return_type",
+        "parameters": "__kk_kfunction_get_parameters",
+        "valueParameters": "__kk_kfunction_get_value_parameters",
+        "isSuspend": "__kk_kfunction_is_suspend",
+        "type": "__kk_kfunction_get_type",
     ]
 
     func tryLowerKFunctionMemberAccess(
@@ -145,11 +145,11 @@ extension CallLowerer {
 
     /// Known KParameter member names and their corresponding runtime function.
     private static let kParameterMemberMap: [String: String] = [
-        "index": "kk_kparameter_get_index",
-        "name": "kk_kparameter_get_name",
-        "type": "kk_kparameter_get_type",
-        "isOptional": "kk_kparameter_is_optional",
-        "kind": "kk_kparameter_get_kind",
+        "index": "__kk_kparameter_get_index",
+        "name": "__kk_kparameter_get_name",
+        "type": "__kk_kparameter_get_type",
+        "isOptional": "__kk_kparameter_is_optional",
+        "kind": "__kk_kparameter_get_kind",
     ]
 
     func tryLowerKParameterMemberAccess(
@@ -229,11 +229,11 @@ extension CallLowerer {
         // Choose the appropriate arity-specific call.
         let callCallee: String
         switch argExprs.count {
-        case 0: callCallee = "kk_kfunction_call_0"
-        case 1: callCallee = "kk_kfunction_call_1"
-        case 2: callCallee = "kk_kfunction_call_2"
-        case 3: callCallee = "kk_kfunction_call_3"
-        default: callCallee = "kk_kfunction_call_vararg"
+        case 0: callCallee = "__kk_kfunction_call_0"
+        case 1: callCallee = "__kk_kfunction_call_1"
+        case 2: callCallee = "__kk_kfunction_call_2"
+        case 3: callCallee = "__kk_kfunction_call_3"
+        default: callCallee = "__kk_kfunction_call_vararg"
         }
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
@@ -254,7 +254,7 @@ extension CallLowerer {
             ))
             return result
         } else {
-            // Vararg path: pack args into a list, call kk_kfunction_call_vararg.
+            // Vararg path: pack args into a list, call __kk_kfunction_call_vararg.
             // First, create a runtime list with the args.
             let listExpr = arena.appendTemporary(type: sema.types.anyType
             )
