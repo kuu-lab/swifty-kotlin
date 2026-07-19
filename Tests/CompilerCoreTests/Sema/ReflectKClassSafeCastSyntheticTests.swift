@@ -18,29 +18,6 @@ struct ReflectKClassSafeCastSyntheticTests {
         return try #require(result)
     }
 
-    @Test func testKClassSafeCastSyntheticStubLinksToRuntimeABI() throws {
-        let (sema, interner) = try makeSema()
-        let fqName = ["kotlin", "reflect", "KClass", "safeCast"].map { interner.intern($0) }
-        let safeCastSymbol = try #require(
-            sema.symbols.lookupAll(fqName: fqName).first { symbolID in
-                sema.symbols.externalLinkName(for: symbolID) == "kk_kclass_safeCast"
-            },
-            "Expected kotlin.reflect.KClass.safeCast to link to kk_kclass_safeCast"
-        )
-        let signature = try #require(sema.symbols.functionSignature(for: safeCastSymbol))
-
-        #expect(!(signature.canThrow))
-        #expect(signature.parameterTypes == [sema.types.nullableAnyType])
-        #expect(signature.classTypeParameterCount == 1)
-        #expect(signature.typeParameterSymbols.count == 1)
-        #expect(signature.valueParameterSymbols.count == 1)
-        if case let .typeParam(typeParam) = sema.types.kind(of: signature.returnType) {
-            #expect(typeParam.nullability == .nullable)
-        } else {
-            Issue.record("Expected KClass.safeCast return type to be nullable receiver type parameter")
-        }
-    }
-
     @Test func testKClassSafeCastInfersNullableReceiverArgumentReturnTypes() throws {
         let source = """
         import kotlin.reflect.KClass

@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-PATH-FN-039: Validates that the `walk` extension function on
 /// `kotlin.io.path.Path` is wired through Sema with the expected
@@ -11,11 +12,12 @@ import XCTest
 ///     public actual fun Path.walk(
 ///         vararg options: PathWalkOption
 ///     ): Sequence<Path>
-final class PathWalkFunctionTests: XCTestCase {
+@Suite
+struct PathWalkFunctionTests {
 
     // MARK: - Basic resolution
 
-    func testPathWalkNoOptionsResolves() throws {
+    @Test func testPathWalkNoOptionsResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.walk
@@ -29,14 +31,14 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk() with no options should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWalkBreadthFirstOptionResolves() throws {
+    @Test func testPathWalkBreadthFirstOptionResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.PathWalkOption
@@ -51,14 +53,14 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk(BREADTH_FIRST) should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWalkFollowLinksOptionResolves() throws {
+    @Test func testPathWalkFollowLinksOptionResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.PathWalkOption
@@ -73,14 +75,14 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk(FOLLOW_LINKS) should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWalkMultipleOptionsResolve() throws {
+    @Test func testPathWalkMultipleOptionsResolve() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.PathWalkOption
@@ -95,7 +97,7 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk(BREADTH_FIRST, FOLLOW_LINKS) should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -104,7 +106,7 @@ final class PathWalkFunctionTests: XCTestCase {
 
     // MARK: - Return type
 
-    func testPathWalkReturnTypeIsSequenceOfPath() throws {
+    @Test func testPathWalkReturnTypeIsSequenceOfPath() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.walk
@@ -119,7 +121,7 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk() return type should be Sequence<Path>: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -128,7 +130,7 @@ final class PathWalkFunctionTests: XCTestCase {
 
     // MARK: - Chained operations
 
-    func testPathWalkChainedToListResolves() throws {
+    @Test func testPathWalkChainedToListResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.walk
@@ -142,14 +144,14 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk().toList() should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWalkChainedFilterResolves() throws {
+    @Test func testPathWalkChainedFilterResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.walk
@@ -163,14 +165,14 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk().filter { }.toList() should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWalkChainedForEachResolves() throws {
+    @Test func testPathWalkChainedForEachResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.walk
@@ -184,7 +186,7 @@ final class PathWalkFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.walk().forEach { } should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -193,7 +195,7 @@ final class PathWalkFunctionTests: XCTestCase {
 
     // MARK: - ABI surface inspection
 
-    func testPathWalkExtensionFunctionSurfaceIsRegistered() throws {
+    @Test func testPathWalkExtensionFunctionSurfaceIsRegistered() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.PathWalkOption
@@ -206,23 +208,23 @@ final class PathWalkFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { filePath in
             let ctx = makeCompilationContext(inputs: [filePath])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Path.walk() should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let pathSymbol = try XCTUnwrap(
+            let pathSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
             )
-            let walkOptionSymbol = try XCTUnwrap(
+            let walkOptionSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "PathWalkOption"].map(interner.intern))
             )
-            let sequenceSymbol = try XCTUnwrap(
+            let sequenceSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern))
             )
 
@@ -237,7 +239,7 @@ final class PathWalkFunctionTests: XCTestCase {
             let walkSymbols = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "walk"].map(interner.intern)
             )
-            let walk = try XCTUnwrap(
+            let walk = try #require(
                 walkSymbols.first { symbolID in
                     guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                     return signature.receiverType == pathType
@@ -247,14 +249,12 @@ final class PathWalkFunctionTests: XCTestCase {
                 "Expected kotlin.io.path.walk with receiver=Path, params=[PathWalkOption], ret=Sequence<Path>"
             )
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: walk),
-                "kk_path_walk"
-            )
+            #expect(symbols.externalLinkName(for: walk) == "kk_path_walk")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: walk))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: walk))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
         }
     }
 }
+#endif

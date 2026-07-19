@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class LoweringCodegenRegressionTests: XCTestCase {
+@Suite
+struct LoweringCodegenRegressionTests {
+    @Test
     func testKxMiniRunBlockingDelayExecutableReturnsExpectedExitCode() throws {
         let source = """
         suspend fun delayedValue(): Int {
@@ -26,19 +29,24 @@ final class LoweringCodegenRegressionTests: XCTestCase {
             )
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
+            do {
+                try CodegenPhase().run(ctx)
+                try LinkPhase().run(ctx)
+            } catch {
+                Issue.record("Compilation failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)")
+                return
+            }
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected non-zero exit")
-                return
+                Issue.record("Expected non-zero exit")
             } catch let CommandRunnerError.nonZeroExit(failed) {
-                XCTAssertEqual(failed.exitCode, 42)
+                #expect(failed.exitCode == 42)
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
             }
         }
     }
 }
+#endif

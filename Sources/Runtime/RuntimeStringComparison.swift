@@ -26,13 +26,28 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
             return runtimeCompareFloating(lhs, rhs)
         case let (.floating(lhs), .integer(rhs)):
             return runtimeCompareFloating(lhs, Double(rhs))
+        case let (.floating(lhs), .unsignedInteger(rhs)):
+            return runtimeCompareFloating(lhs, Double(rhs))
         case let (.integer(lhs), .floating(rhs)):
+            return runtimeCompareFloating(Double(lhs), rhs)
+        case let (.unsignedInteger(lhs), .floating(rhs)):
             return runtimeCompareFloating(Double(lhs), rhs)
         case let (.integer(lhs), .integer(rhs)):
             if lhs == rhs {
                 return 0
             }
             return lhs < rhs ? -1 : 1
+        case let (.unsignedInteger(lhs), .unsignedInteger(rhs)):
+            if lhs == rhs {
+                return 0
+            }
+            return lhs < rhs ? -1 : 1
+        // Mixed signed/unsigned only arises comparing statically-incompatible
+        // Kotlin types (e.g. Long vs ULong); fall back to a Double approximation.
+        case let (.integer(lhs), .unsignedInteger(rhs)):
+            return runtimeCompareFloating(Double(lhs), Double(rhs))
+        case let (.unsignedInteger(lhs), .integer(rhs)):
+            return runtimeCompareFloating(Double(lhs), Double(rhs))
         }
     }
 
@@ -41,6 +56,7 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 
 private enum RuntimeComparableScalar {
     case integer(Int)
+    case unsignedInteger(UInt)
     case floating(Double)
 }
 
@@ -84,6 +100,9 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return .integer(longBox.value)
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        return .unsignedInteger(UInt(bitPattern: ulongBox.value))
     }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return .integer(charBox.value)

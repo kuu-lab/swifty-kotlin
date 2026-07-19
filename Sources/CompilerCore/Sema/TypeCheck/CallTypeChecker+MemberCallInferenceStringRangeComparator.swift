@@ -118,7 +118,7 @@ extension CallTypeChecker {
                    "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
+                   "takeWhile", "dropWhile", "find", "findLast",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
                    "partition",
@@ -258,7 +258,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
-                if stringHOFCalleeStr == "splitToSequence" || stringHOFCalleeStr == "partition" {
+                if stringHOFCalleeStr == "partition" {
                     bindSyntheticStringMemberDirectlyIfAvailable(
                         id,
                         calleeName: calleeName,

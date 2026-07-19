@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 // STDLIB-NATIVE-REF-001: Inventory of kotlin.native.ref / kotlin.native.runtime APIs.
 //
@@ -59,37 +59,37 @@ import XCTest
 //   - kotlin.native.runtime.Debugging.threadCount
 //   - kotlin.native.runtime.Debugging.globalObjectCount
 
-final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefGCTests {
     // MARK: - GC.collect() (kk_gc_collect)
 
-    func testGCCollectIsCallableWithoutCrashing() {
+    @Test func gcCollectIsCallableWithoutCrashing() {
         // Calling kk_gc_collect must not crash; it returns void.
         kk_gc_collect()
     }
 
-    func testGCCollectMultipleTimesIsIdempotent() {
+    @Test func gcCollectMultipleTimesIsIdempotent() {
         // Repeated collects must leave the heap in the same state each time.
         let before = kk_runtime_heap_object_count()
         for _ in 0 ..< 3 {
             kk_gc_collect()
         }
-        XCTAssertEqual(kk_runtime_heap_object_count(), before,
-                       "heap object count should be unchanged after repeated collects on an empty heap")
+        #expect(
+            kk_runtime_heap_object_count() == before,
+            "heap object count should be unchanged after repeated collects on an empty heap"
+        )
     }
 
-    func testSystemGCIsCallableWithoutCrashing() {
+    @Test func systemGCIsCallableWithoutCrashing() {
         // kk_system_gc() is the Kotlin-facing alias; must be callable without crash.
         kk_system_gc()
     }
 
-    func testGCCollectOnEmptyHeapIsNoOp() {
+    @Test func gcCollectOnEmptyHeapIsNoOp() {
         // When no heap objects exist, collect should succeed immediately.
-        XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+        #expect(kk_runtime_heap_object_count() == 0)
         kk_gc_collect()
-        XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+        #expect(kk_runtime_heap_object_count() == 0)
     }
 }
 
