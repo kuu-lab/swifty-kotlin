@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // DEBT-KIR-001: vtable dispatch is enabled for compiler-created objects via
 // allocation-time vtable method registration, with kk_alloc/KTypeInfo remaining
@@ -10,7 +11,7 @@ extension VirtualDispatchTests {
     /// Isolated unit test for `resolveVirtualDispatch` on an open-class hierarchy.
     /// Open-class hierarchies must select vtable dispatch when the callee has a
     /// layout slot and the parent has known subtypes.
-    func testResolveVtableDispatchReturnsVtableForOpenClassWithSubtypes() {
+    @Test func testResolveVtableDispatchReturnsVtableForOpenClassWithSubtypes() {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
@@ -31,11 +32,11 @@ extension VirtualDispatchTests {
             interner: fixture.interner
         )
 
-        XCTAssertEqual(dispatch, .vtable(slot: 0))
+        #expect(dispatch == .vtable(slot: 0))
     }
 
     /// Confirms that a class without known subtypes also skips vtable dispatch.
-    func testResolveVtableDispatchReturnsNilForClassWithoutSubtypes() {
+    @Test func testResolveVtableDispatchReturnsNilForClassWithoutSubtypes() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -86,10 +87,10 @@ extension VirtualDispatchTests {
             interner: interner
         )
 
-        XCTAssertNil(dispatch, "Class without subtypes should use static dispatch")
+        #expect(dispatch == nil, "Class without subtypes should use static dispatch")
     }
 
-    func testResolveVtableDispatchExpectedSlotWhenEnabled() throws {
+    @Test func testResolveVtableDispatchExpectedSlotWhenEnabled() throws {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
@@ -111,15 +112,15 @@ extension VirtualDispatchTests {
         )
 
         guard case let .vtable(slot) = dispatch else {
-            XCTFail("Expected vtable dispatch for open class with subtypes, got \(String(describing: dispatch))")
+            Issue.record("Expected vtable dispatch for open class with subtypes, got \(String(describing: dispatch))")
             return
         }
-        XCTAssertEqual(slot, 0, "speak should occupy vtable slot 0 in makeVtableFixture")
+        #expect(slot == 0, "speak should occupy vtable slot 0 in makeVtableFixture")
     }
 
     /// Verifies vtable slot selection is per-callee, not always slot 0.
     /// A class with two virtual methods must dispatch each to its own slot.
-    func testResolveVtableDispatchSelectsCorrectNonZeroSlot() throws {
+    @Test func testResolveVtableDispatchSelectsCorrectNonZeroSlot() throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -195,14 +196,15 @@ extension VirtualDispatchTests {
         )
 
         guard case let .vtable(drawSlot) = drawDispatch else {
-            XCTFail("Expected vtable dispatch for draw, got \(String(describing: drawDispatch))")
+            Issue.record("Expected vtable dispatch for draw, got \(String(describing: drawDispatch))")
             return
         }
         guard case let .vtable(areaSlot) = areaDispatch else {
-            XCTFail("Expected vtable dispatch for area, got \(String(describing: areaDispatch))")
+            Issue.record("Expected vtable dispatch for area, got \(String(describing: areaDispatch))")
             return
         }
-        XCTAssertEqual(drawSlot, 0, "draw should occupy vtable slot 0")
-        XCTAssertEqual(areaSlot, 1, "area should occupy vtable slot 1")
+        #expect(drawSlot == 0, "draw should occupy vtable slot 0")
+        #expect(areaSlot == 1, "area should occupy vtable slot 1")
     }
 }
+#endif

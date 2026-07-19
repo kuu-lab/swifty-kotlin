@@ -641,19 +641,19 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_iterator_next", parameters: [
             p("iterRaw", .intptr),
         ]),
-        abiParitySpec("kk_kclass_is_final", parameters: [
+        abiParitySpec("__kk_kclass_is_final", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_is_open", parameters: [
+        abiParitySpec("__kk_kclass_is_open", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_register_member", parameters: [
+        abiParitySpec("__kk_kclass_register_member", parameters: [
             p("kclassRaw", .intptr),
             p("memberRaw", .intptr),
         ]),
-        abiParitySpec("kk_kclass_register_metadata_v2", parameters: [
+        abiParitySpec("__kk_kclass_register_metadata_v2", parameters: [
             p("typeToken", .intptr),
             p("qualifiedNameRaw", .intptr),
             p("simpleNameRaw", .intptr),
@@ -665,15 +665,15 @@ public extension RuntimeABISpec {
             p("visibilityRaw", .intptr),
             p("typeParameterCount", .intptr),
         ]),
-        abiParitySpec("kk_kclass_supertypes", parameters: [
+        abiParitySpec("__kk_kclass_supertypes", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_type_parameters", parameters: [
+        abiParitySpec("__kk_kclass_type_parameters", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_visibility", parameters: [
+        abiParitySpec("__kk_kclass_visibility", parameters: [
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),

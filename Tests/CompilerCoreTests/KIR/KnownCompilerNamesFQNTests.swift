@@ -5,7 +5,7 @@ import Testing
 /// Regression tests for KnownCompilerNames FQN-based symbol matching.
 /// Ensures that user-defined types named "Set" or "MutableSet" are not
 /// confused with stdlib kotlin.collections.Set / MutableSet.
-@Suite @MainActor
+@Suite
 struct KnownCompilerNamesFQNTests {
 
     // MARK: - isSetLikeSymbol FQN checks
