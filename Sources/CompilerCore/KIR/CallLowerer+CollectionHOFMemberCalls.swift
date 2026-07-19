@@ -32,6 +32,7 @@ extension CallLowerer {
             "chunked", "chunkedSequence", "windowed", "copyOf",
             "toComponents",
             "onSuccess", "onFailure", "recover", "recoverCatching",
+            "collect", "collectLatest",
         ].contains(interner.resolve(calleeName))
     }
 
