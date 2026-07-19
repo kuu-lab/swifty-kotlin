@@ -220,7 +220,7 @@ jobs:
   # to list each shard.
   full-swift-tests-core-gate:
     name: Full Swift Tests (CompilerCoreTests)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: full-swift-tests-core
     timeout-minutes: 10
     if: always()
@@ -241,7 +241,7 @@ jobs:
   full-swift-tests-backend:
     name: Full Swift Tests (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -295,7 +295,7 @@ jobs:
   # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
   full-swift-tests-backend-gate:
     name: Full Swift Tests (CompilerBackendTests)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: full-swift-tests-backend
     timeout-minutes: 10
     if: always()
@@ -311,7 +311,7 @@ jobs:
   full-swift-tests-runtime:
     name: Full Swift Tests (RuntimeTests)
     needs: [build]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -365,20 +365,14 @@ jobs:
           # (needs serialized, chunked execution — see the comment there).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
-            parallel: "1"
-            workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
-            parallel: "1"
-            workers: "4"
             build-jobs: "4"
             needs-llvm: true
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
-            parallel: "1"
-            workers: "4"
             build-jobs: "4"
             needs-llvm: true
     steps:
