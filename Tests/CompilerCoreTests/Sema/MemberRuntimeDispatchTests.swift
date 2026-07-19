@@ -100,5 +100,12 @@ struct MemberRuntimeDispatchTests {
             #expect(spec?.thrownResultMode == thrownResultMode, "String.\(memberName)/\(arity) thrown result")
         }
     }
+
+    @Test func testStringRuntimeDispatchDoesNotOverrideSourceBackedMembers() {
+        for memberName in ["ifBlank", "ifEmpty"] {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: 1)
+            #expect(MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil)
+        }
+    }
 }
 #endif
