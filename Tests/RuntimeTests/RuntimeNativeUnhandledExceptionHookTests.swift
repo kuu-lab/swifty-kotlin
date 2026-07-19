@@ -1,5 +1,6 @@
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class RuntimeNativeUnhandledExceptionHookTestState: @unchecked Sendable {
     private let lock = NSLock()
@@ -26,6 +27,11 @@ private final class RuntimeNativeUnhandledExceptionHookTestState: @unchecked Sen
 
 private let runtimeNativeUnhandledExceptionHookTestState = RuntimeNativeUnhandledExceptionHookTestState()
 
+private func resetRuntimeNativeUnhandledExceptionHookTestState() {
+    runtimeNativeUnhandledExceptionHookTestState.reset()
+    _ = kk_native_setUnhandledExceptionHook(0)
+}
+
 private func runtimeNativeUnhandledExceptionHook(
     _ throwableRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -43,28 +49,27 @@ private func runtimeNativeUnhandledExceptionThrowingHook(
     return 0
 }
 
-final class RuntimeNativeUnhandledExceptionHookTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeNativeUnhandledExceptionHookTestState.reset()
-        _ = kk_native_setUnhandledExceptionHook(0)
-    }
-
-    func testGetAndSetUnhandledExceptionHookRoundTrip() {
+@Suite(
+    .runtimeIsolation(
+        .gcOnly,
+        resetAdditionalState: resetRuntimeNativeUnhandledExceptionHookTestState
+    )
+)
+struct RuntimeNativeUnhandledExceptionHookTests {
+    @Test func getAndSetUnhandledExceptionHookRoundTrip() {
         let hookRaw = unsafeBitCast(
             runtimeNativeUnhandledExceptionHook as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
         )
 
-        XCTAssertEqual(kk_native_getUnhandledExceptionHook(), runtimeNullSentinelInt)
-        XCTAssertEqual(kk_native_setUnhandledExceptionHook(hookRaw), 0)
-        XCTAssertEqual(kk_native_getUnhandledExceptionHook(), hookRaw)
-        XCTAssertEqual(kk_native_setUnhandledExceptionHook(runtimeNullSentinelInt), 0)
-        XCTAssertEqual(kk_native_getUnhandledExceptionHook(), runtimeNullSentinelInt)
+        #expect(kk_native_getUnhandledExceptionHook() == runtimeNullSentinelInt)
+        #expect(kk_native_setUnhandledExceptionHook(hookRaw) == 0)
+        #expect(kk_native_getUnhandledExceptionHook() == hookRaw)
+        #expect(kk_native_setUnhandledExceptionHook(runtimeNullSentinelInt) == 0)
+        #expect(kk_native_getUnhandledExceptionHook() == runtimeNullSentinelInt)
     }
 
-    func testProcessUnhandledExceptionInvokesRegisteredHook() {
+    @Test func processUnhandledExceptionInvokesRegisteredHook() {
         let hookRaw = unsafeBitCast(
             runtimeNativeUnhandledExceptionHook as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -72,12 +77,12 @@ final class RuntimeNativeUnhandledExceptionHookTests: IsolatedRuntimeXCTestCase 
         let throwableRaw = 0x1234
 
         _ = kk_native_setUnhandledExceptionHook(hookRaw)
-        XCTAssertEqual(kk_native_processUnhandledException(throwableRaw, nil), 0)
+        #expect(kk_native_processUnhandledException(throwableRaw, nil) == 0)
 
-        XCTAssertEqual(runtimeNativeUnhandledExceptionHookTestState.captured(), throwableRaw)
+        #expect(runtimeNativeUnhandledExceptionHookTestState.captured() == throwableRaw)
     }
 
-    func testProcessUnhandledExceptionPropagatesHookThrownChannel() {
+    @Test func processUnhandledExceptionPropagatesHookThrownChannel() {
         let hookRaw = unsafeBitCast(
             runtimeNativeUnhandledExceptionThrowingHook as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -86,15 +91,15 @@ final class RuntimeNativeUnhandledExceptionHookTests: IsolatedRuntimeXCTestCase 
         var thrown = 0
 
         _ = kk_native_setUnhandledExceptionHook(hookRaw)
-        XCTAssertEqual(kk_native_processUnhandledException(throwableRaw, &thrown), 0)
+        #expect(kk_native_processUnhandledException(throwableRaw, &thrown) == 0)
 
-        XCTAssertEqual(thrown, throwableRaw)
+        #expect(thrown == throwableRaw)
     }
 
-    func testProcessUnhandledExceptionNoopsWithoutHook() {
+    @Test func processUnhandledExceptionNoopsWithoutHook() {
         let throwableRaw = 0x9abc
 
-        XCTAssertEqual(kk_native_processUnhandledException(throwableRaw, nil), 0)
-        XCTAssertEqual(runtimeNativeUnhandledExceptionHookTestState.captured(), 0)
+        #expect(kk_native_processUnhandledException(throwableRaw, nil) == 0)
+        #expect(runtimeNativeUnhandledExceptionHookTestState.captured() == 0)
     }
 }
