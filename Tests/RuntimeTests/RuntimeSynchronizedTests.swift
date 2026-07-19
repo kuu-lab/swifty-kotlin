@@ -94,7 +94,6 @@ private func runtime_synchronized_reentrant_lambda(
 @Suite(.serialized)
 struct RuntimeSynchronizedTests {
     init() {
-        kk_runtime_force_reset()
         synchronizedCapturedClosureRaw = 0
         synchronizedNestedFnPtr = 0
         synchronizedNestedClosureRaw = 0
@@ -102,6 +101,8 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedReturnsBlockResult() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
@@ -119,6 +120,8 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedPropagatesThrownValue() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
@@ -136,6 +139,8 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedPassesClosureRawToThunk() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
@@ -156,6 +161,8 @@ struct RuntimeSynchronizedTests {
 
     @Test
     func testSynchronizedSupportsReentrantLocking() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
