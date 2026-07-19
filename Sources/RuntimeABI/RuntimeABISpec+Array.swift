@@ -41,6 +41,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_runtime_register_data_class",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_object_type_id",
             parameters: [
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),

@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う。PR #4837 の identity equality 関連を BUG-132/133 として追加）
+最終更新: 2026-07-19（PR #4837 の BUG-133 を同一PR内で修正。通常クラスの `Any.equals()` / `==` を参照同一性へ戻し、`data class` の構造的等価性を維持する回帰テストを追加。過去の追記: PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う。PR #4837 の identity equality 関連を BUG-132/133 として追加）
 
 ---
 
@@ -1052,13 +1052,13 @@
   }
   ```
   修正: Lexer（`Symbol.tripleEqual`/`.notTripleEqual` 追加）→ Parser（`BinaryOp.identityEqual`/`.notIdentityEqual`、`==`/`!=` と同精度）→ Sema（`equals()` オーバーロード解決を経由せず直接 `Boolean` を束縛、`x === null` のスマートキャストも `==`/`!=` と同様に対応）→ Lowering（`kk_op_eq`/`kk_op_ne` — data object 識別比較で既に使われているのと同じプリミティブを再利用。String のみ内部表現が4ワードの flat 集約でこの ABI に載らないため、`==`/`!=` と同じ content equality にフォールバック — 既知の簡略化）。回帰防止に `Scripts/diff_cases/identity_equality_operators.kt` を新規追加（kotlinc 実測一致）。発見元: ユーザー報告（当初「interface 型のみ」「TODO.md に BUG-021 として記録済み」との想定だったが、調査の結果いずれも事実誤認と判明 — 記録は本エントリが初出）。PR [#4837](https://github.com/kuu-lab/swifty-kotlin/pull/4837)（マージ後に `[x]` 化）。
-- [ ] BUG-133: デフォルトの `Any.equals()`（ユーザーが `equals()` を override していないクラス、`data class` でもない）が参照同一性でなく構造的等価性で比較している疑い。フィールド値が同じ別インスタンス同士の `==` が、Kotlin 仕様上は `false`（デフォルト `Any.equals` は `===` 相当）のはずが `true` を返す。最小再現（kotlinc 実測で `false` を確認済み・kswiftc は `true` を返す）:
+- [ ] BUG-133: デフォルトの `Any.equals()`（ユーザーが `equals()` を override していない通常クラス）が参照同一性でなく構造的等価性で比較されていた。フィールド値が同じ別インスタンス同士の `==`、`Any` 経由の `==`、明示的な `Any.equals()` が `true` を返していたが、Kotlin 仕様上は `false`（デフォルト `Any.equals` は `===` 相当）。最小再現（kotlinc 実測で `false`、修正後の kswiftc も `false`）:
   ```kotlin
   class Plain(val n: Int)
   fun main() {
       val a = Plain(1)
       val c = Plain(1)
-      println(a == c) // kotlinc: false / kswiftc: true
+      println(a == c) // kotlinc: false / kswiftc (fixed): false
   }
   ```
-  推定原因（未確定・要調査）: `Sources/CompilerCore/Lowering/OperatorLoweringPass.swift` の `needsStructuralEquality` 判定経由で、参照型の `==`/`!=` が本来 list/set/map/boxed 値向けの `kk_structural_eq`（`Sources/Runtime/RuntimeCollectionHelpers.swift`、`runtimeValuesEqual` によるフィールド構造比較）にフォールバックしているケースがあり、Sema が `equals()` の `callBindings` を解決できない経路（`Any.equals()` 未オーバーライド時？）で誤って適用されている可能性。発見元: BUG-132 修正時の回帰検証中に偶発的に発見（2026-07-12）。
+  原因: `Sources/CompilerCore/Lowering/OperatorLoweringPass.swift` の `needsStructuralEquality` 判定により、参照型の `==`/`!=` が `kk_structural_eq`/`kk_structural_ne` に入り、`RuntimeObjectBox` も `runtimeValuesEqual` でフィールド比較されていた。修正: `runtimeAnyObjectEquality` を追加し、通常クラスはオブジェクトポインタの同一性、`data class` はコンパイラが生成時に `kk_runtime_register_data_class` で登録した class ID に基づく構造的等価性として扱うよう共通 runtime 経路を更新。回帰防止に `Scripts/diff_cases/any_equals_identity.kt` と `Tests/RuntimeTests/RuntimeAnyEqualityTests.swift` を追加し、`RuntimeAnyEqualityTests` 2件と kswiftc の出力（`false false false true true true true`）を確認した。発見元: BUG-132 修正時の回帰検証中に偶発的に発見（2026-07-12）。修正: PR [#4837](https://github.com/kuu-lab/swifty-kotlin/pull/4837)（マージ後に `[x]` 化）。
