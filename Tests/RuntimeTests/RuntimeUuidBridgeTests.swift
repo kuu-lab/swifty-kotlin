@@ -39,6 +39,7 @@ struct RuntimeUuidBridgeTests {
 
     @Test
     func testRandomBridgeReturnsVersion4UuidObject() throws {
+        defer { kk_runtime_force_reset() }
         let raw = __kk_uuid_random()
         let bits = try #require(uuidBits(raw))
 
@@ -48,6 +49,7 @@ struct RuntimeUuidBridgeTests {
 
     @Test
     func testNameUuidBridgeIsDeterministicVersion3UuidObject() throws {
+        defer { kk_runtime_force_reset() }
         let name = makeByteArray([104, 101, 108, 108, 111])
         let first = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(name)))
         let second = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(name)))
@@ -63,6 +65,7 @@ struct RuntimeUuidBridgeTests {
     /// == "d41d8cd9-8f00-3204-a980-0998ecf8427e".
     @Test
     func testNameUuidBridgeMatchesKnownRfc4122VectorForEmptyBytes() throws {
+        defer { kk_runtime_force_reset() }
         let bits = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(makeByteArray([]))))
         #expect(UInt64(bitPattern: bits.msb) == 0xd41d8cd98f003204)
         #expect(UInt64(bitPattern: bits.lsb) == 0xa9800998ecf8427e)
@@ -73,6 +76,7 @@ struct RuntimeUuidBridgeTests {
     /// == "5d41402a-bc4b-3a76-b971-9d911017c592".
     @Test
     func testNameUuidBridgeMatchesKnownRfc4122VectorForHelloBytes() throws {
+        defer { kk_runtime_force_reset() }
         let helloUTF8 = [104, 101, 108, 108, 111] // "hello"
         let bits = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(makeByteArray(helloUTF8))))
         #expect(UInt64(bitPattern: bits.msb) == 0x5d41402abc4b3a76)
@@ -82,6 +86,7 @@ struct RuntimeUuidBridgeTests {
     /// null raw is treated as an empty byte array — same UUID as empty bytes, no crash.
     @Test
     func testNameUuidBridgeNullRawEqualsEmptyBytes() throws {
+        defer { kk_runtime_force_reset() }
         let fromNull = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(0)))
         let fromEmpty = try #require(uuidBits(__kk_uuid_nameUUIDFromBytes(makeByteArray([]))))
         #expect(fromNull.msb == fromEmpty.msb)
@@ -91,6 +96,7 @@ struct RuntimeUuidBridgeTests {
     /// fromLongs must round-trip (UInt64.max, UInt64.max) without truncation.
     @Test
     func testFromLongsBridgeRoundTripsMaxBits() throws {
+        defer { kk_runtime_force_reset() }
         let allOnes = Int(bitPattern: UInt.max)
         let bits = try #require(uuidBits(__kk_uuid_fromLongs(allOnes, allOnes)))
         #expect(UInt64(bitPattern: bits.msb) == UInt64.max)
@@ -99,6 +105,7 @@ struct RuntimeUuidBridgeTests {
 
     @Test
     func testToKotlinUuidCopiesTwoLongObjectShape() throws {
+        defer { kk_runtime_force_reset() }
         let source = __kk_uuid_random()
         let converted = __kk_uuid_toKotlinUuid(source)
 
@@ -110,6 +117,7 @@ struct RuntimeUuidBridgeTests {
 
     @Test
     func testToKotlinUuidReturnsDistinctObjectHandle() {
+        defer { kk_runtime_force_reset() }
         let source = __kk_uuid_random()
         let converted = __kk_uuid_toKotlinUuid(source)
 
@@ -118,6 +126,7 @@ struct RuntimeUuidBridgeTests {
 
     @Test
     func testToKotlinUuidNullReceiverReturnsAllZeroUuid() throws {
+        defer { kk_runtime_force_reset() }
         let converted = __kk_uuid_toKotlinUuid(0)
 
         #expect(converted != 0, "null receiver must not produce a zero handle")
