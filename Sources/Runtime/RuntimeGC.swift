@@ -15,7 +15,7 @@ struct FrameMapDescriptorC {
     let rootOffsets: UnsafePointer<Int32>?
 }
 
-/// Cache key for `kk_kclass_create`.
+/// Cache key for `__kk_kclass_create`.
 /// `typeToken` uniquely identifies a `KClass<T>` at runtime, so caching by it
 /// alone ensures stable hits across repeated evaluations.
 struct KClassCacheKey: Hashable {

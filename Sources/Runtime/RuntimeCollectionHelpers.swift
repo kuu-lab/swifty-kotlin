@@ -276,6 +276,9 @@ func maybeUnbox(_ value: Int) -> Int {
     if let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
         return longBox.value
     }
+    if let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+        return ulongBox.value
+    }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return charBox.value
     }
@@ -339,6 +342,11 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let rhsLong = tryCast(rhsPtr, to: RuntimeLongBox.self)
     {
         return lhsLong.value == rhsLong.value
+    }
+    if let lhsULong = tryCast(lhsPtr, to: RuntimeULongBox.self),
+       let rhsULong = tryCast(rhsPtr, to: RuntimeULongBox.self)
+    {
+        return lhsULong.value == rhsULong.value
     }
     if let lhsFloat = tryCast(lhsPtr, to: RuntimeFloatBox.self),
        let rhsFloat = tryCast(rhsPtr, to: RuntimeFloatBox.self)
@@ -500,6 +508,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
         return "\(longBox.value)"
+    }
+    if let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+        return "\(UInt(bitPattern: ulongBox.value))"
     }
     if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
         return String(floatBox.value)
@@ -737,13 +748,30 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
             return runtimeCompareFloatingValues(lhsValue, rhsValue)
         case let (.floating(lhsValue), .integer(rhsValue)):
             return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
+        case let (.floating(lhsValue), .unsignedInteger(rhsValue)):
+            return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
         case let (.integer(lhsValue), .floating(rhsValue)):
+            return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
+        case let (.unsignedInteger(lhsValue), .floating(rhsValue)):
             return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
         case let (.integer(lhsValue), .integer(rhsValue)):
             if lhsValue == rhsValue {
                 return 0
             }
             return lhsValue < rhsValue ? -1 : 1
+        case let (.unsignedInteger(lhsValue), .unsignedInteger(rhsValue)):
+            if lhsValue == rhsValue {
+                return 0
+            }
+            return lhsValue < rhsValue ? -1 : 1
+        // Mixed signed/unsigned integers only arise when comparing values of
+        // statically-incompatible Kotlin types (e.g. Long vs ULong through a
+        // type-erased Comparable); there is no principled ordering, so fall
+        // back to a Double approximation rather than crashing.
+        case let (.integer(lhsValue), .unsignedInteger(rhsValue)):
+            return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
+        case let (.unsignedInteger(lhsValue), .integer(rhsValue)):
+            return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
         }
     }
     if let comparableResult = runtimeCompareComparableValues(lhs: lhs, rhs: rhs) {
@@ -865,6 +893,7 @@ enum RuntimePrimitiveCompareKind {
 
 private enum RuntimeComparableScalarValue {
     case integer(Int)
+    case unsignedInteger(UInt)
     case floating(Double)
 }
 
@@ -909,6 +938,9 @@ private func runtimeComparableScalarValue(from raw: Int) -> RuntimeComparableSca
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return .integer(longBox.value)
     }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        return .unsignedInteger(UInt(bitPattern: ulongBox.value))
+    }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return .integer(charBox.value)
     }
@@ -931,6 +963,9 @@ private func runtimePrimitiveIntValue(_ raw: Int) -> Int {
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return longBox.value
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        return ulongBox.value
     }
     if let boolBox = tryCast(pointer, to: RuntimeBoolBox.self) {
         return boolBox.value ? 1 : 0

@@ -231,6 +231,7 @@ struct TypeCheckScopeBuilder {
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],
             ["kotlin", "ranges"],
+            ["kotlin", "reflect"],
             ["kotlin", "sequences"],
             ["kotlin", "text"],
             ["kotlin", "time"],

@@ -9,12 +9,10 @@ private let mapIndexedNotNullToEvenIndex: @convention(c) (Int, Int, Int, UnsafeM
 
 @Suite
 struct RuntimeCollectionMapIndexedNotNullToTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     @Test
     func testMapIndexedNotNullToAppendsOnlyNonNullResults() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         defer {
             kk_runtime_force_reset()
         }
