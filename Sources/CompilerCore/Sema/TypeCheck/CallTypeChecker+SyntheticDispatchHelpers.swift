@@ -181,32 +181,6 @@ extension CallTypeChecker {
         return stdlibSymbol
     }
 
-    /// Returns true for legacy synthetic runtime stubs, but not for imported
-    /// Kotlin stdlib source implementations. This lets source stdlib wrappers
-    /// run their Kotlin body instead of being swallowed by an intrinsic path.
-    func shouldUseRuntimeStdlibSpecialCall(
-        _ name: InternedString,
-        fqComponents: [String],
-        locals: LocalBindings,
-        ctx: TypeInferenceContext
-    ) -> Bool {
-        if isShadowedByNonSyntheticSymbol(name, locals: locals, ctx: ctx) {
-            return false
-        }
-        let interner = ctx.interner
-        let internedFQ = fqComponents.map { interner.intern($0) }
-        return ctx.cachedScopeLookup(name).contains { candidate in
-            guard let sym = ctx.cachedSymbol(candidate),
-                  sym.kind == .function,
-                  sym.flags.contains(.synthetic),
-                  !sym.flags.contains(.importedLibrary)
-            else {
-                return false
-            }
-            return sym.fqName == internedFQ
-        }
-    }
-
     /// Returns the fully qualified path of a callee expression when it is
     /// composed of dotted names like `kotlin.coroutines.foo`.
     func qualifiedCalleePath(for exprID: ExprID, ast: ASTModule) -> [InternedString]? {
