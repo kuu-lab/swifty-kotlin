@@ -4,7 +4,7 @@ import Testing
 
 /// CODE-001: Regression tests ensuring `finally` blocks execute on
 /// `return`, `break`, and `continue` inside try-finally.
-@Suite @MainActor
+@Suite
 struct FinallyExecutionOnControlFlowTests {
 
     // MARK: - return inside try-finally

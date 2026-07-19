@@ -1487,10 +1487,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let deleteAtBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteAt"
-            }
-            #expect(deleteAtBindings.count == 2)
+            let interner = ctx.interner
+            let deleteAtSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("deleteAt"),
+            ])
+            #expect(deleteAtSymbols.count == 1)
+            #expect(deleteAtSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1520,10 +1525,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let deleteRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteRange"
-            }
-            #expect(deleteRangeBindings.count == 2)
+            let interner = ctx.interner
+            let deleteRangeSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("deleteRange"),
+            ])
+            #expect(deleteRangeSymbols.count == 1)
+            #expect(deleteRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1554,10 +1564,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let appendRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj_flat"
-            }
-            #expect(appendRangeBindings.count == 2)
+            let interner = ctx.interner
+            let appendRangeSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("appendRange"),
+            ])
+            #expect(appendRangeSymbols.count == 1)
+            #expect(appendRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1588,10 +1603,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let insertBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insert_obj"
-            }
-            #expect(insertBindings.count == 2)
+            let interner = ctx.interner
+            let insertSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("insert"),
+            ])
+            #expect(insertSymbols.count >= 1)
+            #expect(insertSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1621,10 +1641,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let insertRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj_flat"
-            }
-            #expect(insertRangeBindings.count == 2)
+            let interner = ctx.interner
+            let insertRangeSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("insertRange"),
+            ])
+            #expect(insertRangeSymbols.count == 1)
+            #expect(insertRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1654,10 +1679,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let setRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange_flat"
-            }
-            #expect(setRangeBindings.count == 2)
+            let interner = ctx.interner
+            let setRangeSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("setRange"),
+            ])
+            #expect(setRangeSymbols.count == 1)
+            #expect(setRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 
@@ -1683,10 +1713,15 @@ struct StringSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let setBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setCharAt"
-            }
-            #expect(setBindings.count >= 1)
+            let interner = ctx.interner
+            let setSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("text"),
+                interner.intern("StringBuilder"),
+                interner.intern("set"),
+            ])
+            #expect(setSymbols.count == 1)
+            #expect(setSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
         }
     }
 

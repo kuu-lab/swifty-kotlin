@@ -9,6 +9,8 @@ KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
+KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-}"
+KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-}"
 KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_VERSION:-1.10.2}}"
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
@@ -81,6 +83,14 @@ Environment:
   DIFF_SHARD_INDEX / DIFF_SHARD_COUNT
                      Run only every Nth case (interleaved) so N runners can split
                      the case set; counts/summary reflect this shard only
+  KOTLINC_STDLIB_JAR Path to kotlin-stdlib.jar, put on the classpath instead of
+                     using -include-runtime to compile reference cases (default:
+                     auto-discovered next to \$KOTLINC; empty disables and falls
+                     back to -include-runtime)
+  KOTLINC_REFLECT_JAR
+                     Same idea as KOTLINC_STDLIB_JAR but for kotlin-reflect.jar,
+                     needed by cases that use kotlin.reflect (default:
+                     auto-discovered next to \$KOTLINC)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -251,6 +261,36 @@ known_coroutines_sha256() {
   esac
 }
 
+# Resolves a jar next to $KOTLINC (../lib/<name> relative to .../bin/kotlinc,
+# the layout CI unzips kotlin-compiler-*.zip into) so run_case() can compile
+# with -classpath instead of -include-runtime, avoiding a multi-MB repackage
+# into every case's jar (~14% faster compile per case, measured locally).
+# Also tries ../libexec/lib/ for Homebrew's kotlin formula, which wraps the
+# real distro under libexec/ and defeats readlink -f (bin/kotlinc there is a
+# wrapper *script*, not a symlink). Empty/unresolvable leaves
+# KOTLINC_CLASSPATH as-is and run_case() falls back to -include-runtime,
+# same as before this existed.
+#
+# Used for both kotlin-stdlib.jar and kotlin-reflect.jar: -include-runtime
+# bundles both (kotlin.reflect.full/jvm APIs - KClass.isAbstract/isOpen,
+# KType.toString(), etc. - throw KotlinReflectionNotSupportedError or fall
+# back to plain-Java rendering without kotlin-reflect on the classpath;
+# confirmed via CI failures on kclass_basic.kt/type_reflection.kt when only
+# kotlin-stdlib.jar was added).
+resolve_kotlinc_lib_jar() {
+  local jar_name="$1" kotlinc_bin resolved_bin bin_dir candidate
+  kotlinc_bin="$(command -v "$KOTLINC" 2>/dev/null || true)"
+  [[ -z "$kotlinc_bin" ]] && return 0
+  resolved_bin="$(readlink -f "$kotlinc_bin" 2>/dev/null || echo "$kotlinc_bin")"
+  bin_dir="$(dirname "$resolved_bin")"
+  for candidate in "$bin_dir/../lib/$jar_name" "$bin_dir/../libexec/lib/$jar_name"; do
+    if [[ -f "$candidate" ]]; then
+      echo "$(cd "$(dirname "$candidate")" && pwd)/$jar_name"
+      return 0
+    fi
+  done
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -312,6 +352,24 @@ if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
 fi
 
 ensure_kotlinc_classpath
+
+# Runs after ensure_kotlinc_classpath (which may have just populated
+# KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
+# (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
+# --kotlinc-classpath), so it sees final values for both instead of racing
+# either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
+# is what keeps a user- or coroutines-supplied classpath intact.
+KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
+KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
+for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR"; do
+  if [[ -n "$runtime_jar" ]]; then
+    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+      KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
+    else
+      KOTLINC_CLASSPATH="$runtime_jar"
+    fi
+  fi
+done
 
 # DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
 # Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
@@ -711,8 +769,12 @@ run_case() {
     fi
   else
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+      # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
+      # jars (see resolve_kotlinc_lib_jar above) whenever they could be
+      # resolved, so the runtime classes needed by ref_run below are
+      # already on the classpath without repackaging them into ref_jar.
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
     else
       # shellcheck disable=SC2086
       "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?

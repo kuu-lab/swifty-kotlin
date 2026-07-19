@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 /// REFL-003: Tests for KFunction / KProperty type identity on callable references.
-@Suite @MainActor
+@Suite
 struct CallableRefTypeIdentityTests {
     // MARK: - Sema binding tests
 
