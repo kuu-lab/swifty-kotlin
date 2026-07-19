@@ -291,6 +291,7 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
 
                 if case let .call(symbol, callee, callArgs, callResult, _, _, _, _) = instruction,
                    interner.resolve(callee) == "lazy",
+                   symbol != nil,
                    let callResult,
                    let initializer = callArgs.last
                 {
