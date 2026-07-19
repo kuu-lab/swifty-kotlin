@@ -446,6 +446,19 @@ struct BundledDeclarationIndex: Sendable {
         switch types.kind(of: nonNullType) {
         case let .classType(classType):
             return symbols.symbol(classType.classSymbol)?.fqName
+        case .kClassType:
+            // `KClass<T>` receivers (e.g. `T::class` expressions) use the
+            // dedicated `.kClassType` representation rather than an ordinary
+            // `.classType` wrapping the `KClass` interface symbol. Extensions
+            // declared with a `KClass<...>` receiver (bundled stdlib Kotlin
+            // source under Sources/CompilerCore/Stdlib/kotlin/reflect/) must
+            // resolve to the same owner FQName as the `KClass` interface
+            // symbol so member-call candidate lookup (which keys off
+            // ownerFQName + memberName) finds them.
+            guard let kClassSymbol = types.kClassInterfaceSymbol else {
+                return nil
+            }
+            return symbols.symbol(kClassSymbol)?.fqName
         case let .primitive(primitive, _):
             guard let interner else {
                 return nil
