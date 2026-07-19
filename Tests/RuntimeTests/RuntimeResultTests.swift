@@ -22,10 +22,6 @@ private func runtime_result_failure_lambda(
 
 @Suite
 struct RuntimeResultTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     @Test
     func testResultSuccessStateAndGetOrThrow() {
         var thrown = 0
