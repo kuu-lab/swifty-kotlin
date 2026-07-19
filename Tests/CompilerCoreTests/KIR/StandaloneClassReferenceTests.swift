@@ -4,12 +4,12 @@ import Foundation
 import Testing
 
 /// Tests for REFL-002: standalone `T::class` references produce proper KClass
-/// metadata via `kk_kclass_create` instead of falling back to Unit.
-@Suite @MainActor
+/// metadata via `__kk_kclass_create` instead of falling back to Unit.
+@Suite
 struct StandaloneClassReferenceTests {
 
     /// Standalone `T::class` inside a reified inline function should emit
-    /// `kk_kclass_create` in the lowered KIR output after inline expansion.
+    /// `__kk_kclass_create` in the lowered KIR output after inline expansion.
     @Test func testStandaloneReifiedClassRefEmitsKClassCreate() throws {
         let source = """
         inline fun <reified T> classOf(): Any = T::class
@@ -27,14 +27,14 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone T::class after inline expansion, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone T::class after inline expansion, got: \(callees)"
             )
         }
     }
 
     /// Standalone `String::class` (concrete/builtin type) should emit
-    /// `kk_kclass_create` in the KIR output.
+    /// `__kk_kclass_create` in the KIR output.
     @Test func testStandaloneConcreteClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
@@ -50,14 +50,14 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone String::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone String::class, got: \(callees)"
             )
         }
     }
 
     /// Standalone `Int::class` (primitive builtin type) should emit
-    /// `kk_kclass_create` in the KIR output.
+    /// `__kk_kclass_create` in the KIR output.
     @Test func testStandalonePrimitiveClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
@@ -73,14 +73,19 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone Int::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone Int::class, got: \(callees)"
             )
         }
     }
 
-    /// `T::class.simpleName` (chained) should still use the direct
-    /// `kk_type_token_simple_name` path after inline expansion.
+    /// `T::class.simpleName` (chained) after inline expansion.
+    ///
+    /// KSP-496 moved `simpleName` to an ordinary Kotlin extension property
+    /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so
+    /// `T::class` now always creates the KClass box (`__kk_kclass_create`)
+    /// before dispatching to the `simpleName` getter — there is no longer a
+    /// "direct path" that skips box creation for this member.
     @Test func testChainedClassRefSimpleNameUsesDirectPath() throws {
         let source = """
         inline fun <reified T> typeNameOf(): String = T::class.simpleName ?: "unknown"
@@ -94,17 +99,17 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_type_token_simple_name"),
-                "Chained T::class.simpleName should use kk_type_token_simple_name, got: \(callees)"
+                callees.contains("simpleName"),
+                "Chained T::class.simpleName should resolve to the Kotlin simpleName getter, got: \(callees)"
             )
             #expect(
-                !(callees.contains("kk_kclass_create")),
-                "Chained T::class.simpleName should NOT emit kk_kclass_create, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Chained T::class.simpleName should emit __kk_kclass_create (box creation, then dispatch to the simpleName getter), got: \(callees)"
             )
         }
     }
 
-    /// User-defined class `MyClass::class` should emit `kk_kclass_create`.
+    /// User-defined class `MyClass::class` should emit `__kk_kclass_create`.
     @Test func testStandaloneUserClassRefEmitsKClassCreate() throws {
         let source = """
         class MyClass
@@ -121,8 +126,8 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone MyClass::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone MyClass::class, got: \(callees)"
             )
         }
     }
@@ -149,15 +154,15 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_find_associated_object"),
-                "Expected findAssociatedObject to lower to kk_kclass_find_associated_object, got: \(callees)"
+                callees.contains("__kk_kclass_find_associated_object"),
+                "Expected findAssociatedObject to lower to __kk_kclass_find_associated_object, got: \(callees)"
             )
         }
     }
 
     // MARK: - REFL-002 Additional tests
 
-    /// `this::class` inside a class method should emit `kk_kclass_create`.
+    /// `this::class` inside a class method should emit `__kk_kclass_create`.
     @Test func testThisClassRefEmitsKClassCreate() throws {
         let source = """
         class Foo {
@@ -174,17 +179,17 @@ struct StandaloneClassReferenceTests {
 
             let module = try #require(ctx.kir)
             // Check that classRefTargetType was bound for the this::class expr
-            // by looking for kk_kclass_create in the Foo.getKClass body.
+            // by looking for __kk_kclass_create in the Foo.getKClass body.
             let body = try findKIRFunctionBody(named: "getKClass", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for this::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for this::class, got: \(callees)"
             )
         }
     }
 
-    /// `Long::class` should emit `kk_kclass_create` with a non-zero type token.
+    /// `Long::class` should emit `__kk_kclass_create` with a non-zero type token.
     @Test func testStandaloneLongClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
@@ -200,13 +205,13 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone Long::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone Long::class, got: \(callees)"
             )
         }
     }
 
-    /// `Double::class` should emit `kk_kclass_create`.
+    /// `Double::class` should emit `__kk_kclass_create`.
     @Test func testStandaloneDoubleClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
@@ -222,13 +227,13 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone Double::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone Double::class, got: \(callees)"
             )
         }
     }
 
-    /// `Boolean::class` should emit `kk_kclass_create`.
+    /// `Boolean::class` should emit `__kk_kclass_create`.
     @Test func testStandaloneBooleanClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
@@ -244,8 +249,8 @@ struct StandaloneClassReferenceTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                callees.contains("kk_kclass_create"),
-                "Expected kk_kclass_create for standalone Boolean::class, got: \(callees)"
+                callees.contains("__kk_kclass_create"),
+                "Expected __kk_kclass_create for standalone Boolean::class, got: \(callees)"
             )
         }
     }
@@ -302,13 +307,13 @@ struct StandaloneClassReferenceTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            // Find the kk_kclass_create call and check its result type.
+            // Find the __kk_kclass_create call and check its result type.
             for instruction in body {
                 guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { continue }
-                if ctx.interner.resolve(callee) == "kk_kclass_create" {
+                if ctx.interner.resolve(callee) == "__kk_kclass_create" {
                     guard let resultID = result,
                           let resultType = module.arena.exprType(resultID) else {
-                        Issue.record("kk_kclass_create result has no stored type")
+                        Issue.record("__kk_kclass_create result has no stored type")
                         return
                     }
                     // The result type should be KClass<Int>, not Any.
@@ -316,11 +321,11 @@ struct StandaloneClassReferenceTests {
                         // Success — type is KClass<T>.
                         return
                     }
-                    Issue.record("Expected KClass type for kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
+                    Issue.record("Expected KClass type for __kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
                     return
                 }
             }
-            Issue.record("kk_kclass_create call not found in main body")
+            Issue.record("__kk_kclass_create call not found in main body")
         }
     }
 
@@ -337,9 +342,9 @@ struct StandaloneClassReferenceTests {
             #expect(
                 body.contains { instruction in
                     guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                    return ctx.interner.resolve(callee) == "kk_kclass_cast" && canThrow
+                    return ctx.interner.resolve(callee) == "__kk_kclass_cast" && canThrow
                 },
-                "Expected String::class.cast to lower to throwing kk_kclass_cast"
+                "Expected String::class.cast to lower to throwing __kk_kclass_cast"
             )
         }
     }
@@ -365,9 +370,9 @@ struct StandaloneClassReferenceTests {
                 #expect(
                     body.contains { instruction in
                         guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                        return ctx.interner.resolve(callee) == "kk_kclass_cast" && canThrow
+                        return ctx.interner.resolve(callee) == "__kk_kclass_cast" && canThrow
                     },
-                    "Expected \(functionName) to lower to throwing kk_kclass_cast"
+                    "Expected \(functionName) to lower to throwing __kk_kclass_cast"
                 )
             }
         }
@@ -386,9 +391,9 @@ struct StandaloneClassReferenceTests {
             #expect(
                 body.contains { instruction in
                     guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                    return ctx.interner.resolve(callee) == "kk_kclass_safeCast" && !canThrow
+                    return ctx.interner.resolve(callee) == "__kk_kclass_safeCast" && !canThrow
                 },
-                "Expected String::class.safeCast to lower to non-throwing kk_kclass_safeCast"
+                "Expected String::class.safeCast to lower to non-throwing __kk_kclass_safeCast"
             )
         }
     }
@@ -414,9 +419,9 @@ struct StandaloneClassReferenceTests {
                 #expect(
                     body.contains { instruction in
                         guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
-                        return ctx.interner.resolve(callee) == "kk_kclass_safeCast" && !canThrow
+                        return ctx.interner.resolve(callee) == "__kk_kclass_safeCast" && !canThrow
                     },
-                    "Expected \(functionName) to lower to non-throwing kk_kclass_safeCast"
+                    "Expected \(functionName) to lower to non-throwing __kk_kclass_safeCast"
                 )
             }
         }
