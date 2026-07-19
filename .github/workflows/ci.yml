@@ -160,7 +160,7 @@ jobs:
   full-swift-tests-core:
     name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -355,7 +355,7 @@ jobs:
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
