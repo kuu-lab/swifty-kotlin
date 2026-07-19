@@ -123,7 +123,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -137,27 +137,27 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
-        run: bash Scripts/build_swift_tests.sh -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/build_swift_tests.sh -Xswiftc -swift-version -Xswiftc 6
       # Smoke tests take ~10s once the build exists, so they run here instead
       # of a dedicated job whose checkout/toolchain/cache setup cost ~2 minutes.
-      - name: Run smoke tests with strict concurrency warnings
+      - name: Run smoke tests
         env:
           SWIFT_TEST_PARALLEL: "4"
-        run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6
       - name: Smoke test reproduce hint
         if: always()
         run: |
           {
             echo '## Smoke test reproduce'
             echo '```bash'
-            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
+            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -187,7 +187,7 @@ jobs:
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -201,17 +201,17 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "8"
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run CompilerCoreTests shard ${{ matrix.shard }} with strict concurrency warnings
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6
+      - name: Run CompilerCoreTests shard ${{ matrix.shard }}
         env:
           SWIFT_TEST_WORKERS: "8"
           SWIFT_TEST_BUILD_JOBS: "8"
@@ -219,14 +219,14 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
             --shard-index "${{ matrix.shard }}" --shard-count "${{ strategy.job-total }}" \
-            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+            -- -Xswiftc -swift-version -Xswiftc 6
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=8 SWIFT_TEST_BUILD_JOBS=8 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=8 SWIFT_TEST_BUILD_JOBS=8 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -280,7 +280,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -294,17 +294,17 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run CompilerBackendTests shard ${{ matrix.shard }} with strict concurrency warnings
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6
+      - name: Run CompilerBackendTests shard ${{ matrix.shard }}
         env:
           SWIFT_TEST_WORKERS: "4"
           SWIFT_TEST_BUILD_JOBS: "4"
@@ -312,14 +312,14 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode dynamic --list-filter '^CompilerBackendTests\.' \
             --shard-index "${{ matrix.shard }}" --shard-count "${{ strategy.job-total }}" \
-            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+            -- -Xswiftc -swift-version -Xswiftc 6
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\\.' --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\\.' --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -368,7 +368,7 @@ jobs:
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -382,17 +382,17 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6
+      - name: Run RuntimeTests (serialized, chunked)
         env:
           SWIFT_TEST_PARALLEL: "0"
           SWIFT_TEST_BUILD_JOBS: "4"
@@ -400,27 +400,27 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
             -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run RuntimeTestsParallel with strict concurrency warnings
+      - name: Run RuntimeTestsParallel
         env:
           SWIFT_TEST_PARALLEL: "1"
           SWIFT_TEST_WORKERS: "4"
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run LSPServerTests with strict concurrency warnings
+        run: bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\.' -Xswiftc -swift-version -Xswiftc 6
+      - name: Run LSPServerTests
         env:
           SWIFT_TEST_PARALLEL: "1"
           SWIFT_TEST_WORKERS: "4"
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\.' -Xswiftc -swift-version -Xswiftc 6
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (RuntimeTests, RuntimeTestsParallel, LSPServerTests)'
             echo '```bash'
-            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
-            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
-            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6"
+            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' -Xswiftc -swift-version -Xswiftc 6"
+            echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^LSPServerTests\\.' -Xswiftc -swift-version -Xswiftc 6"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -455,12 +455,12 @@ jobs:
         if: ${{ !matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Setup Swift and LLVM
         if: ${{ matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -474,29 +474,29 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6
+      - name: Run full Swift test suite for ${{ matrix.test-target }}
         env:
           SWIFT_TEST_PARALLEL: "${{ matrix.parallel }}"
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_PARALLEL=${{ matrix.parallel }} SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -528,7 +528,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
@@ -557,7 +557,20 @@ jobs:
             curl -sSL -o "${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" \
               "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINX_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINX_COROUTINES_VERSION}.jar"
           fi
-          echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" >> "$GITHUB_ENV"
+          # KOTLINC_STDLIB_JAR/KOTLINC_REFLECT_JAR let diff_kotlinc.sh compile
+          # reference cases with -classpath instead of -include-runtime
+          # (avoids repackaging both into every one of the ~700 case jars).
+          # Set explicitly rather than relying on the script's own
+          # auto-discovery so this stays correct if the unzipped layout ever
+          # changes. kotlin-reflect.jar is required alongside stdlib:
+          # -include-runtime used to bundle it too, and cases using
+          # kotlin.reflect (KClass.isAbstract, etc.) throw/fall back to
+          # plain-Java rendering without it on the classpath.
+          {
+            echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar"
+            echo "KOTLINC_STDLIB_JAR=${KOTLIN_DIR}/kotlinc/lib/kotlin-stdlib.jar"
+            echo "KOTLINC_REFLECT_JAR=${KOTLIN_DIR}/kotlinc/lib/kotlin-reflect.jar"
+          } >> "$GITHUB_ENV"
       - name: Cache SPM build artifacts
         id: spm-cache
         uses: actions/cache@v5
@@ -571,9 +584,9 @@ jobs:
           # otherwise computes the same hash as its parent commit, so CI
           # reuses a stale cached .build that predates those changes
           # (observed on PR #4625 / KSP-482).
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
+          key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
+            spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
       - name: Build kswiftc (on cache miss)
         if: steps.spm-cache.outputs.cache-hit != 'true'
         run: swift build -Xswiftc -swift-version -Xswiftc 6
@@ -582,6 +595,8 @@ jobs:
           java -version
           kotlinc -version
           test -f "$KOTLINC_CLASSPATH"
+          test -f "$KOTLINC_STDLIB_JAR"
+          test -f "$KOTLINC_REFLECT_JAR"
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
