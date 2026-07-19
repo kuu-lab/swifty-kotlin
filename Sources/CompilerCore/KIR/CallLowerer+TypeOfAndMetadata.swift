@@ -115,7 +115,7 @@ extension CallLowerer {
                 let projectionExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_ktypeprojection_create"),
+                    callee: interner.intern("__kk_ktypeprojection_create"),
                     arguments: [typeRawExpr, varianceExpr],
                     result: projectionExpr,
                     canThrow: false,
@@ -198,7 +198,7 @@ extension CallLowerer {
 
     // MARK: - REFL-005: KClass Metadata Registration for Constructor Calls
 
-    /// Emits a `kk_kclass_register_metadata` call so that `KClass` reflection
+    /// Emits a `__kk_kclass_register_metadata` call so that `KClass` reflection
     /// queries (`.members`, `.constructors`, etc.) return correct data.
     /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used
     /// for regular class constructor invocations.
@@ -298,7 +298,7 @@ extension CallLowerer {
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_register_metadata"),
+            callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
             canThrow: false,
