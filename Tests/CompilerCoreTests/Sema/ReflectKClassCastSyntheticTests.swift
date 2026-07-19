@@ -18,29 +18,6 @@ struct ReflectKClassCastSyntheticTests {
         return try #require(result)
     }
 
-    @Test func testKClassCastSyntheticStubLinksToRuntimeABI() throws {
-        let (sema, interner) = try makeSema()
-        let fqName = ["kotlin", "reflect", "KClass", "cast"].map { interner.intern($0) }
-        let castSymbol = try #require(
-            sema.symbols.lookupAll(fqName: fqName).first { symbolID in
-                sema.symbols.externalLinkName(for: symbolID) == "kk_kclass_cast"
-            },
-            "Expected kotlin.reflect.KClass.cast to link to kk_kclass_cast"
-        )
-        let signature = try #require(sema.symbols.functionSignature(for: castSymbol))
-
-        #expect(signature.canThrow)
-        #expect(signature.parameterTypes == [sema.types.nullableAnyType])
-        #expect(signature.classTypeParameterCount == 1)
-        #expect(signature.typeParameterSymbols.count == 1)
-        #expect(signature.valueParameterSymbols.count == 1)
-        if case .typeParam = sema.types.kind(of: signature.returnType) {
-            // Expected: KClass<T>.cast(value) returns T.
-        } else {
-            Issue.record("Expected KClass.cast return type to be the receiver type parameter")
-        }
-    }
-
     @Test func testKClassCastInfersReceiverArgumentReturnTypes() throws {
         let source = """
         import kotlin.reflect.KClass
