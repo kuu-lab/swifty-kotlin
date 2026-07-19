@@ -9,10 +9,10 @@ usage() {
     cat <<'USAGE'
 Usage:
   shard_swift_tests.sh --mode dynamic --list-filter <regex> \
-      --shard-index N --shard-count N [-- swift_test.sh-args...]
+      --shard-index N --shard-count N [--chunk-size N] [-- swift_test.sh-args...]
 
   shard_swift_tests.sh --mode static --tests-dir <path> --target-prefix <Module> \
-      --shard-index N --shard-count N [-- swift_test.sh-args...]
+      --shard-index N --shard-count N [--chunk-size N] [-- swift_test.sh-args...]
 
 Splits a full-swift-tests matrix entry into --shard-count interleaved shards
 and runs Scripts/swift_test.sh with a --filter that selects only this
@@ -48,6 +48,8 @@ Options:
                              sharding; the full matched set still runs
                              through this shard, chunked into --filter
                              batches to stay under exec() argument limits)
+  --chunk-size <n>          Maximum test identifiers or suite names per filter
+                             invocation (default: dynamic 100, static 50)
   -h, --help                Show this help
 
 Remaining args (after `--`, or any unrecognized args) are forwarded to
@@ -61,6 +63,7 @@ tests_dir=""
 target_prefix=""
 shard_index=0
 shard_count=1
+chunk_size_override=""
 declare -a passthrough=()
 
 while [[ $# -gt 0 ]]; do
@@ -77,6 +80,8 @@ while [[ $# -gt 0 ]]; do
             shard_index="$2"; shift 2 ;;
         --shard-count)
             shard_count="$2"; shift 2 ;;
+        --chunk-size)
+            chunk_size_override="$2"; shift 2 ;;
         -h|--help)
             usage; exit 0 ;;
         --)
@@ -87,6 +92,11 @@ while [[ $# -gt 0 ]]; do
             passthrough+=("$1"); shift ;;
     esac
 done
+
+if [[ -n "$chunk_size_override" ]] && ! [[ "$chunk_size_override" =~ ^[1-9][0-9]*$ ]]; then
+    echo "shard_swift_tests.sh: --chunk-size must be a positive integer" >&2
+    exit 1
+fi
 
 run_swift_test() {
     bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
@@ -187,7 +197,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # too long" (observed with CompilerBackendTests: 9000+ tests total).
     # SwiftPM 6.2 does not reliably OR repeated --filter flags, so chunk the
     # alternation across multiple invocations instead of one huge argument.
-    chunk_size=100
+    chunk_size="${chunk_size_override:-100}"
     declare -a filter_args=()
     while IFS= read -r chunk; do
         filter_args+=(--filter "^(${chunk})\$")
@@ -388,7 +398,7 @@ fi
 
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
-    chunk_size=50
+    chunk_size="${chunk_size_override:-50}"
     while IFS= read -r chunk; do
         filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
     done < <(
