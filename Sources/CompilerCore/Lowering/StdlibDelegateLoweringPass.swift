@@ -289,6 +289,29 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
 
+                if case let .call(symbol, callee, callArgs, callResult, _, _, _, _) = instruction,
+                   interner.resolve(callee) == "lazy",
+                   let callResult,
+                   let initializer = callArgs.last
+                {
+                    let modeExpr = module.arena.appendExpr(
+                        .intLiteral(lazyThreadSafetyModeValue), type: nil
+                    )
+                    finalBody.append(.constValue(
+                        result: modeExpr,
+                        value: .intLiteral(lazyThreadSafetyModeValue)
+                    ))
+                    finalBody.append(.call(
+                        symbol: symbol,
+                        callee: lazyCreateName,
+                        arguments: [initializer, modeExpr],
+                        result: callResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    continue
+                }
+
                 finalBody.append(instruction)
             }
 
