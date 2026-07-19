@@ -1,11 +1,9 @@
-#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
 import Testing
 
 /// Verifies CharSequence?.isNullOrEmpty() (STDLIB-TEXT-FN-031) resolves cleanly
-/// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrEmpty`.
+/// in Sema through bundled Kotlin source.
 @Suite
 struct StringIsNullOrEmptyFunctionTests {
     private func allMemberCallExprIDs(
@@ -26,8 +24,7 @@ struct StringIsNullOrEmptyFunctionTests {
     }
 
     /// Sema should accept `String?.isNullOrEmpty()` and return Boolean.
-    @Test
-    func testIsNullOrEmptyOnNullableStringResolvesToBoolean() throws {
+    @Test func testIsNullOrEmptyOnNullableStringResolvesToBoolean() throws {
         let source = """
         fun classify(value: String?): Boolean {
             return value.isNullOrEmpty()
@@ -46,8 +43,7 @@ struct StringIsNullOrEmptyFunctionTests {
             let sema = try #require(ctx.sema)
             let callIDs = allMemberCallExprIDs(named: "isNullOrEmpty", in: ast, interner: ctx.interner)
             #expect(callIDs.count == 1)
-            let callID = try #require(callIDs.first)
-            let exprType = try #require(sema.bindings.exprTypes[callID])
+            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
             #expect(
                 exprType == sema.types.booleanType,
                 "isNullOrEmpty should be typed as Boolean"
@@ -56,8 +52,7 @@ struct StringIsNullOrEmptyFunctionTests {
     }
 
     /// Receiver typed as non-null String should still resolve isNullOrEmpty.
-    @Test
-    func testIsNullOrEmptyOnNonNullStringResolves() throws {
+    @Test func testIsNullOrEmptyOnNonNullStringResolves() throws {
         let source = """
         fun classify(value: String): Boolean {
             return value.isNullOrEmpty()
@@ -76,16 +71,36 @@ struct StringIsNullOrEmptyFunctionTests {
             let sema = try #require(ctx.sema)
             let callIDs = allMemberCallExprIDs(named: "isNullOrEmpty", in: ast, interner: ctx.interner)
             #expect(callIDs.count == 1)
-            let callID = try #require(callIDs.first)
-            let exprType = try #require(sema.bindings.exprTypes[callID])
+            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
             #expect(exprType == sema.types.booleanType)
         }
     }
 
-    /// The compiler should lower nullable-receiver isNullOrEmpty() to the runtime helper
-    /// `kk_string_isNullOrEmpty`, classified as non-throwing.
-    @Test
-    func testIsNullOrEmptyLowersToRuntimeHelperNonThrowing() throws {
+    /// A bare null receiver should stay ambiguous because Kotlin stdlib also
+    /// exposes Array/Collection/Map nullable-receiver isNullOrEmpty overloads.
+    @Test func testNullLiteralIsNullOrEmptyIsAmbiguous() throws {
+        let source = """
+        fun classify(): Boolean {
+            return null.isNullOrEmpty()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError)
+            #expect(
+                ctx.diagnostics.diagnostics.contains { diagnostic in
+                    diagnostic.code == "KSWIFTK-SEMA-0003"
+                },
+                "Expected null.isNullOrEmpty() to match kotlinc ambiguity diagnostics"
+            )
+        }
+    }
+
+    /// The compiler should not lower nullable-receiver isNullOrEmpty() to the legacy
+    /// String runtime helper after migration to bundled Kotlin source.
+    @Test func testIsNullOrEmptyDoesNotLowerToLegacyRuntimeHelper() throws {
         let source = """
         fun main() {
             val maybe: String? = null
@@ -102,13 +117,9 @@ struct StringIsNullOrEmptyFunctionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let isNullOrEmptyFlags = try #require(
-                throwFlags["kk_string_isNullOrEmpty"],
-                "Expected kk_string_isNullOrEmpty calls to appear in main()"
-            )
-            #expect(isNullOrEmptyFlags.count == 2)
-            #expect(isNullOrEmptyFlags.allSatisfy { $0 == false })
+            #expect(throwFlags["kk_string_isNullOrEmpty"] == nil)
+            #expect(throwFlags["kk_string_isNullOrEmpty_flat"] == nil)
+            #expect(throwFlags["__string_isNullOrEmpty_flat"] == nil)
         }
     }
 }
-#endif

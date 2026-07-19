@@ -1,5 +1,6 @@
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private let lazyMessageReturnsString: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
     outThrown?.pointee = 0
@@ -37,42 +38,38 @@ private func fnPtrInt(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> 
     Int(bitPattern: unsafeBitCast(fn, to: UnsafeRawPointer.self))
 }
 
-final class RuntimeAssertTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        assertLazyMessageEvaluations = 0
-        _ = kk_assertions_reset()
-    }
+private func resetRuntimeAssertTestState() {
+    assertLazyMessageEvaluations = 0
+    _ = kk_assertions_reset()
+}
 
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeAssertTestState))
+struct RuntimeAssertTests {
     // MARK: - Eager assert
 
-    func testAssertTrueDoesNotThrow() {
+    @Test func assertTrueDoesNotThrow() {
         var thrown = 0
         _ = kk_precondition_assert(1, &thrown)
-        XCTAssertEqual(thrown, 0, "assert(true) should not throw")
+        #expect(thrown == 0, "assert(true) should not throw")
     }
 
-    func testAssertFalseThrows() {
+    @Test func assertFalseThrows() {
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "assert(false) should throw")
+        #expect(thrown != 0, "assert(false) should throw")
     }
 
-    func testAssertFalseThrowsAssertionError() {
+    @Test func assertFalseThrowsAssertionError() throws {
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
-        XCTAssertNotEqual(thrown, 0)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: thrown),
-              let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) else {
-            XCTFail("Expected a valid RuntimeThrowableBox")
-            return
-        }
-        XCTAssertTrue(
+        #expect(thrown != 0)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let throwable = try #require(tryCast(pointer, to: RuntimeThrowableBox.self))
+        #expect(
             throwable.renderedMessage.hasPrefix("AssertionError:"),
             "Expected rendered message to start with 'AssertionError:', got: \(throwable.renderedMessage)"
         )
-        XCTAssertTrue(
+        #expect(
             throwable.renderedMessage.contains("Assertion failed"),
             "Expected rendered message to contain 'Assertion failed', got: \(throwable.renderedMessage)"
         )
@@ -80,68 +77,62 @@ final class RuntimeAssertTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Lazy assert (no lambda — fallback to default message)
 
-    func testAssertLazyTrueDoesNotThrow() {
+    @Test func assertLazyTrueDoesNotThrow() {
         var thrown = 0
         _ = kk_precondition_assert_lazy(1, 0, 0, &thrown)
-        XCTAssertEqual(thrown, 0, "assert(true) { ... } should not throw when condition is true")
+        #expect(thrown == 0, "assert(true) { ... } should not throw when condition is true")
     }
 
-    func testAssertLazyFalseNoLambdaThrowsDefaultMessage() {
+    @Test func assertLazyFalseNoLambdaThrowsDefaultMessage() throws {
         var thrown = 0
         _ = kk_precondition_assert_lazy(0, 0, 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "assert(false) with no lambda should throw")
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: thrown),
-              let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) else {
-            XCTFail("Expected a valid RuntimeThrowableBox")
-            return
-        }
-        XCTAssertTrue(
+        #expect(thrown != 0, "assert(false) with no lambda should throw")
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let throwable = try #require(tryCast(pointer, to: RuntimeThrowableBox.self))
+        #expect(
             throwable.renderedMessage.hasPrefix("AssertionError:"),
             "Expected default rendered message to start with 'AssertionError:', got: \(throwable.renderedMessage)"
         )
     }
 
-    func testAssertLazyFalseUsesAssertionErrorPrefixForCustomMessage() {
+    @Test func assertLazyFalseUsesAssertionErrorPrefixForCustomMessage() throws {
         var thrown = 0
         _ = kk_precondition_assert_lazy(0, fnPtrInt(lazyMessageReturnsString), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "assert(false) with lambda should throw")
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: thrown),
-              let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) else {
-            XCTFail("Expected a valid RuntimeThrowableBox")
-            return
-        }
-        XCTAssertEqual(throwable.renderedMessage, "AssertionError: custom assert message")
+        #expect(thrown != 0, "assert(false) with lambda should throw")
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let throwable = try #require(tryCast(pointer, to: RuntimeThrowableBox.self))
+        #expect(throwable.renderedMessage == "AssertionError: custom assert message")
     }
 
-    func testAssertionsCanBeDisabledAtRuntime() {
+    @Test func assertionsCanBeDisabledAtRuntime() {
         _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0)
+        #expect(kk_assertions_enabled() == 0)
 
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
 
-        XCTAssertEqual(thrown, 0, "disabled assert(false) should not throw")
+        #expect(thrown == 0, "disabled assert(false) should not throw")
     }
 
-    func testDisabledAssertionsDoNotEvaluateLazyMessage() {
+    @Test func disabledAssertionsDoNotEvaluateLazyMessage() {
         _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0)
+        #expect(kk_assertions_enabled() == 0)
 
         var thrown = 0
         _ = kk_precondition_assert_lazy(0, fnPtrInt(lazyMessageCountsEvaluation), 0, &thrown)
 
-        XCTAssertEqual(thrown, 0, "disabled assert(false) { ... } should not throw")
-        XCTAssertEqual(assertLazyMessageEvaluations, 0, "lazy message must not be evaluated when assertions are disabled")
+        #expect(thrown == 0, "disabled assert(false) { ... } should not throw")
+        #expect(assertLazyMessageEvaluations == 0, "lazy message must not be evaluated when assertions are disabled")
     }
 
-    func testAssertionsCanBeReEnabledAtRuntime() {
+    @Test func assertionsCanBeReEnabledAtRuntime() {
         _ = kk_assertions_set_enabled(0)
         _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1)
+        #expect(kk_assertions_enabled() == 1)
 
         var thrown = 0
         _ = kk_precondition_assert(0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "re-enabled assert(false) should throw again")
+        #expect(thrown != 0, "re-enabled assert(false) should throw again")
     }
 }

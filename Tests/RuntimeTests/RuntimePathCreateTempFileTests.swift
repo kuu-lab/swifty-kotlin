@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateTempFileTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateTempFilePrefixSuffixAttributesCreatesFile() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateTempFileTests {
+    @Test func pathCreateTempFilePrefixSuffixAttributesCreatesFile() throws {
         var thrown = 0
         let resultRaw = kk_path_createTempFile_prefix_suffix_attributes(
             makeRuntimeString("kswiftk-"),
@@ -13,31 +12,31 @@ final class RuntimePathCreateTempFileTests: IsolatedRuntimeXCTestCase {
             0,
             &thrown
         )
-        let createdPath = try XCTUnwrap(runtimePathString(resultRaw))
+        let createdPath = try #require(runtimePathString(resultRaw))
         defer {
             try? FileManager.default.removeItem(atPath: createdPath)
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertTrue(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
-        XCTAssertTrue((createdPath as NSString).lastPathComponent.hasPrefix("kswiftk-"))
-        XCTAssertTrue(createdPath.hasSuffix(".data"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: createdPath))
+        #expect(thrown == 0)
+        #expect(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
+        #expect((createdPath as NSString).lastPathComponent.hasPrefix("kswiftk-"))
+        #expect(createdPath.hasSuffix(".data"))
+        #expect(FileManager.default.fileExists(atPath: createdPath))
     }
 
-    func testPathCreateTempFilePrefixSuffixAttributesUsesDefaultsForNulls() throws {
+    @Test func pathCreateTempFilePrefixSuffixAttributesUsesDefaultsForNulls() throws {
         var thrown = 0
         let resultRaw = kk_path_createTempFile_prefix_suffix_attributes(0, 0, 0, &thrown)
-        let createdPath = try XCTUnwrap(runtimePathString(resultRaw))
+        let createdPath = try #require(runtimePathString(resultRaw))
         defer {
             try? FileManager.default.removeItem(atPath: createdPath)
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertTrue(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
-        XCTAssertTrue((createdPath as NSString).lastPathComponent.hasPrefix("tmp"))
-        XCTAssertTrue(createdPath.hasSuffix(".tmp"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: createdPath))
+        #expect(thrown == 0)
+        #expect(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
+        #expect((createdPath as NSString).lastPathComponent.hasPrefix("tmp"))
+        #expect(createdPath.hasSuffix(".tmp"))
+        #expect(FileManager.default.fileExists(atPath: createdPath))
     }
 
     private func runtimePathString(_ raw: Int) -> String? {
