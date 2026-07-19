@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite @MainActor
+@Suite
 struct LateinitKIRTests {
     @Test func testLateinitReadEmitsGetOrThrowCall() throws {
         let source = """
