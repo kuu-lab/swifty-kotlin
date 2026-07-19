@@ -1387,6 +1387,16 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            if let targetType = sema.bindings.castTargetType(for: exprID),
+               isRedundantGenericArrayCast(
+                   from: sema.bindings.exprTypes[exprToCast],
+                   to: targetType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                return operandID
+            }
             let typeToken: KIRExprID = if let targetType = sema.bindings.castTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
                     targetType: targetType,

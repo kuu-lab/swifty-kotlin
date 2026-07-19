@@ -312,5 +312,97 @@ struct BoxingIntegrationTests {
         #expect(!boxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should box the result as Long. Found \(boxLongCalls.count)")
         #expect(!unboxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should unbox the read element as Long. Found \(unboxLongCalls.count)")
     }
+
+    @Test func testCompoundAssignOnFloatingPointArrayUsesFloatingPointRuntimeOps() throws {
+        let source = """
+        fun test() {
+            val doubles = arrayOf(1.5, 2.5)
+            doubles[0] += 0.5
+            doubles[1] -= 0.5
+            doubles[0] *= 2.0
+            doubles[1] /= 2.0
+            doubles[0] %= 0.75
+
+            val floats = arrayOf(1.5f, 2.5f)
+            floats[0] += 0.5f
+            floats[1] -= 0.5f
+            floats[0] *= 2.0f
+            floats[1] /= 2.0f
+            floats[0] %= 0.75f
+
+            val primitiveDoubles = doubleArrayOf(1.5, 2.5)
+            primitiveDoubles[0] += 0.5
+            primitiveDoubles[1] -= 0.5
+            primitiveDoubles[0] *= 2.0
+            primitiveDoubles[1] /= 2.0
+            primitiveDoubles[0] %= 0.75
+
+            val primitiveFloats = floatArrayOf(1.5f, 2.5f)
+            primitiveFloats[0] += 0.5f
+            primitiveFloats[1] -= 0.5f
+            primitiveFloats[0] *= 2.0f
+            primitiveFloats[1] /= 2.0f
+            primitiveFloats[0] %= 0.75f
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module: KIRModule = try #require(ctx.kir)
+        let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
+        let callees = testFunc.body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                return nil
+            }
+            return ctx.interner.resolve(callee)
+        }
+
+        // The previous lowering hardcoded kk_op_add/sub/mul/div/mod here,
+        // which treated Float/Double bit patterns as integers.
+        #expect(callees.filter { $0 == "kk_op_dadd" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_dsub" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_dmul" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_ddiv" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_dmod" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_fadd" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_fsub" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_fmul" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_fdiv" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_fmod" }.count == 2)
+        #expect(callees.filter { $0 == "kk_op_add" }.isEmpty)
+        #expect(callees.filter { $0 == "kk_op_sub" }.isEmpty)
+        #expect(callees.filter { $0 == "kk_op_mul" }.isEmpty)
+        #expect(callees.filter { $0 == "kk_op_div" }.isEmpty)
+        #expect(callees.filter { $0 == "kk_op_mod" }.isEmpty)
+    }
+
+    @Test func testGenericArrayCastWriteUsesArrayRuntimeSetter() throws {
+        let source = """
+        fun assign(a: Array<*>) {
+            val b = a as Array<Any?>
+            b[0] = 42
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module: KIRModule = try #require(ctx.kir)
+        let assignFunc: KIRFunction = try findKIRFunction(named: "assign", in: module, interner: ctx.interner)
+        let callees = assignFunc.body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                return nil
+            }
+            return ctx.interner.resolve(callee)
+        }
+
+        // The cast result is still a runtime array handle. Its indexed write
+        // must not be routed through the source-backed generic Array.set member,
+        // which previously caused this statement to disappear from KIR.
+        #expect(callees.contains("kk_op_cast") == false)
+        #expect(callees.contains("kk_box_int"))
+        #expect(callees.contains("kk_array_set"))
+    }
 }
 #endif

@@ -965,7 +965,19 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        if let callBinding = sema.bindings.callBindings[exprID] {
+        // A cast to Array<Any?> can make Sema bind the generic `Array.set`
+        // member, but indexed assignment still has to use the array runtime
+        // entry point. Emitting the source-backed member call here drops the
+        // write from the KIR body and leaves the original array unchanged.
+        let assignReceiverType = sema.types.makeNonNullable(
+            sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        )
+        let assignReceiverIsArrayLike = isConcreteArrayLikeType(
+            assignReceiverType,
+            sema: sema,
+            interner: interner
+        )
+        if let callBinding = sema.bindings.callBindings[exprID], !assignReceiverIsArrayLike {
             let chosenSet = callBinding.chosenCallee
             var loweredIndices: [KIRExprID] = []
             for (i, indexExpr) in indices.enumerated() {
@@ -1164,8 +1176,28 @@ extension CallLowerer {
         }
         let isStringElement = receiverElementType == stringType
         let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
+        let floatingPointPrefix: String? = if let receiverElementType {
+            switch sema.types.kind(of: receiverElementType) {
+            case .primitive(.double, _): "d"
+            case .primitive(.float, _): "f"
+            default: nil
+            }
+        } else {
+            nil
+        }
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
+        } else if let floatingPointPrefix {
+            // Compound assignment on Array<Double>/Array<Float> must use the
+            // floating-point runtime ABI. The generic integer stubs reinterpret
+            // the bit-encoded operands as signed integers and corrupt the result.
+            switch op {
+            case .plusAssign: "kk_op_\(floatingPointPrefix)add"
+            case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
+            case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
+            case .divAssign: "kk_op_\(floatingPointPrefix)div"
+            case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+            }
         } else {
             switch op {
             case .plusAssign: "kk_op_add"
