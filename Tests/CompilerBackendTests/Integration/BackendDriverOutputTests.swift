@@ -1,13 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class BackendDriverOutputTests: XCTestCase {
+@Suite
+struct BackendDriverOutputTests {
 
     // MARK: - Driver output (moved from CompilerCoreTests)
 
-    func testEmitObjectProducesMachOFile() throws {
+    @Test func testEmitObjectProducesMachOFile() throws {
         let source = "fun main() {}"
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
         defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -20,20 +22,20 @@ final class BackendDriverOutputTests: XCTestCase {
                 emit: .object
             )
             let exitCode = makeTestDriver().run(options: options)
-            XCTAssertEqual(exitCode, 0)
+            #expect(exitCode == 0)
             let data = try Data(contentsOf: outputURL)
-            XCTAssertGreaterThanOrEqual(data.count, 4)
+            #expect(data.count >= 4)
             #if os(Linux)
                 // ELF magic number
-                XCTAssertEqual(Array(data.prefix(4)), [0x7F, 0x45, 0x4C, 0x46])
+                #expect(Array(data.prefix(4)) == [0x7F, 0x45, 0x4C, 0x46])
             #else
                 // Mach-O magic number
-                XCTAssertEqual(Array(data.prefix(4)), [0xCF, 0xFA, 0xED, 0xFE])
+                #expect(Array(data.prefix(4)) == [0xCF, 0xFA, 0xED, 0xFE])
             #endif
         }
     }
 
-    func testEmitExecutableFailsWithoutMainFunction() throws {
+    @Test func testEmitExecutableFailsWithoutMainFunction() throws {
         let source = "fun notMain() {}"
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 
@@ -45,13 +47,13 @@ final class BackendDriverOutputTests: XCTestCase {
                 emit: .executable
             )
             let exitCode = makeTestDriver().run(options: options)
-            XCTAssertEqual(exitCode, 1)
+            #expect(exitCode == 1)
         }
     }
 
     // MARK: - Backend smoke tests (moved from SmokeTests)
 
-    func testSmokeDriverExecutableFailsWithoutMain() throws {
+    @Test func testSmokeDriverExecutableFailsWithoutMain() throws {
         try withTemporaryFile(contents: "fun helper() = 0") { path in
             let fileManager = FileManager.default
             let outputBase = fileManager.temporaryDirectory
@@ -70,12 +72,12 @@ final class BackendDriverOutputTests: XCTestCase {
             )
             let result = makeTestDriver().runForTesting(options: options)
 
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertTrue(result.diagnostics.contains(where: { $0.code == "KSWIFTK-LINK-0002" }))
+            #expect(result.exitCode == 1)
+            #expect(result.diagnostics.contains(where: { $0.code == "KSWIFTK-LINK-0002" }))
         }
     }
 
-    func testSmokeLLVMObjectEmissionProducesNativeObjectFile() throws {
+    @Test func testSmokeLLVMObjectEmissionProducesNativeObjectFile() throws {
         try withTemporaryFile(contents: "fun main() = 0") { path in
             let fileManager = FileManager.default
             let outputBase = fileManager.temporaryDirectory
@@ -94,17 +96,18 @@ final class BackendDriverOutputTests: XCTestCase {
             )
             let result = makeTestDriver().runForTesting(options: options)
 
-            XCTAssertEqual(result.exitCode, 0)
-            XCTAssertFalse(result.diagnostics.contains(where: { $0.severity == .error }))
+            #expect(result.exitCode == 0)
+            #expect(!result.diagnostics.contains(where: { $0.severity == .error }))
             let data = try Data(contentsOf: URL(fileURLWithPath: objectPath))
-            XCTAssertGreaterThanOrEqual(data.count, 4)
+            #expect(data.count >= 4)
             #if os(Linux)
                 // ELF magic number
-                XCTAssertEqual(Array(data.prefix(4)), [0x7F, 0x45, 0x4C, 0x46])
+                #expect(Array(data.prefix(4)) == [0x7F, 0x45, 0x4C, 0x46])
             #else
                 // Mach-O magic number
-                XCTAssertEqual(Array(data.prefix(4)), [0xCF, 0xFA, 0xED, 0xFE])
+                #expect(Array(data.prefix(4)) == [0xCF, 0xFA, 0xED, 0xFE])
             #endif
         }
     }
 }
+#endif

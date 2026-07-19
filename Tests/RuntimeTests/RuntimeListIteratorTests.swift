@@ -6,14 +6,6 @@ import Testing
 /// STDLIB-538: Comprehensive tests for ListIterator.hasPrevious() and previous() methods
 @Suite(.serialized)
 final class RuntimeListIteratorTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
-    deinit {
-        kk_runtime_force_reset()
-    }
-
     // MARK: - Helper Functions
 
     private func makeList(_ elements: [Int]) -> Int {

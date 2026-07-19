@@ -56,7 +56,7 @@ jobs:
       if: matrix.language == 'swift'
       uses: SwiftyLab/setup-swift@v1
       with:
-        swift-version: "6.2"
+        swift-version: "6.3"
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
@@ -69,7 +69,7 @@ jobs:
       shell: bash
       run: |
         swift --version
-        swift build -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        swift build -Xswiftc -swift-version -Xswiftc 6
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

@@ -32,20 +32,20 @@ struct RuntimeUnitClassTests {
 
     @Test
     func testUnitClassProducesSameHandle() {
-        let handle1 = kk_kclass_create(unitTypeToken, 0)
-        let handle2 = kk_kclass_create(unitTypeToken, 0)
+        let handle1 = __kk_kclass_create(unitTypeToken, 0)
+        let handle2 = __kk_kclass_create(unitTypeToken, 0)
         #expect(handle1 == handle2, "Unit::class must return the same interned KClass handle")
     }
 
     @Test
     func testUnitTokenSimpleNameIsUnit() {
-        let nameRaw = kk_type_token_simple_name(unitTypeToken, 0)
+        let nameRaw = __kk_type_token_simple_name(unitTypeToken, 0)
         #expect(runtimeStringValue(nameRaw) == "Unit")
     }
 
     @Test
     func testUnitTokenQualifiedNameIsKotlinUnit() {
-        let nameRaw = kk_type_token_qualified_name(unitTypeToken, 0)
+        let nameRaw = __kk_type_token_qualified_name(unitTypeToken, 0)
         #expect(runtimeStringValue(nameRaw) == "kotlin.Unit")
     }
 
@@ -53,9 +53,9 @@ struct RuntimeUnitClassTests {
 
     @Test
     func testUnitClassDoesNotEqualAnyClass() {
-        let unitHandle = kk_kclass_create(unitTypeToken, 0)
+        let unitHandle = __kk_kclass_create(unitTypeToken, 0)
         let anyToken = 1  // anyBase == 1
-        let anyHandle = kk_kclass_create(anyToken, 0)
+        let anyHandle = __kk_kclass_create(anyToken, 0)
         #expect(unitHandle != anyHandle, "Unit::class must not equal Any::class")
     }
 
