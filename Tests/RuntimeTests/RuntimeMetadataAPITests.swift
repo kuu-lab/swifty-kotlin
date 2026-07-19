@@ -71,7 +71,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
     }
 
     func testKmFunctionCanBeBuiltFromRuntimeBoxes() {
-        let parameterRaw = kk_kparameter_create(
+        let parameterRaw = __kk_kparameter_create(
             0,
             makeRuntimeString("value"),
             makeRuntimeString("kotlin.Int"),
@@ -79,7 +79,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
             2
         )
         let parameterList = registerRuntimeObject(RuntimeListBox(elements: [parameterRaw]))
-        let functionRaw = kk_kfunction_create_full(
+        let functionRaw = __kk_kfunction_create_full(
             makeRuntimeString("plusOne"),
             1,
             makeRuntimeString("kotlin.Int"),
@@ -126,7 +126,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
             typeParameterCount: 0
         )
         runtimeKClassMetadataRegistry.register(typeToken: 501, entry: classEntry)
-        let kclassRaw = kk_kclass_create(501, makeRuntimeString("Person"))
+        let kclassRaw = __kk_kclass_create(501, makeRuntimeString("Person"))
 
         let box = RuntimeKConstructorBox(
             nameRaw: makeRuntimeString("<init>"),
@@ -174,8 +174,8 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
         ]
         runtimeKClassMetadataRegistry.register(typeToken: 90210, entry: classEntry)
 
-        let kclassRaw = kk_kclass_create(90210, makeRuntimeString("Host"))
-        let result = kk_kclass_find_associated_object(kclassRaw, makeRuntimeString("Binding"))
+        let kclassRaw = __kk_kclass_create(90210, makeRuntimeString("Host"))
+        let result = __kk_kclass_find_associated_object(kclassRaw, makeRuntimeString("Binding"))
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
