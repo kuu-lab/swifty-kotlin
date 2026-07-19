@@ -294,6 +294,18 @@ final class RuntimeLongBox {
     }
 }
 
+/// Boxed `ULong`. Distinct from `RuntimeLongBox` so that boxed-`Any` dispatch
+/// (toString/equals/hashCode/compareTo/`is`) can tell a ULong apart from a
+/// Long with the same 64-bit pattern — see docs on `kk_box_ulong`.
+final class RuntimeULongBox {
+    /// Raw 64-bit pattern; interpret via `UInt(bitPattern:)` for the true unsigned value.
+    let value: Int
+
+    init(_ value: Int) {
+        self.value = value
+    }
+}
+
 final class RuntimeFloatBox {
     let value: Float
 
@@ -1578,7 +1590,7 @@ struct RuntimeAnnotationRecord {
 }
 
 /// Global registry mapping type tokens to runtime metadata entries.
-/// Populated during module initialization via `kk_kclass_register_metadata`.
+/// Populated during module initialization via `__kk_kclass_register_metadata`.
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
@@ -1661,7 +1673,7 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
 let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 
 /// Global registry mapping a `KClass` raw handle to its member callable handles.
-/// Members are registered during module initialization via `kk_kclass_register_member`.
+/// Members are registered during module initialization via `__kk_kclass_register_member`.
 /// Each entry is a KFunction or KPropertyStub raw handle (STDLIB-REFLECT-ABI-002).
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
@@ -1726,7 +1738,7 @@ let runtimeKMemberRegistry = RuntimeKMemberRegistry()
 /// Runtime box for `KClass<T>` metadata references produced by `T::class`.
 /// Stores the type token and an optional name-hint pointer so that
 /// `.simpleName` / `.qualifiedName` can be resolved at runtime.
-/// When metadata has been registered via `kk_kclass_register_metadata`,
+/// When metadata has been registered via `__kk_kclass_register_metadata`,
 /// additional properties (isData, isSealed, qualifiedName, etc.) are
 /// available through the global metadata registry.
 final class RuntimeKClassBox {

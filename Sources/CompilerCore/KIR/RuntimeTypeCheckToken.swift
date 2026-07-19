@@ -192,6 +192,11 @@ enum RuntimeTypeCheckToken {
         let descriptor = classify(type: type, sema: sema)
         switch descriptor.category {
         case let .nominal(symbolID):
+            if let builtinToken = encodeBuiltinDisguisedNominal(
+                symbolID, nullable: descriptor.nullable, sema: sema, interner: interner
+            ) {
+                return builtinToken
+            }
             let nominalTypeID = stableNominalTypeID(symbol: symbolID, sema: sema, interner: interner)
             return encode(base: descriptor.category.base, nullable: descriptor.nullable, payload: nominalTypeID)
         case .null:
@@ -199,6 +204,39 @@ enum RuntimeTypeCheckToken {
         default:
             return encode(base: descriptor.category.base, nullable: descriptor.nullable)
         }
+    }
+
+    /// Some builtin types (`String`, `Char`, `Any`, …) additionally have a
+    /// synthetic `.class`-kind symbol registered under `kotlin.<Name>` purely
+    /// to host member declarations (see `HeaderHelpers.ensureClassSymbol`,
+    /// e.g. String's `CharSequence` conformance or Char's companion helpers).
+    /// `T::class` for these names resolves `classRefTargetType` to that
+    /// class-symbol-wrapped `.classType` representation — `inferClassRefExpr`
+    /// finds the synthetic class symbol via scope lookup before it ever
+    /// reaches the builtin-name fallback — and `javaClassTypeArgument` relies
+    /// on exactly this shape to recover the builtin for `.java`/`.js`/
+    /// `.javaClass`. `classify(type:sema:)` reports it as an ordinary
+    /// `.nominal` type indistinguishable from a user-defined class, though,
+    /// so left unhandled here, the encoded token would use `nominalBase` with
+    /// a class-hash payload instead of the dedicated primitive base — causing
+    /// `String::class.isInstance(...)` / `.cast(...)` to diverge from the
+    /// `stringBase` token that an ordinary `is String` check produces for the
+    /// same conceptual type. Detect the disguise and encode via the
+    /// canonical builtin base instead.
+    private static func encodeBuiltinDisguisedNominal(
+        _ symbolID: SymbolID,
+        nullable: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int64? {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.fqName.count == 2,
+              symbol.fqName.first == interner.intern("kotlin")
+        else {
+            return nil
+        }
+        let builtinNames = BuiltinTypeNames(interner: interner)
+        return encodeBuiltinTypeName(symbol.name, nullable: nullable, builtinNames: builtinNames)
     }
 
     /// Returns the simple (unqualified) type name for a given `TypeID`, or `nil`

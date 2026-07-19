@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
-final class VirtualDispatchTests: XCTestCase {
+@Suite struct VirtualDispatchTests {
     // MARK: - Helpers
 
     /// Build a minimal symbol table + KIR module for an open class with a virtual method.
@@ -276,33 +277,33 @@ final class VirtualDispatchTests: XCTestCase {
 
     // MARK: - 1. KIRDispatchKind enum tests
 
-    func testKIRDispatchKindVtableEquality() {
+    @Test func testKIRDispatchKindVtableEquality() {
         let firstKind = KIRDispatchKind.vtable(slot: 3)
         let secondKind = KIRDispatchKind.vtable(slot: 3)
         let thirdKind = KIRDispatchKind.vtable(slot: 5)
-        XCTAssertEqual(firstKind, secondKind, "vtable with same slot should be equal")
-        XCTAssertNotEqual(firstKind, thirdKind, "vtable with different slot should not be equal")
+        #expect(firstKind == secondKind, "vtable with same slot should be equal")
+        #expect(firstKind != thirdKind, "vtable with different slot should not be equal")
     }
 
-    func testKIRDispatchKindItableEquality() {
+    @Test func testKIRDispatchKindItableEquality() {
         let firstKind = KIRDispatchKind.itable(interfaceSlot: 1, methodSlot: 2)
         let secondKind = KIRDispatchKind.itable(interfaceSlot: 1, methodSlot: 2)
         let thirdKind = KIRDispatchKind.itable(interfaceSlot: 1, methodSlot: 3)
         let fourthKind = KIRDispatchKind.itable(interfaceSlot: 0, methodSlot: 2)
-        XCTAssertEqual(firstKind, secondKind)
-        XCTAssertNotEqual(firstKind, thirdKind, "different methodSlot should not be equal")
-        XCTAssertNotEqual(firstKind, fourthKind, "different interfaceSlot should not be equal")
+        #expect(firstKind == secondKind)
+        #expect(firstKind != thirdKind, "different methodSlot should not be equal")
+        #expect(firstKind != fourthKind, "different interfaceSlot should not be equal")
     }
 
-    func testKIRDispatchKindVtableNotEqualToItable() {
+    @Test func testKIRDispatchKindVtableNotEqualToItable() {
         let vtable = KIRDispatchKind.vtable(slot: 0)
         let itable = KIRDispatchKind.itable(interfaceSlot: 0, methodSlot: 0)
-        XCTAssertNotEqual(vtable, itable, "vtable and itable should never be equal")
+        #expect(vtable != itable, "vtable and itable should never be equal")
     }
 
     // MARK: - 2. virtualCall instruction construction
 
-    func testVirtualCallInstructionStoresReceiverSeparately() {
+    @Test func testVirtualCallInstructionStoresReceiverSeparately() {
         let arena = KIRArena()
         let types = TypeSystem()
         let receiverExpr = arena.appendExpr(.temporary(0), type: types.anyType)
@@ -322,18 +323,18 @@ final class VirtualDispatchTests: XCTestCase {
 
         // Verify receiver is NOT in arguments
         guard case let .virtualCall(_, _, receiver, arguments, _, _, _, _) = instruction else {
-            XCTFail("Expected virtualCall instruction")
+            Issue.record("Expected virtualCall instruction")
             return
         }
-        XCTAssertEqual(receiver, receiverExpr, "Receiver should be stored separately")
-        XCTAssertEqual(arguments.count, 1, "Arguments should contain only the actual argument, not receiver")
-        XCTAssertEqual(arguments[0], argExpr, "First argument should be the method arg, not receiver")
-        XCTAssertNotEqual(arguments[0], receiverExpr, "Receiver should not be in arguments array")
+        #expect(receiver == receiverExpr, "Receiver should be stored separately")
+        #expect(arguments.count == 1, "Arguments should contain only the actual argument, not receiver")
+        #expect(arguments[0] == argExpr, "First argument should be the method arg, not receiver")
+        #expect(arguments[0] != receiverExpr, "Receiver should not be in arguments array")
     }
 
     // MARK: - 3. ABILoweringPass boxing for virtualCall
 
-    func testABILoweringBoxesIntArgumentForVirtualCall() throws {
+    @Test func testABILoweringBoxesIntArgumentForVirtualCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -416,8 +417,8 @@ final class VirtualDispatchTests: XCTestCase {
                 return nil
             }
         }
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing in virtualCall arg, got: \(callees)")
-        XCTAssertTrue(callees.contains("vc:virtualAcceptAny"), "Expected virtualCall to remain after lowering, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing in virtualCall arg, got: \(callees)")
+        #expect(callees.contains("vc:virtualAcceptAny"), "Expected virtualCall to remain after lowering, got: \(callees)")
     }
 
     // MARK: - 11. InlineLoweringPass: virtualCall alias resolution
@@ -434,3 +435,4 @@ final class VirtualDispatchTests: XCTestCase {
 
     // MARK: - 17. virtualCall with multiple arguments: receiver separate, args correct count
 }
+#endif

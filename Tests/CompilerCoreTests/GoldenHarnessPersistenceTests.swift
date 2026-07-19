@@ -91,5 +91,31 @@ struct GoldenHarnessPersistenceTests {
         #expect(fileLines.count == 1)
         #expect(fileLines.first?.contains("package=sample") == true)
     }
+
+    @Test
+    func batchSubprocessReturnsOneResultPerSourceInOrder() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let firstSource = tempDir.appendingPathComponent("first.kt")
+        let secondSource = tempDir.appendingPathComponent("second.kt")
+        try "val first = 1\n".write(to: firstSource, atomically: false, encoding: .utf8)
+        try "val second = 2\n".write(to: secondSource, atomically: false, encoding: .utf8)
+
+        let sourcePaths = [firstSource.path, secondSource.path]
+        let results = try GoldenHarness.renderBatchInSubprocess(
+            suiteName: "Lexer",
+            sourcePaths: sourcePaths
+        )
+        let expectedOutputs = try sourcePaths.map {
+            try GoldenHarness.render(suiteName: "Lexer", sourcePath: $0)
+        }
+
+        #expect(results.map(\.sourcePath) == sourcePaths)
+        #expect(results.allSatisfy { $0.errorDescription == nil })
+        #expect(results.map(\.output) == expectedOutputs.map { Optional($0) })
+    }
 }
 #endif
