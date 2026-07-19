@@ -2,7 +2,7 @@
 import Testing
 @testable import Runtime
 
-@Suite
+@Suite(.serialized)
 struct RuntimeSecureRandomTests {
     init() {
         kk_runtime_force_reset()
