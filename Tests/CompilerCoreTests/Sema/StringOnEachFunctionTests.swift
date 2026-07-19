@@ -1,12 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-039: Validates that `String.onEach(action)` resolves
 /// through Sema and lowers to the runtime helper `kk_string_onEach`.
 /// The synthetic surface signature is
 /// `String.onEach(action: (Char) -> Unit): String`.
-final class StringOnEachFunctionTests: XCTestCase {
+@Suite
+struct StringOnEachFunctionTests {
+    @Test
     func testStringOnEachResolvesAndReturnsString() throws {
         let source = """
         fun logChars(value: String): String {
@@ -23,13 +26,13 @@ final class StringOnEachFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.onEach to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             var callIDs: [ExprID] = []
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
@@ -39,25 +42,25 @@ final class StringOnEachFunctionTests: XCTestCase {
                 else { continue }
                 callIDs.append(exprID)
             }
-            XCTAssertEqual(callIDs.count, 2, "Expected two String.onEach call sites")
+            #expect(callIDs.count == 2, "Expected two String.onEach call sites")
             for callID in callIDs {
-                let exprType = try XCTUnwrap(sema.bindings.exprType(for: callID))
-                XCTAssertEqual(
-                    exprType,
-                    sema.types.stringType,
+                let exprType = try #require(sema.bindings.exprType(for: callID))
+                #expect(
+                    exprType == sema.types.stringType,
                     "String.onEach should be typed as String"
                 )
             }
         }
     }
 
+    @Test
     func testStringOnEachLinksToRuntimeHelper() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "onEach"].map { ctx.interner.intern($0) }
-            let stringReceiverSymbol = try XCTUnwrap(
+            let stringReceiverSymbol = try #require(
                 sema.symbols.lookupAll(fqName: fq).first { symbolID in
                     guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                         return false
@@ -69,13 +72,13 @@ final class StringOnEachFunctionTests: XCTestCase {
                 },
                 "Expected String.onEach synthetic to be registered"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: stringReceiverSymbol),
-                "kk_string_onEach"
+            #expect(
+                sema.symbols.externalLinkName(for: stringReceiverSymbol) == "kk_string_onEach"
             )
         }
     }
 
+    @Test
     func testStringOnEachLowersToRuntimeHelper() throws {
         let source = """
         fun main() {
@@ -89,14 +92,15 @@ final class StringOnEachFunctionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let onEachFlags = try XCTUnwrap(
+            let onEachFlags = try #require(
                 throwFlags["kk_string_onEach"],
                 "Expected kk_string_onEach call sites to appear in main()"
             )
-            XCTAssertEqual(onEachFlags.count, 2, "Expected two kk_string_onEach invocations")
+            #expect(onEachFlags.count == 2, "Expected two kk_string_onEach invocations")
         }
     }
 }
+#endif

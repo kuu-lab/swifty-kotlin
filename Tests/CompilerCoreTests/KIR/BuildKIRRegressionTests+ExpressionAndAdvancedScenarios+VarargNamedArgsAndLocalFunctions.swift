@@ -267,8 +267,11 @@ extension BuildKIRRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            let boxLongCount = callNames.filter { $0 == "kk_box_long" }.count
-            #expect(boxLongCount == 3, "Expected each Long vararg element to be boxed via kk_box_long, got: \(callNames)")
+            // Long literals are provably non-null, so BoxingCalleeTable routes
+            // them through kk_box_long_nonnull rather than the nullable-safe
+            // kk_box_long (see BoxingCalleeTable.nonNullOnlyBoxCalleeOverridesByPrimitive).
+            let boxLongCount = callNames.filter { $0 == "kk_box_long_nonnull" }.count
+            #expect(boxLongCount == 3, "Expected each Long vararg element to be boxed via kk_box_long_nonnull, got: \(callNames)")
         }
     }
 
