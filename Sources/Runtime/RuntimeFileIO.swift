@@ -7,6 +7,42 @@ final class RuntimeFileBox {
     init(_ path: String) { self.path = path }
 }
 
+private final class RuntimeFileAlreadyExistsExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.io.FileAlreadyExistsException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.io.FileAlreadyExistsException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+}
+
+private func runtimeAllocateFileAlreadyExistsException(message: String) -> Int {
+    registerRuntimeObject(RuntimeFileAlreadyExistsExceptionBox(message: message))
+}
+
+private final class RuntimeNoSuchFileExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.io.NoSuchFileException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.io.NoSuchFileException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+}
+
+private func runtimeAllocateNoSuchFileException(message: String) -> Int {
+    registerRuntimeObject(RuntimeNoSuchFileExceptionBox(message: message))
+}
+
 // MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk
 
 final class RuntimeFileTreeWalkBox {
@@ -952,7 +988,7 @@ public func kk_file_copyTo(
     let fm = FileManager.default
     var sourceIsDir: ObjCBool = false
     guard fm.fileExists(atPath: source.path, isDirectory: &sourceIsDir) else {
-        outThrown?.pointee = runtimeAllocateThrowable(
+        outThrown?.pointee = runtimeAllocateNoSuchFileException(
             message: "NoSuchFileException: \(source.path) (The source file doesn't exist.)"
         )
         return targetRaw
@@ -962,7 +998,7 @@ public func kk_file_copyTo(
     let targetExists = fm.fileExists(atPath: target.path, isDirectory: &targetIsDir)
     if targetExists {
         if !overwrite {
-            outThrown?.pointee = runtimeAllocateThrowable(
+            outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
                 message: "FileAlreadyExistsException: \(target.path) (The destination file already exists.)"
             )
             return targetRaw
@@ -970,7 +1006,7 @@ public func kk_file_copyTo(
         if targetIsDir.boolValue,
            let contents = try? fm.contentsOfDirectory(atPath: target.path),
            !contents.isEmpty {
-            outThrown?.pointee = runtimeAllocateThrowable(
+            outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
                 message: "FileAlreadyExistsException: \(target.path) (The destination file already exists.)"
             )
             return targetRaw
@@ -1096,7 +1132,7 @@ public func kk_file_copyRecursively(
             if dstExists {
                 if !dstIsDir.boolValue {
                     if !overwrite {
-                        outThrown?.pointee = runtimeAllocateThrowable(
+                        outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(
                             message: "FileAlreadyExistsException: \(dstPath) (The destination file already exists.)"
                         )
                         return false
@@ -2251,7 +2287,7 @@ public func kk_files_createFile(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Un
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_createFile received invalid Path handle")
     }
     if FileManager.default.fileExists(atPath: path.pathString) {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "FileAlreadyExistsException: \(path.pathString)")
+        outThrown?.pointee = runtimeAllocateFileAlreadyExistsException(message: "FileAlreadyExistsException: \(path.pathString)")
         return pathRaw
     }
     let created = FileManager.default.createFile(atPath: path.pathString, contents: nil)
@@ -2270,7 +2306,7 @@ public func kk_files_delete(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: Unsafe
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_files_delete received invalid Path handle")
     }
     guard FileManager.default.fileExists(atPath: path.pathString) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchFileException: \(path.pathString)")
+        outThrown?.pointee = runtimeAllocateNoSuchFileException(message: "NoSuchFileException: \(path.pathString)")
         return 0
     }
     do {
