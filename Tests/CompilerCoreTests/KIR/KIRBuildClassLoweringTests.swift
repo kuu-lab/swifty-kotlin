@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite @MainActor
+@Suite
 struct KIRBuildClassLoweringTests {
     @Test func testBuildKIRPhaseThrowsInvalidInputWhenASTOrSemaMissing() {
         let ctx = makeCompilationContext(inputs: [])

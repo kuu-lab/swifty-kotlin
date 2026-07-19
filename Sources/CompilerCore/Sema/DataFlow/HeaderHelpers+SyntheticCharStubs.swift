@@ -679,6 +679,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        types.charClassSymbol = charSymbol
         if let kotlinSymbol = symbols.lookup(fqName: kotlinPkg) {
             symbols.setParentSymbol(kotlinSymbol, for: charSymbol)
         }
