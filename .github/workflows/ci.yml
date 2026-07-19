@@ -7,11 +7,6 @@ on:
 
 permissions:
   contents: read
-
-# Successive pushes to the same PR cancel the in-flight run so its ~25 jobs
-# stop hogging runner slots (queued shards were starting 4-6 minutes late).
-# Non-PR events (merge_group) get a unique group per run and are
-# never cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -40,7 +35,6 @@ jobs:
           exit 1
       - name: Run jscpd
         run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
-      # RF-GUARD-002: observe Sources/ + Tests/ duplication before setting a Tests/ threshold.
       - name: Observe jscpd report (Sources and Tests)
         run: |
           report_dir="$(mktemp -d)"
@@ -128,14 +122,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -143,8 +129,6 @@ jobs:
         run: swift --version
       - name: Build compiler and tests
         run: bash Scripts/build_swift_tests.sh -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      # Smoke tests take ~10s once the build exists, so they run here instead
-      # of a dedicated job whose checkout/toolchain/cache setup cost ~2 minutes.
       - name: Run smoke tests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "4"
@@ -158,12 +142,6 @@ jobs:
             echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # CompilerCoreTests mixes Swift Testing (@Suite/@Test) and XCTest, so it is
-  # split at the suite level via shard_swift_tests.sh's "static" mode (safe
-  # regardless of listing-format differences between the two frameworks;
-  # see the script for details). shard values MUST be a contiguous 0..N-1
-  # range matching strategy.job-total below.
   full-swift-tests-core:
     name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
@@ -191,14 +169,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -227,11 +197,6 @@ jobs:
             echo "SWIFT_TEST_WORKERS=8 SWIFT_TEST_BUILD_JOBS=8 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # Stable aggregate gate (see diff-regression below for the same pattern):
-  # keeps a single "Full Swift Tests (CompilerCoreTests)" status check
-  # regardless of how many shards run, so branch protection rules don't need
-  # to list each shard.
   full-swift-tests-core-gate:
     name: Full Swift Tests (CompilerCoreTests)
     runs-on: ubuntu-latest
@@ -247,11 +212,6 @@ jobs:
             echo "One or more CompilerCoreTests shards did not pass." >&2
             exit 1
           fi
-
-  # CompilerBackendTests is plain XCTest, so it is split at the
-  # individual-test level via shard_swift_tests.sh's "dynamic" mode (backed
-  # by `swift test list`). shard values MUST be a contiguous 0..N-1 range
-  # matching strategy.job-total below.
   full-swift-tests-backend:
     name: Full Swift Tests (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
@@ -260,11 +220,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Full 6-way split for merge_group/workflow_dispatch; pull_request
-        # gets a thinner 3-way split to ease runner queue pressure from PR
-        # churn (CI queue saturation mitigation). shard values MUST be a
-        # contiguous 0..N-1 range matching strategy.job-total, used below for
-        # --shard-count, so it always tracks whichever list actually runs.
         shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2]' || '[0, 1, 2, 3, 4, 5]') }}
     steps:
       - uses: actions/checkout@v7
@@ -284,14 +239,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -320,8 +267,6 @@ jobs:
             echo "SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\\.' --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
   full-swift-tests-backend-gate:
     name: Full Swift Tests (CompilerBackendTests)
     runs-on: ubuntu-latest
@@ -337,18 +282,6 @@ jobs:
             echo "One or more CompilerBackendTests shards did not pass." >&2
             exit 1
           fi
-
-  # RuntimeTests mixes plain XCTest with Swift Testing suites. Several
-  # migrated Swift Testing suites here share mutable runtime state that
-  # isn't concurrency-safe (tracked in TODO.md as BUG-021/023/024/028/039
-  # and siblings), so this target must run serialized (SWIFT_TEST_PARALLEL=0)
-  # rather than with the --parallel workers the other targets below use.
-  # Serial (--no-parallel) XCTest execution passes the *entire* matched-test
-  # list as a single exec() argument instead of fanning it out across
-  # workers, so shard_swift_tests.sh's "static" mode (suite-name filtering,
-  # chunked — safe for mixed XCTest/Swift Testing targets, unlike "dynamic"
-  # mode) is used to keep every --filter invocation well under Linux's
-  # per-argument exec() limit.
   full-swift-tests-runtime:
     name: Full Swift Tests (RuntimeTests)
     needs: [build]
@@ -372,14 +305,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -417,8 +342,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # RuntimeTests runs as its own full-swift-tests-runtime job above
-          # (needs serialized, chunked execution — see the comment there).
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             parallel: "1"
@@ -461,14 +384,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -499,21 +414,10 @@ jobs:
     name: kotlinc Diff Regression Shard (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
     runs-on: ubuntu-latest
-    # Kotlin/Java tool downloads occasionally spike on GitHub-hosted runners.
     timeout-minutes: 60
     strategy:
-      # Run every shard even if one fails so we get a complete picture per PR.
       fail-fast: false
       matrix:
-        # 714 diff cases striped across N runners. Cases are split interleaved
-        # (case i runs when i % DIFF_SHARD_COUNT == shard) by
-        # Scripts/diff_kotlinc.sh, so each shard gets a balanced cost mix.
-        # shard values MUST be a contiguous 0..N-1 range. DIFF_SHARD_COUNT is
-        # derived from strategy.job-total below, so editing either list
-        # resizes its split — the divisor can never drift out of sync.
-        # Full 11-way split for merge_group/workflow_dispatch; pull_request
-        # gets a thinner 4-way split to ease runner queue pressure from PR
-        # churn (CI queue saturation mitigation).
         shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2, 3]' || '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]') }}
     env:
       KOTLIN_VERSION: "2.3.10"
@@ -558,14 +462,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -587,8 +483,6 @@ jobs:
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
           DIFF_SHARD_INDEX: ${{ matrix.shard }}
-          # Derived from the matrix size (number of shard jobs) so the shard
-          # list and the divisor stay in lockstep automatically.
           DIFF_SHARD_COUNT: ${{ strategy.job-total }}
         run: |
           DIFF_WORKERS="$(nproc)" \
@@ -613,10 +507,6 @@ jobs:
             ${{ runner.temp }}/diff_kotlinc_artifacts
           if-no-files-found: ignore
           retention-days: 30
-
-  # Stable aggregate gate: keeps a single "kotlinc Diff Regression" status check
-  # regardless of how many shards run, so branch protection rules don't need to
-  # list each shard. Succeeds only when every shard succeeded.
   diff-regression:
     name: kotlinc Diff Regression
     runs-on: ubuntu-latest
