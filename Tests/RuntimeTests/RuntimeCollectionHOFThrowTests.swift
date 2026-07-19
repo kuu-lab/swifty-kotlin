@@ -152,7 +152,6 @@ private let groupingAggregateThrowingLambda: @convention(c) (Int, Int, Int, Int,
 @Suite(.serialized)
 struct RuntimeCollectionHOFThrowTests {
     init() {
-        kk_runtime_force_reset()
         closeableTestState.reset()
     }
 

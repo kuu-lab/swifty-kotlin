@@ -4,10 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeRegexAnchorTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
