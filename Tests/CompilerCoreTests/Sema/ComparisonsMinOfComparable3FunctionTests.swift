@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 // STDLIB-COMP-FN-030: minOf(a: T, b: T, c: T): T where T : Comparable<T>
-final class ComparisonsMinOfComparable3FunctionTests: XCTestCase {
-    func testMinOfComparable3ArgFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsMinOfComparable3FunctionTests {
+    @Test func testMinOfComparable3ArgFunctionResolvesInSource() throws {
         // Use String (a Kotlin built-in Comparable) so that the subtype
         // check primitive <: Comparable<primitive> is satisfied without
         // relying on user-defined generic supertype resolution.
@@ -15,13 +17,13 @@ final class ComparisonsMinOfComparable3FunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected minOf(a, b, c) Comparable 3-arg overload to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testMinOfComparable3ArgResolvesToGenericOverloadNotPrimitiveSpecialCall() throws {
+    @Test func testMinOfComparable3ArgResolvesToGenericOverloadNotPrimitiveSpecialCall() throws {
         let ctx = makeContextFromSource("""
         fun pickEarliest(a: String, b: String, c: String): String {
             return minOf(a, b, c)
@@ -29,11 +31,11 @@ final class ComparisonsMinOfComparable3FunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        let callExpr = try XCTUnwrap(
+        let callExpr = try #require(
             firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, args, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -44,25 +46,26 @@ final class ComparisonsMinOfComparable3FunctionTests: XCTestCase {
         )
 
         // Comparable overload is not a primitive fast-path; no special-call kind.
-        XCTAssertNil(
-            sema.bindings.stdlibSpecialCallKind(for: callExpr),
+        #expect(
+            sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil,
             "Comparable minOf(a, b, c) must not be assigned a primitive special-call kind"
         )
 
-        let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-        let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
-        XCTAssertEqual(symbol.fqName, [
+        let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+        let symbol = try #require(sema.symbols.symbol(chosen))
+        #expect(symbol.fqName == [
             interner.intern("kotlin"),
             interner.intern("comparisons"),
             interner.intern("minOf"),
         ])
 
         // Signature must have a single type parameter bounded by Comparable<T>
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
-        XCTAssertEqual(sig.parameterTypes.count, 3)
-        XCTAssertFalse(
-            sig.typeParameterSymbols.isEmpty,
+        let sig = try #require(sema.symbols.functionSignature(for: chosen))
+        #expect(sig.parameterTypes.count == 3)
+        #expect(
+            !(sig.typeParameterSymbols.isEmpty),
             "Comparable minOf(a, b, c) must have a generic type parameter T : Comparable<T>"
         )
     }
 }
+#endif
