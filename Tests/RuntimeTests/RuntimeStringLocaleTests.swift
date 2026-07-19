@@ -145,6 +145,8 @@ struct RuntimeStringLocaleTests {
 
     @Test
     func testLocaleDisplayLanguageUsesDefaultLocale() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let original = kk_locale_getDefault(0)
         let japanese = makeLocale("ja_JP")
         _ = kk_locale_setDefault(0, japanese)
@@ -157,6 +159,8 @@ struct RuntimeStringLocaleTests {
 
     @Test
     func testLocaleDefaultCanBeOverridden() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let original = kk_locale_getDefault(0)
         let locale = makeLocale(language: "tr", country: "TR")
         _ = kk_locale_setDefault(0, locale)

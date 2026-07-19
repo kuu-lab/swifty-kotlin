@@ -1,17 +1,9 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeRegexAnchorTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite
+struct RuntimeRegexAnchorTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -47,32 +39,36 @@ final class RuntimeRegexAnchorTests: XCTestCase {
         return box.value
     }
 
+    @Test
     func testAnchoredMatchEntireRequiresWholeString() {
         let regexRaw = makeRegex("^abc$")
         let full = matchEntire(regexRaw: regexRaw, input: "abc")
         let partial = matchEntire(regexRaw: regexRaw, input: "zabc")
 
-        XCTAssertNotEqual(full, runtimeNullSentinelInt)
-        XCTAssertEqual(partial, runtimeNullSentinelInt)
+        #expect(full != runtimeNullSentinelInt)
+        #expect(partial == runtimeNullSentinelInt)
     }
 
+    @Test
     func testWordBoundaryPatternFindsWholeWordOnly() {
         let regexRaw = makeRegex("\\bcat\\b")
         let match = find(regexRaw: regexRaw, input: "a cat naps")
         let noMatch = find(regexRaw: regexRaw, input: "concatenate")
 
-        XCTAssertNotEqual(match, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(match)), "cat")
-        XCTAssertEqual(noMatch, runtimeNullSentinelInt)
+        #expect(match != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(match)) == "cat")
+        #expect(noMatch == runtimeNullSentinelInt)
     }
 
+    @Test
     func testLookaheadPatternMatchesExpectedPrefix() {
         let regexRaw = makeRegex("foo(?=bar)")
         let match = find(regexRaw: regexRaw, input: "foobar")
         let noMatch = find(regexRaw: regexRaw, input: "foobaz")
 
-        XCTAssertNotEqual(match, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeString(kk_match_result_value(match)), "foo")
-        XCTAssertEqual(noMatch, runtimeNullSentinelInt)
+        #expect(match != runtimeNullSentinelInt)
+        #expect(runtimeString(kk_match_result_value(match)) == "foo")
+        #expect(noMatch == runtimeNullSentinelInt)
     }
 }
+#endif
