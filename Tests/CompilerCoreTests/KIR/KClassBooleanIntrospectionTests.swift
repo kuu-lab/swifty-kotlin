@@ -16,7 +16,7 @@ import Testing
 /// - a compile-time class literal (`Foo::class.isData`), and
 /// - a stored `KClass<T>` variable (`val k: KClass<Foo> = Foo::class; k.isData`),
 ///   which exercises the `.classType`-wrapping-KClass receiver representation.
-@Suite @MainActor
+@Suite
 struct KClassBooleanIntrospectionTests {
 
     private func calleesForMain(_ source: String) throws -> Set<String> {
