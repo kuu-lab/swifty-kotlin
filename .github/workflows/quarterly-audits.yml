@@ -18,7 +18,7 @@ jobs:
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
-          swift-version: "6.2"
+          swift-version: "6.3"
       - name: Run dead-code audit
         run: |
           mkdir -p "$RUNNER_TEMP/quarterly-audits/dead-code"
