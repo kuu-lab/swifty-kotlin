@@ -61,13 +61,12 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 `Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数の悪化がないことも確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。意図的に悪化を許容する場合は、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
 
-## バグ報告ルール
+## バグ修正ルール
 
-作業中に発見したコンパイラ / ランタイムのバグは、その場で修正しない場合でも**必ず [`TODO.md`](TODO.md) にタスクとして追記する**。spawn_task などセッション外への報告や、修正 PR の作成だけではリポジトリに追跡が残らない（報告済みバグが修正マージ後も TODO.md 未反映のまま放置された実例あり）。
+作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
 
-- 追記先: `TODO.md` の「バグバックログ」セクション（無ければ作成）。ID は `BUG-NNN` 連番（重複は `Scripts/check_todo_ids.sh` で検出）
-- 必須記載: 症状 / 最小再現 Kotlin コード（または `Scripts/diff_cases/` のケースパス）/ 発見元タスク ID
-- 修正 PR を作成したら PR 番号をタスク行へ追記し、マージ後に `[x]` 化する（PR だけ作って TODO.md 未記載、は禁止）
+- 現在のPRのスコープや安全な修正方針を超えるため同じPRで修正できない場合に限り、`TODO.md` の「バグバックログ」へ追跡タスクを追加する。新規IDは `BUG-NNN` 連番（重複は `Scripts/check_todo_ids.sh` で検出）。必須記載は、症状 / 最小再現 Kotlin コード（またはケースパス）/ 発見元タスク ID / 今回修正できない理由。
+- `TODO.md` に既存の該当タスクがある場合は、修正PR内でそのタスクの状態・PR番号・検証結果を同期し、マージ後に `[x]` 化する。新規に修正できたバグを、報告だけのために `TODO.md` へ追加してはならない。
 
 ## アーキテクチャ概要
 
