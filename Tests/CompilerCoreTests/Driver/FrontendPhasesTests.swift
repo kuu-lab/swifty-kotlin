@@ -36,6 +36,29 @@ struct FrontendPhasesTests {
     }
 
     @Test
+    func testLoadSourcesRespectsIncludeStdlibOption() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let withoutStdlib = makeCompilationContext(inputs: [path], includeStdlib: false)
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(withoutStdlib) }
+            #expect(
+                withoutStdlib.sourceManager.fileIDs().allSatisfy {
+                    !withoutStdlib.sourceManager.path(of: $0).hasPrefix("__bundled_")
+                },
+                "--no-stdlib should not inject bundled sources"
+            )
+
+            let withStdlib = makeCompilationContext(inputs: [path], includeStdlib: true)
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(withStdlib) }
+            #expect(
+                withStdlib.sourceManager.fileIDs().contains {
+                    withStdlib.sourceManager.path(of: $0).hasPrefix("__bundled_")
+                },
+                "stdlib-enabled compilation should inject bundled sources"
+            )
+        }
+    }
+
+    @Test
     func testLoadSourcesSkipsDuplicatePaths() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let ctx = makeCompilationContext(inputs: [path, path])
