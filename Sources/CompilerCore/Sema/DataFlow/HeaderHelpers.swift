@@ -1207,7 +1207,12 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
+        let stringBuilderOwner = [interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder")]
+        if bundledIndex.contains(ownerFQName: stringBuilderOwner, name: interner.intern("append"), arity: 1) {
+            patchSourceBackedStringBuilderSupertypes(symbols: symbols, types: types, interner: interner)
+        } else {
+            registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
+        }
         registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
@@ -1253,6 +1258,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        types.anyClassSymbol = anySymbol
 
         let annotationSymbol = ensureInterfaceSymbol(
             named: "Annotation",
