@@ -48,7 +48,7 @@ struct RuntimeIsolationTrait: SuiteTrait, TestTrait, TestScoping {
             return
         }
 
-        let acquiredSemaphores = try acquireSemaphores(
+        let acquiredSemaphores = try await acquireSemaphores(
             for: lockSet,
             testName: test.name
         )
@@ -146,10 +146,40 @@ private func resetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
 private func acquireSemaphores(
     for lockSet: RuntimeLockSet,
     testName: String
+) async throws -> [DispatchSemaphore] {
+    try await acquireSemaphores(
+        semaphores(for: lockSet),
+        testName: testName
+    )
+}
+
+/// Wait for runtime locks on a libdispatch worker instead of a cooperative
+/// Swift Concurrency thread. Blocking the cooperative pool here can deadlock
+/// when multiple Swift Testing cases contend for the same process-wide lock.
+private func acquireSemaphores(
+    _ semaphores: [DispatchSemaphore],
+    testName: String
+) async throws -> [DispatchSemaphore] {
+    try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                continuation.resume(
+                    returning: try acquireSemaphoresBlocking(semaphores, testName: testName)
+                )
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
+
+private func acquireSemaphoresBlocking(
+    _ semaphores: [DispatchSemaphore],
+    testName: String
 ) throws -> [DispatchSemaphore] {
     var acquiredSemaphores: [DispatchSemaphore] = []
 
-    for semaphore in semaphores(for: lockSet) {
+    for semaphore in semaphores {
         let waitResult = semaphore.wait(timeout: .now() + .seconds(30))
         guard waitResult == .success else {
             releaseSemaphores(acquiredSemaphores)
@@ -171,6 +201,21 @@ private func resetRuntimeState(for lockSet: RuntimeLockSet) {
     for reset in resetFunctions(for: lockSet) {
         reset()
     }
+}
+
+@Test
+func runtimeIsolationSemaphoreWaitRunsOffCooperativePool() async throws {
+    let semaphore = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.05) {
+        semaphore.signal()
+    }
+
+    let acquired = try await acquireSemaphores(
+        [semaphore],
+        testName: "runtimeIsolationSemaphoreWaitRunsOffCooperativePool"
+    )
+    #expect(acquired.count == 1)
+    releaseSemaphores(acquired)
 }
 
 /// Use this base class for runtime tests that mutate global runtime state or
