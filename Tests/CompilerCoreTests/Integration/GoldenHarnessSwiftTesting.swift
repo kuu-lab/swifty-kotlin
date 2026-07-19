@@ -3,47 +3,98 @@ import Foundation
 import GoldenHarnessSupport
 import Testing
 
+struct GoldenHarnessCaseBatch: Sendable, CustomTestStringConvertible {
+    let cases: [GoldenHarnessCase]
+
+    var testDescription: String {
+        guard let first = cases.first else {
+            return "empty"
+        }
+        guard let last = cases.last, last.basename != first.basename else {
+            return first.basename
+        }
+        return "\(first.basename)...\(last.basename) (\(cases.count) cases)"
+    }
+}
+
 private enum GoldenHarnessStaticCases {
-    static let lexer = GoldenHarness.loadCasesOrCrash(suiteName: "Lexer")
-    static let parser = GoldenHarness.loadCasesOrCrash(suiteName: "Parser")
-    static let sema = GoldenHarness.loadCasesOrCrash(suiteName: "Sema")
-    static let diagnostics = GoldenHarness.loadCasesOrCrash(suiteName: "Diagnostics")
+    private static let batchSize = 8
+
+    static let lexer = batches(suiteName: "Lexer")
+    static let parser = batches(suiteName: "Parser")
+    static let sema = batches(suiteName: "Sema")
+    static let diagnostics = batches(suiteName: "Diagnostics")
+
+    private static func batches(suiteName: String) -> [GoldenHarnessCaseBatch] {
+        let cases = GoldenHarness.loadCasesOrCrash(suiteName: suiteName)
+        return stride(from: 0, to: cases.count, by: batchSize).map { startIndex in
+            let endIndex = min(startIndex + batchSize, cases.count)
+            return GoldenHarnessCaseBatch(cases: Array(cases[startIndex ..< endIndex]))
+        }
+    }
 }
 
 @Suite("Golden.Lexer")
 struct GoldenLexerGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.lexer)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Lexer", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Lexer", batch: batch)
     }
 }
 
 @Suite("Golden.Parser")
 struct GoldenParserGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.parser)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Parser", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Parser", batch: batch)
     }
 }
 
 @Suite("Golden.Sema")
 struct GoldenSemaGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.sema)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Sema", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Sema", batch: batch)
     }
 }
 
 @Suite("Golden.Diagnostics")
 struct GoldenDiagnosticsGoldenTests {
     @Test(arguments: GoldenHarnessStaticCases.diagnostics)
-    func matchesGolden(caseFile: GoldenHarnessCase) throws {
-        try runGoldenTest(suiteName: "Diagnostics", caseFile: caseFile)
+    func matchesGolden(batch: GoldenHarnessCaseBatch) throws {
+        try runGoldenTests(suiteName: "Diagnostics", batch: batch)
     }
 }
 
-private func runGoldenTest(suiteName: String, caseFile: GoldenHarnessCase) throws {
-    let renderedActual = try GoldenHarness.renderInSubprocess(suiteName: suiteName, sourcePath: caseFile.sourcePath)
+private func runGoldenTests(suiteName: String, batch: GoldenHarnessCaseBatch) throws {
+    let results = try GoldenHarness.renderBatchInSubprocess(
+        suiteName: suiteName,
+        sourcePaths: batch.cases.map(\.sourcePath)
+    )
+
+    for (caseFile, result) in zip(batch.cases, results) {
+        if let errorDescription = result.errorDescription {
+            Issue.record("Golden worker failed for \(caseFile.basename): \(errorDescription)")
+            continue
+        }
+        guard let renderedActual = result.output else {
+            Issue.record("Golden worker returned no output for \(caseFile.basename)")
+            continue
+        }
+
+        do {
+            try verifyGolden(suiteName: suiteName, caseFile: caseFile, renderedActual: renderedActual)
+        } catch {
+            Issue.record("Golden verification failed for \(caseFile.basename): \(error)")
+        }
+    }
+}
+
+private func verifyGolden(
+    suiteName: String,
+    caseFile: GoldenHarnessCase,
+    renderedActual: String
+) throws {
     if try GoldenHarness.persistIfUpdating(suiteName: suiteName, sourcePath: caseFile.sourcePath, actual: renderedActual) {
         return
     }

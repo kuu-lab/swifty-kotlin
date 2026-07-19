@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 /// Regression coverage for a bug where `kk_op_is`'s nominal-type branch always
 /// returned a match for any RuntimeThrowableBox-based exception, regardless of
@@ -8,10 +8,8 @@ import XCTest
 /// hierarchy lookup missed), because the "unknown nominal token" fallback
 /// unconditionally returned 1 even when the throwable's real hierarchy was
 /// known and simply didn't contain the requested type.
-final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeExceptionTypeDiscriminationTests {
     // Mirrors RuntimeTypeCheckToken's encoding (CompilerCore/KIR/RuntimeTypeCheckToken.swift);
     // kept in sync per that type's own doc comment.
     private static let nominalBase: Int64 = 6
@@ -30,20 +28,17 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_op_cast: `(42 as Any) as String` style failure (the reported repro)
 
-    func testFailedAsCastThrowsTypedClassCastException() {
+    @Test func failedAsCastThrowsTypedClassCastException() throws {
         var thrown = 0
         let result = kk_op_cast(42, Self.stringBaseToken, &thrown)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
-        guard let box = throwableBox(from: thrown) else {
-            XCTFail("Expected a RuntimeThrowableBox")
-            return
-        }
-        XCTAssertTrue(runtimeThrowableBoxHasExactType(box, RuntimeClassCastExceptionBox.self))
+        #expect(result == 0)
+        #expect(thrown != 0)
+        let box = try #require(throwableBox(from: thrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeClassCastExceptionBox.self))
     }
 
-    func testClassCastExceptionMatchesItsOwnHierarchy() {
+    @Test func classCastExceptionMatchesItsOwnHierarchy() {
         var thrown = 0
         _ = kk_op_cast(42, Self.stringBaseToken, &thrown)
 
@@ -53,8 +48,8 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
             "kotlin.Exception",
             "kotlin.Throwable",
         ] {
-            XCTAssertEqual(
-                kk_op_is(thrown, nominalTypeToken(for: fqName)), 1,
+            #expect(
+                kk_op_is(thrown, nominalTypeToken(for: fqName)) == 1,
                 "ClassCastException should satisfy an is/catch check for \(fqName)"
             )
         }
@@ -63,7 +58,7 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
     /// The exact bug from the report: `catch (e: IllegalStateException)` must NOT
     /// catch a ClassCastException — they are unrelated sibling RuntimeException
     /// subtypes, not a super/subtype pair.
-    func testClassCastExceptionDoesNotMatchUnrelatedSiblingTypes() {
+    @Test func classCastExceptionDoesNotMatchUnrelatedSiblingTypes() {
         var thrown = 0
         _ = kk_op_cast(42, Self.stringBaseToken, &thrown)
 
@@ -73,8 +68,8 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
             "kotlin.ArithmeticException",
             "kotlin.NoSuchElementException",
         ] {
-            XCTAssertEqual(
-                kk_op_is(thrown, nominalTypeToken(for: fqName)), 0,
+            #expect(
+                kk_op_is(thrown, nominalTypeToken(for: fqName)) == 0,
                 "ClassCastException must not satisfy an is/catch check for unrelated \(fqName)"
             )
         }
@@ -85,13 +80,13 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
     /// Confirms the underlying `kk_op_is` fix generalizes to every typed
     /// RuntimeThrowableBox subclass (STDLIB-LOG-149 and friends), not just the
     /// newly-typed ClassCastException.
-    func testIllegalStateExceptionDoesNotMatchUnrelatedSiblingTypes() {
+    @Test func illegalStateExceptionDoesNotMatchUnrelatedSiblingTypes() {
         let thrown = runtimeAllocateIllegalStateException(message: "bad state")
 
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")), 1)
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")), 1)
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ClassCastException")), 0)
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ArithmeticException")), 0)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ClassCastException")) == 0)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ArithmeticException")) == 0)
     }
 
     /// Untyped/generic throwables (allocated via the base `runtimeAllocateThrowable`,
@@ -99,10 +94,10 @@ final class RuntimeExceptionTypeDiscriminationTests: IsolatedRuntimeXCTestCase {
     /// exception type) intentionally keep the broad "matches any catch clause"
     /// fallback, since the runtime genuinely cannot tell their Kotlin type. This
     /// pins down that the fix does not overcorrect into making these uncatchable.
-    func testUntypedThrowableStillMatchesAnyNominalCatchClauseByDesign() {
+    @Test func untypedThrowableStillMatchesAnyNominalCatchClauseByDesign() {
         let thrown = runtimeAllocateThrowable(message: "Some internal runtime error")
 
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")), 1)
-        XCTAssertEqual(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ArithmeticException")), 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 1)
+        #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.ArithmeticException")) == 1)
     }
 }
