@@ -217,9 +217,7 @@ private func runtimeStringValueForHOF(_ raw: Int) -> String {
 
 private func assertAggregateStringList(
     _ list: RuntimeListBox?,
-    equals expected: [String],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    equals expected: [String]
 ) {
     guard let list else {
         Issue.record("Expected a RuntimeListBox")
@@ -1567,9 +1565,7 @@ struct RuntimeStringHOFTests {
     private func assertCharPairValue(
         _ raw: Int,
         first: Int,
-        second: Int,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        second: Int
     ) {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let pairBox = tryCast(ptr, to: RuntimePairBox.self)
