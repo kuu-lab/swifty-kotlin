@@ -150,7 +150,7 @@ struct RuntimeReadWriteLockTests {
 
 nonisolated(unsafe) private var readWriteLockHandle: Int = 0
 nonisolated(unsafe) private var capturedReadClosureRaw: Int = 0
-private let runtimeReadWriteLockSuiteMutex = NSLock()
+private let runtimeReadWriteLockIsolationLeaseKey = "RuntimeReadWriteLockTests.isolationLease"
 
 private func resetReadWriteLockHarness() {
     kk_runtime_force_reset()
@@ -166,13 +166,14 @@ private func resetReadWriteLockHarness() {
 }
 
 private func beginRuntimeReadWriteLockTest() {
-    runtimeReadWriteLockSuiteMutex.lock()
+    precondition(Thread.current.threadDictionary[runtimeReadWriteLockIsolationLeaseKey] == nil)
+    Thread.current.threadDictionary[runtimeReadWriteLockIsolationLeaseKey] = RuntimeTestIsolationLease(lockSet: .all)
     resetReadWriteLockHarness()
 }
 
 private func endRuntimeReadWriteLockTest() {
     resetReadWriteLockHarness()
-    runtimeReadWriteLockSuiteMutex.unlock()
+    Thread.current.threadDictionary.removeObject(forKey: runtimeReadWriteLockIsolationLeaseKey)
 }
 
 private let readEchoThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, outThrown in

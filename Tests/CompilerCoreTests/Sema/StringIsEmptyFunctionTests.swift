@@ -2,8 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-028: Validates that `String.isEmpty()` resolves through Sema
-/// for `String` / `CharSequence` receivers, dispatching to the runtime link
-/// name `kk_string_isEmpty_flat`.
+/// for `String` / `CharSequence` receivers through bundled Kotlin source.
 @Suite
 struct StringIsEmptyFunctionTests {
     @Test func testIsEmptyFunctionResolvesInSource() throws {

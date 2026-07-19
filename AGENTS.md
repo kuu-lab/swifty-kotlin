@@ -2,18 +2,18 @@
 
 AI 向けの補足。プロジェクトのクイックリファレンスは [`CLAUDE.md`](CLAUDE.md)、アーキテクチャは [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照。
 
-## バグ報告ルール
+## バグ修正ルール
 
-作業中に発見したコンパイラ / ランタイムのバグは、その場で修正しない場合でも**必ず [`TODO.md`](TODO.md) にタスクとして追記する**（詳細は [`CLAUDE.md`](CLAUDE.md) の「バグ報告ルール」）。セッション外への報告や修正 PR の作成だけでは追跡が残らない。
+作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める（詳細は [`CLAUDE.md`](CLAUDE.md) の「バグ修正ルール」）。
 
-- 必須記載: 症状 / 最小再現 Kotlin コード（または `Scripts/diff_cases/` のケースパス）/ 発見元タスク ID
-- 修正 PR を作成したら PR 番号をタスク行へ追記し、マージ後に `[x]` 化する
+- 現在のPRのスコープや安全な修正方針を超えるため同じPRで修正できない場合に限り、`TODO.md` の「バグバックログ」へ追跡タスクを追加する。その場合の必須記載は、症状 / 最小再現 Kotlin コード（またはケースパス）/ 発見元タスク ID / 今回修正できない理由。
+- `TODO.md` に既存の該当タスクがある場合は、修正PR内でそのタスクの状態・PR番号・検証結果を同期し、マージ後に `[x]` 化する。新規に修正できたバグを、報告だけのために `TODO.md` へ追加してはならない。
 
 ## Cursor Cloud specific instructions
 
 ### 概要
 
-KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.2**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
+KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.3**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
 
 ### 必須環境変数（Linux）
 
@@ -29,7 +29,7 @@ CI の [`.github/actions/setup-swift-llvm/action.yml`](.github/actions/setup-swi
 
 ### Swift ツールチェーン（Linux VM）
 
-- 公式 tarball を `/opt/swift-6.2` に展開し、`PATH` に `/opt/swift-6.2/usr/bin` を追加する（`swift-tools-version: 6.2` に合わせる）。
+- 公式 tarball を `/opt/swift-6.3` に展開し、`PATH` に `/opt/swift-6.3/usr/bin` を追加する（CI の `swift-version: "6.3"` に合わせる。`Package.swift` の `swift-tools-version` は 6.2 のまま）。
 - 新しいシェルでは `~/.bashrc` の KSwiftK ブロックが PATH / LLVM 変数を設定する想定。
 
 ### ビルド・テスト・実行
@@ -58,4 +58,3 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 
 ## 言語設定
 - 回答や指示への応答は、常に日本語で行ってください。
-
