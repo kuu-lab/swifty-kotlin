@@ -119,17 +119,17 @@ private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
     return kk_bits_to_double(value)
 }
 
-/// ULong reuses Long's boxing (BoxingCalleeTable maps both `.long` and
-/// `.ulong` to kk_box_long/RuntimeLongBox, since there is no dedicated
-/// RuntimeULongBox), so a boxed ULong is a RuntimeLongBox holding the same
-/// bit pattern. This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue:
-/// unbox first when the raw value is a GC-tracked object pointer (e.g. a
-/// nullable ULong? data class property, which the ABI always boxes so its
-/// field slot can also represent null), otherwise reinterpret the raw bits.
+/// This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue: unbox first
+/// when the raw value is a GC-tracked object pointer (e.g. a nullable ULong?
+/// data class property, which the ABI always boxes so its field slot can
+/// also represent null), otherwise reinterpret the raw bits.
 private func runtimeTaggedULongValue(_ value: Int) -> UInt {
     if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+            return UInt(bitPattern: ulongBox.value)
         }
         if isObjectPointer, let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
             return UInt(bitPattern: longBox.value)
@@ -168,6 +168,15 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         let longValue = Int64(longBox.value)
+        return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
+    }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        // ULong.hashCode() uses the same (this xor (this ushr 32)) formula as
+        // Long; the low-32-bit result of the XOR is identical whether the
+        // shift is arithmetic or logical (the sign/zero-extended high bits
+        // are discarded by truncatingIfNeeded below), so this reuses the
+        // signed-shift form above bit-for-bit.
+        let longValue = Int64(ulongBox.value)
         return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
     }
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
@@ -262,6 +271,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     if tryCast(pointer, to: RuntimeInstantBox.self) != nil {
         return 9
+    }
+    if tryCast(pointer, to: RuntimeULongBox.self) != nil {
+        return 10
     }
     return 100
 }
