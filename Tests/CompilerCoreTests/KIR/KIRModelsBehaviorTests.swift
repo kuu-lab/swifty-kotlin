@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-@Suite @MainActor
+@Suite
 struct KIRModelsBehaviorTests {
     @Test func testArenaAppendLookupTransformAndModuleDerivedCounts() {
         let interner = StringInterner()

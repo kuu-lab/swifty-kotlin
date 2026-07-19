@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite @MainActor
+@Suite
 struct RuntimeTypeCheckTokenTests {
 
     // MARK: - classify() Tests
