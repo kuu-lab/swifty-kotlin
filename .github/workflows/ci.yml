@@ -263,13 +263,6 @@ jobs:
         shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2]' || '[0, 1, 2, 3, 4, 5]') }}
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
