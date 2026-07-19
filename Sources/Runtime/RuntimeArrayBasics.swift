@@ -386,7 +386,7 @@ public func kk_list_toULongArray(_ listRaw: Int) -> Int {
     }
     let box = RuntimeArrayBox(length: list.elements.count)
     for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_long(elem)
+        box.elements[i] = kk_unbox_ulong(elem)
     }
     return registerRuntimeObject(box)
 }
@@ -403,12 +403,19 @@ public func kk_intArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// LongArray.toList(): List<Long>
+///
+/// Boxes elements eagerly for the same reason as kk_uLongArray_toList below:
+/// a raw Long word equal to Long.MIN_VALUE is bit-identical to
+/// runtimeNullSentinelInt, so generic Any-dispatch (toString/equals/`is`)
+/// would otherwise misreport it as null. kk_box_long_nonnull is safe because
+/// LongArray elements are never null.
 @_cdecl("kk_longArray_toList")
 public func kk_longArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_longArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_long_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// ByteArray.toList(): List<Byte>
@@ -439,12 +446,20 @@ public func kk_uIntArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// ULongArray.toList(): List<ULong>
+///
+/// Unlike the other `*Array.toList()` conversions above, elements must be
+/// boxed eagerly here rather than copied raw: a raw ULong word with the high
+/// bit set is bit-identical to a negative Long, and generic Any-dispatch
+/// (toString/equals/`is`) has no per-element static type to disambiguate it
+/// with, unlike a direct typed `list[i]` access. kk_box_ulong_nonnull is safe
+/// because ULongArray elements are never null.
 @_cdecl("kk_uLongArray_toList")
 public func kk_uLongArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uLongArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_ulong_nonnull($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// DoubleArray.toList(): List<Double>

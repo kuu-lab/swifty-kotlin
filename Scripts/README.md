@@ -196,7 +196,8 @@ bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary 
 `shard_swift_tests.sh` splits one test target across several CI jobs using the
 same interleaved rule as `diff_kotlinc.sh` sharding. Pure XCTest targets can
 shard per-test (`--mode dynamic`, backed by `swift test list`); targets that
-mix Swift Testing shard per-suite (`--mode static`, backed by source scanning):
+mix Swift Testing shard per-suite with source-estimated test weights
+(`--mode static`, backed by source scanning):
 
 ```bash
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\.' \

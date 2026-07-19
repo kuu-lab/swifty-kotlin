@@ -570,10 +570,38 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.generateSequenceName,
            arguments.count == 2 || arguments.count == 3
         {
+            // KSP-500: box the seed so it carries its concrete type at runtime,
+            // matching how sequenceOf(...) boxes every element. Without this the
+            // seed is stored as a bare primitive and later `is`/filterIsInstance
+            // checks on a Sequence<Any> fall through kk_op_is's "unboxed numeric
+            // value matches any numeric type" fallback. In practice CallLowerer's
+            // "STDLIB-097" generateSequence special case already boxes the seed
+            // and expands+boxes the nextFunction closure before this callee gets
+            // renamed to kk_sequence_generate, so this is normally a no-op
+            // defense-in-depth fallback — kept in case some other path still
+            // reaches this rewrite with an unboxed seed (kk_box_int et al. are
+            // idempotent, so double-boxing here is harmless either way).
+            var boxedArguments = arguments
+            if let sema = ctx.sema,
+               let seedType = module.arena.exprType(arguments[0]),
+               let boxCallee = primitiveBoxCalleeName(
+                   for: seedType,
+                   types: sema.types,
+                   interner: ctx.interner
+               )
+            {
+                boxedArguments[0] = emitNonThrowingCall(
+                    callee: boxCallee,
+                    arg: arguments[0],
+                    resultType: sema.types.anyType,
+                    arena: module.arena,
+                    into: &loweredBody
+                )
+            }
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceGenerateName,
-                arguments: arguments,
+                arguments: boxedArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
