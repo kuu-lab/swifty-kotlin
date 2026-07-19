@@ -1592,7 +1592,16 @@ extension ExprLowerer {
                 // Top-level or object-member property compound assignment
                 // needs a copy to global storage. Top-level properties have
                 // nil or .package parent; object members have .object parent.
-                if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
+                // `field` inside a custom getter/setter resolves to a
+                // `.backingField`-kind symbol (see typeCheckGetter/typeCheckSetter
+                // in DeclTypeChecker+PropertyHelpers.swift), so it must be
+                // accepted here too — otherwise `field += x` on a top-level or
+                // object property silently falls through to the generic local-
+                // variable branch below, which only updates the compiler's
+                // lowering-time local-value cache and never emits any
+                // instruction that writes the backing field's global storage.
+                if let symInfo = sema.symbols.symbol(symbol),
+                   symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
                     let p = sema.symbols.parentSymbol(for: symbol)
                     let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                     return pk == nil || pk == .package || pk == .object
