@@ -1922,6 +1922,45 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+
+        // Register `Iterable<E>.joinToString(separator?, prefix?, postfix?, transform)` HOF
+        // overloads (KSP-joinToString-transform). Kotlin's real signature folds `transform`
+        // in as a trailing optional parameter alongside `limit`/`truncated` (still unsupported
+        // here); since the runtime ABI has no notion of skippable-then-required parameters,
+        // each call shape that a trailing-lambda call site can produce is registered as its
+        // own required-arity overload, mirroring `registerIterableWindowedTransformMember`.
+        let transformType = types.make(.functionType(FunctionType(
+            params: [elementType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        func registerTransformOverload(_ parameterTypes: [TypeID]) {
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_iterable_joinToString_transform", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: types.stringType,
+                    typeParameterSymbols: [iterableTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+        registerTransformOverload([transformType])
+        registerTransformOverload([types.stringType, transformType])
+        registerTransformOverload([types.stringType, types.stringType, transformType])
+        registerTransformOverload([types.stringType, types.stringType, types.stringType, transformType])
     }
 
     /// Register `Iterable<E>.firstNotNullOf(transform)` (STDLIB-COL-HOF-001).
