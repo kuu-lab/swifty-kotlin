@@ -159,7 +159,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "PlatformTimeConversion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "StringBuilder") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "StringBuilder") { phase, symbols, types, interner, context in
+            let owner = [interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder")]
+            if context.bundledIndex.contains(ownerFQName: owner, name: interner.intern("append"), arity: 1) {
+                phase.patchSourceBackedStringBuilderSupertypes(symbols: symbols, types: types, interner: interner)
+                return
+            }
             phase.registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsAny") { phase, symbols, types, interner, _ in

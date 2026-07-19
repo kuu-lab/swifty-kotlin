@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-@Suite @MainActor
+@Suite
 struct ConstantCollectorTests {
     let collector = ConstantCollector()
     let interner = StringInterner()

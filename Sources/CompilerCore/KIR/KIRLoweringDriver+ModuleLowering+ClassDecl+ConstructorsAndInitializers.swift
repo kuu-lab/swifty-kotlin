@@ -132,10 +132,14 @@ extension KIRLoweringDriver {
         for (index, param) in classDecl.primaryConstructorParams.enumerated() {
             guard param.isProperty,
                   index < ctorSignature.valueParameterSymbols.count,
-                  let propertySymbol = propertySymbolsByName[param.name],
-                  let fieldOffset = sema.symbols.nominalLayout(for: sema.symbols.parentSymbol(for: propertySymbol) ?? .invalid)?
-                  .fieldOffsets[propertySymbol]
+                  let propertySymbol = propertySymbolsByName[param.name]
             else {
+                continue
+            }
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            guard let fieldOffset = sema.symbols.nominalLayout(
+                for: sema.symbols.parentSymbol(for: propertySymbol) ?? .invalid
+            )?.fieldOffsets[targetSymbol] else {
                 continue
             }
 
@@ -331,7 +335,7 @@ extension KIRLoweringDriver {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
                 let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
                 emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: propSymbol,
+                    propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
                     shared: shared, compilationCtx: compilationCtx, body: &body
                 )
@@ -389,6 +393,8 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         if let receiverID = ctx.activeImplicitReceiverExprID(),
            let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
@@ -653,7 +659,7 @@ extension KIRLoweringDriver {
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_create"),
+            callee: interner.intern("__kk_kclass_create"),
             arguments: [typeTokenExpr, simpleNameExpr],
             result: kclassExpr,
             canThrow: false,
@@ -687,7 +693,7 @@ extension KIRLoweringDriver {
             let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_kconstructor_create"),
+                callee: interner.intern("__kk_kconstructor_create"),
                 arguments: [ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr, visibilityExpr, kclassExpr],
                 result: registrationResult,
                 canThrow: false,
@@ -770,7 +776,7 @@ extension KIRLoweringDriver {
                 let kfunctionResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kfunction_create"),
+                    callee: interner.intern("__kk_kfunction_create"),
                     arguments: [fnNameExpr, arityExpr, retTypeExpr, isSuspendExpr, fnPtrExpr, zeroExpr],
                     result: kfunctionResult,
                     canThrow: false,
@@ -779,7 +785,7 @@ extension KIRLoweringDriver {
                 let fnRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kclass_register_member"),
+                    callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kfunctionResult],
                     result: fnRegisterResult,
                     canThrow: false,
@@ -811,7 +817,7 @@ extension KIRLoweringDriver {
                 let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kclass_register_member"),
+                    callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kpropResult],
                     result: propRegisterResult,
                     canThrow: false,
