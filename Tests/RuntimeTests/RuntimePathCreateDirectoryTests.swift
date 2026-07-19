@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateDirectoryTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateDirectoryAttributesCreatesSingleDirectory() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateDirectoryTests {
+    @Test func pathCreateDirectoryAttributesCreatesSingleDirectory() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let directoryURL = rootURL.appendingPathComponent("leaf")
         defer {
@@ -18,13 +17,13 @@ final class RuntimePathCreateDirectoryTests: IsolatedRuntimeXCTestCase {
         let resultRaw = kk_path_createDirectory_attributes(pathRaw, 0, &thrown)
 
         var isDirectory: ObjCBool = false
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory))
-        XCTAssertTrue(isDirectory.boolValue)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
+        #expect(FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
     }
 
-    func testPathCreateDirectoryAttributesRequiresExistingParent() throws {
+    @Test func pathCreateDirectoryAttributesRequiresExistingParent() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let directoryURL = rootURL.appendingPathComponent("missing-parent").appendingPathComponent("leaf")
         defer {
@@ -35,9 +34,9 @@ final class RuntimePathCreateDirectoryTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(directoryURL.path)
         let resultRaw = kk_path_createDirectory_attributes(pathRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: directoryURL.path))
+        #expect(thrown != 0)
+        #expect(resultRaw == pathRaw)
+        #expect(!FileManager.default.fileExists(atPath: directoryURL.path))
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {
