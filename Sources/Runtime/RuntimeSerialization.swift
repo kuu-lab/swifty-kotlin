@@ -274,6 +274,9 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
     if let box = tryCast(ptr, to: RuntimeLongBox.self) {
         return box.value
     }
+    if let box = tryCast(ptr, to: RuntimeULongBox.self) {
+        return UInt64(bitPattern: Int64(box.value))
+    }
     if let box = tryCast(ptr, to: RuntimeBoolBox.self) {
         return box.value
     }

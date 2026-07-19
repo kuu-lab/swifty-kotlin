@@ -838,10 +838,17 @@ func runtimeTraverseSequenceWithState(
                     state.stop = true
                     return
                 }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                emit(unboxed)
-                current = unboxed
+                // KSP-500: don't unbox here. The compiler wraps nextFunction in
+                // a boxing adapter (CallLowerer+ClosureAdapters.swift's
+                // makeGenerateSequenceBoxingAdapter) whenever the element type
+                // is a primitive, so `next` already comes back boxed — the
+                // element must stay boxed to be distinguishable by later
+                // `is`/filterIsInstance checks on a Sequence<Any>. The callee
+                // unboxes `current` itself on entry (kk_unbox_int et al. are
+                // idempotent), so feeding a boxed value back in is safe.
+                if next == runtimeNullSentinelInt { break }
+                emit(next)
+                current = next
                 generatedCount += 1
             }
             if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
@@ -869,9 +876,11 @@ func runtimeTraverseSequenceWithState(
                     state.stop = true
                     return
                 }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                emit(unboxed)
+                // KSP-500: see the .generator case above — the compiler's
+                // boxing adapter already boxed this closure's return value, so
+                // don't strip that here.
+                if next == runtimeNullSentinelInt { break }
+                emit(next)
                 generatedCount += 1
             }
             if generatedCount >= kSequenceGeneratorHardLimit, !state.stop {
@@ -1213,31 +1222,33 @@ private func evaluateSequence(
             break
         }
         if case let .generator(seed, fnPtr, closureRaw) = step {
+            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
+            // .generator case for why the closure's boxed return must survive.
             var current = seed
             var generated: [Int] = [current]
             while generated.count < kSequenceGeneratorHardLimit {
                 var thrown = 0
                 let next = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: current, outThrown: &thrown)
                 if thrown != 0 { break }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                generated.append(unboxed)
-                current = unboxed
+                if next == runtimeNullSentinelInt { break }
+                generated.append(next)
+                current = next
             }
             elements = generated
             break
         }
         if case let .nullableGenerator(fnPtr, closureRaw) = step {
             // STDLIB-SEQ-002: 1-arg form — no seed, call no-arg function until null.
+            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
+            // .nullableGenerator case for why the closure's boxed return must survive.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var generated: [Int] = []
             while generated.count < kSequenceGeneratorHardLimit {
                 var thrown = 0
                 let next = noArgFn(closureRaw, &thrown)
                 if thrown != 0 { break }
-                let unboxed = maybeUnbox(next)
-                if unboxed == runtimeNullSentinelInt { break }
-                generated.append(unboxed)
+                if next == runtimeNullSentinelInt { break }
+                generated.append(next)
             }
             elements = generated
             break
