@@ -167,7 +167,7 @@ jobs:
   full-swift-tests-core:
     name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -175,13 +175,6 @@ jobs:
         shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
@@ -234,7 +227,7 @@ jobs:
   # to list each shard.
   full-swift-tests-core-gate:
     name: Full Swift Tests (CompilerCoreTests)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: full-swift-tests-core
     timeout-minutes: 10
     if: always()
@@ -255,7 +248,7 @@ jobs:
   full-swift-tests-backend:
     name: Full Swift Tests (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -268,13 +261,6 @@ jobs:
         shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0, 1, 2]' || '[0, 1, 2, 3, 4, 5]') }}
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
@@ -284,14 +270,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -324,7 +302,7 @@ jobs:
   # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
   full-swift-tests-backend-gate:
     name: Full Swift Tests (CompilerBackendTests)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: full-swift-tests-backend
     timeout-minutes: 10
     if: always()
@@ -337,32 +315,13 @@ jobs:
             echo "One or more CompilerBackendTests shards did not pass." >&2
             exit 1
           fi
-
-  # RuntimeTests mixes plain XCTest with Swift Testing suites. Several
-  # migrated Swift Testing suites here share mutable runtime state that
-  # isn't concurrency-safe (tracked in TODO.md as BUG-021/023/024/028/039
-  # and siblings), so this target must run serialized (SWIFT_TEST_PARALLEL=0)
-  # rather than with the --parallel workers the other targets below use.
-  # Serial (--no-parallel) XCTest execution passes the *entire* matched-test
-  # list as a single exec() argument instead of fanning it out across
-  # workers, so shard_swift_tests.sh's "static" mode (suite-name filtering,
-  # chunked — safe for mixed XCTest/Swift Testing targets, unlike "dynamic"
-  # mode) is used to keep every --filter invocation well under Linux's
-  # per-argument exec() limit.
   full-swift-tests-runtime:
     name: Full Swift Tests (RuntimeTests)
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
@@ -372,14 +331,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
-          # Sources/**/*.kt (bundled stdlib) and Tests/**/*.golden (golden
-          # snapshots) are listed explicitly in addition to the broader
-          # Sources/**/Tests/**/*.swift patterns: a PR that only touches
-          # bundled Kotlin stdlib sources or regenerates golden fixtures
-          # otherwise computes the same hash as its parent commit, so CI
-          # reuses a stale cached .build that predates those changes
-          # (observed on PR #4625 / KSP-482).
           key: spm-${{ runner.os }}-swift-6.3-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Sources/**/*.kt', 'Tests/**/*.swift', 'Tests/**/*.golden', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.3-swiftylab-v1-
@@ -411,7 +362,7 @@ jobs:
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -439,13 +390,6 @@ jobs:
             needs-llvm: true
     steps:
       - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift
         if: ${{ !matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift
