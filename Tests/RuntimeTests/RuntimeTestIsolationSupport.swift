@@ -1,11 +1,12 @@
 import Dispatch
 import Foundation
 @testable import Runtime
+import Testing
 import XCTest
 
 // MARK: - Fine-grained lock sets for test isolation
 
-enum RuntimeLockSet {
+enum RuntimeLockSet: Sendable {
     case none
     case gcOnly
     case metadataOnly
@@ -19,12 +20,74 @@ enum RuntimeLockSet {
     case all
 }
 
+/// Applies the same process-wide runtime isolation to Swift Testing suites that
+/// `IsolatedRuntimeXCTestCase` provides to XCTest classes.
+struct RuntimeIsolationTrait: SuiteTrait, TestTrait, TestScoping {
+    let lockSet: RuntimeLockSet
+    private let resetAdditionalState: @Sendable () -> Void
+
+    init(
+        _ lockSet: RuntimeLockSet = .all,
+        resetAdditionalState: @escaping @Sendable () -> Void = {}
+    ) {
+        self.lockSet = lockSet
+        self.resetAdditionalState = resetAdditionalState
+    }
+
+    /// Propagate the trait from a suite to every test case in that suite.
+    var isRecursive: Bool { true }
+
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        // A suite itself has no case to isolate. Its recursive children do.
+        guard testCase != nil else {
+            try await function()
+            return
+        }
+
+        let acquiredSemaphores = try await acquireSemaphores(
+            for: lockSet,
+            testName: test.name
+        )
+        resetRuntimeState(for: lockSet)
+        resetAdditionalState()
+
+        defer {
+            resetAdditionalState()
+            resetRuntimeState(for: lockSet)
+            releaseSemaphores(acquiredSemaphores)
+        }
+
+        try await function()
+    }
+}
+
+extension SuiteTrait where Self == RuntimeIsolationTrait {
+    static func runtimeIsolation(
+        _ lockSet: RuntimeLockSet = .all,
+        resetAdditionalState: @escaping @Sendable () -> Void = {}
+    ) -> RuntimeIsolationTrait {
+        RuntimeIsolationTrait(lockSet, resetAdditionalState: resetAdditionalState)
+    }
+}
+
 // Per-state semaphores for fine-grained test isolation.
 private let gcSemaphore = DispatchSemaphore(value: 1)
 private let metadataSemaphore = DispatchSemaphore(value: 1)
 private let flowSemaphore = DispatchSemaphore(value: 1)
 private let threadLocalSemaphore = DispatchSemaphore(value: 1)
 private let delegateSemaphore = DispatchSemaphore(value: 1)
+
+private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible {
+    let testName: String
+
+    var description: String {
+        "Runtime test isolation lock timed out for \(testName)"
+    }
+}
 
 private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     switch lockSet {
@@ -80,8 +143,112 @@ private func resetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
     }
 }
 
+private func acquireSemaphores(
+    for lockSet: RuntimeLockSet,
+    testName: String
+) async throws -> [DispatchSemaphore] {
+    try await acquireSemaphores(
+        semaphores(for: lockSet),
+        testName: testName
+    )
+}
+
+/// Wait for runtime locks on a libdispatch worker instead of a cooperative
+/// Swift Concurrency thread. Blocking the cooperative pool here can deadlock
+/// when multiple Swift Testing cases contend for the same process-wide lock.
+private func acquireSemaphores(
+    _ semaphores: [DispatchSemaphore],
+    testName: String
+) async throws -> [DispatchSemaphore] {
+    try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                continuation.resume(
+                    returning: try acquireSemaphoresBlocking(semaphores, testName: testName)
+                )
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
+
+private func acquireSemaphoresBlocking(
+    _ semaphores: [DispatchSemaphore],
+    testName: String
+) throws -> [DispatchSemaphore] {
+    var acquiredSemaphores: [DispatchSemaphore] = []
+
+    for semaphore in semaphores {
+        let waitResult = semaphore.wait(timeout: .now() + .seconds(30))
+        guard waitResult == .success else {
+            releaseSemaphores(acquiredSemaphores)
+            throw RuntimeIsolationLockTimeoutError(testName: testName)
+        }
+        acquiredSemaphores.append(semaphore)
+    }
+
+    return acquiredSemaphores
+}
+
+private func releaseSemaphores(_ semaphores: [DispatchSemaphore]) {
+    for semaphore in semaphores.reversed() {
+        semaphore.signal()
+    }
+}
+
+private func resetRuntimeState(for lockSet: RuntimeLockSet) {
+    for reset in resetFunctions(for: lockSet) {
+        reset()
+    }
+}
+
+@Test
+func runtimeIsolationSemaphoreWaitRunsOffCooperativePool() async throws {
+    let semaphore = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.05) {
+        semaphore.signal()
+    }
+
+    let acquired = try await acquireSemaphores(
+        [semaphore],
+        testName: "runtimeIsolationSemaphoreWaitRunsOffCooperativePool"
+    )
+    #expect(acquired.count == 1)
+    releaseSemaphores(acquired)
+}
+
 /// Use this base class for runtime tests that mutate global runtime state or
 /// observe file-global callback state.
+final class RuntimeTestIsolationLease {
+    private let lockSet: RuntimeLockSet
+    private var acquiredSemaphores: [DispatchSemaphore] = []
+
+    init(lockSet: RuntimeLockSet) {
+        self.lockSet = lockSet
+        for semaphore in semaphores(for: lockSet) {
+            guard semaphore.wait(timeout: .now() + .seconds(30)) == .success else {
+                for acquired in acquiredSemaphores.reversed() {
+                    acquired.signal()
+                }
+                preconditionFailure("Runtime test isolation lock timed out while waiting for available token")
+            }
+            acquiredSemaphores.append(semaphore)
+        }
+    }
+
+    func release() {
+        for semaphore in acquiredSemaphores.reversed() {
+            semaphore.signal()
+        }
+        acquiredSemaphores = []
+    }
+
+    deinit {
+        release()
+    }
+}
+
 class IsolatedRuntimeXCTestCase: XCTestCase {
     private var acquiredSemaphores: [DispatchSemaphore] = []
 
