@@ -1,6 +1,7 @@
+#if canImport(Testing)
 import Foundation
+import Testing
 @testable import Runtime
-import XCTest
 
 private let exceptionID = 12345
 private let closeExceptionMessage = "close failure"
@@ -114,7 +115,7 @@ private func makeList(_ elements: [Int]) -> Int {
     var thrown = 0
     for (index, element) in elements.enumerated() {
         _ = kk_array_set(array, index, element, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
     }
     return kk_list_of(array, elements.count)
 }
@@ -148,18 +149,13 @@ private let groupingAggregateThrowingLambda: @convention(c) (Int, Int, Int, Int,
     return 0
 }
 
-final class RuntimeCollectionHOFThrowTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
+@Suite(.serialized)
+struct RuntimeCollectionHOFThrowTests {
+    init() {
         closeableTestState.reset()
     }
 
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+    @Test
     func testListMapThrows() {
         let array = kk_array_new(3)
         var thrown = 0
@@ -171,10 +167,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_list_map(listWithData, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testListForEachThrows() {
         let array = kk_array_new(1)
         var thrown = 0
@@ -184,10 +181,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_list_forEach(list, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testArrayMapThrows() {
         let array = kk_array_new(1)
         var thrown = 0
@@ -196,10 +194,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_array_map(array, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testMapForEachThrows() {
         let map = kk_map_of(kk_array_new(0), kk_array_new(0), 0)
         _ = kk_mutable_map_put(map, 1, 10)
@@ -207,82 +206,91 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_map_forEach(map, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testListReduceEmptyThrows() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_reduce(list, 0, 0, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown != 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testListFirstEmptyThrows() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_first(list, 0, 0, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown != 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testListLastEmptyThrows() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_last(list, 0, 0, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown != 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testListSingleEmptyThrows() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_single(list, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0)
-        XCTAssertEqual(result, 0)
+        #expect(outThrown != 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testListSingleMultipleElementsThrows() {
         let list = makeList([1, 2])
         var outThrown = 0
         let result = kk_list_single(list, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0)
-        XCTAssertEqual(result, 0)
+        #expect(outThrown != 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testListReduceOrNullEmptyDoesNotThrow() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_reduceOrNull(list, 0, 0, &outThrown)
 
-        XCTAssertEqual(outThrown, 0, "reduceOrNull should not throw for empty list")
-        XCTAssertEqual(result, runtimeNullSentinelInt, "reduceOrNull should return runtimeNullSentinelInt (null) for empty list")
+        #expect(outThrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testListScanReduceEmptyDoesNotThrow() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_scanReduce(list, 0, 0, &outThrown)
 
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertEqual(runtimeListBox(from: result)?.elements ?? [], [])
+        #expect(outThrown == 0)
+        #expect(runtimeListBox(from: result)?.elements ?? [] == [])
     }
 
+    @Test
     func testListRunningReduceEmptyDoesNotThrow() {
         let list = kk_list_of(kk_array_new(0), 0)
         var outThrown = 0
         let result = kk_list_runningReduce(list, 0, 0, &outThrown)
 
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertEqual(runtimeListBox(from: result)?.elements ?? [], [])
+        #expect(outThrown == 0)
+        #expect(runtimeListBox(from: result)?.elements ?? [] == [])
     }
 
+    @Test
     func testListFoldThrows() {
         let array = kk_array_new(1)
         var thrown = 0
@@ -292,10 +300,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_list_fold(list, 0, unsafeBitCast(lambdaThatThrows2, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testUseSuppressesCloseThrowableWhenBlockThrows() {
         let closeThrowable = runtimeAllocateThrowable(message: closeExceptionMessage)
         closeableTestState.configureCloseThrowable(closeThrowable)
@@ -304,24 +313,25 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
             var outThrown = 0
             let result = kk_use(resource, unsafeBitCast(closeableBlockThrows, to: Int.self), 0, &outThrown)
 
-            XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-            XCTAssertEqual(closeableTestState.closeCallCountSnapshot(), 1)
+            #expect(result == runtimeExceptionCaughtSentinel)
+            #expect(closeableTestState.closeCallCountSnapshot() == 1)
 
             guard let blockThrowable = throwableBox(from: outThrown) else {
-                XCTFail("Expected block throwable")
+                Issue.record("Expected block throwable")
                 return
             }
-            XCTAssertEqual(blockThrowable.message, blockThrowableMessage)
-            XCTAssertEqual(blockThrowable.suppressed, [closeThrowable])
+            #expect(blockThrowable.message == blockThrowableMessage)
+            #expect(blockThrowable.suppressed == [closeThrowable])
 
             let suppressed = kk_throwable_getSuppressed(outThrown)
-            XCTAssertEqual(kk_array_size(suppressed), 1)
+            #expect(kk_array_size(suppressed) == 1)
             var thrown = 0
-            XCTAssertEqual(kk_array_get(suppressed, 0, &thrown), closeThrowable)
-            XCTAssertEqual(thrown, 0)
+            #expect(kk_array_get(suppressed, 0, &thrown) == closeThrowable)
+            #expect(thrown == 0)
         }
     }
 
+    @Test
     func testUsePropagatesCloseThrowableWhenBlockSucceeds() {
         let closeThrowable = runtimeAllocateThrowable(message: closeExceptionMessage)
         closeableTestState.configureCloseThrowable(closeThrowable)
@@ -330,17 +340,18 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
             var outThrown = 0
             let result = kk_use(resource, unsafeBitCast(closeableBlockReturnsValue, to: Int.self), 0, &outThrown)
 
-            XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-            XCTAssertEqual(outThrown, closeThrowable)
-            XCTAssertEqual(closeableTestState.closeCallCountSnapshot(), 1)
+            #expect(result == runtimeExceptionCaughtSentinel)
+            #expect(outThrown == closeThrowable)
+            #expect(closeableTestState.closeCallCountSnapshot() == 1)
             guard let closeThrowableBox = throwableBox(from: outThrown) else {
-                XCTFail("Expected close throwable")
+                Issue.record("Expected close throwable")
                 return
             }
-            XCTAssertEqual(closeThrowableBox.suppressed, [])
+            #expect(closeThrowableBox.suppressed == [])
         }
     }
 
+    @Test
     func testGroupingByEachCountThrows() {
         let array = kk_array_new(3)
         var thrown = 0
@@ -353,10 +364,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_grouping_eachCount(grouping, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testGroupingReduceToThrows() {
         let array = kk_array_new(3)
         var thrown = 0
@@ -370,10 +382,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_grouping_reduceTo(grouping, dest, unsafeBitCast(groupingReduceToThrowingLambda, to: Int.self), 0, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testGroupingFoldInitialValueSelectorThrows() {
         let grouping = kk_list_groupingBy(
             makeList([1, 2]),
@@ -391,10 +404,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
             &outThrown
         )
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testGroupingFoldOperationThrows() {
         let grouping = kk_list_groupingBy(
             makeList([1, 3]),
@@ -412,10 +426,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
             &outThrown
         )
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testGroupingAggregateThrows() {
         let grouping = kk_list_groupingBy(
             makeList([1, 2, 3]),
@@ -431,10 +446,11 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
             &outThrown
         )
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 
+    @Test
     func testGroupingByEachCountToThrows() {
         let array = kk_array_new(3)
         var thrown = 0
@@ -448,7 +464,8 @@ final class RuntimeCollectionHOFThrowTests: XCTestCase {
         var outThrown = 0
         let result = kk_grouping_eachCountTo(grouping, dest, &outThrown)
 
-        XCTAssertEqual(outThrown, exceptionID)
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        #expect(outThrown == exceptionID)
+        #expect(result == runtimeExceptionCaughtSentinel)
     }
 }
+#endif

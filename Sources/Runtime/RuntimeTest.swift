@@ -20,6 +20,9 @@ private func runtimeTestDisplayString(from rawValue: Int) -> String {
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return String(longBox.value)
     }
+    if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+        return String(UInt(bitPattern: ulongBox.value))
+    }
     if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
         return String(doubleBox.value)
     }
