@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeStringLocaleTests: XCTestCase {
+@Suite
+struct RuntimeStringLocaleTests {
     private func stringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
@@ -92,24 +94,27 @@ final class RuntimeStringLocaleTests: XCTestCase {
         }
     }
 
+    @Test
     func testLocaleLowercaseUsesTurkishRules() {
         let result = flatLocaleStringValue(
             "I",
             locale: makeLocale("tr"),
             using: kk_string_lowercase_locale_flat
         )
-        XCTAssertEqual(result, "ı")
+        #expect(result == "ı")
     }
 
+    @Test
     func testLocaleUppercaseUsesTurkishRules() {
         let result = flatLocaleStringValue(
             "i",
             locale: makeLocale("tr"),
             using: kk_string_uppercase_locale_flat
         )
-        XCTAssertEqual(result, "İ")
+        #expect(result == "İ")
     }
 
+    @Test
     func testLocaleCompareToFlatMatchesBasicOrdering() {
         let locale = makeLocale("en_US")
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
@@ -125,19 +130,23 @@ final class RuntimeStringLocaleTests: XCTestCase {
                     rhsHash,
                     locale
                 )
-                XCTAssertEqual(result, -1)
+                #expect(result == -1)
             }
         }
     }
 
+    @Test
     func testLocalePropertiesExposeLanguageCountryAndVariant() {
         let locale = makeLocale(language: "en", country: "US")
-        XCTAssertEqual(stringValue(kk_locale_language(locale)), "en")
-        XCTAssertEqual(stringValue(kk_locale_country(locale)), "US")
-        XCTAssertEqual(stringValue(kk_locale_variant(locale)), "")
+        #expect(stringValue(kk_locale_language(locale)) == "en")
+        #expect(stringValue(kk_locale_country(locale)) == "US")
+        #expect(stringValue(kk_locale_variant(locale)) == "")
     }
 
+    @Test
     func testLocaleDisplayLanguageUsesDefaultLocale() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let original = kk_locale_getDefault(0)
         let japanese = makeLocale("ja_JP")
         _ = kk_locale_setDefault(0, japanese)
@@ -145,38 +154,45 @@ final class RuntimeStringLocaleTests: XCTestCase {
 
         let english = makeLocale("en_US")
         let displayLanguage = stringValue(kk_locale_displayLanguage(english))
-        XCTAssertFalse(displayLanguage.isEmpty)
+        #expect(!displayLanguage.isEmpty)
     }
 
+    @Test
     func testLocaleDefaultCanBeOverridden() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
         let original = kk_locale_getDefault(0)
         let locale = makeLocale(language: "tr", country: "TR")
         _ = kk_locale_setDefault(0, locale)
         defer { _ = kk_locale_setDefault(0, original) }
 
         let current = kk_locale_getDefault(0)
-        XCTAssertEqual(stringValue(kk_locale_language(current)), "tr")
-        XCTAssertEqual(stringValue(kk_locale_country(current)), "TR")
+        #expect(stringValue(kk_locale_language(current)) == "tr")
+        #expect(stringValue(kk_locale_country(current)) == "TR")
     }
 
+    @Test
     func testLocaleEqualityAndHashCodeAreValueBased() {
         let lhs = makeLocale(language: "en", country: "US")
         let rhs = makeLocale(language: "en", country: "US")
 
-        XCTAssertTrue(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
-        XCTAssertEqual(kk_any_hashCode(lhs, 0), kk_any_hashCode(rhs, 0))
+        #expect(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
+        #expect(kk_any_hashCode(lhs, 0) == kk_any_hashCode(rhs, 0))
     }
 
+    @Test
     func testSingleArgumentLocaleTreatsInputAsLanguageField() {
         let locale = makeLocale("en_US_POSIX")
-        XCTAssertEqual(stringValue(kk_locale_language(locale)), "en_us_posix")
-        XCTAssertEqual(stringValue(kk_locale_country(locale)), "")
-        XCTAssertEqual(stringValue(kk_locale_variant(locale)), "")
+        #expect(stringValue(kk_locale_language(locale)) == "en_us_posix")
+        #expect(stringValue(kk_locale_country(locale)) == "")
+        #expect(stringValue(kk_locale_variant(locale)) == "")
     }
 
+    @Test
     func testAvailableLocalesContainsKnownLocale() {
         let available = kk_locale_getAvailableLocales(0)
         let identifiers = arrayElements(available).map { stringValue(kk_locale_language($0)) + "_" + stringValue(kk_locale_country($0)) }
-        XCTAssertTrue(identifiers.contains("en_US") || identifiers.contains("en_"))
+        #expect(identifiers.contains("en_US") || identifiers.contains("en_"))
     }
 }
+#endif
