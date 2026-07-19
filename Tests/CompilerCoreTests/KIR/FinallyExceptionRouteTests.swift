@@ -9,7 +9,7 @@ import Testing
 /// In Kotlin, when a finally block throws, the new exception replaces the
 /// original and propagates to the next outer exception handler, NOT to the
 /// catch clauses of the try statement the finally belongs to.
-@Suite @MainActor
+@Suite
 struct FinallyExceptionRouteTests {
 
     // MARK: - Exception routing through inlined finally (return path)
