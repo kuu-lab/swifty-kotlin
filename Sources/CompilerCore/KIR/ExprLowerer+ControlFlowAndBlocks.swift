@@ -1387,6 +1387,25 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            // Unchecked erasure cast: `as`/`as?` to a non-reified type parameter
+            // has no runtime type information to check against — Sema allows
+            // this (with an "unchecked cast" warning) but only rejects `is T`
+            // for non-reified T (KSWIFTK-SEMA-0084), matching Kotlin/JVM, where
+            // `as T` under erasure is a pure "trust me" annotation for the type
+            // checker with no runtime checkcast at all. Passing this through to
+            // `kk_op_cast` would encode an `unknownBase` token, which
+            // `kk_op_is` always reports as a mismatch — turning every such cast
+            // into an unconditional ClassCastException. Pass the value through
+            // unchanged instead.
+            if let targetType = sema.bindings.castTargetType(for: exprID),
+               case let .typeParam(typeParam) = sema.types.kind(of: targetType),
+               let typeParamSymbol = sema.symbols.symbol(typeParam.symbol),
+               !typeParamSymbol.flags.contains(.reifiedTypeParameter)
+            {
+                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+                instructions.append(.copy(from: operandID, to: result))
+                return result
+            }
             let typeToken: KIRExprID = if let targetType = sema.bindings.castTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
                     targetType: targetType,
@@ -1915,7 +1934,7 @@ extension ExprLowerer {
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_kclass_create"),
+                    callee: interner.intern("__kk_kclass_create"),
                     arguments: [tokenExpr, nameHintExpr],
                     result: result,
                     canThrow: false,
