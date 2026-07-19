@@ -439,9 +439,11 @@ struct LibraryMetadataImportIntegrationTests {
             )
             try runSema(ctx)
 
-            assertHasDiagnostic("KSWIFTK-SEMA-PLATFORM", in: ctx)
             let warnings = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-PLATFORM" }
-            #expect(!(warnings.isEmpty))
+            #expect(
+                !(warnings.isEmpty),
+                "Expected KSWIFTK-SEMA-PLATFORM, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
             #expect(warnings.allSatisfy { $0.primaryRange != nil })
         }
     }
@@ -482,7 +484,10 @@ struct LibraryMetadataImportIntegrationTests {
             )
             try runSema(ctx)
 
-            assertNoDiagnostic("KSWIFTK-SEMA-PLATFORM", in: ctx)
+            #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" },
+                "Unexpected KSWIFTK-SEMA-PLATFORM, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
         }
     }
 
@@ -525,7 +530,10 @@ struct LibraryMetadataImportIntegrationTests {
             )
             try runSema(ctx)
 
-            assertNoDiagnostic("KSWIFTK-SEMA-PLATFORM", in: ctx)
+            #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" },
+                "Unexpected KSWIFTK-SEMA-PLATFORM, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
             #expect(!(ctx.diagnostics.hasError))
         }
     }
@@ -570,7 +578,10 @@ struct LibraryMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+            #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-VAR-OUT" },
+                "Unexpected KSWIFTK-SEMA-VAR-OUT, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
             #expect(!(ctx.diagnostics.hasError))
         }
     }
