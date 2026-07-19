@@ -926,7 +926,9 @@
 - [ ] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除）
 - [ ] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを再起票する（CLEANUP-STUB 個別リスト消失で追跡ゼロだったもの: BigInteger / Concurrency / Dynamic / FileIO / FileTreeWalk / FileWalkDirection / FilesUtility / JsFunction / LocaleConstructor / NativeFunctionAnnotation / OnErrorAction / PathStubs 本体+分割3 / PlatformObjectHelpers / ReadWriteLock / Serialization / Test / URI / URL。本タスクで対象表を確定し、以後1ファイル=1タスク（CLEANUP-STUB-104〜）で消化する）
 
-### バグバックログ（BUG-NNN。CLAUDE.md「バグ報告ルール」2026-07-10 制定の初回バックフィル。PR 状態は 2026-07-10 時点）
+### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
+
+> このセクションは既存の未修正バグと、同じPR内で安全に修正できなかったバグの追跡用。新たに発見した修正可能なバグは、最小再現と回帰テストを含めて発見したPR内で修正し、報告だけのためにここへ追加しない。
 
 - [x] BUG-001: 明示レシーバ経由の複合代入/inc/dec が無反映（`c.i += 1` が no-op）— **修正済み** PR #4633 / commit `7bf2787a08`
 - [ ] BUG-002: 初期化ラムダなし `ByteArray(size)` 系コンストラクタがリンクエラー — PR #4615 open（関連 #4621）
