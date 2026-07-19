@@ -364,13 +364,8 @@ private let firstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePo
     value.isMultiple(of: 2) ? value * 10 : runtimeNullSentinelInt
 }
 
-@Suite(.serialized)
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: { gHOFState.reset() }))
 struct RuntimeCollectionHOFTests {
-    init() {
-        kk_runtime_force_reset()
-        gHOFState.reset()
-    }
-
     @Test
     func testMapIndexedNotNullFiltersNullResults() {
         let source = makeList([10, 20, 30, 40])
