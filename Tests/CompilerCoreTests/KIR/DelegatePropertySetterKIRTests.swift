@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 /// Tests for delegate property setter rewriting and lowering pass recording.
-@Suite @MainActor
+@Suite
 struct DelegatePropertySetterKIRTests {
     // MARK: - Setter Rewrite: Observable
 
