@@ -11,11 +11,24 @@ public struct GoldenHarnessCase: Sendable {
     public let basename: String
 }
 
+public struct GoldenHarnessBatchResult: Codable, Sendable {
+    public let sourcePath: String
+    public let output: String?
+    public let errorDescription: String?
+
+    public init(sourcePath: String, output: String?, errorDescription: String?) {
+        self.sourcePath = sourcePath
+        self.output = output
+        self.errorDescription = errorDescription
+    }
+}
+
 enum GoldenHarnessAPIError: Error, CustomStringConvertible {
     case unknownSuite(String)
     case workerExecutableNotFound(String)
     case workerFailed(Int32, String)
     case workerTimedOut(String)
+    case invalidWorkerOutput(String)
 
     var description: String {
         switch self {
@@ -29,6 +42,8 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
         case let .workerTimedOut(details):
             let suffix = details.isEmpty ? "" : "\n\(details)"
             return "Golden worker timed out\(suffix)"
+        case let .invalidWorkerOutput(details):
+            return "Golden worker returned invalid output: \(details)"
         }
     }
 }
@@ -63,6 +78,42 @@ public enum GoldenHarness {
     }
 
     public static func renderInSubprocess(suiteName: String, sourcePath: String) throws -> String {
+        let stdoutData = try runWorker(
+            arguments: [suiteName, sourcePath],
+            timeout: subprocessTimeout
+        )
+        return String(decoding: stdoutData, as: UTF8.self)
+    }
+
+    public static func renderBatchInSubprocess(
+        suiteName: String,
+        sourcePaths: [String]
+    ) throws -> [GoldenHarnessBatchResult] {
+        guard !sourcePaths.isEmpty else {
+            return []
+        }
+
+        let stdoutData = try runWorker(
+            arguments: ["--batch", suiteName] + sourcePaths,
+            timeout: subprocessTimeout * TimeInterval(sourcePaths.count)
+        )
+        let results: [GoldenHarnessBatchResult]
+        do {
+            results = try JSONDecoder().decode([GoldenHarnessBatchResult].self, from: stdoutData)
+        } catch {
+            throw GoldenHarnessAPIError.invalidWorkerOutput(
+                "could not decode batch response: \(error)"
+            )
+        }
+        guard results.map(\.sourcePath) == sourcePaths else {
+            throw GoldenHarnessAPIError.invalidWorkerOutput(
+                "batch response paths did not match the requested paths"
+            )
+        }
+        return results
+    }
+
+    private static func runWorker(arguments: [String], timeout: TimeInterval) throws -> Data {
         let process = Process()
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
@@ -73,7 +124,7 @@ public enum GoldenHarness {
         let stderrWriteHandle = stderr.fileHandleForWriting
 
         process.executableURL = try workerExecutableURL()
-        process.arguments = [suiteName, sourcePath]
+        process.arguments = arguments
         process.environment = ProcessInfo.processInfo.environment
         process.standardOutput = stdout
         process.standardError = stderr
@@ -111,7 +162,7 @@ public enum GoldenHarness {
         }
         stdoutWriteHandle.closeFile()
         stderrWriteHandle.closeFile()
-        if terminatedSemaphore.wait(timeout: .now() + subprocessTimeout) == .timedOut {
+        if terminatedSemaphore.wait(timeout: .now() + timeout) == .timedOut {
             process.terminate()
             // Wait for process to exit after terminate to avoid zombie processes
             let terminateDeadline = Date().addingTimeInterval(terminationGracePeriodSeconds)
@@ -153,7 +204,7 @@ public enum GoldenHarness {
             let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw GoldenHarnessAPIError.workerFailed(process.terminationStatus, stderrText)
         }
-        return String(decoding: stdoutData, as: UTF8.self)
+        return stdoutData
     }
 
     @discardableResult

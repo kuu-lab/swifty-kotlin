@@ -17,7 +17,7 @@ struct ReflectFindAssociatedObjectSyntheticTests {
         #expect(symbol.visibility == .public)
         #expect(symbol.flags.contains(.synthetic))
         #expect(symbol.flags.contains(.inlineFunction))
-        #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_kclass_find_associated_object")
+        #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_kclass_find_associated_object")
         #expect(signature.parameterTypes.count == 0)
         #expect(signature.typeParameterSymbols.count == 1)
         #expect(signature.reifiedTypeParameterIndices == [0])
