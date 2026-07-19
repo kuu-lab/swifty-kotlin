@@ -293,6 +293,7 @@ package struct KnownCompilerNames {
     let kClassSafeCastName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
+    let primaryConstructorName: InternedString
     // MIGRATION-REFLECT-002: KClass member introspection
     let nestedClassesName: InternedString
     // STDLIB-REFLECT-060: KClass basic reflection features
@@ -390,7 +391,6 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
-    let kotlinRunCatchingFQName: [InternedString]
 
     package init(interner: StringInterner) {
 
@@ -485,6 +485,7 @@ package struct KnownCompilerNames {
         kClassSafeCastName = interner.intern("safeCast")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
+        primaryConstructorName = interner.intern("primaryConstructor")
         // MIGRATION-REFLECT-002: KClass member introspection
         nestedClassesName = interner.intern("nestedClasses")
         // STDLIB-REFLECT-060: KClass basic reflection features
@@ -594,7 +595,6 @@ package struct KnownCompilerNames {
 
         let resultName = interner.intern("Result")
         kotlinResultFQName = [kotlin, resultName]
-        kotlinRunCatchingFQName = [kotlin, runCatching]
     }
 
     func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {

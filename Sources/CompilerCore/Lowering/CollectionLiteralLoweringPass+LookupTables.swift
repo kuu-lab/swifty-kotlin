@@ -745,7 +745,6 @@ struct CollectionLiteralLookupTables {
     let kkBufferedReaderUseLinesName: InternedString
     let kkPathUseLinesName: InternedString
     let kkPathUseLinesDefaultName: InternedString
-    let kkPathNewName: InternedString
     let kkPathGetName: InternedString
     // STDLIB-IO-PATH-FN-039: Path.walk(options) → kk_path_walk
     let kkPathWalkName: InternedString
@@ -767,14 +766,12 @@ struct CollectionLiteralLookupTables {
     let kkFileWalkTopDownName: InternedString
     let walkBottomUpName: InternedString
     let kkFileWalkBottomUpName: InternedString
-    let maxDepthName: InternedString
     let kkFileTreeWalkMaxDepthName: InternedString
     let kkFileTreeWalkToListName: InternedString
     let onEnterName: InternedString
     let kkFileTreeWalkOnEnterName: InternedString
     let onLeaveName: InternedString
     let kkFileTreeWalkOnLeaveName: InternedString
-    let onFailName: InternedString
     let kkFileTreeWalkOnFailName: InternedString
     let kkFileTreeWalkForEachName: InternedString
     let kkFileTreeWalkFilterName: InternedString
@@ -1535,7 +1532,6 @@ struct CollectionLiteralLookupTables {
         kkBufferedReaderUseLinesName = interner.intern("kk_buffered_reader_useLines")
         kkPathUseLinesName = interner.intern("kk_path_useLines")
         kkPathUseLinesDefaultName = interner.intern("kk_path_useLines_default")
-        kkPathNewName = interner.intern("kk_path_new")
         kkPathGetName = interner.intern("kk_path_get")
         // STDLIB-IO-PATH-FN-039
         kkPathWalkName = interner.intern("kk_path_walk")
@@ -1557,14 +1553,12 @@ struct CollectionLiteralLookupTables {
         kkFileWalkTopDownName = interner.intern("kk_file_walkTopDown")
         walkBottomUpName = interner.intern("walkBottomUp")
         kkFileWalkBottomUpName = interner.intern("kk_file_walkBottomUp")
-        maxDepthName = interner.intern("maxDepth")
         kkFileTreeWalkMaxDepthName = interner.intern("kk_file_tree_walk_max_depth")
         kkFileTreeWalkToListName = interner.intern("kk_file_tree_walk_to_list")
         onEnterName = interner.intern("onEnter")
         kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_onEnter")
         onLeaveName = interner.intern("onLeave")
         kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_onLeave")
-        onFailName = interner.intern("onFail")
         kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
         kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")
         kkFileTreeWalkFilterName = interner.intern("kk_file_tree_walk_filter")
