@@ -2,9 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-004: Validates that `StringBuilder.appendLine` overloads resolve
-/// through Sema, dispatching to the runtime link names
-/// `kk_string_builder_append_line_obj` (value overload) and
-/// `kk_string_builder_append_line_noarg_obj` (no-arg overload).
+/// through the source-backed stdlib surface.
 @Suite
 struct StringAppendLineFunctionTests {
 
@@ -66,9 +64,9 @@ struct StringAppendLineFunctionTests {
         )
     }
 
-    // MARK: - Runtime link name registration
+    // MARK: - Source member registration
 
-    @Test func testAppendLineWithValueLinksToCorrectRuntimeSymbol() throws {
+    @Test func testAppendLineWithValueResolvesAsSourceMember() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -91,13 +89,13 @@ struct StringAppendLineFunctionTests {
         #expect(valueOverload != nil, "appendLine(value) overload should be registered")
         if let sym = valueOverload {
             #expect(
-                sema.symbols.externalLinkName(for: sym) == "kk_string_builder_append_line_obj",
-                "appendLine(value) should link to kk_string_builder_append_line_obj"
+                sema.symbols.externalLinkName(for: sym) == nil,
+                "appendLine(value) should be source-backed"
             )
         }
     }
 
-    @Test func testAppendLineNoArgLinksToCorrectRuntimeSymbol() throws {
+    @Test func testAppendLineNoArgResolvesAsSourceMember() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -120,8 +118,8 @@ struct StringAppendLineFunctionTests {
         #expect(noArgOverload != nil, "appendLine() no-arg overload should be registered")
         if let sym = noArgOverload {
             #expect(
-                sema.symbols.externalLinkName(for: sym) == "kk_string_builder_append_line_noarg_obj",
-                "appendLine() should link to kk_string_builder_append_line_noarg_obj"
+                sema.symbols.externalLinkName(for: sym) == nil,
+                "appendLine() should be source-backed"
             )
         }
     }
