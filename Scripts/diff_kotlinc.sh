@@ -11,6 +11,7 @@ KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
 KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-}"
 KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-}"
+KOTLINC_STDLIB_ON_CLASSPATH=0
 KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_VERSION:-1.10.2}}"
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
@@ -361,6 +362,9 @@ ensure_kotlinc_classpath
 # is what keeps a user- or coroutines-supplied classpath intact.
 KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
 KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
+if [[ -n "$KOTLINC_STDLIB_JAR" && -f "$KOTLINC_STDLIB_JAR" ]]; then
+  KOTLINC_STDLIB_ON_CLASSPATH=1
+fi
 for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR"; do
   if [[ -n "$runtime_jar" ]]; then
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
@@ -768,11 +772,10 @@ run_case() {
       ref_run_exit=$script_exit
     fi
   else
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
-      # jars (see resolve_kotlinc_lib_jar above) whenever they could be
-      # resolved, so the runtime classes needed by ref_run below are
-      # already on the classpath without repackaging them into ref_jar.
+    if [[ "$KOTLINC_STDLIB_ON_CLASSPATH" -eq 1 ]]; then
+      # No -include-runtime: the resolved stdlib jar is on the classpath, so
+      # the runtime classes needed by ref_run below are already available
+      # without repackaging them into every reference jar.
       # shellcheck disable=SC2086
       "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
     else
