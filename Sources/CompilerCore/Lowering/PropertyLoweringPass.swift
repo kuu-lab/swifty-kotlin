@@ -50,6 +50,36 @@ final class PropertyLoweringPass: LoweringPass {
             return result
         }()
 
+        // Top-level AND object-member properties with a custom getter still
+        // emit a backing field global when they also have an initializer, a
+        // setter, or an explicit Kotlin 2.0 backing field. Their reads
+        // therefore arrive here as `loadGlobal(propertySymbol)` rather than
+        // through the getter-only computed-property set above (that set
+        // requires no backing field at all). Rewrite those loads to the
+        // emitted zero-argument getter so the backing field remains an
+        // implementation detail and getter side effects are preserved. This
+        // mirrors ExprLowerer/CallLowerer, which emit the same bare
+        // `loadGlobal(propertySymbol)` for both parent kinds — object
+        // properties use module-level global storage exactly like top-level
+        // ones (a single instance, so no per-object field offset is needed).
+        let packageOrObjectAccessorPropertySymbols: Set<SymbolID> = {
+            guard let sema = ctx.sema else { return [] }
+            var result = Set<SymbolID>()
+            for sym in sema.symbols.allSymbols() {
+                guard sym.kind == .property,
+                      sema.symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                else { continue }
+                let parentKind = sema.symbols.parentSymbol(for: sym.id).flatMap {
+                    sema.symbols.symbol($0)?.kind
+                }
+                guard parentKind == nil || parentKind == .package || parentKind == .object else { continue }
+                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
+                guard emittedFunctionSymbols.contains(getterSymbol) else { continue }
+                result.insert(sym.id)
+            }
+            return result
+        }()
+
         let externalTopLevelCallee: (SymbolID) -> InternedString? = { symbol in
             guard let sema = ctx.sema else { return nil }
             guard sema.symbols.propertyType(for: symbol) != nil,
@@ -74,6 +104,30 @@ final class PropertyLoweringPass: LoweringPass {
 
             for instruction in function.body {
                 guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
+                    // A top-level or object-member property with an
+                    // initializer and a custom getter has a real global for
+                    // backing storage, but reads must still invoke the
+                    // getter. Keep the accessor itself from recursively
+                    // rewriting its own backing-field reads.
+                    if case let .loadGlobal(lgResult, sym) = instruction,
+                       packageOrObjectAccessorPropertySymbols.contains(sym)
+                    {
+                        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym)
+                        if function.symbol != getterSymbol {
+                            loweredBody.append(
+                                .call(
+                                    symbol: getterSymbol,
+                                    callee: getterName,
+                                    arguments: [],
+                                    result: lgResult,
+                                    canThrow: false,
+                                    thrownResult: nil
+                                )
+                            )
+                            continue
+                        }
+                    }
+
                     if case let .loadGlobal(lgResult, sym) = instruction,
                        let sema,
                        let constant = constValue(for: sym, sema: sema)

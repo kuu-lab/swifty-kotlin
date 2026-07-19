@@ -28,6 +28,44 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "FileBufferedReaderUseReadText", expected: "buffered reader text\n")
     }
 
+    func testCodegenFileCopyToCatchesFileAlreadyExistsException() throws {
+        let source = """
+        import java.io.File
+        import kotlin.io.FileAlreadyExistsException
+
+        fun main() {
+            val source = File("/tmp/kswiftk_copy_source.txt")
+            val target = File("/tmp/kswiftk_copy_target.txt")
+            source.delete()
+            target.delete()
+            source.writeText("source")
+            target.writeText("target")
+
+            try {
+                source.copyTo(target)
+                println("not caught")
+            } catch (e: FileAlreadyExistsException) {
+                println("already exists")
+            }
+
+            source.delete()
+            try {
+                source.copyTo(target, overwrite = true)
+                println("not caught")
+            } catch (e: kotlin.io.NoSuchFileException) {
+                println("missing")
+            }
+            target.delete()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FileCopyToCatchesFileAlreadyExistsException",
+            expected: "already exists\nmissing\n"
+        )
+    }
+
     func testCodegenFileBufferedReaderReadLine() throws {
         let source = """
         import java.io.File
