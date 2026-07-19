@@ -184,6 +184,20 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_list_joinToString_transform",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_iterable_joinTo",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
@@ -207,6 +221,20 @@ public extension RuntimeABISpec {
             returnType: .opaquePointer,
             section: "Collection",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_iterable_joinToString_transform",
+            parameters: [
+                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_list_to_set",
@@ -1066,6 +1094,20 @@ public extension RuntimeABISpec {
             returnType: .opaquePointer,
             section: "Collection",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_array_joinToString_transform",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_intArray_joinToString",
@@ -2176,6 +2218,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_line",
+            parameters: [
+                RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",
