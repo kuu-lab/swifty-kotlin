@@ -20,7 +20,7 @@ jobs:
   # self-hosted and GitHub-hosted Swift toolchain installations.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
@@ -100,7 +100,7 @@ jobs:
 
   verify-runtime:
     name: Verification 3/5 (Runtime)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
