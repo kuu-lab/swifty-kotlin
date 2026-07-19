@@ -992,7 +992,7 @@ extension ExprTypeChecker {
         // ── this::class — instance class reference on implicit receiver ──
         // REFL-002: When the receiver is `this`, infer `this` first, then
         // bind the classRefTargetType from the receiver's resolved type so
-        // KIR lowering can emit `kk_kclass_create` with the correct token.
+        // KIR lowering can emit `__kk_kclass_create` with the correct token.
         if member == KnownCompilerNames(interner: interner).className,
            let receiver,
            case .thisRef = ast.arena.expr(receiver)
