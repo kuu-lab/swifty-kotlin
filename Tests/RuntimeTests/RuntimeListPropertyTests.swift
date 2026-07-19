@@ -2,7 +2,7 @@
 @testable import Runtime
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct RuntimeListPropertyTests {
     init() {
         kk_runtime_force_reset()
