@@ -4,7 +4,7 @@ import Testing
 /// STDLIB-TEXT-FN-003: Validates `append` on StringBuilder and Appendable.
 @Suite
 struct StringAppendFunctionTests {
-    @Test func testStringBuilderTypedAppendOverloadsResolveAndLink() throws {
+    @Test func testStringBuilderTypedAppendOverloadsResolveAsSourceMembers() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -49,27 +49,33 @@ struct StringAppendFunctionTests {
             }
             #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
             if let overload {
-                #expect(sema.symbols.externalLinkName(for: overload) != nil)
+                #expect(
+                    sema.symbols.externalLinkName(for: overload) == nil,
+                    "StringBuilder.append overload for \(parameterType) should be source-backed"
+                )
             }
         }
 
-        let expectedLinks: [TypeID: String] = [
-            sema.types.charType: "kk_string_builder_append_char",
-            sema.types.booleanType: "kk_string_builder_append_bool",
-            sema.types.intType: "kk_string_builder_append_obj",
-            sema.types.longType: "kk_string_builder_append_obj",
-            sema.types.floatType: "kk_string_builder_append_float",
-            sema.types.doubleType: "kk_string_builder_append_double",
+        let typedParameterTypes = [
+            sema.types.charType,
+            sema.types.booleanType,
+            sema.types.intType,
+            sema.types.longType,
+            sema.types.floatType,
+            sema.types.doubleType,
         ]
 
-        for (parameterType, expectedLink) in expectedLinks {
+        for parameterType in typedParameterTypes {
             let overload = appendSymbols.first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [parameterType]
             }
             #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
             if let overload {
-                #expect(sema.symbols.externalLinkName(for: overload) == expectedLink)
+                #expect(
+                    sema.symbols.externalLinkName(for: overload) == nil,
+                    "StringBuilder.append overload for \(parameterType) should be source-backed"
+                )
             }
         }
     }

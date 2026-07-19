@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-019 lambda thunks for forEachDirectoryEntry
 //
@@ -10,6 +10,10 @@ import XCTest
 // @convention(c) closures cannot capture variables.
 
 nonisolated(unsafe) private var _forEachDirectoryEntryNames: [String] = []
+
+private func resetRuntimePathForEachDirectoryEntryTestState() {
+    _forEachDirectoryEntryNames = []
+}
 
 private let forEachDirectoryEntryRecordName: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { pathRaw, outThrown in
     outThrown?.pointee = 0
@@ -28,10 +32,8 @@ private func fnPtrInt1(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
 ///
 /// Covers kk_path_forEachDirectoryEntry and kk_path_forEachDirectoryEntry_default,
 /// the runtime entries for the kotlin.io.path.forEachDirectoryEntry extension.
-final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimePathForEachDirectoryEntryTestState))
+struct RuntimePathForEachDirectoryEntryTests {
     private func makeRuntimeString(_ value: String) -> Int {
         let bytes = Array(value.utf8)
         return bytes.withUnsafeBufferPointer { buffer -> Int in
@@ -57,7 +59,7 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         return directory
     }
 
-    func testForEachDirectoryEntryDefaultInvokesActionForEachDirectEntry() throws {
+    @Test func testForEachDirectoryEntryDefaultInvokesActionForEachDirectEntry() throws {
         let directory = try makeFixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -65,11 +67,11 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(directory.path)
         let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(_forEachDirectoryEntryNames.sorted(), ["alpha.kt", "beta.txt", "nested"])
+        #expect(result == 0)
+        #expect(_forEachDirectoryEntryNames.sorted() == ["alpha.kt", "beta.txt", "nested"])
     }
 
-    func testForEachDirectoryEntryFiltersByGlob() throws {
+    @Test func testForEachDirectoryEntryFiltersByGlob() throws {
         let directory = try makeFixtureDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -78,11 +80,11 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         let globRaw = makeRuntimeString("*.kt")
         let result = kk_path_forEachDirectoryEntry(pathRaw, globRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(_forEachDirectoryEntryNames, ["alpha.kt"])
+        #expect(result == 0)
+        #expect(_forEachDirectoryEntryNames == ["alpha.kt"])
     }
 
-    func testForEachDirectoryEntryMissingDirectoryProducesNoInvocations() {
+    @Test func testForEachDirectoryEntryMissingDirectoryProducesNoInvocations() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
@@ -90,7 +92,7 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimeTestPathHandle(missingPath.path)
         let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
-        XCTAssertEqual(result, 0)
-        XCTAssertTrue(_forEachDirectoryEntryNames.isEmpty)
+        #expect(result == 0)
+        #expect(_forEachDirectoryEntryNames.isEmpty)
     }
 }
