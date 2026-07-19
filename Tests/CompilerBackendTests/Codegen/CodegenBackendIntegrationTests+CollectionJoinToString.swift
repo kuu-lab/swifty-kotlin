@@ -4,6 +4,9 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
+    // Keep all joinToString coverage in one XCTest method. This test case is
+    // already large, and Swift's generated Linux discovery array can exceed
+    // the type-checker time limit when several methods are added.
     func testCodegenIterableJoinToStringUsesRuntimeDefaultsAndNamedArguments() throws {
         let source = """
         fun main() {
@@ -15,10 +18,54 @@ extension CodegenBackendIntegrationTests {
 
             val set: Set<String> = setOf("x", "y")
             println(set.joinToString(";"))
+
+            val parts = "a\\r\\nbb\\r\\nccc".split("\\r\\n")
+            println(parts.joinToString(",") { it.length.toString() })
+
+            val list = listOf("a", "bb", "ccc")
+            println(list.joinToString { it.length.toString() })
+            println(list.joinToString(",", "[", "]") { it.length.toString() })
+
+            val empty = emptyList<String>()
+            println(empty.joinToString { it.length.toString() })
+
+            val iter: Iterable<String> = listOf("a", "bb", "ccc")
+            println(iter.joinToString("-") { "<" + it + ">" })
+
+            // Named-argument calls without a transform must keep resolving to
+            // the plain (separator, prefix, postfix) overload.
+            println(list.joinToString(prefix = "<", postfix = ">"))
+
+            try {
+                println(listOf(1, 2, 3).joinToString(",") {
+                    if (it == 2) throw IllegalStateException("boom")
+                    it.toString()
+                })
+                println("missing-throw")
+            } catch (e: IllegalStateException) {
+                println("caught: " + e.message)
+            }
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "IterableJoinToStringRuntime", expected: "1, 2, 3\n1 | 2 | 3\n<1, 2, 3>\n[1:2:3]\nx;y\n")
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableAndListJoinToStringRuntime",
+            expected:
+                """
+                1, 2, 3
+                1 | 2 | 3
+                <1, 2, 3>
+                [1:2:3]
+                x;y
+                1,2,3
+                1, 2, 3
+                [1,2,3]
+
+                <a>-<bb>-<ccc>
+                <a, bb, ccc>
+                caught: boom
+                """ + "\n"
+        )
     }
 }
-
