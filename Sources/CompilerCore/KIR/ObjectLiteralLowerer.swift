@@ -305,7 +305,7 @@ final class ObjectLiteralLowerer {
 
     // MARK: - REFL-004: KClass Binary Metadata Registration
 
-    /// Emits a call to `kk_kclass_register_metadata` to register compile-time
+    /// Emits a call to `__kk_kclass_register_metadata` to register compile-time
     /// metadata for a nominal type so that `KClass` instances can query it at runtime.
     private func registerKClassMetadata(
         objectSymbol: SymbolID,
@@ -409,11 +409,11 @@ final class ObjectLiteralLowerer {
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
-        // Call kk_kclass_register_metadata.
+        // Call __kk_kclass_register_metadata.
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_kclass_register_metadata"),
+            callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
             canThrow: false,

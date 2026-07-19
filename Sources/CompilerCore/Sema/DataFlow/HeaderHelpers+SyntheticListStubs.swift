@@ -1193,6 +1193,44 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+
+        // Register `List<E>.joinToString(separator?, prefix?, postfix?, transform)` HOF
+        // overloads. See the matching comment in
+        // `HeaderHelpers+SyntheticIterableRegistry.swift`'s
+        // `registerIterableJoinToStringMember` for why these are four separate
+        // required-arity overloads rather than one signature with defaults.
+        let transformType = types.make(.functionType(FunctionType(
+            params: [listTypeParamType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        func registerTransformOverload(_ parameterTypes: [TypeID]) {
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_joinToString_transform", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: types.stringType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+        registerTransformOverload([transformType])
+        registerTransformOverload([types.stringType, transformType])
+        registerTransformOverload([types.stringType, types.stringType, transformType])
+        registerTransformOverload([types.stringType, types.stringType, types.stringType, transformType])
     }
 
     private func registerListContentEqualsMember(
