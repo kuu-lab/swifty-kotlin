@@ -5,7 +5,7 @@ public extension RuntimeABISpec {
     /// KParameter reflection runtime functions (STDLIB-REFLECT-063).
     static let kParameterFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_create",
+            name: "__kk_kparameter_create",
             parameters: [
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
@@ -18,7 +18,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_get_index",
+            name: "__kk_kparameter_get_index",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -27,7 +27,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_get_name",
+            name: "__kk_kparameter_get_name",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -36,7 +36,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_get_type",
+            name: "__kk_kparameter_get_type",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -45,7 +45,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_is_optional",
+            name: "__kk_kparameter_is_optional",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -54,7 +54,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kparameter_get_kind",
+            name: "__kk_kparameter_get_kind",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -67,7 +67,7 @@ public extension RuntimeABISpec {
     /// KFunction, KProperty, and KConstructor reflection runtime functions.
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_create",
+            name: "__kk_kfunction_create",
             parameters: [
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
@@ -81,7 +81,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_create_full",
+            name: "__kk_kfunction_create_full",
             parameters: [
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
@@ -97,7 +97,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_name",
+            name: "__kk_kfunction_get_name",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -106,7 +106,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_arity",
+            name: "__kk_kfunction_get_arity",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -115,7 +115,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_return_type",
+            name: "__kk_kfunction_get_return_type",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -124,7 +124,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_is_suspend",
+            name: "__kk_kfunction_is_suspend",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -133,7 +133,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_parameters",
+            name: "__kk_kfunction_get_parameters",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -142,7 +142,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_value_parameters",
+            name: "__kk_kfunction_get_value_parameters",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -151,7 +151,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_get_type",
+            name: "__kk_kfunction_get_type",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -160,7 +160,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_0",
+            name: "__kk_kfunction_call_0",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -169,7 +169,7 @@ public extension RuntimeABISpec {
             section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_1",
+            name: "__kk_kfunction_call_1",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "arg", type: .intptr),
@@ -179,7 +179,7 @@ public extension RuntimeABISpec {
             section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_2",
+            name: "__kk_kfunction_call_2",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "arg1", type: .intptr),
@@ -190,7 +190,7 @@ public extension RuntimeABISpec {
             section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_3",
+            name: "__kk_kfunction_call_3",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "arg1", type: .intptr),
@@ -202,7 +202,7 @@ public extension RuntimeABISpec {
             section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_vararg",
+            name: "__kk_kfunction_call_vararg",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "argsListRaw", type: .intptr),
@@ -212,7 +212,7 @@ public extension RuntimeABISpec {
             section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_kconstructor_create",
+            name: "__kk_kconstructor_create",
             parameters: [
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),

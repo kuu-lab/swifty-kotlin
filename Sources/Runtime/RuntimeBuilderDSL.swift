@@ -342,9 +342,9 @@ private func runtimeExecuteStringBuilderAction(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) nesting depth exceeded (max 16)")
     }
 
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var thrown = 0
-    _ = lambda(&thrown)
+    _ = lambda(0, &thrown)
 
     if thrown != 0 {
         outThrown?.pointee = thrown
@@ -513,4 +513,3 @@ public func kk_build_map(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) 
     let frame = runtimeBuilderState.popMapFrame() ?? RuntimeMutableMapFrame()
     return registerRuntimeObject(RuntimeMapBox(keys: frame.keys, values: frame.values))
 }
-

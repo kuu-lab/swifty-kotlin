@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite @MainActor
+@Suite
 struct BuildKIRRegressionTests {
     @Test func testLoadSourcesPhaseReportsMissingInputsAndUnreadableFiles() {
         let emptyCtx = makeCompilationContext(inputs: [])
@@ -471,7 +471,7 @@ struct BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            #expect(callees.contains("kk_box_long"))
+            #expect(callees.contains("kk_box_long_nonnull"))
         }
     }
 
@@ -521,7 +521,7 @@ struct BuildKIRRegressionTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(callees.contains("kk_box_int"))
-            #expect(callees.contains("kk_box_long"))
+            #expect(callees.contains("kk_box_long_nonnull"))
         }
     }
 
