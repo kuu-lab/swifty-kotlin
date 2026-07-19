@@ -1,5 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
 private final class CapturedIDBuffer: @unchecked Sendable {
     private let lock = NSLock()
@@ -18,134 +20,136 @@ private final class CapturedIDBuffer: @unchecked Sendable {
     }
 }
 
-final class StringInternerTests: XCTestCase {
+@Suite
+struct StringInternerTests {
     // MARK: - InternedString
 
-    func testInternedStringInvalidAndDefault() {
-        XCTAssertEqual(InternedString.invalid.rawValue, -1)
-        XCTAssertEqual(InternedString(), InternedString.invalid)
+    @Test func testInternedStringInvalidAndDefault() {
+        #expect(InternedString.invalid.rawValue == -1)
+        #expect(InternedString() == InternedString.invalid)
     }
 
-    func testInternedStringWithRawValue() {
+    @Test func testInternedStringWithRawValue() {
         let s = InternedString(rawValue: 42)
-        XCTAssertEqual(s.rawValue, 42)
+        #expect(s.rawValue == 42)
     }
 
-    func testInternedStringHashable() {
+    @Test func testInternedStringHashable() {
         let a = InternedString(rawValue: 1)
         let b = InternedString(rawValue: 1)
         let c = InternedString(rawValue: 2)
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+        #expect(a == b)
+        #expect(a != c)
 
         var set = Set<InternedString>()
         set.insert(a)
         set.insert(b)
-        XCTAssertEqual(set.count, 1)
+        #expect(set.count == 1)
         set.insert(c)
-        XCTAssertEqual(set.count, 2)
+        #expect(set.count == 2)
     }
 
     // MARK: - StringInterner basic operations
 
-    func testInternReturnsSameIDForSameString() {
+    @Test func testInternReturnsSameIDForSameString() {
         let interner = StringInterner()
         let id1 = interner.intern("hello")
         let id2 = interner.intern("hello")
-        XCTAssertEqual(id1, id2)
+        #expect(id1 == id2)
     }
 
-    func testInternReturnsDifferentIDForDifferentStrings() {
+    @Test func testInternReturnsDifferentIDForDifferentStrings() {
         let interner = StringInterner()
         let id1 = interner.intern("hello")
         let id2 = interner.intern("world")
-        XCTAssertNotEqual(id1, id2)
+        #expect(id1 != id2)
     }
 
-    func testResolveReturnsOriginalString() {
+    @Test func testResolveReturnsOriginalString() {
         let interner = StringInterner()
         let id = interner.intern("test string")
         let resolved = interner.resolve(id)
-        XCTAssertEqual(resolved, "test string")
+        #expect(resolved == "test string")
     }
 
-    func testResolveInvalidIDReturnsEmpty() {
+    @Test func testResolveInvalidIDReturnsEmpty() {
         let interner = StringInterner()
         let result = interner.resolve(InternedString.invalid)
-        XCTAssertEqual(result, "")
+        #expect(result == "")
     }
 
-    func testResolveOutOfBoundsReturnsEmpty() {
+    @Test func testResolveOutOfBoundsReturnsEmpty() {
         let interner = StringInterner()
         let result = interner.resolve(InternedString(rawValue: 9999))
-        XCTAssertEqual(result, "")
+        #expect(result == "")
     }
 
-    func testInternEmptyString() {
+    @Test func testInternEmptyString() {
         let interner = StringInterner()
         let id = interner.intern("")
         let resolved = interner.resolve(id)
-        XCTAssertEqual(resolved, "")
+        #expect(resolved == "")
     }
 
-    func testInternMultipleStrings() {
+    @Test func testInternMultipleStrings() {
         let interner = StringInterner()
         let words = ["apple", "banana", "cherry", "date", "elderberry"]
         var ids: [InternedString] = []
         for word in words {
             ids.append(interner.intern(word))
         }
-        XCTAssertEqual(Set(ids).count, words.count)
+        #expect(Set(ids).count == words.count)
         for (i, word) in words.enumerated() {
-            XCTAssertEqual(interner.resolve(ids[i]), word)
+            #expect(interner.resolve(ids[i]) == word)
         }
     }
 
-    func testInternIDsAreMonotonicallyIncreasing() {
+    @Test func testInternIDsAreMonotonicallyIncreasing() {
         let interner = StringInterner()
         let id0 = interner.intern("a")
         let id1 = interner.intern("b")
         let id2 = interner.intern("c")
-        XCTAssertNotEqual(id0, InternedString.invalid)
-        XCTAssertNotEqual(id1, InternedString.invalid)
-        XCTAssertNotEqual(id2, InternedString.invalid)
-        XCTAssertNotEqual(id0, id1)
-        XCTAssertNotEqual(id1, id2)
-        XCTAssertNotEqual(id0, id2)
-        XCTAssertLessThan(id0.rawValue, id1.rawValue)
-        XCTAssertLessThan(id1.rawValue, id2.rawValue)
+        #expect(id0 != InternedString.invalid)
+        #expect(id1 != InternedString.invalid)
+        #expect(id2 != InternedString.invalid)
+        #expect(id0 != id1)
+        #expect(id1 != id2)
+        #expect(id0 != id2)
+        #expect(id0.rawValue < id1.rawValue)
+        #expect(id1.rawValue < id2.rawValue)
     }
 
-    func testInternUnicodeStrings() {
+    @Test func testInternUnicodeStrings() {
         let interner = StringInterner()
         let id1 = interner.intern("日本語")
         let id2 = interner.intern("emoji 🎉")
         let id3 = interner.intern("日本語")
-        XCTAssertEqual(id1, id3)
-        XCTAssertNotEqual(id1, id2)
-        XCTAssertEqual(interner.resolve(id1), "日本語")
-        XCTAssertEqual(interner.resolve(id2), "emoji 🎉")
+        #expect(id1 == id3)
+        #expect(id1 != id2)
+        #expect(interner.resolve(id1) == "日本語")
+        #expect(interner.resolve(id2) == "emoji 🎉")
     }
 
-    func testInternSpecialCharacters() {
+    @Test func testInternSpecialCharacters() {
         let interner = StringInterner()
         let id = interner.intern("hello\nworld\ttab")
-        XCTAssertEqual(interner.resolve(id), "hello\nworld\ttab")
+        #expect(interner.resolve(id) == "hello\nworld\ttab")
     }
 
     // MARK: - Thread safety
 
-    func testConcurrentInternDoesNotCrash() {
+    @Test func testConcurrentInternDoesNotCrash() {
         let interner = StringInterner()
-        let expectation = XCTestExpectation(description: "Concurrent intern")
-        expectation.expectedFulfillmentCount = 10
+        let group = DispatchGroup()
 
         // Capture IDs returned during concurrent phase so we verify
         // the actual values produced under contention, not re-interned ones.
         let capturedIDs = CapturedIDBuffer()
 
         for i in 0 ..< 10 {
+            group.enter()
             DispatchQueue.global().async {
+                defer { group.leave() }
                 var localIDs: [(String, InternedString)] = []
                 for j in 0 ..< 100 {
                     let str = "string_\(i)_\(j)"
@@ -153,34 +157,34 @@ final class StringInternerTests: XCTestCase {
                     localIDs.append((str, id))
                 }
                 capturedIDs.append(contentsOf: localIDs)
-                expectation.fulfill()
             }
         }
 
-        wait(for: [expectation], timeout: 10.0)
+        #expect(group.wait(timeout: .now() + .seconds(10)) == .success, "Concurrent intern timed out")
 
         // Verify IDs captured during the concurrent phase resolve correctly
         for (str, id) in capturedIDs.snapshot() {
-            XCTAssertEqual(interner.resolve(id), str)
+            #expect(interner.resolve(id) == str)
         }
     }
 
-    func testConcurrentResolveDoesNotCrash() {
+    @Test func testConcurrentResolveDoesNotCrash() {
         let interner = StringInterner()
         let ids: [InternedString] = (0 ..< 100).map { interner.intern("value_\($0)") }
 
-        let expectation = XCTestExpectation(description: "Concurrent resolve")
-        expectation.expectedFulfillmentCount = 10
+        let group = DispatchGroup()
 
         for _ in 0 ..< 10 {
+            group.enter()
             DispatchQueue.global().async {
+                defer { group.leave() }
                 for id in ids {
                     _ = interner.resolve(id)
                 }
-                expectation.fulfill()
             }
         }
 
-        wait(for: [expectation], timeout: 10.0)
+        #expect(group.wait(timeout: .now() + .seconds(10)) == .success, "Concurrent resolve timed out")
     }
 }
+#endif

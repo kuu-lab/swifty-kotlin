@@ -75,6 +75,44 @@ extension CallLowerer {
             )
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
+        let isSourceBackedListFilterCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil,
+                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+            else {
+                return false
+            }
+            let sourceBackedListFilterFQNames: Set<[InternedString]> = [
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filter")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNot")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNotNull")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIndexed")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstance")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstanceTo")],
+            ]
+            return sourceBackedListFilterFQNames.contains(symbol.fqName)
+        }()
+        let isSourceBackedMemberCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            guard sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) else {
+                return false
+            }
+            let sourceBackedStringMemberNames: Set<String> = ["split", "replace", "replaceFirst"]
+            return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
+                && (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -85,6 +123,14 @@ extension CallLowerer {
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
                !externalLinkName.isEmpty
             {
+                return true
+            }
+            if resultRuntimeHOFMemberCalleeName(
+                memberName: interner.resolve(calleeName),
+                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
+                sema: sema,
+                interner: interner
+            ) != nil {
                 return true
             }
             return sema.symbols.symbol(chosenCallee)?.declSite == nil
@@ -623,7 +669,7 @@ extension CallLowerer {
                 var rhs = loweredArgIDs[0]
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
-                        let converted = arena.appendTemporary(type: doubleType)
+                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -635,7 +681,7 @@ extension CallLowerer {
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
-                        let converted = arena.appendTemporary(type: doubleType)
+                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -1133,6 +1179,7 @@ extension CallLowerer {
         // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
         if args.isEmpty,
            interner.resolve(calleeName) == "filterIsInstance",
+           !isSourceBackedListFilterCall,
            isSequenceLikeType(
             sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
             sema: sema,
@@ -1170,6 +1217,7 @@ extension CallLowerer {
         // filterIsInstanceTo<R>(destination) — encode type token from result type (STDLIB-021)
         if args.count == 1,
            interner.resolve(calleeName) == "filterIsInstanceTo",
+           !isSourceBackedListFilterCall,
            isSequenceLikeType(
             sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
             sema: sema,
@@ -1220,6 +1268,9 @@ extension CallLowerer {
             return tableDrivenStringMember
         }
 
+        // Migrated source-backed members must lower through their Kotlin body;
+        // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
+        if !isSourceBackedMemberCall {
         // Collection nullable-receiver isNullOrEmpty fallback.
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
@@ -1334,7 +1385,39 @@ extension CallLowerer {
                     ))
                     return result
                 }
-
+                if calleeStr == "toDouble" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("__kk_string_toDouble_flat"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "toDoubleOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("__kk_string_toDoubleOrNull_flat"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "toFloatOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("__kk_string_toFloatOrNull_flat"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1428,6 +1511,36 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_toRegex_flat"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
+                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
+                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
+                        : calleeStr == "last" ? "kk_string_last_flat"
+                        : "kk_string_single_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(kkName),
+                        arguments: [loweredReceiverID, thrownExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
+                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
+                        : "kk_string_singleOrNull_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(kkName),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -2523,7 +2636,7 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "contains" {
-                    let listExpr = arena.appendTemporary()
+                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_toList"),
@@ -3258,48 +3371,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-            // StringBuilder member calls with 1 arg (STDLIB-255/256/257)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                // A spread single argument (`sb.append(*array)`) must fall through to the
-                // vararg-specific lowering below instead of being treated as one Any? value.
-                let runtimeCallee: String? = if calleeName == sbNames.append, args.first?.isSpread != true {
-                    // Dispatch append(value) to the typed overload based on the argument type.
-                    {
-                        let argType = normalizedArgIDs.first.flatMap { arena.exprType($0) }
-                        let nonNull = argType.map { sema.types.makeNonNullable($0) }
-                        if nonNull == sema.types.booleanType { return "kk_string_builder_append_bool" }
-                        if nonNull == sema.types.charType { return "kk_string_builder_append_char" }
-                        if nonNull == sema.types.make(.primitive(.float, .nonNull)) { return "kk_string_builder_append_float" }
-                        if nonNull == sema.types.make(.primitive(.double, .nonNull)) { return "kk_string_builder_append_double" }
-                        return "kk_string_builder_append_obj"
-                    }()
-                } else if calleeName == sbNames.appendLine {
-                    "kk_string_builder_append_line_obj"
-                } else if calleeName == sbNames.deleteCharAt {
-                    "kk_string_builder_deleteCharAt"
-                } else if calleeName == sbNames.deleteAt {
-                    "kk_string_builder_deleteAt"
-                } else if calleeName == sbNames.get {
-                    "kk_string_builder_get"
-                } else if calleeName == sbNames.ensureCapacity {
-                    "kk_string_builder_ensureCapacity"
-                } else {
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
+                        canThrow: false,
                         thrownResult: nil
                     ))
                     return result
@@ -3384,104 +3456,6 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
                 return result
-            }
-            // StringBuilder 2-arg member calls (STDLIB-255/256/257)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.insert {
-                    {
-                        let semanticArgType = args.indices.contains(1)
-                            ? sema.bindings.exprTypes[args[1].expr]
-                            : nil
-                        let argType = semanticArgType ?? normalizedArgIDs.dropFirst().first.flatMap { arena.exprType($0) }
-                        let nonNull = argType.map { sema.types.makeNonNullable($0) }
-                        if nonNull == sema.types.booleanType { return "kk_string_builder_insert_bool" }
-                        if nonNull == sema.types.charType { return "kk_string_builder_insert_char" }
-                        if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
-                            return "kk_string_builder_insert_float"
-                        }
-                        if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
-                            return "kk_string_builder_insert_double"
-                        }
-                        return "kk_string_builder_insert_obj"
-                    }()
-                } else if calleeName == sbNames.delete {
-                    "kk_string_builder_delete_obj"
-                } else if calleeName == sbNames.deleteRange {
-                    "kk_string_builder_deleteRange"
-                } else if calleeName == sbNames.sbSet {
-                    // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
-                    "kk_string_builder_setCharAt"
-                } else if calleeName == sbNames.setCharAt {
-                    "kk_string_builder_setCharAt"
-                } else {
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
-        // StringBuilder 3-arg member calls (STDLIB-580 / STDLIB-STR-123)
-        if args.count == 3 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.appendRange {
-                    "kk_string_builder_appendRange_obj_flat"
-                } else if calleeName == sbNames.replace {
-                    "kk_string_builder_replace_obj_flat"
-                } else if calleeName == sbNames.setRange {
-                    "kk_string_builder_setRange_flat"
-                } else {
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
-        // StringBuilder 4-arg member calls (STDLIB-TEXT-BUILDER-003)
-        if args.count == 4 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.insertRange {
-                    "kk_string_builder_insertRange_obj_flat"
-                } else {
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
             }
         }
 
@@ -3886,38 +3860,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            // StringBuilder 0-arg member calls and properties (STDLIB-255/256/257)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.toString {
-                    "kk_string_builder_toString"
-                } else if calleeName == sbNames.clear {
-                    "kk_string_builder_clear"
-                } else if calleeName == sbNames.reverse {
-                    "kk_string_builder_reverse"
-                } else if calleeName == sbNames.appendLine {
-                    "kk_string_builder_append_line_noarg_obj"
-                } else if calleeName == sbNames.length {
-                    "kk_string_builder_length_prop"
-                } else if calleeName == sbNames.capacity {
-                    "kk_string_builder_capacity"
-                } else if calleeName == sbNames.trimToSize {
-                    "kk_string_builder_trimToSize"
-                } else {
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
         }
 
         // String stdlib: format(vararg args) (STDLIB-006)
@@ -3937,8 +3879,10 @@ extension CallLowerer {
                         "kk_box_int"
                     case .primitive(.boolean, _):
                         "kk_box_bool"
-                    case .primitive(.long, _), .primitive(.ulong, _):
+                    case .primitive(.long, _):
                         "kk_box_long"
+                    case .primitive(.ulong, _):
+                        "kk_box_ulong"
                     case .primitive(.float, _):
                         "kk_box_float"
                     case .primitive(.double, _):
@@ -3999,57 +3943,6 @@ extension CallLowerer {
                 return result
             }
         }
-
-        // StringBuilder: append(vararg value: String? / Any?) (STDLIB-TEXT-EDGE-012)
-        if interner.resolve(calleeName) == "append",
-           let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_builder_append_vararg_obj"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let intType = sema.types.make(.primitive(.int, .nonNull))
-                // Unboxed primitive elements (Boolean/Char/Float/Double/Int/Long/...) must be
-                // boxed to Any? before being stored in the packed vararg array — otherwise their
-                // raw bit patterns are misread by the runtime's generic element-to-string logic.
-                let boxedArgIDs = loweredArgIDs.enumerated().map { index, argID in
-                    if index < args.count, args[index].isSpread {
-                        return argID
-                    }
-                    return boxCollectionFactoryElementIfNeeded(
-                        argID,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                }
-                let packedArgs: KIRExprID
-                if boxedArgIDs.count == 1, args.first?.isSpread == true {
-                    packedArgs = boxedArgIDs[0]
-                } else {
-                    packedArgs = driver.callSupportLowerer.packVarargArguments(
-                        argIndices: Array(boxedArgIDs.indices),
-                        providedArguments: boxedArgIDs,
-                        spreadFlags: args.map(\.isSpread),
-                        arena: arena,
-                        interner: interner,
-                        intType: intType,
-                        anyType: sema.types.nullableAnyType,
-                        types: sema.types,
-                        instructions: &instructions
-                    )
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_builder_append_vararg_obj"),
-                    arguments: [loweredReceiverID, packedArgs],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
