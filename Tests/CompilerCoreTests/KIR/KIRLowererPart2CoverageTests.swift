@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-@Suite @MainActor
+@Suite
 struct KIRLowererPart2CoverageTests {
     @Test func testLambdaLowererPart2TraversesNestedExpressionsAndDetectsImplicitReceiver() {
         let fixture = makeDirectKIRFixture()
