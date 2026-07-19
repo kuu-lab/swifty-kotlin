@@ -378,6 +378,9 @@ public func kk_list_average(_ listRaw: Int) -> Int {
                 } else if let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
                     sum += Double(longBox.value)
                     continue
+                } else if let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+                    sum += Double(UInt(bitPattern: ulongBox.value))
+                    continue
                 } else if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
                     sum += Double(intBox.value)
                     continue

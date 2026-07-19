@@ -114,7 +114,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/logging/AdvancedLogger",
         "kotlin/ranges/RangeIterators",
         "kotlin/reflect/KClassAnnotationRegistration",
-        "kotlin/text/StringBuilder",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {

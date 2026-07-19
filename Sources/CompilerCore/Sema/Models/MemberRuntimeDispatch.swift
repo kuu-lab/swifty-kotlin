@@ -398,14 +398,10 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
         case ("lines", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lines_flat")
-        case ("lineSequence", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lineSequence_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
-        case ("singleOrNull", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_singleOrNull_flat")
         case ("zipWithNext", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_zipWithNext_flat")
         case ("asSequence", 0):
@@ -488,18 +484,6 @@ enum MemberRuntimeDispatch {
                 canThrow: true,
                 argumentMode: .normalized,
                 thrownResultMode: .nullableAny
-            )
-        case ("ifBlank", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_ifBlank_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("ifEmpty", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_ifEmpty_flat",
-                canThrow: true,
-                argumentMode: .normalized
             )
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")

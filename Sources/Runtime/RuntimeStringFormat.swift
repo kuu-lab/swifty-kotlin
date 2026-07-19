@@ -388,6 +388,9 @@ private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
         if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
             return Double(longBox.value)
         }
+        if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
+            return Double(UInt(bitPattern: ulongBox.value))
+        }
         if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
             return Double(charBox.value)
         }

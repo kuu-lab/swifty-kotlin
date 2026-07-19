@@ -302,8 +302,7 @@ extension CallTypeChecker {
             }
         }
 
-        // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() → Int (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions
+        // Int/Long.count*() → Int; Long/Int bit extraction functions preserve the receiver type (STDLIB-501, STDLIB-BIT-007)
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
             if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" ||
@@ -315,7 +314,11 @@ extension CallTypeChecker {
                     ? sema.types.makeNonNullable(lookupReceiverType)
                     : lookupReceiverType
                 if receiverForCheck == intType || receiverForCheck == longType {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
+                    let returnsInt = calleeStr == "countOneBits"
+                        || calleeStr == "countLeadingZeroBits"
+                        || calleeStr == "countTrailingZeroBits"
+                    let resultBase = returnsInt ? intType : receiverForCheck
+                    let finalType = safeCall ? sema.types.makeNullable(resultBase) : resultBase
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }

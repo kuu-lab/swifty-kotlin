@@ -92,6 +92,53 @@ final class CallLowerer {
         )
     }
 
+    private func isStringBuilderConstructor(
+        _ symbolID: SymbolID?,
+        sema: SemaModule,
+        knownNames: KnownCompilerNames
+    ) -> Bool {
+        guard let symbolID,
+              sema.symbols.symbol(symbolID)?.kind == .constructor,
+              let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+        else {
+            return false
+        }
+        return knownNames.isStringBuilderSymbol(ownerInfo)
+    }
+
+    private func lowerStringBuilderConstructorCall(
+        finalArgIDs: [KIRExprID],
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let result = arena.appendTemporary(type: resultType)
+        let runtimeCallee: InternedString
+        let runtimeArgs: [KIRExprID]
+        if let firstArg = finalArgIDs.first,
+           let firstArgType = arena.exprType(firstArg),
+           sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.stringType)
+        {
+            runtimeCallee = interner.intern("kk_string_builder_new_from_string_flat")
+            runtimeArgs = [firstArg]
+        } else {
+            runtimeCallee = interner.intern("kk_string_builder_new")
+            runtimeArgs = []
+        }
+        instructions.append(.call(
+            symbol: nil,
+            callee: runtimeCallee,
+            arguments: runtimeArgs,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return result
+    }
+
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
     /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
@@ -664,11 +711,25 @@ final class CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
+            // KSP-500: expand the closure to (fnPtr, closureRaw) and box its
+            // returned primitive here, same as appendClosureArgumentsIfNeeded's
+            // "kk_sequence_generate_noarg" case — this call is constructed
+            // directly and never reaches that path, so without this the
+            // closure's captures are silently dropped (passed as closureRaw=0)
+            // and its returned elements are never boxed.
+            let expanded = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[0],
+                argExprID: args[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate_noarg"),
-                arguments: [loweredArgIDs[0]],
+                arguments: [expanded.fnPtr, expanded.closureRaw],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -692,11 +753,89 @@ final class CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            // KSP-500: box the seed function's result, same as the direct-seed-value
+            // overload's rewrite in CollectionLiteralLoweringPass+CallRewriteFactories.
+            var boxedSeedResult = seedResult
+            if let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                for: sema.types.makeNonNullable(functionType.returnType),
+                types: sema.types,
+                requireNonNull: true
+            ) {
+                boxedSeedResult = emitNonThrowingCall(
+                    callee: seedBoxCallee,
+                    arg: seedResult,
+                    resultType: sema.types.makeNonNullable(functionType.returnType),
+                    arena: arena,
+                    into: &instructions
+                )
+            }
+            // KSP-500: expand the nextFunction closure to (fnPtr, closureRaw) and
+            // box its returned primitive — see the 1-arg case above for why this
+            // can't be skipped (this call is constructed directly and never
+            // reaches appendClosureArgumentsIfNeeded's "kk_sequence_generate" case).
+            let expandedNextFunction = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[1],
+                argExprID: args[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate"),
-                arguments: [seedResult, loweredArgIDs[1]],
+                arguments: [boxedSeedResult, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        // STDLIB-097: 2-arg direct-seed-value form generateSequence(seed: T?, nextFunction: (T) -> T?).
+        // KSP-500: Sema's dedicated type-check shortcut for generateSequence (see
+        // CallTypeChecker.swift) never populates sema.bindings.callBindings for
+        // this overload, so `chosen` is nil here and this call would otherwise
+        // never reach appendClosureArgumentsIfNeeded's "kk_sequence_generate"
+        // case (gated on `let chosen`) — the closure's captures would be
+        // silently dropped and its returned elements never boxed. Handle it
+        // directly, same as the other two generateSequence overloads above.
+        if sourceCalleeName == interner.intern("generateSequence"),
+           loweredArgIDs.count == 2
+        {
+            let expandedNextFunction = expandGenerateSequenceNextFunction(
+                loweredArgID: loweredArgIDs[1],
+                argExprID: args[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            // Box the seed value. CollectionLiteralLoweringPass+CallRewriteFactories
+            // also boxes the seed on the (now-unreachable-for-this-overload, but
+            // kept as a defense-in-depth fallback) rewrite path; kk_box_int et al.
+            // are idempotent, so double-boxing here would be harmless anyway.
+            var seedArgument = loweredArgIDs[0]
+            if let seedType = sema.bindings.exprTypes[args[0].expr],
+               let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                   for: seedType,
+                   types: sema.types,
+                   requireNonNull: false
+               )
+            {
+                seedArgument = emitNonThrowingCall(
+                    callee: seedBoxCallee,
+                    arg: seedArgument,
+                    resultType: sema.types.anyType,
+                    arena: arena,
+                    into: &instructions
+                )
+            }
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            instructions.append(.call(
+                symbol: chosen,
+                callee: interner.intern("kk_sequence_generate"),
+                arguments: [seedArgument, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -830,30 +969,6 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
-        if chosen == nil,
-           loweredCallable == nil,
-           let implicitStringBuilderCall = implicitReceiverStringBuilderRuntimeCallee(
-               sourceCalleeName: sourceCalleeName,
-               loweredArguments: loweredArgIDs,
-               sema: sema,
-               arena: arena,
-               interner: interner
-           )
-        {
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
-            )
-            let sbCalleeName = interner.resolve(implicitStringBuilderCall.callee)
-            let sbCanThrow = isThrowingStringBuilderRuntimeFunction(sbCalleeName)
-            instructions.append(.call(
-                symbol: nil,
-                callee: implicitStringBuilderCall.callee,
-                arguments: [implicitStringBuilderCall.receiver] + loweredArgIDs,
-                result: result,
-                canThrow: sbCanThrow,
-                thrownResult: nil
-            ))
-            return result
-        }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             if let chosen,
@@ -897,6 +1012,19 @@ final class CallLowerer {
             )
         } else {
             nil
+        }
+        if callableInvokeCallee == nil,
+           loweredCallable == nil,
+           isStringBuilderConstructor(chosen, sema: sema, knownNames: knownNames)
+        {
+            return lowerStringBuilderConstructorCall(
+                finalArgIDs: finalArgIDs,
+                resultType: boundType ?? sema.types.anyType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         if callableInvokeCallee != nil {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
@@ -1311,109 +1439,6 @@ final class CallLowerer {
         }
     }
 
-    private func implicitReceiverStringBuilderRuntimeCallee(
-        sourceCalleeName: InternedString,
-        loweredArguments: [KIRExprID],
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner
-    ) -> (receiver: KIRExprID, callee: InternedString)? {
-        guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
-              let receiverType = arena.exprType(implicitReceiver),
-              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-        else {
-            return nil
-        }
-
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard knownNames.isStringBuilderSymbol(symbol) else {
-            return nil
-        }
-
-        // For append(value), dispatch to typed overloads when the argument is a primitive.
-        if interner.resolve(sourceCalleeName) == "append", loweredArguments.count == 1 {
-            let argCallee: String
-            if let argType = arena.exprType(loweredArguments[0]) {
-                let nonNull = sema.types.makeNonNullable(argType)
-                if nonNull == sema.types.booleanType {
-                    argCallee = "kk_string_builder_append_bool"
-                } else if nonNull == sema.types.charType {
-                    argCallee = "kk_string_builder_append_char"
-                } else if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
-                    argCallee = "kk_string_builder_append_float"
-                } else if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
-                    argCallee = "kk_string_builder_append_double"
-                } else {
-                    argCallee = "kk_string_builder_append_obj"
-                }
-            } else {
-                argCallee = "kk_string_builder_append_obj"
-            }
-            return (implicitReceiver, interner.intern(argCallee))
-        }
-
-        // STDLIB-TEXT-FN-024: For insert(index, value), dispatch to typed overloads.
-        if interner.resolve(sourceCalleeName) == "insert", loweredArguments.count == 2 {
-            let argCallee: String
-            if let argType = arena.exprType(loweredArguments[1]) {
-                let nonNull = sema.types.makeNonNullable(argType)
-                if nonNull == sema.types.booleanType {
-                    argCallee = "kk_string_builder_insert_bool"
-                } else if nonNull == sema.types.charType {
-                    argCallee = "kk_string_builder_insert_char"
-                } else if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
-                    argCallee = "kk_string_builder_insert_float"
-                } else if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
-                    argCallee = "kk_string_builder_insert_double"
-                } else {
-                    argCallee = "kk_string_builder_insert_obj"
-                }
-            } else {
-                argCallee = "kk_string_builder_insert_obj"
-            }
-            return (implicitReceiver, interner.intern(argCallee))
-        }
-
-        let callee: String? = switch (interner.resolve(sourceCalleeName), loweredArguments.count) {
-        case ("appendLine", 0):
-            "kk_string_builder_append_line_noarg_obj"
-        case ("appendLine", 1):
-            "kk_string_builder_append_line_obj"
-        case ("appendRange", 3):
-            "kk_string_builder_appendRange_obj_flat"
-        case ("toString", 0):
-            "kk_string_builder_toString"
-        case ("clear", 0):
-            "kk_string_builder_clear"
-        case ("reverse", 0):
-            "kk_string_builder_reverse"
-        case ("length", 0):
-            "kk_string_builder_length_prop"
-        case ("deleteCharAt", 1):
-            "kk_string_builder_deleteCharAt"
-        case ("deleteAt", 1):
-            "kk_string_builder_deleteAt"
-        case ("delete", 2):
-            "kk_string_builder_delete_obj"
-        case ("deleteRange", 2):
-            "kk_string_builder_deleteRange"
-        case ("insertRange", 4):
-            "kk_string_builder_insertRange_obj_flat"
-        case ("setRange", 3):
-            "kk_string_builder_setRange_flat"
-        case ("set", 2):
-            // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
-            "kk_string_builder_setCharAt"
-        default:
-            nil
-        }
-
-        guard let callee else {
-            return nil
-        }
-        return (implicitReceiver, interner.intern(callee))
-    }
-
     /// Returns true if the callee is a runtime function that requires a thrown
     /// channel (outThrown) parameter in its ABI. This ensures the codegen
     /// appends the extra `intptr_t * _Nullable` slot.
@@ -1431,34 +1456,6 @@ final class CallLowerer {
             "kk_runtime_result_run_catching",
             "kk_synchronized",
         ].contains(name)
-    }
-
-    /// Returns true if the given StringBuilder runtime function performs bounds
-    /// checking and may throw IndexOutOfBoundsException via the outThrown channel.
-    func isThrowingStringBuilderRuntimeFunction(_ name: String) -> Bool {
-        switch name {
-        case "kk_string_builder_insert_obj",
-             "kk_string_builder_insert_obj_flat",
-             "kk_string_builder_insert_char",
-             "kk_string_builder_insert_bool",
-             "kk_string_builder_insert_float",
-             "kk_string_builder_insert_double",
-             "kk_string_builder_delete_obj",
-             "kk_string_builder_deleteRange",
-             "kk_string_builder_deleteCharAt",
-             "kk_string_builder_deleteAt",
-             "kk_string_builder_insertRange_obj",
-             "kk_string_builder_insertRange_obj_flat",
-             "kk_string_builder_setRange",
-             "kk_string_builder_setRange_flat",
-             "kk_string_builder_replace_obj",
-             "kk_string_builder_replace_obj_flat",
-             "kk_string_builder_setCharAt",
-             "kk_string_builder_get":
-            return true
-        default:
-            return false
-        }
     }
 
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {

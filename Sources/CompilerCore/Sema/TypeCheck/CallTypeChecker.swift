@@ -3162,6 +3162,17 @@ final class CallTypeChecker {
                 }
             }
 
+            if let resultType = inferSequenceScopeYieldAllImplicitReceiverCall(
+                id,
+                calleeName: calleeName,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                explicitTypeArgs: explicitTypeArgs
+            ) {
+                return resultType
+            }
+
             // General member function lookup via implicit receiver
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
@@ -3185,7 +3196,7 @@ final class CallTypeChecker {
                         args: resolvedArgs,
                         explicitTypeArgs: explicitTypeArgs
                     ),
-                    expectedType: expectedType,
+                    expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: receiverType,
                     ctx: ctx.semaCtx
                 )
@@ -3194,7 +3205,8 @@ final class CallTypeChecker {
                     sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                     sema.bindings.bindExprType(id, type: resultType)
                     return resultType
-                } else if let bestCandidate = memberCandidates.first,
+                } else if memberCandidates.count == 1,
+                          let bestCandidate = memberCandidates.first,
                           let sig = sema.symbols.functionSignature(for: bestCandidate)
                 {
                     // Fallback: bind directly if resolver could not pick (single candidate).

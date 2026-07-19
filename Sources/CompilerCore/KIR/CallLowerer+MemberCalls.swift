@@ -3,15 +3,36 @@
 ///
 /// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
+    // KSP-496: simpleName/qualifiedName/isInstance/the boolean flags/
+    // visibility/annotations moved to ordinary Kotlin extension declarations
+    // (Sources/CompilerCore/Stdlib/kotlin/reflect/).
+    //
+    // The remaining names stay here:
+    // - findAnnotation/findAssociatedObject take a reified type argument,
+    //   which this compiler only supports via a small special-cased
+    //   allowlist (like typeOf<T>()).
+    // - cast/safeCast: this compiler's generic inference doesn't correctly
+    //   unify T (inferred from a concrete receiver like KClass<String>)
+    //   against an explicit expected type at the call site. See
+    //   KClassBasicAPI.kt for details.
+    // - members/constructors/primaryConstructor/properties/memberProperties/
+    //   declaredMemberProperties/functions/memberFunctions/
+    //   declaredMemberFunctions/nestedClasses/supertypes return a
+    //   KFunction/KCallable/KClass/KType-shaped collection or value backed by
+    //   a runtime handle. Casting such a handle to its interface type at the
+    //   Kotlin level throws at runtime (these handles aren't wired for
+    //   genuine interface-conformance checks / polymorphic dispatch — e.g.
+    //   `KCallable.name` resolves to a single fixed implementation
+    //   regardless of whether the handle is actually a KFunction or a
+    //   KProperty). See KClassMemberIntrospection.kt for details. Fixing
+    //   this needs Runtime object-model work beyond this ticket's scope.
     private static let kclassMembers: Set<String> = [
-        "isInstance", "cast", "safeCast", "members", "constructors", "primaryConstructor",
+        "findAnnotation", "findAssociatedObject",
+        "cast", "safeCast",
+        "members", "constructors", "primaryConstructor",
         "properties", "memberProperties", "declaredMemberProperties",
         "functions", "memberFunctions", "declaredMemberFunctions",
-        "isFinal", "isOpen", "isAbstract", "visibility",
-        "isData", "isSealed", "isValue",
-        "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
-        "typeParameters", "supertypes",
-        "annotations", "findAnnotation", "findAssociatedObject",
+        "nestedClasses", "supertypes",
     ]
 
     func lowerMemberCallExpr(
@@ -247,30 +268,18 @@ extension CallLowerer {
             return result
         }
 
-        // ── T::class.simpleName / T::class.qualifiedName ──────────────
-        if case let .callableRef(classRefReceiver, refMember, _) = ast.arena.expr(receiverExpr),
+        // ── T::class.findAnnotation<A>() / T::class.findAssociatedObject<A>() ──
+        // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the
+        // boolean flags/members/constructors/etc. now resolve as ordinary
+        // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/)
+        // through the normal member-call path below this block. Only
+        // findAnnotation/findAssociatedObject remain special-cased here — see
+        // CallLowerer.kclassMembers for why.
+        if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
            let classRefTargetType = sema.bindings.classRefTargetType(for: receiverExpr)
         {
             let callee = interner.resolve(calleeName)
-            if callee == "simpleName" || callee == "qualifiedName" {
-                return lowerClassRefPropertyAccess(
-                    exprID,
-                    classRefExprID: receiverExpr,
-                    classRefReceiver: classRefReceiver,
-                    classRefTargetType: classRefTargetType,
-                    propertyName: callee,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions.instructions
-                )
-            }
-            // REFL-005: KClass.isInstance(value), members, constructors
-            // STDLIB-REFLECT-061: properties, memberProperties, functions, memberFunctions, declaredMemberProperties, declaredMemberFunctions
-            // STDLIB-REFLECT-060 / STDLIB-REFLECT-064: basic metadata and primaryConstructor
-            // STDLIB-REFLECT-065: annotations, findAnnotation
             if CallLowerer.kclassMembers.contains(callee) {
                 return lowerKClassReflectMemberCall(
                     exprID,
@@ -287,10 +296,7 @@ extension CallLowerer {
             }
         }
 
-        // REFL-005: KClass-typed variable receiver — dogClass.isInstance(dog) / dogClass.members / dogClass.constructors
-        // STDLIB-REFLECT-061: properties, memberProperties, functions, memberFunctions, declaredMemberProperties, declaredMemberFunctions
-        // STDLIB-REFLECT-060 / STDLIB-REFLECT-064: basic metadata and primaryConstructor
-        // STDLIB-REFLECT-065: annotations, findAnnotation
+        // KSP-496: KClass-typed variable receiver — findAnnotation/findAssociatedObject only (see note above).
         if let receiverType = sema.bindings.exprTypes[receiverExpr],
            isKClassReceiverType(receiverType, sema: sema, interner: interner)
         {
