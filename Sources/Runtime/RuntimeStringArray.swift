@@ -512,14 +512,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
 
-    case RuntimeTypeTokenEncoding.longBase,
-         RuntimeTypeTokenEncoding.ulongBase:
-        // ULong boxes via kk_box_long into RuntimeLongBox, the same as Long
-        // (see BoxingCalleeTable) — it must be checked here rather than
-        // grouped with the RuntimeIntBox family above, or a genuinely-boxed
-        // ULong value would fail its own `is ULong` check. Long and ULong
-        // remain indistinguishable from each other (same pre-existing box
-        // representation limitation noted above).
+    case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -531,6 +524,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return 0
         }
         return tryCast(ptr, to: RuntimeLongBox.self) == nil ? 0 : 1
+
+    case RuntimeTypeTokenEncoding.ulongBase:
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
+            return 1
+        }
+        let isObjPtr = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if !isObjPtr { return 1 }
+        return tryCast(ptr, to: RuntimeULongBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.doubleBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
@@ -1596,6 +1599,10 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         Swift.print(longBox.value)
         return
     }
+    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
+        Swift.print(UInt(bitPattern: ulongBox.value))
+        return
+    }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         Swift.print("Throwable(\(throwable.renderedMessage))")
         return
@@ -1827,6 +1834,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let longBox = tryCast(raw, to: RuntimeLongBox.self) {
         return String(longBox.value)
     }
+    if let ulongBox = tryCast(raw, to: RuntimeULongBox.self) {
+        return String(UInt(bitPattern: ulongBox.value))
+    }
     if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
         if let scalar = UnicodeScalar(charBox.value) {
             return String(Character(scalar))
@@ -2052,14 +2062,6 @@ public func kk_string_isNullOrEmpty_flat(
         byteCount: byteCount,
         hash: hash
     )
-    return str.isEmpty ? 1 : 0
-}
-
-@_cdecl("kk_string_isNullOrEmpty")
-public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
-    guard let str = runtimeStringFromRaw(strRaw) else {
-        return 1
-    }
     return str.isEmpty ? 1 : 0
 }
 
