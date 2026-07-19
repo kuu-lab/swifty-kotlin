@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite @MainActor
+@Suite
 struct CompilerCoreTests {
     @Test func testLexerRecognizesQuestionQuestionSymbol() {
         let source = Data("a ?? b".utf8)
