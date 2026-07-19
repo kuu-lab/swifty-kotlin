@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCopyToOptionsCopiesFileAndReturnsTargetPath() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCopyToTests {
+    @Test func pathCopyToOptionsCopiesFileAndReturnsTargetPath() throws {
         let sourceURL = try makeTempFile(contents: "copy me")
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -18,12 +17,12 @@ final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_copyTo_options(sourceRaw, targetRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "copy me")
+        #expect(thrown == 0)
+        #expect(resultRaw == targetRaw)
+        #expect(try String(contentsOf: targetURL, encoding: .utf8) == "copy me")
     }
 
-    func testPathCopyToOptionsReportsCopyFailure() throws {
+    @Test func pathCopyToOptionsReportsCopyFailure() throws {
         let sourceURL = try makeTempFile(contents: "source")
         let targetURL = try makeTempFile(contents: "existing")
         defer {
@@ -36,12 +35,12 @@ final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_copyTo_options(sourceRaw, targetRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "existing")
+        #expect(thrown != 0)
+        #expect(resultRaw == targetRaw)
+        #expect(try String(contentsOf: targetURL, encoding: .utf8) == "existing")
     }
 
-    func testPathCopyToOverwriteReplacesExistingTarget() throws {
+    @Test func pathCopyToOverwriteReplacesExistingTarget() throws {
         let sourceURL = try makeTempFile(contents: "replacement")
         let targetURL = try makeTempFile(contents: "existing")
         defer {
@@ -54,12 +53,12 @@ final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_copyTo_overwrite(sourceRaw, targetRaw, kk_box_bool(1), &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "replacement")
+        #expect(thrown == 0)
+        #expect(resultRaw == targetRaw)
+        #expect(try String(contentsOf: targetURL, encoding: .utf8) == "replacement")
     }
 
-    func testPathCopyToOverwriteFalseReportsExistingTarget() throws {
+    @Test func pathCopyToOverwriteFalseReportsExistingTarget() throws {
         let sourceURL = try makeTempFile(contents: "replacement")
         let targetURL = try makeTempFile(contents: "existing")
         defer {
@@ -72,9 +71,9 @@ final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_copyTo_overwrite(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "existing")
+        #expect(thrown != 0)
+        #expect(resultRaw == targetRaw)
+        #expect(try String(contentsOf: targetURL, encoding: .utf8) == "existing")
     }
 
     private func makeTempFile(contents: String) throws -> URL {

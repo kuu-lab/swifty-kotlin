@@ -48,35 +48,6 @@ extension CoroutineLoweringPass {
             ))
         }
 
-        func isFlowTransformEmitCall(_ callee: InternedString, _ arguments: [KIRExprID]) -> Bool {
-            guard callee == names.kkFlowEmit, arguments.count == 3 else {
-                return false
-            }
-            guard let tagExpr = module.arena.expr(arguments[2]),
-                  case let .intLiteral(tagValue) = tagExpr,
-                  tagValue == RuntimeFlowTag.map.rawValue ||
-                  tagValue == RuntimeFlowTag.filter.rawValue ||
-                  tagValue == RuntimeFlowTag.take.rawValue ||
-                  tagValue == RuntimeFlowTag.catchHandler.rawValue ||
-                  tagValue == RuntimeFlowTag.retry.rawValue ||
-                  tagValue == RuntimeFlowTag.retryWhen.rawValue ||
-                  tagValue == RuntimeFlowTag.onErrorReturn.rawValue ||
-                  tagValue == RuntimeFlowTag.onErrorResume.rawValue ||
-                  tagValue == RuntimeFlowTag.transform.rawValue ||
-                  tagValue == RuntimeFlowTag.takeWhile.rawValue ||
-                  tagValue == RuntimeFlowTag.dropWhile.rawValue ||
-                  tagValue == RuntimeFlowTag.buffer.rawValue ||
-                  tagValue == RuntimeFlowTag.conflate.rawValue ||
-                  tagValue == RuntimeFlowTag.flowOn.rawValue ||
-                  tagValue == RuntimeFlowTag.debounce.rawValue ||
-                  tagValue == RuntimeFlowTag.sample.rawValue ||
-                  tagValue == RuntimeFlowTag.delayEach.rawValue
-            else {
-                return false
-            }
-            return true
-        }
-
         func isSymbolBackedFlowExpr(_ exprID: KIRExprID) -> Bool {
             if let expr = module.arena.expr(exprID), case .symbolRef = expr {
                 return true
