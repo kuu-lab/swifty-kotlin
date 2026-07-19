@@ -2,7 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-@Suite @MainActor
+@Suite
 struct KIRLoweringContextTests {
     let ctx = KIRLoweringContext()
 

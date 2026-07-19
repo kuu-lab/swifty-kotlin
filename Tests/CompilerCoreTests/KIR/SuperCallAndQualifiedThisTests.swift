@@ -39,7 +39,7 @@ private func extractSuperCallFlagsAcrossOverrides(
         .map { ($0.callee, $0.isSuperCall) }
 }
 
-@Suite @MainActor
+@Suite
 struct SuperCallAndQualifiedThisTests {
     // MARK: - super.method() isSuperCall flag
 
