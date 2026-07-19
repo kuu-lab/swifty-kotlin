@@ -46,12 +46,6 @@ extension DataFlowSemaPhase {
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let floatType = types.floatType
         let doubleType = types.doubleType
-        let stringProducerType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: stringType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
         let collectionStringType = makeCollectionType(
             symbols: symbols,
@@ -1525,6 +1519,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "get",
+            externalLinkName: "kk_string_get_flat",
+            receiverType: charSequenceType,
+            parameters: [
+                ("index", intType, false, false),
+            ],
+            returnType: charType,
+            flags: [.synthetic, .operatorFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-141: String.compareTo ---
 
@@ -1555,51 +1562,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-187: isEmpty / isNotEmpty / isBlank / isNotBlank ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "isEmpty",
-            externalLinkName: "kk_string_isEmpty_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "isBlank",
-            externalLinkName: "kk_string_isBlank_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: isEmpty/isBlank/ifEmpty/ifBlank are bundled Kotlin source.
 
         // --- STDLIB-TEXT-FN-026: String.intern ---
         registerSyntheticStringExtensionFunction(
@@ -1607,72 +1570,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_intern",
             receiverType: stringType,
             parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
-        registerSyntheticStringExtensionFunction(
-            named: "isBlank",
-            externalLinkName: "kk_string_isBlank_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-
-        registerSyntheticStringExtensionFunction(
-            named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-029: CharSequence.isNotBlank ---
-        registerSyntheticStringExtensionFunction(
-            named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-004: CharSequence.ifBlank(defaultValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "ifBlank",
-            externalLinkName: "kk_string_ifBlank",
-            receiverType: charSequenceType,
-            parameters: [
-                ("defaultValue", stringProducerType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-005: CharSequence.ifEmpty(defaultValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "ifEmpty",
-            externalLinkName: "kk_string_ifEmpty",
-            receiverType: charSequenceType,
-            parameters: [
-                ("defaultValue", stringProducerType, false, false),
-            ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
@@ -2514,6 +2411,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         // --- String.indexOfFirst / indexOfLast ---
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
@@ -2653,31 +2560,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-143: String.lines ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lines",
-            externalLinkName: "kk_string_lines_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-666: String.lineSequence ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lineSequence",
-            externalLinkName: "kk_string_lineSequence_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: lines/lineSequence are bundled Kotlin source.
 
         // --- STDLIB-145: String.toByteArray / encodeToByteArray ---
 
@@ -2747,6 +2630,7 @@ extension DataFlowSemaPhase {
         if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
             symbols.setParentSymbol(kotlinPkgSymbol, for: stringClassSymbol)
         }
+        types.stringClassSymbol = stringClassSymbol
         symbols.setDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         types.setNominalDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         for bytesType in [listIntType, byteArrayType] {
@@ -3331,18 +3215,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-534: String?.orEmpty() ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "orEmpty",
-            externalLinkName: "kk_string_orEmpty_flat",
-            receiverType: nullableStringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-401: String?.orEmpty() is bundled Kotlin source.
 
         // --- STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals ---
 

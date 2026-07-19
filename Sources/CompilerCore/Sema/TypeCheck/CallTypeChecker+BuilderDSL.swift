@@ -144,10 +144,38 @@ extension CallTypeChecker {
         if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
             return !sym.flags.contains(.synthetic)
+                && !isSourceBackedStdlibBuilderDSLSymbol(sym, calleeName: calleeName, interner: ctx.interner)
         }) {
             return false
         }
         return true
+    }
+
+    private func isSourceBackedStdlibBuilderDSLSymbol(
+        _ symbol: SemanticSymbol,
+        calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        let kotlinName = interner.intern("kotlin")
+        let textName = interner.intern("text")
+        let collectionsName = interner.intern("collections")
+        guard symbol.fqName.count == 3,
+              symbol.fqName[0] == kotlinName,
+              symbol.fqName[2] == calleeName
+        else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        if symbol.fqName[1] == textName {
+            return calleeName == knownNames.buildString
+                || calleeName == knownNames.buildStringBuilder
+        }
+        if symbol.fqName[1] == collectionsName {
+            return calleeName == knownNames.buildList
+                || calleeName == knownNames.buildSet
+                || calleeName == knownNames.buildMap
+        }
+        return false
     }
 
     func isValidBuilderLambdaArgument(_ argumentExprID: ExprID, ast: ASTModule) -> Bool {
@@ -1058,6 +1086,115 @@ extension CallTypeChecker {
         )))
     }
 
+    func inferSequenceScopeYieldAllImplicitReceiverCall(
+        _ id: ExprID,
+        calleeName: InternedString?,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        guard let calleeName,
+              ctx.interner.resolve(calleeName) == "yieldAll",
+              args.count == 1,
+              explicitTypeArgs.isEmpty,
+              let receiverType = ctx.implicitReceiverType,
+              isSequenceScopeReceiver(receiverType, sema: ctx.sema, interner: ctx.interner)
+        else {
+            return nil
+        }
+
+        let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+        let preferredOwnerName = sequenceScopeYieldAllPreferredParameterOwnerName(
+            for: argumentType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+
+        guard let chosen = candidates.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { candidate in
+            guard ctx.sema.symbols.externalLinkName(for: candidate) == "kk_sequence_builder_yieldAll",
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            if ctx.sema.types.isSubtype(argumentType, signature.parameterTypes[0]) {
+                return true
+            }
+            guard let preferredOwnerName else {
+                return false
+            }
+            return classSimpleName(of: signature.parameterTypes[0], sema: ctx.sema, interner: ctx.interner) == preferredOwnerName
+        }) else {
+            return nil
+        }
+
+        let resolved = ResolvedCall(
+            chosenCallee: chosen,
+            substitutedTypeArguments: [:],
+            parameterMapping: [0: 0],
+            diagnostic: nil
+        )
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
+        ctx.sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        ctx.sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    private func isSequenceScopeReceiver(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return false
+        }
+        return interner.resolve(name) == "SequenceScope"
+            && symbol.fqName.dropLast().map(interner.resolve) == ["kotlin", "sequences"]
+    }
+
+    private func sequenceScopeYieldAllPreferredParameterOwnerName(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let simpleName = classSimpleName(of: type, sema: sema, interner: interner) else {
+            return nil
+        }
+        switch simpleName {
+        case "Iterator":
+            return "Iterator"
+        case "Sequence":
+            return "Sequence"
+        case "Iterable", "Collection", "MutableCollection", "List", "MutableList", "Set", "MutableSet":
+            return "Iterable"
+        default:
+            return nil
+        }
+    }
+
+    private func classSimpleName(
+        of type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let name = symbol.fqName.last
+        else {
+            return nil
+        }
+        return interner.resolve(name)
+    }
+
     func produceBuilderReceiverType(
         channelType: TypeID,
         sema: SemaModule,
@@ -1308,26 +1445,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let symbols = sema.symbols
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let kotlinTextPkg: [InternedString] = kotlinPkg + [interner.intern("text")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
-        _ = ensureSyntheticPackage(fqName: kotlinTextPkg, symbols: symbols)
-
-        let stringBuilderName = interner.intern("StringBuilder")
-        let stringBuilderFQName = kotlinTextPkg + [stringBuilderName]
-        let stringBuilderSymbol: SymbolID = if let existing = symbols.lookup(fqName: stringBuilderFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: stringBuilderName,
-                fqName: stringBuilderFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
+        let stringBuilderSymbol = ensureKotlinTextStringBuilderSymbol(symbols: sema.symbols, interner: interner)
         return sema.types.make(.classType(ClassType(
             classSymbol: stringBuilderSymbol,
             args: [],

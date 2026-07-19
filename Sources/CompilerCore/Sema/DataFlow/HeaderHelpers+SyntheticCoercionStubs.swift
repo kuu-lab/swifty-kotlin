@@ -500,6 +500,42 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
+            registerSyntheticCoercionFunction(
+                named: "countOneBits",
+                externalLinkName: "kk_long_countOneBits",
+                receiverType: types.longType,
+                parameters: [],
+                returnType: types.intType,
+                packageFQName: kotlinPkg,
+                packageSymbol: kotlinPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+
+            registerSyntheticCoercionFunction(
+                named: "countLeadingZeroBits",
+                externalLinkName: "kk_long_countLeadingZeroBits",
+                receiverType: types.longType,
+                parameters: [],
+                returnType: types.intType,
+                packageFQName: kotlinPkg,
+                packageSymbol: kotlinPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+
+            registerSyntheticCoercionFunction(
+                named: "countTrailingZeroBits",
+                externalLinkName: "kk_long_countTrailingZeroBits",
+                receiverType: types.longType,
+                parameters: [],
+                returnType: types.intType,
+                packageFQName: kotlinPkg,
+                packageSymbol: kotlinPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+
             // STDLIB-BIT-007: Additional bit manipulation functions
 
             // Zero-argument Int functions
