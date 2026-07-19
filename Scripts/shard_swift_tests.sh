@@ -30,8 +30,9 @@ Modes:
 
   static    Extracts test suite type names by scanning test sources under
             --tests-dir for XCTestCase classes and Swift Testing @Suite
-            declarations, then shards at the suite level: each shard's
-            --filter selects
+            declarations, estimates each suite's test weight from source
+            declarations, and greedily balances the weighted suites across
+            shards. Each shard's --filter selects
             `^<prefix>\.(Type1|Type2|...)(/|$)`. If extraction finds no
             candidates at all, the last shard falls back to running the full
             target prefix so a misconfigured path does not silently skip the
@@ -135,13 +136,15 @@ case "$mode" in
 esac
 
 # shard_count defaults to 1 (no CI-level sharding), but every mode below
-# still lists tests and chunks the --filter regex: shard_interleave with
-# count=1 selects every line, so a lone shard just runs all chunks in
-# sequence. Skipping straight to a single raw --filter here would reintroduce
-# the "Argument list too long" exec() failure this chunking exists to avoid
-# once a shard's matched-test set gets large (observed with RuntimeTests
-# under --no-parallel: a serialized target invokes the whole matched list as
-# one process argument, unlike --parallel which fans it out across workers).
+# still lists tests and chunks the --filter regex. Dynamic mode uses
+# shard_interleave over individual test identifiers; static mode uses a
+# weighted greedy assignment over suite/class names. A lone shard therefore
+# still runs all chunks in sequence. Skipping straight to a single raw
+# --filter would reintroduce the "Argument list too long" exec() failure this
+# chunking exists to avoid once a shard's matched-test set gets large
+# (observed with RuntimeTests under --no-parallel: a serialized target invokes
+# the whole matched list as one process argument, unlike --parallel which fans
+# it out across workers).
 
 # ---------------------------------------------------------------------------
 # Mode: dynamic — shard at the individual-test level via `swift test list`.
@@ -202,61 +205,173 @@ fi
 # Mode: static — shard at the suite/class level via source grepping.
 # ---------------------------------------------------------------------------
 echo "shard_swift_tests.sh: extracting suite/class names from '$tests_dir'..." >&2
-mapfile -t all_types < <(
+mapfile -t all_type_records < <(
     find "$tests_dir" -name '*.swift' -print0 \
         | xargs -0 awk '
             function emit_decl(line, decl, parts, count) {
                 if (match(line, /(^|[[:space:]])((final|private|fileprivate|internal|public|open)[[:space:]]+)*(struct|class)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
                     decl = substr(line, RSTART, RLENGTH)
                     count = split(decl, parts, /[[:space:]]+/)
-                    print parts[count]
-                    return 1
+                    return parts[count]
                 }
-                return 0
+                return ""
+            }
+
+            function emit_extension(line, extension_decl) {
+                if (match(line, /extension[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
+                    extension_decl = substr(line, RSTART, RLENGTH)
+                    sub(/^extension[[:space:]]+/, "", extension_decl)
+                    return extension_decl
+                }
+                return ""
+            }
+
+            function register_candidate(name) {
+                if (name == "") {
+                    return
+                }
+                candidates[name] = 1
+                observed[name] = 1
+                current_type = name
+                pending_suite = 0
+                pending_test = 0
+            }
+
+            function register_observed(name) {
+                if (name != "") {
+                    observed[name] = 1
+                    current_type = name
+                    pending_test = 0
+                }
             }
 
             FNR == 1 {
+                current_type = ""
                 pending_suite = 0
+                pending_test = 0
             }
 
-            /@Suite/ {
-                if (emit_decl($0)) {
-                    pending_suite = 0
+            {
+                line = $0
+
+                if (line ~ /@Suite/) {
+                    suite_name = emit_decl(line)
+                    if (suite_name != "") {
+                        register_candidate(suite_name)
+                        next
+                    }
+                    pending_suite = 1
                     next
                 }
-                pending_suite = 1
-                next
+
+                suite_name = emit_decl(line)
+                if (pending_suite && suite_name != "") {
+                    register_candidate(suite_name)
+                    next
+                }
+
+                if (line ~ /(^|[[:space:]])((final|private|fileprivate|internal|public|open)[[:space:]]+)*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[^{:]*:[^{]*XCTestCase/) {
+                    register_candidate(suite_name)
+                    next
+                }
+
+                extension_name = emit_extension(line)
+                if (extension_name != "") {
+                    register_observed(extension_name)
+                    next
+                }
+
+                if (pending_suite && line !~ /^[[:space:]]*(@|\/\/|$)/) {
+                    pending_suite = 0
+                }
+
+                if (current_type != "") {
+                    if (line ~ /@Test([[:space:]]|\(|$)/) {
+                        weights[current_type]++
+                        pending_test = (line ~ /func[[:space:]]+test[A-Za-z0-9_]*/) ? 0 : 1
+                    } else if (line ~ /func[[:space:]]+test[A-Za-z0-9_]*/) {
+                        if (!pending_test) {
+                            weights[current_type]++
+                        }
+                        pending_test = 0
+                    } else if (pending_test && line !~ /^[[:space:]]*(@|\/\/|$)/) {
+                        pending_test = 0
+                    }
+                }
             }
 
-            $0 ~ /(^|[[:space:]])((final|private|fileprivate|internal|public|open)[[:space:]]+)*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[^{:]*:[^{]*XCTestCase/ {
-                emit_decl($0)
-                pending_suite = 0
-                next
-            }
-
-            pending_suite && emit_decl($0) {
-                pending_suite = 0
-                next
-            }
-
-            pending_suite && $0 !~ /^[[:space:]]*(@|\/\/|$)/ {
-                pending_suite = 0
+            END {
+                for (name in observed) {
+                    printf "%s\t%d\t%d\n", name, (candidates[name] ? 1 : 0), weights[name] + 0
+                }
             }
         ' \
-        | sort -u
+        | awk -F '\t' '
+            {
+                weights[$1] += $3
+                if ($2 == 1) {
+                    candidates[$1] = 1
+                }
+            }
+            END {
+                for (name in candidates) {
+                    # Keep every suite visible to the sharder, including
+                    # suites whose source declaration has no explicit test
+                    # marker in the scanned file.
+                    printf "%s\t%d\n", name, weights[name] + 1
+                }
+            }
+        ' \
+        | sort -t $'\t' -k1,1
 )
 
+declare -a all_types=()
+declare -A type_weights=()
+total_weight=0
+for record in "${all_type_records[@]}"; do
+    IFS=$'\t' read -r type weight <<< "$record"
+    all_types+=("$type")
+    type_weights["$type"]="$weight"
+    total_weight=$(( total_weight + weight ))
+done
+
 total="${#all_types[@]}"
-echo "shard_swift_tests.sh: found $total candidate suite/class names." >&2
+echo "shard_swift_tests.sh: found $total candidate suite/class names with estimated test weight $total_weight." >&2
 
 declare -a own_types=()
 if (( total > 0 )); then
     mapfile -t own_types < <(
-        printf '%s\n' "${all_types[@]}" | shard_interleave "$shard_index" "$shard_count"
+        printf '%s\n' "${all_type_records[@]}" \
+            | sort -t $'\t' -k2,2nr -k1,1 \
+            | awk -F '\t' -v requested_index="$shard_index" -v shard_total="$shard_count" '
+                BEGIN {
+                    for (i = 0; i < shard_total; i++) {
+                        loads[i] = 0
+                    }
+                }
+                {
+                    target = 0
+                    for (i = 1; i < shard_total; i++) {
+                        if (loads[i] < loads[target]) {
+                            target = i
+                        }
+                    }
+                    loads[target] += $2
+                    if (target == requested_index) {
+                        print $1
+                    }
+                }
+            ' \
+            | sort
     )
 fi
 
-echo "shard_swift_tests.sh: shard $shard_index/$shard_count owns ${#own_types[@]} of $total suite/class names." >&2
+own_weight=0
+for type in "${own_types[@]}"; do
+    own_weight=$(( own_weight + type_weights["$type"] ))
+done
+
+echo "shard_swift_tests.sh: shard $shard_index/$shard_count owns ${#own_types[@]} of $total suite/class names (estimated test weight $own_weight/$total_weight)." >&2
 
 declare -a filters=()
 

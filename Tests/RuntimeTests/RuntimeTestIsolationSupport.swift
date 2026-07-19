@@ -220,6 +220,35 @@ func runtimeIsolationSemaphoreWaitRunsOffCooperativePool() async throws {
 
 /// Use this base class for runtime tests that mutate global runtime state or
 /// observe file-global callback state.
+final class RuntimeTestIsolationLease {
+    private let lockSet: RuntimeLockSet
+    private var acquiredSemaphores: [DispatchSemaphore] = []
+
+    init(lockSet: RuntimeLockSet) {
+        self.lockSet = lockSet
+        for semaphore in semaphores(for: lockSet) {
+            guard semaphore.wait(timeout: .now() + .seconds(30)) == .success else {
+                for acquired in acquiredSemaphores.reversed() {
+                    acquired.signal()
+                }
+                preconditionFailure("Runtime test isolation lock timed out while waiting for available token")
+            }
+            acquiredSemaphores.append(semaphore)
+        }
+    }
+
+    func release() {
+        for semaphore in acquiredSemaphores.reversed() {
+            semaphore.signal()
+        }
+        acquiredSemaphores = []
+    }
+
+    deinit {
+        release()
+    }
+}
+
 class IsolatedRuntimeXCTestCase: XCTestCase {
     private var acquiredSemaphores: [DispatchSemaphore] = []
 

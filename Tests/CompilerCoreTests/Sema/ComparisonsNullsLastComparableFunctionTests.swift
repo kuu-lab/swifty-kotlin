@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsNullsLastComparableFunctionTests: XCTestCase {
-    func testNullsLastComparableFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsNullsLastComparableFunctionTests {
+    @Test func testNullsLastComparableFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.nullsLast
 
@@ -11,17 +13,18 @@ final class ComparisonsNullsLastComparableFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testNullsLastComparableLinksToNaturalRuntime() throws {
+    @Test func testNullsLastComparableLinksToNaturalRuntime() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "comparisons", "nullsLast"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
         let nullsLastNaturalLinks = symbols.compactMap { sema.symbols.externalLinkName(for: $0) }
-        XCTAssertTrue(
+        #expect(
             nullsLastNaturalLinks.contains("kk_comparator_nulls_last_natural"),
             "nullsLast() (Comparable版) must link to kk_comparator_nulls_last_natural; found: \(nullsLastNaturalLinks)"
         )
     }
 }
+#endif
