@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class RuntimeThreadLaunchState: @unchecked Sendable {
     private let condition = NSCondition()
@@ -58,13 +58,12 @@ private let runtimeThreadThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?)
 
 private let runtimeThreadThunkPtr = unsafeBitCast(runtimeThreadThunk, to: Int.self)
 
-final class RuntimeThreadTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        runtimeThreadLaunchState.reset()
-    }
+private func resetRuntimeThreadTestState() {
+    runtimeThreadLaunchState.reset()
+}
 
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeThreadTestState))
+struct RuntimeThreadTests {
     private func stringRaw(_ value: String) -> Int {
         value.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { ptr in
@@ -78,7 +77,7 @@ final class RuntimeThreadTests: IsolatedRuntimeXCTestCase {
         return Unmanaged<RuntimeManagedThread>.fromOpaque(pointer!).takeUnretainedValue()
     }
 
-    func testThreadCreateStartsImmediatelyWhenRequested() throws {
+    @Test func threadCreateStartsImmediatelyWhenRequested() throws {
         let baseline = runtimeThreadLaunchState.snapshot().launchCount
         let raw = kk_thread_create(
             1,
@@ -91,29 +90,26 @@ final class RuntimeThreadTests: IsolatedRuntimeXCTestCase {
         )
         let createdThread = threadObject(from: raw)
 
-        XCTAssertEqual(createdThread.name, "worker")
-        XCTAssertGreaterThan(createdThread.threadPriority, 0.6)
-        XCTAssertLessThan(createdThread.threadPriority, 0.8)
+        #expect(createdThread.name == "worker")
+        #expect(createdThread.threadPriority > 0.6)
+        #expect(createdThread.threadPriority < 0.8)
 
-        XCTAssertTrue(runtimeThreadLaunchState.waitForLaunch(after: baseline))
+        #expect(runtimeThreadLaunchState.waitForLaunch(after: baseline))
         let snapshot = runtimeThreadLaunchState.snapshot()
-        XCTAssertEqual(snapshot.launchCount, baseline + 1)
+        #expect(snapshot.launchCount == baseline + 1)
         #if canImport(ObjectiveC)
-        XCTAssertEqual(snapshot.lastThreadName, "worker")
-        XCTAssertEqual(
-            try XCTUnwrap(snapshot.lastThreadPriority),
-            createdThread.threadPriority,
-            accuracy: 0.0001
-        )
+        #expect(snapshot.lastThreadName == "worker")
+        let lastThreadPriority = try #require(snapshot.lastThreadPriority)
+        #expect(abs(lastThreadPriority - createdThread.threadPriority) <= 0.0001)
         #endif
 
-        let launchBox = try XCTUnwrap(createdThread.launchBox)
-        XCTAssertEqual(launchBox.isDaemon, true)
-        XCTAssertEqual(launchBox.contextClassLoaderRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(launchBox.priority, 7)
+        let launchBox = try #require(createdThread.launchBox)
+        #expect(launchBox.isDaemon)
+        #expect(launchBox.contextClassLoaderRaw == runtimeNullSentinelInt)
+        #expect(launchBox.priority == 7)
     }
 
-    func testThreadCreateDefersExecutionUntilStart() throws {
+    @Test func threadCreateDefersExecutionUntilStart() throws {
         let baseline = runtimeThreadLaunchState.snapshot().launchCount
         let raw = kk_thread_create(
             0,
@@ -126,29 +122,26 @@ final class RuntimeThreadTests: IsolatedRuntimeXCTestCase {
         )
         let createdThread = threadObject(from: raw)
 
-        XCTAssertEqual(createdThread.name, "manual")
-        XCTAssertGreaterThan(createdThread.threadPriority, 0.4)
-        XCTAssertLessThan(createdThread.threadPriority, 0.6)
+        #expect(createdThread.name == "manual")
+        #expect(createdThread.threadPriority > 0.4)
+        #expect(createdThread.threadPriority < 0.6)
 
-        let launchBox = try XCTUnwrap(createdThread.launchBox)
-        XCTAssertEqual(launchBox.isDaemon, false)
-        XCTAssertEqual(launchBox.contextClassLoaderRaw, runtimeNullSentinelInt)
-        XCTAssertEqual(launchBox.priority, 5)
+        let launchBox = try #require(createdThread.launchBox)
+        #expect(!launchBox.isDaemon)
+        #expect(launchBox.contextClassLoaderRaw == runtimeNullSentinelInt)
+        #expect(launchBox.priority == 5)
 
-        XCTAssertEqual(runtimeThreadLaunchState.snapshot().launchCount, baseline)
+        #expect(runtimeThreadLaunchState.snapshot().launchCount == baseline)
 
         createdThread.start()
 
-        XCTAssertTrue(runtimeThreadLaunchState.waitForLaunch(after: baseline))
+        #expect(runtimeThreadLaunchState.waitForLaunch(after: baseline))
         let snapshot = runtimeThreadLaunchState.snapshot()
-        XCTAssertEqual(snapshot.launchCount, baseline + 1)
+        #expect(snapshot.launchCount == baseline + 1)
         #if canImport(ObjectiveC)
-        XCTAssertEqual(snapshot.lastThreadName, "manual")
-        XCTAssertEqual(
-            try XCTUnwrap(snapshot.lastThreadPriority),
-            createdThread.threadPriority,
-            accuracy: 0.0001
-        )
+        #expect(snapshot.lastThreadName == "manual")
+        let lastThreadPriority = try #require(snapshot.lastThreadPriority)
+        #expect(abs(lastThreadPriority - createdThread.threadPriority) <= 0.0001)
         #endif
     }
 }
