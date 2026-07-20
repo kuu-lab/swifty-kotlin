@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateDirectoriesTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateDirectoriesAttributesCreatesDirectoryTree() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateDirectoriesTests {
+    @Test func pathCreateDirectoriesAttributesCreatesDirectoryTree() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let nestedURL = rootURL.appendingPathComponent("a").appendingPathComponent("b")
         defer {
@@ -17,10 +16,10 @@ final class RuntimePathCreateDirectoriesTests: IsolatedRuntimeXCTestCase {
         let resultRaw = kk_path_createDirectories_attributes(pathRaw, 0, &thrown)
 
         var isDirectory: ObjCBool = false
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: nestedURL.path, isDirectory: &isDirectory))
-        XCTAssertTrue(isDirectory.boolValue)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
+        #expect(FileManager.default.fileExists(atPath: nestedURL.path, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {
