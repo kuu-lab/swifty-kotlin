@@ -233,15 +233,29 @@ public func kk_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 // MARK: - IntRange Partitioning HOFs (STDLIB-RANGE-038)
 
 @_cdecl("kk_range_chunked")
-public func kk_range_chunked(_ rangeRaw: Int, _ size: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_chunked") { range in
+public func kk_range_chunked(_ rangeRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if size <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size \(size) must be greater than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_chunked") { range in
         RuntimeSignedRangeHOFKind.chunked(range, size)
     }
 }
 
 @_cdecl("kk_range_windowed")
-public func kk_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_windowed") { range in
+public func kk_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if size <= 0 || step <= 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Both size \(size) and step \(step) must be greater than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_windowed") { range in
         RuntimeSignedRangeHOFKind.windowed(range, size, step, partialWindows)
     }
 }
