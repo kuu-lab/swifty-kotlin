@@ -372,5 +372,19 @@ struct DataFlowAndSemaRegressionTests {
 
         #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TYPE-DEPTH" })
     }
+
+    // KNOWN GAP (DEBT-SEMA-003): self-referential top-level initializers are
+    // currently accepted although kotlinc reports use before initialization.
+    @Test func testSelfReferentialTopLevelInitializerIsNotYetDetected() throws {
+        let source = """
+        val cyclic: List<*> = listOf(cyclic)
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
