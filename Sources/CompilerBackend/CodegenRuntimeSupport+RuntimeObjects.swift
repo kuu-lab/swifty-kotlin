@@ -167,16 +167,23 @@ extension CodegenRuntimeSupport {
         }
 
         for case let directoryURL as URL in enumerator {
-            guard directoryURL.lastPathComponent == "Runtime.build" else {
+            guard runtimeBuildProductsDirectoryNames.contains(directoryURL.lastPathComponent) else {
                 continue
             }
-            candidates = collectObjectPaths(in: directoryURL)
+            candidates = collectObjectPathsRecursively(in: directoryURL)
             if !candidates.isEmpty {
                 return candidates
             }
         }
         return nil
     }
+
+    // "Runtime.build" is the classic SwiftPM/llbuild layout, where object
+    // files sit directly inside it. "Runtime-t.build" is the newer Swift
+    // Build (XCBuild) engine's per-target layout, which `swift build` uses
+    // by default on newer toolchains; there, objects sit one level deeper
+    // (Objects-normal/<arch>/*.o), hence the recursive collection below.
+    private static let runtimeBuildProductsDirectoryNames: Set<String> = ["Runtime.build", "Runtime-t.build"]
 
     private static func collectObjectPaths(in directory: URL) -> [String] {
         guard let entries = try? FileManager.default.contentsOfDirectory(
@@ -188,9 +195,30 @@ extension CodegenRuntimeSupport {
         }
 
         return entries
-            .filter { $0.lastPathComponent.hasSuffix(".swift.o") }
+            .filter { $0.lastPathComponent.hasSuffix(".o") }
             .map(\.path)
             .sorted()
+    }
+
+    // Only called once a directory is already confirmed to be a Runtime
+    // build-products directory (see `runtimeBuildProductsDirectoryNames`),
+    // so widening the walk to the whole subtree can't pull in objects
+    // belonging to other targets.
+    private static func collectObjectPathsRecursively(in directory: URL) -> [String] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var paths: [String] = []
+        for case let fileURL as URL in enumerator {
+            guard fileURL.lastPathComponent.hasSuffix(".o") else { continue }
+            paths.append(fileURL.path)
+        }
+        return paths.sorted()
     }
 
     private static func runtimeBuildDirectory(target: TargetTriple) -> URL {

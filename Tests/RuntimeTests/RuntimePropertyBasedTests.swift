@@ -1,7 +1,9 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
-final class RuntimePropertyBasedTests: XCTestCase {
+@Suite
+struct RuntimePropertyBasedTests {
     private struct PropertyStats: Equatable {
         let checked: Int
         let failures: Int
@@ -71,36 +73,40 @@ final class RuntimePropertyBasedTests: XCTestCase {
         )
     }
 
+    @Test
     func testPropertyCheckReportsSuccessAcrossGeneratedSamples() {
         let samples = seededSamples(seed: 42, count: 32)
         let stats = runPropertyCheck(samples: samples) { sample in
             sample + 0 == sample
         }
 
-        XCTAssertEqual(stats.checked, 32)
-        XCTAssertEqual(stats.failures, 0)
-        XCTAssertEqual(stats.shrinks, 0)
-        XCTAssertNil(stats.minimizedCounterexample)
+        #expect(stats.checked == 32)
+        #expect(stats.failures == 0)
+        #expect(stats.shrinks == 0)
+        #expect(stats.minimizedCounterexample == nil)
     }
 
+    @Test
     func testPropertyCheckShrinksCounterexamplesTowardZero() {
         let samples = [13] + seededSamples(seed: 31415, count: 15).map { abs($0 % 17) * 2 + 1 }
         let stats = runPropertyCheck(samples: samples) { sample in
             sample == 0
         }
 
-        XCTAssertEqual(stats.checked, 1)
-        XCTAssertEqual(stats.failures, 1)
-        XCTAssertEqual(stats.shrinks, 3)
-        XCTAssertEqual(stats.minimizedCounterexample, 1)
+        #expect(stats.checked == 1)
+        #expect(stats.failures == 1)
+        #expect(stats.shrinks == 3)
+        #expect(stats.minimizedCounterexample == 1)
     }
 
+    @Test
     func testSeededSampleGenerationIsDeterministic() {
         let samplesA = seededSamples(seed: 2026, count: 8)
         let samplesB = seededSamples(seed: 2026, count: 8)
         let samplesC = seededSamples(seed: 2027, count: 8)
 
-        XCTAssertEqual(samplesA, samplesB)
-        XCTAssertNotEqual(samplesA, samplesC)
+        #expect(samplesA == samplesB)
+        #expect(samplesA != samplesC)
     }
 }
+#endif
