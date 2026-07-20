@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-039: Path.walk runtime tests
 
@@ -38,10 +38,8 @@ private func rtpwOptions(_ ordinals: [Int]) -> Int {
     return arrayRaw
 }
 
-final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathWalkTests {
     private func makeTempDirTree() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -52,14 +50,14 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
         return root
     }
 
-    func testPathWalkDefaultUsesDepthFirstPreorderAndIncludesRoot() throws {
+    @Test func pathWalkDefaultUsesDepthFirstPreorderAndIncludesRoot() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(at: root) }
 
         let paths = rtpwPaths(kk_path_walk(rtpwPathHandle(root.path), 0))
 
-        XCTAssertEqual(
-            paths,
+        #expect(
+            paths ==
             [
                 root.path,
                 root.appendingPathComponent("a.txt").path,
@@ -69,7 +67,7 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    func testPathWalkBreadthFirstOptionVisitsDirectoryChildrenBeforeGrandchildren() throws {
+    @Test func pathWalkBreadthFirstOptionVisitsDirectoryChildrenBeforeGrandchildren() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let firstDir = root.appendingPathComponent("aa")
@@ -80,8 +78,8 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
 
         let paths = rtpwPaths(kk_path_walk(rtpwPathHandle(root.path), rtpwOptions([0])))
 
-        XCTAssertEqual(
-            paths,
+        #expect(
+            paths ==
             [
                 root.path,
                 firstDir.path,
@@ -91,7 +89,7 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    func testPathWalkDoesNotFollowDirectorySymlinkByDefault() throws {
+    @Test func pathWalkDoesNotFollowDirectorySymlinkByDefault() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(at: root) }
         let link = root.appendingPathComponent("link")
@@ -102,11 +100,11 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
 
         let paths = rtpwPaths(kk_path_walk(rtpwPathHandle(root.path), 0))
 
-        XCTAssertTrue(paths.contains(link.path))
-        XCTAssertFalse(paths.contains(link.appendingPathComponent("b.txt").path))
+        #expect(paths.contains(link.path))
+        #expect(!paths.contains(link.appendingPathComponent("b.txt").path))
     }
 
-    func testPathWalkFollowLinksOptionTraversesDirectorySymlinkOnce() throws {
+    @Test func pathWalkFollowLinksOptionTraversesDirectorySymlinkOnce() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(at: root) }
         let link = root.appendingPathComponent("link")
@@ -117,7 +115,7 @@ final class RuntimePathWalkTests: IsolatedRuntimeXCTestCase {
 
         let paths = rtpwPaths(kk_path_walk(rtpwPathHandle(root.path), rtpwOptions([1])))
 
-        XCTAssertTrue(paths.contains(link.path))
-        XCTAssertTrue(paths.contains(link.appendingPathComponent("b.txt").path))
+        #expect(paths.contains(link.path))
+        #expect(paths.contains(link.appendingPathComponent("b.txt").path))
     }
 }
