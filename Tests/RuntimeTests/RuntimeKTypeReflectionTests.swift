@@ -29,18 +29,18 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
     private func registerKClassMetadata(typeToken: Int, qualifiedName: String, simpleName: String) {
         let qualifiedNameRaw = makeRuntimeString(qualifiedName)
         let simpleNameRaw = makeRuntimeString(simpleName)
-        let result = kk_kclass_register_metadata(typeToken, qualifiedNameRaw, simpleNameRaw, 0, 0, -1, -1, 0)
+        let result = __kk_kclass_register_metadata(typeToken, qualifiedNameRaw, simpleNameRaw, 0, 0, -1, -1, 0)
         XCTAssertEqual(result, 0)
     }
 
     private func makeKClassHandle(name: String, typeToken: Int) -> Int {
         let simpleName = name.split(separator: ".").last.map(String.init) ?? name
         registerKClassMetadata(typeToken: typeToken, qualifiedName: name, simpleName: simpleName)
-        return kk_kclass_create(typeToken, 0)
+        return __kk_kclass_create(typeToken, 0)
     }
 
     private func makeKTypeProjectionHandle(type: Int, variance: Int = 2) -> Int {
-        kk_ktypeprojection_create(type, variance)
+        __kk_ktypeprojection_create(type, variance)
     }
 
     private func makeKTypeHandle(
@@ -69,12 +69,12 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
         let stringType = makeKTypeHandle(name: "kotlin.String", typeToken: 2)
         let nullableIntType = makeKTypeHandle(name: "kotlin.Int", typeToken: 3, isNullable: true)
 
-        XCTAssertEqual(kk_ktype_isMarkedNullable(stringType), 0)
-        XCTAssertEqual(kk_ktype_isMarkedNullable(nullableIntType), 1)
+        XCTAssertEqual(__kk_ktype_isMarkedNullable(stringType), 0)
+        XCTAssertEqual(__kk_ktype_isMarkedNullable(nullableIntType), 1)
 
-        let stringClassifier = kk_ktype_classifier(stringType)
+        let stringClassifier = __kk_ktype_classifier(stringType)
         XCTAssertNotEqual(stringClassifier, runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeListBox(from: kk_ktype_arguments(stringType))?.elements.count, 0)
+        XCTAssertEqual(runtimeListBox(from: __kk_ktype_arguments(stringType))?.elements.count, 0)
     }
 
     func testKTypeToStringRendersGenericArgumentsAndNullability() {
@@ -117,14 +117,14 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
 
     func testKTypeArgumentsExposeKTypeProjectionsAndStar() {
         let elementType = makeKTypeHandle(name: "kotlin.Int", typeToken: 20)
-        let projection = kk_ktypeprojection_create(elementType, 2)
-        let starProjection = kk_ktypeprojection_create(0, -1)
+        let projection = __kk_ktypeprojection_create(elementType, 2)
+        let starProjection = __kk_ktypeprojection_create(0, -1)
         let arrayType = makeKTypeHandle(name: "kotlin.Array", typeToken: 21, arguments: [projection])
 
         XCTAssertEqual(runtimeRenderAnyForPrint(projection), "kotlin.Int")
         XCTAssertEqual(runtimeRenderAnyForPrint(starProjection), "*")
 
-        let argumentsRaw = kk_ktype_arguments(arrayType)
+        let argumentsRaw = __kk_ktype_arguments(arrayType)
         let arguments = runtimeListBox(from: argumentsRaw)
         XCTAssertEqual(arguments?.elements.count, 1)
         XCTAssertEqual(arguments?.elements.first, projection)
@@ -133,8 +133,8 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
     }
 
     func testInvalidHandlesReturnSentinels() {
-        XCTAssertEqual(kk_ktype_classifier(123456), runtimeNullSentinelInt)
-        XCTAssertEqual(runtimeListBox(from: kk_ktype_arguments(123456))?.elements.count, 0)
-        XCTAssertEqual(kk_ktype_isMarkedNullable(123456), 0)
+        XCTAssertEqual(__kk_ktype_classifier(123456), runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeListBox(from: __kk_ktype_arguments(123456))?.elements.count, 0)
+        XCTAssertEqual(__kk_ktype_isMarkedNullable(123456), 0)
     }
 }

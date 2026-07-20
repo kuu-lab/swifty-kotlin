@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-091: `fun String.toByteOrNull(): Byte?` in `kotlin.text`.
 ///
@@ -11,7 +12,8 @@ import XCTest
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Int?` (Byte is widened to Int in ABI).
 /// - An elvis fallback on the nullable result type-checks correctly.
-final class StringToByteOrNullFunctionTests: XCTestCase {
+@Suite
+struct StringToByteOrNullFunctionTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -26,26 +28,27 @@ final class StringToByteOrNullFunctionTests: XCTestCase {
         )
     }
 
+    @Test
     func testToByteOrNullStubLinksToRuntimeSymbol() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
-            XCTAssertEqual(
-                externalLink(for: "toByteOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toByteOrNull",
+            #expect(
+                externalLink(for: "toByteOrNull", sema: sema, interner: ctx.interner) == "kk_string_toByteOrNull",
                 "String.toByteOrNull should link to kk_string_toByteOrNull"
             )
 
             let links = externalLinks(for: "toByteOrNull", sema: sema, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 links.contains("kk_string_toByteOrNull"),
                 "lookupAll for toByteOrNull must include kk_string_toByteOrNull; got: \(links)"
             )
         }
     }
 
+    @Test
     func testToByteOrNullResolvesOnStringReceiver() throws {
         let source = """
         fun parse(raw: String): Byte? {
@@ -59,13 +62,14 @@ final class StringToByteOrNullFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.toByteOrNull to resolve cleanly, got: \(diagnosticSummary)"
             )
         }
     }
 
+    @Test
     func testToByteOrNullOnLiteralWithElvisFallback() throws {
         let source = """
         fun probe(): Int {
@@ -80,10 +84,11 @@ final class StringToByteOrNullFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.toByteOrNull() on a literal with elvis fallback to type-check cleanly, got: \(diagnosticSummary)"
             )
         }
     }
 }
+#endif
