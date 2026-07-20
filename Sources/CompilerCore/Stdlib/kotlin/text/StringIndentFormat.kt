@@ -121,6 +121,10 @@ public fun String.trimMargin(marginPrefix: String = "|"): String {
 
 /**
  * Prepends [indent] to every line of the original string.
+ *
+ * Blank lines shorter than [indent] are replaced by [indent] alone; blank lines
+ * that are already at least as long as [indent] are left unchanged. Non-blank
+ * lines always get [indent] prepended. Matches kotlin.stdlib `String.prependIndent`.
  */
 public fun String.prependIndent(indent: String = "    "): String {
     val lines = splitIntoLines()
@@ -129,8 +133,16 @@ public fun String.prependIndent(indent: String = "    "): String {
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
-        sb.append(indent)
-        sb.append(line)
+        if (line.isBlank()) {
+            if (__string_struct_get_length(line) < __string_struct_get_length(indent)) {
+                sb.append(indent)
+            } else {
+                sb.append(line)
+            }
+        } else {
+            sb.append(indent)
+            sb.append(line)
+        }
         first = false
     }
     return sb.toString()
