@@ -466,14 +466,17 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_format("), "Unexpected raw String format call")
-            XCTAssertFalse(ir.contains("@kk_string_format_locale("), "Unexpected raw String format(locale) call")
+            XCTAssertFalse(ir.contains("@__kk_string_format("), "Unexpected raw String format call")
+            XCTAssertFalse(ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
             XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
             XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
         }
     }
 
-    func testLLVMBackendEmitsFlatIndentRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendStringIndentCompilesViaPureKotlin() throws {
+        // KSP-418: trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are now
+        // compiled via pure Kotlin source (StringIndentFormat.kt). The old kk_string_*_flat and
+        // legacy pointer-ABI kk_string_* C-bridge calls should NOT appear in the IR.
         let source = """
         fun main() {
             val value = "  alpha\\n  beta"
@@ -497,14 +500,15 @@ extension CodegenBackendIntegrationTests {
                 .path
             let llvmCtx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "StringIndentFlatIR",
+                moduleName: "StringIndentKotlinIR",
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            // Legacy pointer-ABI bridges must NOT appear.
+            let forbiddenNames = [
                 "kk_string_trimIndent",
                 "kk_string_trimMargin_default",
                 "kk_string_trimMargin",
@@ -513,12 +517,7 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default",
                 "kk_string_replaceIndent",
                 "kk_string_replaceIndentByMargin",
-            ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indent call: \(rawName)")
-            }
-
-            let flatNames = [
+                // Old flat C-bridge calls – now replaced by pure Kotlin
                 "kk_string_trimIndent_flat",
                 "kk_string_trimMargin_default_flat",
                 "kk_string_trimMargin_flat",
@@ -528,8 +527,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
             ]
-            for flatName in flatNames {
-                XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String indent call: \(flatName)")
+            for name in forbiddenNames {
+                XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
             }
         }
     }

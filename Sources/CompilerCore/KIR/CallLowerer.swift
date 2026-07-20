@@ -1441,6 +1441,8 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
+            "__kk_string_trimMargin",
+            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(name)
     }
@@ -1454,6 +1456,8 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
+            "__kk_string_trimMargin",
+            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }
