@@ -88,6 +88,66 @@ struct RuntimeRangeHOFTests {
     }
 
     @Test
+    func testUIntRangeTakeAndDropNegativeCountThrows() {
+        let range = kk_uint_rangeTo(1, 5)
+        var takeThrown: Int = 0
+        let taken = kk_uint_range_take(range, -1, &takeThrown)
+        #expect(kk_list_size(taken) == 0)
+        #expect(takeThrown != 0)
+
+        var dropThrown: Int = 0
+        let dropped = kk_uint_range_drop(range, -1, &dropThrown)
+        #expect(kk_list_size(dropped) == 0)
+        #expect(dropThrown != 0)
+    }
+
+    @Test
+    func testUIntRangeChunkedAndWindowedNonPositiveArgumentsThrow() {
+        let range = kk_uint_rangeTo(1, 5)
+        var chunkedThrown: Int = 0
+        _ = kk_uint_range_chunked(range, 0, &chunkedThrown)
+        #expect(chunkedThrown != 0)
+
+        var windowedSizeThrown: Int = 0
+        _ = kk_uint_range_windowed(range, 0, 1, 0, &windowedSizeThrown)
+        #expect(windowedSizeThrown != 0)
+
+        var windowedStepThrown: Int = 0
+        _ = kk_uint_range_windowed(range, 2, 0, 0, &windowedStepThrown)
+        #expect(windowedStepThrown != 0)
+    }
+
+    @Test
+    func testULongRangeTakeAndDropNegativeCountThrows() {
+        let range = kk_ulong_rangeTo(1, 5)
+        var takeThrown: Int = 0
+        let taken = kk_ulong_range_take(range, -1, &takeThrown)
+        #expect(kk_list_size(taken) == 0)
+        #expect(takeThrown != 0)
+
+        var dropThrown: Int = 0
+        let dropped = kk_ulong_range_drop(range, -1, &dropThrown)
+        #expect(kk_list_size(dropped) == 0)
+        #expect(dropThrown != 0)
+    }
+
+    @Test
+    func testULongRangeChunkedAndWindowedNonPositiveArgumentsThrow() {
+        let range = kk_ulong_rangeTo(1, 5)
+        var chunkedThrown: Int = 0
+        _ = kk_ulong_range_chunked(range, 0, &chunkedThrown)
+        #expect(chunkedThrown != 0)
+
+        var windowedSizeThrown: Int = 0
+        _ = kk_ulong_range_windowed(range, 0, 1, 0, &windowedSizeThrown)
+        #expect(windowedSizeThrown != 0)
+
+        var windowedStepThrown: Int = 0
+        _ = kk_ulong_range_windowed(range, 2, 0, 0, &windowedStepThrown)
+        #expect(windowedStepThrown != 0)
+    }
+
+    @Test
     func testLongRangeFirstAndLastOrNullWithoutPredicate() {
         let range = kk_long_rangeTo(1, 4)
         #expect(kk_long_range_firstOrNull(range) == 1)
@@ -101,7 +161,7 @@ struct RuntimeRangeHOFTests {
     @Test
     func testRangeWindowedBuildsNestedLists() {
         let range = kk_op_rangeTo(1, 5)
-        let windows = kk_range_windowed(range, 3, 2, 0)
+        let windows = kk_range_windowed(range, 3, 2, 0, nil)
         #expect(kk_list_size(windows) == 2)
         #expect(listElements(kk_list_get(windows, 0)) == [1, 2, 3])
         #expect(listElements(kk_list_get(windows, 1)) == [3, 4, 5])
@@ -169,14 +229,14 @@ struct RuntimeRangeHOFTests {
     @Test
     func testRangeChunkedOnEmptyRange() {
         let emptyRange = kk_op_rangeTo(5, 1)
-        let chunks = kk_range_chunked(emptyRange, 2)
+        let chunks = kk_range_chunked(emptyRange, 2, nil)
         #expect(kk_list_size(chunks) == 0)
     }
 
     @Test
     func testRangeWindowedOnEmptyRange() {
         let emptyRange = kk_op_rangeTo(5, 1)
-        let windows = kk_range_windowed(emptyRange, 3, 1, 0)
+        let windows = kk_range_windowed(emptyRange, 3, 1, 0, nil)
         #expect(kk_list_size(windows) == 0)
     }
 
@@ -213,29 +273,75 @@ struct RuntimeRangeHOFTests {
     @Test
     func testRangeDropReducesFromFront() {
         let range = kk_op_rangeTo(1, 5)
-        let dropped = kk_range_drop(range, 2)
+        let dropped = kk_range_drop(range, 2, nil)
         #expect(listElements(dropped) == [3, 4, 5])
     }
 
     @Test
     func testRangeDropOnEmptyRange() {
         let emptyRange = kk_op_rangeTo(5, 1)
-        let dropped = kk_range_drop(emptyRange, 2)
+        let dropped = kk_range_drop(emptyRange, 2, nil)
         #expect(kk_list_size(dropped) == 0)
     }
 
     @Test
     func testRangeTakeLimitsFromFront() {
         let range = kk_op_rangeTo(1, 5)
-        let taken = kk_range_take(range, 3)
+        let taken = kk_range_take(range, 3, nil)
         #expect(listElements(taken) == [1, 2, 3])
     }
 
     @Test
     func testRangeTakeOnEmptyRange() {
         let emptyRange = kk_op_rangeTo(5, 1)
-        let taken = kk_range_take(emptyRange, 3)
+        let taken = kk_range_take(emptyRange, 3, nil)
         #expect(kk_list_size(taken) == 0)
+    }
+
+    @Test
+    func testRangeTakeNegativeCountThrows() {
+        let range = kk_op_rangeTo(1, 5)
+        var thrown: Int = 0
+        let taken = kk_range_take(range, -1, &thrown)
+        #expect(kk_list_size(taken) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testRangeDropNegativeCountThrows() {
+        let range = kk_op_rangeTo(1, 5)
+        var thrown: Int = 0
+        let dropped = kk_range_drop(range, -1, &thrown)
+        #expect(kk_list_size(dropped) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testRangeChunkedNonPositiveSizeThrows() {
+        let range = kk_op_rangeTo(1, 5)
+        var thrownForZero: Int = 0
+        _ = kk_range_chunked(range, 0, &thrownForZero)
+        #expect(thrownForZero != 0)
+
+        var thrownForNegative: Int = 0
+        _ = kk_range_chunked(range, -1, &thrownForNegative)
+        #expect(thrownForNegative != 0)
+    }
+
+    @Test
+    func testRangeWindowedNonPositiveSizeThrows() {
+        let range = kk_op_rangeTo(1, 5)
+        var thrown: Int = 0
+        _ = kk_range_windowed(range, 0, 1, 0, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testRangeWindowedNonPositiveStepThrows() {
+        let range = kk_op_rangeTo(1, 5)
+        var thrown: Int = 0
+        _ = kk_range_windowed(range, 2, 0, 0, &thrown)
+        #expect(thrown != 0)
     }
 
     @Test
@@ -383,15 +489,33 @@ struct RuntimeRangeHOFTests {
     @Test
     func testLongRangeDropReducesFromFront() {
         let range = kk_long_rangeTo(1, 5)
-        let dropped = kk_long_range_drop(range, 2)
+        let dropped = kk_long_range_drop(range, 2, nil)
         #expect(listElements(dropped) == [3, 4, 5])
     }
 
     @Test
     func testLongRangeTakeLimitsFromFront() {
         let range = kk_long_rangeTo(1, 5)
-        let taken = kk_long_range_take(range, 3)
+        let taken = kk_long_range_take(range, 3, nil)
         #expect(listElements(taken) == [1, 2, 3])
+    }
+
+    @Test
+    func testLongRangeTakeNegativeCountThrows() {
+        let range = kk_long_rangeTo(1, 5)
+        var thrown: Int = 0
+        let taken = kk_long_range_take(range, -1, &thrown)
+        #expect(kk_list_size(taken) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testLongRangeDropNegativeCountThrows() {
+        let range = kk_long_rangeTo(1, 5)
+        var thrown: Int = 0
+        let dropped = kk_long_range_drop(range, -1, &thrown)
+        #expect(kk_list_size(dropped) == 0)
+        #expect(thrown != 0)
     }
 
     @Test
@@ -421,14 +545,14 @@ struct RuntimeRangeHOFTests {
     @Test
     func testLongRangeDropOnEmptyRange() {
         let emptyRange = kk_long_rangeTo(5, 1)
-        let dropped = kk_long_range_drop(emptyRange, 2)
+        let dropped = kk_long_range_drop(emptyRange, 2, nil)
         #expect(kk_list_size(dropped) == 0)
     }
 
     @Test
     func testLongRangeTakeOnSingleElementRange() {
         let singleRange = kk_long_rangeTo(7, 7)
-        let taken = kk_long_range_take(singleRange, 3)
+        let taken = kk_long_range_take(singleRange, 3, nil)
         #expect(listElements(taken) == [7])
     }
 

@@ -525,7 +525,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_chunked")
                     : (isUIntRange ? interner.intern("kk_uint_range_chunked") : lookup.kkRangeChunkedName),
                 arguments: [receiver] + arguments, result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: true, thrownResult: origThrownResult
             ))
             if let result { listExprIDs.insert(result.rawValue) }
             return true
@@ -535,7 +535,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_windowed")
                     : (isUIntRange ? interner.intern("kk_uint_range_windowed") : lookup.kkRangeWindowedName),
                 arguments: [receiver] + arguments, result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: true, thrownResult: origThrownResult
             ))
             if let result { listExprIDs.insert(result.rawValue) }
             return true
@@ -556,7 +556,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 takeName = lookup.kkRangeTakeName
             }
             loweredBody.append(.call(symbol: nil, callee: takeName,
-                arguments: [receiver] + arguments, result: result, canThrow: false, thrownResult: nil))
+                arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
@@ -574,7 +574,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 dropName = lookup.kkRangeDropName
             }
             loweredBody.append(.call(symbol: nil, callee: dropName,
-                arguments: [receiver] + arguments, result: result, canThrow: false, thrownResult: nil))
+                arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
