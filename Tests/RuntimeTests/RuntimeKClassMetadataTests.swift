@@ -146,7 +146,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         XCTAssertTrue(box.metadata?.isDataClass ?? false)
     }
 
-    // MARK: - kk_kclass_register_metadata C API
+    // MARK: - __kk_kclass_register_metadata C API
 
     func testRegisterMetadataViaCABI() {
         // Create runtime strings for names.
@@ -157,7 +157,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         // flags: dataClass=1 (bit 0), abstract=1 (bit 7)
         let flags = (1 << 0) | (1 << 7) // 0b10000001 = 129
 
-        let result = kk_kclass_register_metadata(
+        let result = __kk_kclass_register_metadata(
             42, // typeToken
             qualifiedName,
             simpleName,
@@ -186,7 +186,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let qualifiedName = makeRuntimeString("Simple")
         let simpleName = makeRuntimeString("Simple")
 
-        _ = kk_kclass_register_metadata(
+        _ = __kk_kclass_register_metadata(
             99, qualifiedName, simpleName,
             0, // null supertype
             0, // no flags
@@ -204,70 +204,70 @@ final class RuntimeKClassMetadataTests: XCTestCase {
     func testKClassIsDataReturnsCorrectValue() {
         let typeToken = 200
         registerTestMetadata(typeToken: typeToken, flags: 1 << 0) // dataClass
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_data(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_data(kclass), 1)
     }
 
     func testKClassIsDataReturnsFalseWhenNotData() {
         let typeToken = 201
         registerTestMetadata(typeToken: typeToken, flags: 0)
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_data(kclass), 0)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_data(kclass), 0)
     }
 
     func testKClassIsSealedReturnsCorrectValue() {
         let typeToken = 202
         registerTestMetadata(typeToken: typeToken, flags: 1 << 1) // sealedClass
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_sealed(kclass), 1)
     }
 
     func testKClassIsValueReturnsCorrectValue() {
         let typeToken = 203
         registerTestMetadata(typeToken: typeToken, flags: 1 << 2) // valueClass
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_value(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_value(kclass), 1)
     }
 
     func testKClassIsInterfaceReturnsCorrectValue() {
         let typeToken = 204
         registerTestMetadata(typeToken: typeToken, flags: 1 << 3) // interface
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_interface(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_interface(kclass), 1)
     }
 
     func testKClassIsObjectReturnsCorrectValue() {
         let typeToken = 205
         registerTestMetadata(typeToken: typeToken, flags: 1 << 4) // object
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_object(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_object(kclass), 1)
     }
 
     func testKClassIsEnumReturnsCorrectValue() {
         let typeToken = 206
         registerTestMetadata(typeToken: typeToken, flags: 1 << 5) // enumClass
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_enum(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_enum(kclass), 1)
     }
 
     func testKClassIsAbstractReturnsCorrectValue() {
         let typeToken = 207
         registerTestMetadata(typeToken: typeToken, flags: 1 << 7) // abstract
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_is_abstract(kclass), 1)
+        let kclass = __kk_kclass_create(typeToken, 0)
+        XCTAssertEqual(__kk_kclass_is_abstract(kclass), 1)
     }
 
     // MARK: - Accessor Returns 0/False Without Metadata
 
     func testAccessorsReturnDefaultsWithoutMetadata() {
-        let kclass = kk_kclass_create(8888, 0)
-        XCTAssertEqual(kk_kclass_is_data(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_value(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_interface(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_object(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_enum(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_abstract(kclass), 0)
+        let kclass = __kk_kclass_create(8888, 0)
+        XCTAssertEqual(__kk_kclass_is_data(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_sealed(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_value(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_interface(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_object(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_enum(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_abstract(kclass), 0)
     }
 
     // MARK: - Multiple Flags
@@ -277,12 +277,12 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         // sealed + abstract
         let flags = (1 << 1) | (1 << 7)
         registerTestMetadata(typeToken: typeToken, flags: flags)
-        let kclass = kk_kclass_create(typeToken, 0)
+        let kclass = __kk_kclass_create(typeToken, 0)
 
-        XCTAssertEqual(kk_kclass_is_data(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_sealed(kclass), 1)
-        XCTAssertEqual(kk_kclass_is_value(kclass), 0)
-        XCTAssertEqual(kk_kclass_is_abstract(kclass), 1)
+        XCTAssertEqual(__kk_kclass_is_data(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_sealed(kclass), 1)
+        XCTAssertEqual(__kk_kclass_is_value(kclass), 0)
+        XCTAssertEqual(__kk_kclass_is_abstract(kclass), 1)
     }
 
     // MARK: - Helpers
@@ -297,7 +297,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
     private func registerTestMetadata(typeToken: Int, flags: Int) {
         let qualifiedName = makeRuntimeString("TestClass")
         let simpleName = makeRuntimeString("TestClass")
-        _ = kk_kclass_register_metadata(
+        _ = __kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             0, flags, 0, 0, 0
         )
