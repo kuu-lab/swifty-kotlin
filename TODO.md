@@ -60,8 +60,21 @@
 - [ ] DEBT-DIFF-002: script-style diff cases の top-level execution parity / stdlib nondeterminism を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。（2026-07-09: kotlinc JVM 起動 timeout 起因だった3件は `--script-timeout` 分離で解除済み。残り5件は timeout とは別要因）
 - [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。2026-07-10: `coroutine_deferred.kt`/`coroutine_structured_concurrency.kt`/`coroutine_supervisor_job.kt` 着手。Sema側の一般的バグ5件を修正（`kotlin.coroutines` default import欠落・`IntRange.map`要素型破壊・`async`/`coroutineScope`/`supervisorScope`戻り値型narrowing欠如・ラムダ本体のUnit-coercion時にexpectedTypeを誤伝播して`repeat`等が"No viable overload"になるバグ）、19ケースで回帰なし確認済み。ただし各ケースにKIR/runtime層の別バグが残存: (a) Iterator経由で取得したDeferred/Jobに`.await()`するとSIGSEGV、(b) `coroutineScope{}`が外側可変変数をキャプチャするとlowering失敗（`launch`/`async`は正常）、(c) `SupervisorJob()`/`CoroutineScope(context)`未実装。詳細は `docs/diff-skip-inventory.md` の「structured concurrency / Deferred / Supervisor 詳細」節参照。
 - [ ] DEBT-DIFF-005: common stdlib surface gap による skip（Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs、Random.nextFloat range overload/nextBytes）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。BigInteger は `not`/`shiftLeft`/`shiftRight` の未登録と shiftLeft/shiftRight のエンディアン不整合バグを修正し、skip 解除済み。
-- [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
+- [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。2026-07-09: `error_type_inference.kt` を解析し diff_cases から削除済み（下記「Sema 型推論診断ギャップ」節を参照）。現在の残存対象は `compiler_plugin_api.kt` と `math_rounding_functions.kt`。
+
 - [ ] DEBT-DIFF-007: `run_case` の compile-exit-code-match 誤判定修正（2026-07-08、`Scripts/diff_kotlinc.sh`）で新規に顕在化した ref/candidate 不一致 76 件を棚卸し済み（`docs/diff-skip-inventory.md` の DEBT-DIFF-007 節）。診断/ネガティブテスト・enum/data class/interface 未実装・common stdlib gap・coroutine Flow・reflection・JVM interop・finally routing の7グループへ分解済みなので、グループ単位で実装 owner へ割り当てて skip を解除する。
+
+#### Sema 型推論診断ギャップ（直上項目の分析から判明、2026-07-09）
+> `error_type_inference.kt` を diagnostics golden へ移設しようとしたところ、5 シナリオ全てで kswiftc が診断を1件も出さないことが判明した。JVM kotlinc 2.4.0 で裏取りした結果、3 件は本物のコンパイルエラー（kswiftc 側の Sema 検出漏れ）、残り 2 件（`identity(null)` の T 推論、expected-type 駆動の `produce(): T`）はそもそも正当な Kotlin コードで元の想定コメントが誤りだった。検出漏れの 3 件は `Tests/CompilerCoreTests/Sema` に `assertNoDiagnostic` ベースの回帰テストとして現状を固定済み — Sema 修正時にテストが失敗して気づける。
+- [ ] DEBT-SEMA-001: 未注釈オーバーロードで、ラムダ引数の暗黙 `it` パラメータ型がオーバーロード解決前に確定できず曖昧になるケース（`fun process(block: (Int) -> String)` / `fun process(block: (String) -> Int)` を `process { it }` で呼ぶ等）を `KSWIFTK-SEMA-0003` で検出できるようにする。回帰テスト: `OverloadResolutionByLambdaReturnTypeTests.testImplicitItParameterOverloadAmbiguityIsNotYetDetected`
+- [ ] DEBT-SEMA-002: `where T : ClassA, T : ClassB` のように型パラメータの upper bound に相互排他的な複数クラスが指定された宣言を検出する（宣言サイトの bound 整合性チェック。呼び出しサイトの `KSWIFTK-SEMA-BOUND` とは別軸）。回帰テスト: `TypeConstraintBoundsTests.testConflictingClassUpperBoundsAreNotYetDetected`
+- [ ] DEBT-SEMA-003: トップレベル `val` の初期化子が自分自身を参照する場合（`val cyclic: List<*> = listOf(cyclic)`）を「初期化前に使用された変数」として検出する。回帰テスト: `DataFlowAndSemaRegressionTests.testSelfReferentialTopLevelInitializerIsNotYetDetected`
+
+### ドキュメント乖離
+- [x] DEBT-DOC-001: `README.md` / `CLAUDE.md` の Swift toolchain 表記を実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）へ同期する
+- [x] DEBT-DOC-002: `docs/ARCHITECTURE.md` §4 の KIR テーブルへ未記載の実在ファイルを追記する（`CallSupportLowerer` / `ObjectLiteralLowerer` / `KIRLoweringContext` / `ConstantCollector` / `LateinitReadWrapping` / `KClassAnnotationRegistrationLowering` / `MutableCaptureCellHelpers` / `RuntimeTypeCheckToken` 等。architecture sync 済み範囲はモジュール構成・CI 表のみでファイルテーブルは未カバー）
+- [x] DEBT-DOC-003: `docs/ARCHITECTURE.md` §10 の Lowering パス実行順序へ未記載の実在パスを実行順付きで追記する（`EnumEntriesLoweringPass` / `EnumNameAccessLoweringPass` / `FlowLoweringPass` / `IntegerNarrowingPass` / `JvmOverloadsLoweringPass` / `JvmStaticLoweringPass` / `TailrecLoweringPass` / `ValueClassUnboxingPass`）
+- [x] DEBT-DOC-004: `docs/ARCHITECTURE.md` の「CoroutineLoweringPass (+分割3ファイル)」を実態（`+Analysis` / `+CallRewriting` / `+Flow` / `+FlowInstructionRewrite` / `+LauncherSupport` / `+StateMachine` / `+Synthesis` の 7 分割・計 8 ファイル）へ修正する。2026-07-10 完了: §9 に `CoroutineLoweringPass.swift` 本体 + 7 extension ファイルの構成を明記。
 
 ## Dead Code 削除タスク（DEADCODE: 2026-07-11〜12 再監査）
 
