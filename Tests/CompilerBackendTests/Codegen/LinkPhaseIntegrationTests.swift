@@ -1,9 +1,11 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class LinkPhaseIntegrationTests: XCTestCase {
+@Suite(.serialized)
+struct LinkPhaseIntegrationTests {
+    @Test
     func testLinkPhaseAutoLinksKotlinLibraryObjectForCrossModuleCall() throws {
         let librarySource = """
         package extdemo
@@ -41,20 +43,21 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 try CodegenPhase().run(appCtx)
                 assertLinkSucceeds(appCtx)
 
-                XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+                #expect(FileManager.default.fileExists(atPath: outputPath))
                 do {
                     _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                    XCTFail("Expected non-zero exit")
+                    Issue.record("Expected non-zero exit")
                     return
                 } catch let CommandRunnerError.nonZeroExit(failed) {
-                    XCTAssertEqual(failed.exitCode, 42)
+                    #expect(failed.exitCode == 42)
                 } catch {
-                    XCTFail("Unexpected error: \(error)")
+                    Issue.record("Unexpected error: \(error)")
                 }
             }
         }
     }
 
+    @Test
     func testLinkPhaseReportsMissingMainAndCanLinkExecutable() throws {
         try withTemporaryFile(contents: "fun notMain() = 0") { path in
             let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
@@ -63,8 +66,10 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertThrowsError(try LinkPhase().run(ctx))
-            XCTAssertTrue(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0002" })
+            #expect(throws: (any Error).self) {
+                try LinkPhase().run(ctx)
+            }
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0002" })
         }
 
         try withTemporaryFile(contents: "fun main() = 0") { path in
@@ -88,10 +93,11 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: out))
+            #expect(FileManager.default.fileExists(atPath: out))
         }
     }
 
+    @Test
     func testLinkPhaseWrapperReportsTopLevelThrownException() throws {
         let source = """
         fun main(): Any? {
@@ -107,26 +113,27 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: out))
+            #expect(FileManager.default.fileExists(atPath: out))
 
             let result: CommandResult
             do {
                 result = try CommandRunner.run(executable: out, arguments: [])
-                XCTFail("Expected executable to fail on unhandled top-level exception.")
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
                 return
             } catch let CommandRunnerError.nonZeroExit(failed) {
                 result = failed
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
                 return
             }
 
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertTrue(result.stderr.contains("KSWIFTK-LINK-0003"))
-            XCTAssertTrue(result.stderr.contains("KSwiftK panic"))
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+            #expect(result.stderr.contains("KSwiftK panic"))
         }
     }
 
+    @Test
     func testLinkPhaseAutoLinksKklibManifestObjectsAndDeduplicates() throws {
         let fm = FileManager.default
         let workspaceDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -193,38 +200,46 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(appCtx)
             assertLinkSucceeds(appCtx)
 
-            XCTAssertTrue(fm.fileExists(atPath: outputPath))
+            #expect(fm.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected non-zero exit")
+                Issue.record("Expected non-zero exit")
                 return
             } catch let CommandRunnerError.nonZeroExit(failed) {
-                XCTAssertEqual(failed.exitCode, 42)
+                #expect(failed.exitCode == 42)
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
             }
         }
     }
 
+    @Test
     func testLinkPhaseSkipsForObjectEmitMode() throws {
         let objectCtx = makeCompilationContext(inputs: [], moduleName: "SkipLink", emit: .object)
-        XCTAssertNoThrow(try LinkPhase().run(objectCtx))
+        try LinkPhase().run(objectCtx)
     }
 
+    @Test
     func testLinkPhaseFailsWhenObjectIsMissingForExecutable() throws {
         let missingObjectCtx = makeCompilationContext(inputs: [], moduleName: "MissingObj", emit: .executable)
-        XCTAssertThrowsError(try LinkPhase().run(missingObjectCtx))
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(missingObjectCtx)
+        }
     }
 
+    @Test
     func testLinkPhaseFailsWhenKIRModuleIsMissing() throws {
         let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
         try Data().write(to: tempObjectURL)
 
         let noKirCtx = makeCompilationContext(inputs: [], moduleName: "NoKir", emit: .executable)
         noKirCtx.generatedObjectPath = tempObjectURL.path
-        XCTAssertThrowsError(try LinkPhase().run(noKirCtx))
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(noKirCtx)
+        }
     }
 
+    @Test
     func testLinkPhasePassesDebugFlagToExecutableLink() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
@@ -250,38 +265,41 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
         }
     }
 
+    @Test
     func testLinkerDriverArgsDisablePieForLinuxTargets() {
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux-gnu", osVersion: nil)
         let args = LinkPhase().linkerDriverArgs(for: linuxTarget)
 
-        XCTAssertEqual(Array(args.prefix(2)), ["-target", "x86_64-unknown-linux-gnu"])
-        XCTAssertTrue(args.contains("-no-pie"))
+        #expect(Array(args.prefix(2)) == ["-target", "x86_64-unknown-linux-gnu"])
+        #expect(args.contains("-no-pie"))
     }
 
+    @Test
     func testLinuxAutolinkStubIsRewrittenWhenCorrupted() throws {
         // Use a test-only triple so this corruption check never races with regular link tests
         // that share the default Linux autolink stub path.
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "kswiftkstubtest", os: "linux-gnu", osVersion: nil)
         let linkPhase = LinkPhase()
 
-        let stubPath = try XCTUnwrap(linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        let stubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
         try "corrupted".write(toFile: stubPath, atomically: true, encoding: .utf8)
 
-        let repairedPath = try XCTUnwrap(linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
-        XCTAssertEqual(repairedPath, stubPath)
+        let repairedPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        #expect(repairedPath == stubPath)
 
         let contents = try String(contentsOfFile: repairedPath, encoding: .utf8)
-        XCTAssertNotEqual(contents, "corrupted")
-        XCTAssertTrue(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
-        XCTAssertTrue(contents.contains("NSLock()"))
-        XCTAssertTrue(contents.contains("DispatchQueue.global"))
-        XCTAssertTrue(contents.contains("DispatchSemaphore(value: 0)"))
+        #expect(contents != "corrupted")
+        #expect(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
+        #expect(contents.contains("NSLock()"))
+        #expect(contents.contains("DispatchQueue.global"))
+        #expect(contents.contains("DispatchSemaphore(value: 0)"))
     }
 
+    @Test
     func testExecutableEmissionWithOutputExtensionUsesSeparateObjectPath() throws {
         let source = """
         fun main() {
@@ -304,17 +322,18 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertEqual(ctx.generatedObjectPath, outputPath + ".o")
-            XCTAssertNotEqual(ctx.generatedObjectPath, outputPath)
+            #expect(ctx.generatedObjectPath == outputPath + ".o")
+            #expect(ctx.generatedObjectPath != outputPath)
 
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "true FALSE")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "true FALSE")
         }
     }
 
+    @Test
     func testExecutableEmissionWithObjectOutputPathUsesSeparateIntermediateObjectPath() throws {
         let source = """
         fun main() {
@@ -337,24 +356,25 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            XCTAssertEqual(
-                ctx.generatedObjectPath,
+            #expect(
+                ctx.generatedObjectPath ==
                 URL(fileURLWithPath: outputPath)
                     .deletingPathExtension()
                     .appendingPathExtension("executable")
                     .appendingPathExtension("o")
                     .path
             )
-            XCTAssertNotEqual(ctx.generatedObjectPath, outputPath)
+            #expect(ctx.generatedObjectPath != outputPath)
 
             assertLinkSucceeds(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "42")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "42")
         }
     }
 
+    @Test
     func testExecutableStringFormatHandlesBoxedScalarsInRuntimeObjects() throws {
         let source = """
         fun main() {
@@ -381,15 +401,16 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(
-                result.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+            #expect(
+                result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) ==
                 "9223372036854775807 7fffffffffffffff 2.5 A true"
             )
         }
     }
 
+    @Test
     func testExecutableStringFormatSupportsScientificNotation() throws {
         let source = """
         fun main() {
@@ -413,10 +434,11 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             assertLinkSucceeds(ctx)
 
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
-            XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "1.23e+03")
+            #expect(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "1.23e+03")
         }
     }
 
+    @Test
     func testLinkPhaseReportsDiagnosticForUnsupportedTargetArchitecture() throws {
         let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
         try Data().write(to: tempObjectURL)
@@ -451,11 +473,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
         badTargetCtx.generatedObjectPath = tempObjectURL.path
         badTargetCtx.kir = module
 
-        XCTAssertThrowsError(try LinkPhase().run(badTargetCtx))
-        XCTAssertTrue(badTargetCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
+        #expect(throws: (any Error).self) {
+            try LinkPhase().run(badTargetCtx)
+        }
+        #expect(badTargetCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
     }
 
     #if os(macOS)
+        @Test
         func testRuntimeObjectPathsBuildForAlternateAppleArchitecture() throws {
             let hostTarget = TargetTriple.hostDefault()
             let alternateArch = hostTarget.arch == "arm64" ? "x86_64" : "arm64"
@@ -468,18 +493,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
 
             let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: alternateTarget)
 
-            XCTAssertFalse(runtimeObjects.isEmpty)
-            XCTAssertTrue(runtimeObjects.allSatisfy { FileManager.default.fileExists(atPath: $0) })
-            XCTAssertTrue(runtimeObjects.allSatisfy { $0.contains("\(alternateArch)-apple-macosx") })
+            #expect(!runtimeObjects.isEmpty)
+            #expect(runtimeObjects.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+            #expect(runtimeObjects.allSatisfy { $0.contains("\(alternateArch)-apple-macosx") })
         }
     #endif
 }
 
-private func assertLinkSucceeds(
-    _ ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
-) {
+private func assertLinkSucceeds(_ ctx: CompilationContext) {
     do {
         try LinkPhase().run(ctx)
     } catch {
@@ -487,14 +508,12 @@ private func assertLinkSucceeds(
             .map { "\($0.code): \($0.message)" }
             .joined(separator: "\n")
         let diagnosticSummary = diagnostics.isEmpty ? "No diagnostics were recorded." : diagnostics
-        XCTFail(
+        Issue.record(
             """
             LinkPhase failed with error: \(error)
             Diagnostics:
             \(diagnosticSummary)
-            """,
-            file: file,
-            line: line
+            """
         )
     }
 }
