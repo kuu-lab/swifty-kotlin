@@ -37,7 +37,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-003 | 12 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 6 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
-| DEBT-DIFF-006 | 3 | type inference / variance / boxed numeric lowering | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-006 | 2 | type inference / boxed numeric lowering / compiler-plugin API | diagnostic case または parity regression へ分解 |
 | DEBT-DIFF-007 | 76 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -170,13 +170,14 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 3, 4 はどちらも本ケースの完全な pass に必要だが、4 は property delegate と無関係の独立した一般correctness bugであり、3 も AST パーサー層の変更を要するため、本 SKIP-DIFF 解除作業のスコープ外として別タスクに切り出した。
 
-## DEBT-DIFF-006: inference / variance / boxed numeric lowering
+## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API
 
 | cases | 判定 | 次アクション |
 | --- | --- | --- |
+| `compiler_plugin_api.kt` | implicit-receiver `MutableMap` access type-constraint gap | member access type inference / constraint solving の修正後に通常 diff へ戻す |
 | `error_type_inference.kt` | compile-error expectation case | diff harness は現状 stderr parity を厳密比較しないため、diagnostic golden か error-code regression へ移す |
-| `variance_generics.kt` | Sema variance checking gap | variance type checker の実装後に通常 diff へ戻す。実装前は Sema golden / diagnostic case として固定 |
-| `math_rounding_functions.kt` | math API ではなく boxed `Double` iteration lowering bug | List<Double> iteration unboxing の最小再現を別 case 化し、math 関数 case から分離 |
+
+`math_rounding_functions.kt` は 2026-07-09 に解除済み: SKIP-DIFF 追加時点(2026-04-07)は List<Double> の for-loop 変数が boxed pointer のまま round()/roundToInt() 等に渡っていたが、`a553bd1e`「Fix List<Int> for-loop variable unboxing in kotlinc diff regression」(2026-06-10)が型非依存の `kk_unbox_<T>` 挿入(`CollectionLiteralLoweringPass+CallRewriteIteratorBridge.swift` の `appendListIteratorNextWithUnboxing`)を導入した際に List<Double> のケースも副次的に修正されていたが、2026-07-01 の debt 一括整理では未検証のまま残存していた。`--force-run-skipped` で pass を確認し、回帰用の List<Double> ループを `CodegenBackendIntegrationTests+MathEdgeCases.swift` の既存 `testCodegenCompilesMathEdgeCases` に統合した。
 
 ## DEBT-DIFF-007: compile-exit parity fix により顕在化した両失敗ケース
 
