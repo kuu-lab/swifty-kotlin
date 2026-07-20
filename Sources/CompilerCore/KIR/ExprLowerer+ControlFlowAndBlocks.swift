@@ -1416,7 +1416,6 @@ extension ExprLowerer {
                 instructions.append(.copy(from: operandID, to: result))
                 return result
             }
-            }
             let typeToken: KIRExprID = if let targetType = sema.bindings.castTargetType(for: exprID) {
                 lowerTypeCheckTokenExpr(
                     targetType: targetType,
