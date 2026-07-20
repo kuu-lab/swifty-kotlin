@@ -102,6 +102,28 @@ struct OverloadResolutionByLambdaReturnTypeTests {
         )
     }
 
+    // KNOWN GAP (DEBT-SEMA-001, migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
+    // Neither candidate is annotated with @OverloadResolutionByLambdaReturnType, and the lambda body
+    // only reads the implicit `it` parameter, so its shape can't be fixed before an overload is picked.
+    // kotlinc 2.4.0 rejects this:
+    //   error: overload resolution ambiguity between candidates:
+    //   fun process(block: (Int) -> String): String
+    //   fun process(block: (String) -> Int): Int
+    //   error: unresolved reference 'it'.
+    // kswiftc currently accepts it silently instead of reporting KSWIFTK-SEMA-0003. This pins the
+    // current (incorrect) behavior so it fails once DEBT-SEMA-001 is fixed.
+    @Test func testImplicitItParameterOverloadAmbiguityIsNotYetDetected() {
+        let source = """
+        fun process(block: (Int) -> String) = block(1)
+        fun process(block: (String) -> Int) = block("a")
+
+        val result = process { it }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testCallableReferenceStillResolvesNormally() {
         let source = """
         import kotlin.OptIn

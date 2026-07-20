@@ -418,7 +418,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
         let zBoxed = kk_box_char(Int(Unicode.Scalar("z").value))
         let range = kk_op_rangeTo(aBoxed, zBoxed)
-        let taken = kk_char_range_take(range, 3)
+        let taken = kk_char_range_take(range, 3, nil)
         XCTAssertEqual(kk_list_size(taken), 3)
     }
 
@@ -427,8 +427,28 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
         let range = kk_op_rangeTo(aBoxed, eBoxed)
         // ('a'..'e') drop 2 -> ['c','d','e']
-        let dropped = kk_char_range_drop(range, 2)
+        let dropped = kk_char_range_drop(range, 2, nil)
         XCTAssertEqual(kk_list_size(dropped), 3)
+    }
+
+    func testCharRange_takeNegativeCountThrows() {
+        let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
+        let zBoxed = kk_box_char(Int(Unicode.Scalar("z").value))
+        let range = kk_op_rangeTo(aBoxed, zBoxed)
+        var thrown: Int = 0
+        let taken = kk_char_range_take(range, -1, &thrown)
+        XCTAssertEqual(kk_list_size(taken), 0)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testCharRange_dropNegativeCountThrows() {
+        let aBoxed = kk_box_char(Int(Unicode.Scalar("a").value))
+        let eBoxed = kk_box_char(Int(Unicode.Scalar("e").value))
+        let range = kk_op_rangeTo(aBoxed, eBoxed)
+        var thrown: Int = 0
+        let dropped = kk_char_range_drop(range, -1, &thrown)
+        XCTAssertEqual(kk_list_size(dropped), 0)
+        XCTAssertNotEqual(thrown, 0)
     }
 
     func testCharRange_sorted_descendingInput() {

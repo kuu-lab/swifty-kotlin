@@ -1,15 +1,14 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeResourceAccessTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    override func resetIsolatedRuntimeTestState() {
-        unsetenv("KSWIFTK_RESOURCE_ROOT")
-    }
+private func resetRuntimeResourceAccessTestState() {
+    unsetenv("KSWIFTK_RESOURCE_ROOT")
+}
 
-    func testResourceExistsAndReadAsText() throws {
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeResourceAccessTestState))
+struct RuntimeResourceAccessTests {
+    @Test func resourceExistsAndReadAsText() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer {
@@ -20,15 +19,15 @@ final class RuntimeResourceAccessTests: IsolatedRuntimeXCTestCase {
         try "hello resource".write(to: fileURL, atomically: true, encoding: .utf8)
         setenv("KSWIFTK_RESOURCE_ROOT", dir.path, 1)
 
-        XCTAssertNotEqual(kk_resource_exists(runtimeString("hello.txt")), 0)
+        #expect(kk_resource_exists(runtimeString("hello.txt")) != 0)
 
         var thrown = 0
         let textRaw = kk_readResourceAsText(runtimeString("hello.txt"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(textRaw), "hello resource")
+        #expect(thrown == 0)
+        #expect(stringValue(textRaw) == "hello resource")
     }
 
-    func testClassLoaderReturnsStreamAndPath() throws {
+    @Test func classLoaderReturnsStreamAndPath() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer {
@@ -41,14 +40,14 @@ final class RuntimeResourceAccessTests: IsolatedRuntimeXCTestCase {
 
         let loaderRaw = kk_classloader_getSystemClassLoader()
         let pathRaw = kk_classloader_getResource(loaderRaw, runtimeString("bytes.bin"))
-        XCTAssertEqual(stringValue(pathRaw), fileURL.path)
+        #expect(stringValue(pathRaw) == fileURL.path)
 
         let streamRaw = kk_classloader_getResourceAsStream(loaderRaw, runtimeString("bytes.bin"))
         var thrown: Int = 0
-        XCTAssertEqual(kk_input_stream_read(streamRaw, &thrown), 65)
-        XCTAssertEqual(kk_input_stream_read(streamRaw, &thrown), 66)
-        XCTAssertEqual(kk_input_stream_read(streamRaw, &thrown), -1)
-        XCTAssertEqual(kk_input_stream_close(streamRaw), 0)
+        #expect(kk_input_stream_read(streamRaw, &thrown) == 65)
+        #expect(kk_input_stream_read(streamRaw, &thrown) == 66)
+        #expect(kk_input_stream_read(streamRaw, &thrown) == -1)
+        #expect(kk_input_stream_close(streamRaw) == 0)
     }
 
     private func runtimeString(_ text: String) -> Int {
