@@ -652,8 +652,8 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringIndentRuntimeABIRemoved() {
-        let migratedNames = [
+    func testKKStringIndentPointerABIRemoved() {
+        let legacyNames = [
             "kk_string_trimIndent",
             "kk_string_trimMargin_default",
             "kk_string_trimMargin",
@@ -662,26 +662,112 @@ final class ABIMismatchTests: XCTestCase {
             "kk_string_replaceIndent_default",
             "kk_string_replaceIndent",
             "kk_string_replaceIndentByMargin",
-            "kk_string_trimIndent_flat",
-            "kk_string_trimMargin_default_flat",
-            "kk_string_trimMargin_flat",
-            "kk_string_prependIndent_default_flat",
-            "kk_string_prependIndent_flat",
-            "kk_string_replaceIndent_default_flat",
-            "kk_string_replaceIndent_flat",
-            "kk_string_replaceIndentByMargin_flat",
-            "__string_trimIndent",
-            "__string_trimMargin",
-            "__string_prependIndent",
-            "__string_replaceIndent",
-            "__string_replaceIndentByMargin",
         ]
-        for migratedName in migratedNames {
+        for legacyName in legacyNames {
             XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == migratedName },
-                "\(migratedName) should be provided by bundled Kotlin source, not runtime ABI"
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
+    }
+
+    func testKKStringIndentSourceBridgeSignatures() throws {
+        let trimIndent = try requireSpec("__kk_string_trimIndent")
+        XCTAssertEqual(trimIndent.returnType, .intptr)
+        XCTAssertEqual(trimIndent.parameters.map(\.type), [.intptr])
+
+        let trimMargin = try requireSpec("__kk_string_trimMargin")
+        XCTAssertEqual(trimMargin.returnType, .intptr)
+        XCTAssertEqual(trimMargin.parameters.map(\.type), [
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+        ])
+
+        for name in ["__kk_string_prependIndent", "__kk_string_replaceIndent"] {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .intptr)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .intptr,
+                .intptr,
+            ])
+        }
+
+        let replaceByMargin = try requireSpec("__kk_string_replaceIndentByMargin")
+        XCTAssertEqual(replaceByMargin.returnType, .intptr)
+        XCTAssertEqual(replaceByMargin.parameters.map(\.type), [
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringIndentFlatSignatures() throws {
+        let receiverOnlyNames = [
+            "kk_string_trimIndent_flat",
+            "kk_string_trimMargin_default_flat",
+            "kk_string_prependIndent_default_flat",
+            "kk_string_replaceIndent_default_flat",
+        ]
+        let receiverOnlyTypes: [RuntimeABICType] = [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ]
+        for name in receiverOnlyNames {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.map(\.type), receiverOnlyTypes)
+        }
+
+        let oneStringArgumentNames = [
+            "kk_string_trimMargin_flat",
+            "kk_string_prependIndent_flat",
+            "kk_string_replaceIndent_flat",
+        ]
+        let oneStringArgumentTypes: [RuntimeABICType] = [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ]
+        for name in oneStringArgumentNames {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.map(\.type), oneStringArgumentTypes)
+        }
+
+        let replaceIndentByMargin = try requireSpec("kk_string_replaceIndentByMargin_flat")
+        XCTAssertEqual(replaceIndentByMargin.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(replaceIndentByMargin.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
     }
 
     func testKKPrintlnAnySignature() throws {

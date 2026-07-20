@@ -20,15 +20,18 @@ struct FileStartsWithFunctionTests {
     // pick up those internal calls alongside the user source's calls.
     private func memberCallExprIDs(
         named name: String,
+        receiverType: TypeID,
         in ast: ASTModule,
+        sema: SemaModule,
         interner: StringInterner,
         sourceManager: SourceManager
     ) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
+                  case let .memberCall(receiver, callee, _, _, range) = expr,
                   interner.resolve(callee) == name,
+                  sema.bindings.exprTypes[receiver] == receiverType,
                   !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
             else {
                 return nil
@@ -115,8 +118,19 @@ struct FileStartsWithFunctionTests {
             let booleanType = sema.types.booleanType
 
             let ast = try #require(ctx.ast)
+            let fileSymbol = try #require(
+                sema.symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
+            )
+            let fileType = sema.types.make(
+                .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
+            )
             let callExprs = memberCallExprIDs(
-                named: "startsWith", in: ast, interner: interner, sourceManager: ctx.sourceManager
+                named: "startsWith",
+                receiverType: fileType,
+                in: ast,
+                sema: sema,
+                interner: interner,
+                sourceManager: ctx.sourceManager
             )
             #expect(callExprs.count == 2, "expected two startsWith member calls")
             for callExpr in callExprs {

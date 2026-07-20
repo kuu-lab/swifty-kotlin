@@ -466,14 +466,17 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            XCTAssertFalse(ir.contains("@kk_string_format("), "Unexpected raw String format call")
-            XCTAssertFalse(ir.contains("@kk_string_format_locale("), "Unexpected raw String format(locale) call")
+            XCTAssertFalse(ir.contains("@__kk_string_format("), "Unexpected raw String format call")
+            XCTAssertFalse(ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
             XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
             XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
         }
     }
 
     func testLLVMBackendUsesSourceBackedIndentCallsForStringOverloads() throws {
+        // trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are compiled
+        // through StringIndentFormat.kt. The old public kk_string_* and flat C-bridge calls
+        // should not appear in user IR.
         let source = """
         fun main() {
             val value = "  alpha\\n  beta"
@@ -497,14 +500,14 @@ extension CodegenBackendIntegrationTests {
                 .path
             let llvmCtx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "StringIndentFlatIR",
+                moduleName: "StringIndentKotlinIR",
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let runtimeNames = [
+            let forbiddenNames = [
                 "kk_string_trimIndent",
                 "kk_string_trimMargin_default",
                 "kk_string_trimMargin",
@@ -522,11 +525,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
             ]
-            for runtimeName in runtimeNames {
-                XCTAssertFalse(
-                    ir.contains("@\(runtimeName)"),
-                    "String indent formatting should lower through bundled Kotlin source, not \(runtimeName)"
-                )
+            for name in forbiddenNames {
+                XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
             }
         }
     }

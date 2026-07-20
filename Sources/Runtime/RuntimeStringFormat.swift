@@ -327,8 +327,8 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 
 // MARK: - Public @_cdecl functions: String.format
 
-@_cdecl("kk_string_format")
-public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+@_cdecl("__kk_string_format")
+public func __kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
@@ -359,14 +359,14 @@ public func kk_string_format_flat(
     )
 }
 
-@_cdecl("kk_string_format_locale")
-public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+@_cdecl("__kk_string_format_locale")
+public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
         locale = nil
     } else {
         guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale received invalid Locale handle")
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale received invalid Locale handle")
         }
         locale = box.locale
     }
@@ -411,9 +411,216 @@ public func kk_string_format_locale_flat(
     )
 }
 
-// MARK: - Internal bridge functions for Kotlin stdlib source
+// MARK: - Public @_cdecl functions: Indent operations
 
-@_cdecl("__string_format")
-public func __string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
-    return kk_string_format(formatRaw, argsArrayRaw)
+@_cdecl("kk_string_trimIndent")
+public func kk_string_trimIndent(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeMakeStringRaw(runtimeTrimIndent(source))
+}
+
+@_cdecl("kk_string_trimMargin_default")
+public func kk_string_trimMargin_default(_ strRaw: Int) -> Int {
+    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw, nil)
+}
+
+@_cdecl("kk_string_trimMargin")
+public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "marginPrefix must be non-blank string."
+        )
+        return runtimeMakeStringRaw("")
+    }
+    return runtimeMakeStringRaw(runtimeTrimMargin(source, marginPrefix: marginPrefix))
+}
+
+// MARK: - STDLIB-191: prependIndent / replaceIndent
+
+private let runtimeDefaultPrependIndentRaw = runtimeMakeStringRaw(" ")
+private let runtimeDefaultReplaceIndentRaw = runtimeMakeStringRaw("")
+
+@_cdecl("kk_string_prependIndent_default")
+public func kk_string_prependIndent_default(_ strRaw: Int) -> Int {
+    kk_string_prependIndent(strRaw, runtimeDefaultPrependIndentRaw)
+}
+
+@_cdecl("kk_string_replaceIndent_default")
+public func kk_string_replaceIndent_default(_ strRaw: Int) -> Int {
+    kk_string_replaceIndent(strRaw, runtimeDefaultReplaceIndentRaw)
+}
+
+@_cdecl("kk_string_prependIndent")
+public func kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let indent = runtimeStringFromRaw(indentRaw) ?? " "
+    return runtimeMakeStringRaw(runtimePrependIndent(source, indent: indent))
+}
+
+@_cdecl("kk_string_replaceIndent")
+public func kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let newIndent = runtimeStringFromRawOrPanic(newIndentRaw, caller: #function)
+    return runtimeMakeStringRaw(runtimeReplaceIndent(source, newIndent: newIndent))
+}
+
+@_cdecl("kk_string_replaceIndentByMargin")
+public func kk_string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let newIndent = runtimeStringFromRaw(newIndentRaw) ?? ""
+    let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "marginPrefix must be non-blank string."
+        )
+        return runtimeMakeStringRaw("")
+    }
+    return runtimeMakeStringRaw(
+        runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
+    )
+}
+
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_trimIndent_flat")
+public func kk_string_trimIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_trimIndent(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_trimMargin_default_flat")
+public func kk_string_trimMargin_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_trimMargin_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_trimMargin_flat")
+public func kk_string_trimMargin_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    var thrown = 0
+    let raw = kk_string_trimMargin(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
+        &thrown
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_prependIndent_default_flat")
+public func kk_string_prependIndent_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_prependIndent_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_prependIndent_flat")
+public func kk_string_prependIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ indentData: UnsafePointer<UInt8>?, _ indentLength: Int, _ indentByteCount: Int, _ indentHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_prependIndent(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(indentData, indentLength, indentByteCount, indentHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndent_default_flat")
+public func kk_string_replaceIndent_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceIndent_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndent_flat")
+public func kk_string_replaceIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceIndent(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndentByMargin_flat")
+public func kk_string_replaceIndentByMargin_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
+    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    var thrown = 0
+    let raw = kk_string_replaceIndentByMargin(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash),
+        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
+        &thrown
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+// MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
+
+@_cdecl("__kk_string_trimIndent")
+public func __kk_string_trimIndent(_ strRaw: Int) -> Int {
+    return kk_string_trimIndent(strRaw)
+}
+
+@_cdecl("__kk_string_trimMargin")
+public func __kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_trimMargin(strRaw, marginPrefixRaw, outThrown)
+}
+
+@_cdecl("__kk_string_prependIndent")
+public func __kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
+    return kk_string_prependIndent(strRaw, indentRaw)
+}
+
+@_cdecl("__kk_string_replaceIndent")
+public func __kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
+    return kk_string_replaceIndent(strRaw, newIndentRaw)
+}
+
+@_cdecl("__kk_string_replaceIndentByMargin")
+public func __kk_string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw, outThrown)
 }
