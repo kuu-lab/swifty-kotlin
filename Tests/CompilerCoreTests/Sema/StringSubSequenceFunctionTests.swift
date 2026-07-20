@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-072: Validates that `String.subSequence(startIndex, endIndex)`
 /// resolves through Sema for String receivers and links to the runtime helper
 /// `kk_string_subSequence` (see `Sources/Runtime/RuntimeStringStdlib.swift`).
 /// Note: `subSequence` is deprecated in favour of `substring(startIndex, endIndex)`.
-final class StringSubSequenceFunctionTests: XCTestCase {
-    func testStringSubSequenceResolvesInSource() throws {
+@Suite
+struct StringSubSequenceFunctionTests {
+    @Test func testStringSubSequenceResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         @Suppress("KSWIFTK-SEMA-DEPRECATED")
         fun headTwo(s: String): String {
@@ -35,20 +37,20 @@ final class StringSubSequenceFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected String.subSequence(...) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testSubSequenceTwoArgOverloadResolvesToRuntimeLink() throws {
+    @Test func testSubSequenceTwoArgOverloadResolvesToRuntimeLink() throws {
         var resolvedLink: String?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "subSequence"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -57,12 +59,12 @@ final class StringSubSequenceFunctionTests: XCTestCase {
                     && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.stringType,
+            #expect(
+                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.subSequence(startIndex, endIndex) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_subSequence_flat")
+        #expect(resolvedLink == "kk_string_subSequence_flat")
     }
 }
+#endif

@@ -840,9 +840,16 @@ public func kk_range_endExclusive(_ rangeRaw: Int) -> Int {
 // MARK: - IntRange take/drop/average/sorted (STDLIB-RANGE-TDS)
 
 @_cdecl("kk_range_take")
-public func kk_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
+public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_take")
+    }
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     guard n > 0 else { return registerRuntimeObject(RuntimeListBox(elements: [])) }
     var elements: [Int] = []
@@ -865,9 +872,16 @@ public func kk_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
 }
 
 @_cdecl("kk_range_drop")
-public func kk_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
+public func kk_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_drop")
+    }
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     var elements: [Int] = []
     var current = range.first
@@ -1032,9 +1046,16 @@ public func kk_char_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
 }
 
 @_cdecl("kk_char_range_take")
-public func kk_char_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
+public func kk_char_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_take")
+    }
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     guard n > 0 else { return registerRuntimeObject(RuntimeListBox(elements: [])) }
     let first = kk_unbox_char(range.first)
@@ -1060,9 +1081,16 @@ public func kk_char_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
 }
 
 @_cdecl("kk_char_range_drop")
-public func kk_char_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
+public func kk_char_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_drop")
+    }
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     let first = kk_unbox_char(range.first)
     let last = kk_unbox_char(range.last)
