@@ -5,7 +5,7 @@ import Testing
 
 /// Tests for REFL-002: standalone `T::class` references produce proper KClass
 /// metadata via `__kk_kclass_create` instead of falling back to Unit.
-@Suite @MainActor
+@Suite
 struct StandaloneClassReferenceTests {
 
     /// Standalone `T::class` inside a reified inline function should emit
