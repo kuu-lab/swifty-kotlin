@@ -26,15 +26,23 @@ package kotlin.ranges
 // widen step to Long before delegating so the shared helper only has to handle
 // one width.
 
-private fun <T : Comparable<T>> rangeIsEmpty(first: T, last: T, step: Long): Boolean =
+// Keep these helpers specialized: the generic Comparable helper makes bundled
+// source type-checking fail to terminate even for unrelated small programs.
+private fun rangeIsEmptyInt(first: Int, last: Int, step: Long): Boolean =
     if (step > 0L) first > last else if (step < 0L) first < last else true
 
-public fun IntRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun IntProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun LongRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step)
-public fun LongProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun CharRange.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
-public fun CharProgression.isEmpty(): Boolean = rangeIsEmpty(first, last, step.toLong())
+private fun rangeIsEmptyLong(first: Long, last: Long, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
+    if (step > 0L) first > last else if (step < 0L) first < last else true
+
+public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
+public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
+public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
+public fun LongProgression.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step.toLong())
+public fun CharRange.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
+public fun CharProgression.isEmpty(): Boolean = rangeIsEmptyChar(first, last, step.toLong())
 
 // Widening the subtraction to Long (Int) / staying in Long (Long) keeps
 // `value - first` from wrapping when first/value sit near Int.MIN_VALUE /

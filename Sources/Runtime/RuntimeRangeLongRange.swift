@@ -163,15 +163,29 @@ public func kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ 
 }
 
 @_cdecl("kk_long_range_take")
-public func kk_long_range_take(_ rangeRaw: Int, _ n: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_take") { range in
+public func kk_long_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_take") { range in
         RuntimeSignedRangeHOFKind.take(range, n)
     }
 }
 
 @_cdecl("kk_long_range_drop")
-public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_drop") { range in
+public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if n < 0 {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(n) is less than zero."
+        )
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_drop") { range in
         RuntimeSignedRangeHOFKind.drop(range, n)
     }
 }
