@@ -23,6 +23,15 @@ extension CodegenBackendIntegrationTests {
 
             println(ceil(Double.NaN).isNaN())
             println(floor(Double.POSITIVE_INFINITY).isInfinite())
+
+            // DEBT-DIFF-006 regression: keep List<Double> iteration in the
+            // same XCTest method so SwiftPM does not grow the generated
+            // XCTest discovery expression with another entry.
+            val values = listOf(3.2, 3.7, -2.3)
+            for (value in values) {
+                println(round(value))
+                println(value.roundToInt())
+            }
         }
         """
 
@@ -41,9 +50,14 @@ extension CodegenBackendIntegrationTests {
                 -3.0
                 true
                 true
+                3.0
+                3
+                4.0
+                4
+                -2.0
+                -2
                 """
                 + "\n"
         )
     }
 }
-

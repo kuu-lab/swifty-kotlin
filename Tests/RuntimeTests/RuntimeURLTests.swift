@@ -1,8 +1,10 @@
+#if canImport(Testing)
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeURLTests: XCTestCase {
+@Suite
+struct RuntimeURLTests {
     private func runtimeString(_ text: String) -> Int {
         text.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
@@ -19,43 +21,46 @@ final class RuntimeURLTests: XCTestCase {
         kk_unbox_bool(raw) != 0
     }
 
+    @Test
     func testURLParsesResolvesAndConvertsToURI() {
         var thrown = 0
         let base = kk_url_new(runtimeString("https://example.com/base/index.html?x=1#frag"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_url_protocol(base)), "https")
-        XCTAssertEqual(stringValue(kk_url_host(base)), "example.com")
-        XCTAssertEqual(kk_url_port(base), -1)
-        XCTAssertEqual(stringValue(kk_url_path(base)), "/base/index.html")
-        XCTAssertEqual(stringValue(kk_url_query(base)), "x=1")
-        XCTAssertEqual(stringValue(kk_url_fragment(base)), "frag")
+        #expect(thrown == 0)
+        #expect(stringValue(kk_url_protocol(base)) == "https")
+        #expect(stringValue(kk_url_host(base)) == "example.com")
+        #expect(kk_url_port(base) == -1)
+        #expect(stringValue(kk_url_path(base)) == "/base/index.html")
+        #expect(stringValue(kk_url_query(base)) == "x=1")
+        #expect(stringValue(kk_url_fragment(base)) == "frag")
 
         let child = kk_url_new_relative(base, runtimeString("../child?q=a%20b#next"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_url_toExternalForm(child)), "https://example.com/child?q=a%20b#next")
+        #expect(thrown == 0)
+        #expect(stringValue(kk_url_toExternalForm(child)) == "https://example.com/child?q=a%20b#next")
 
         let uri = kk_url_toURI(child, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_uri_toString(uri)), "https://example.com/child?q=a%20b#next")
+        #expect(thrown == 0)
+        #expect(stringValue(kk_uri_toString(uri)) == "https://example.com/child?q=a%20b#next")
     }
 
+    @Test
     func testURLEqualitySameFileAndEncodingHelpers() {
         var thrown = 0
         let lhs = kk_url_new(runtimeString("https://example.com/a%20b?q=1#top"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let rhs = kk_url_new(runtimeString("https://example.com/a%20b?q=1#top"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let otherFragment = kk_url_new(runtimeString("https://example.com/a%20b?q=1#bottom"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
-        XCTAssertTrue(boolValue(kk_url_equals(lhs, rhs)))
-        XCTAssertEqual(kk_url_hashCode(lhs), kk_url_hashCode(rhs))
-        XCTAssertTrue(boolValue(kk_url_sameFile(lhs, otherFragment)))
+        #expect(boolValue(kk_url_equals(lhs, rhs)))
+        #expect(kk_url_hashCode(lhs) == kk_url_hashCode(rhs))
+        #expect(boolValue(kk_url_sameFile(lhs, otherFragment)))
 
-        XCTAssertEqual(stringValue(kk_url_encode(runtimeString("a b+c"))), "a%20b%2Bc")
-        XCTAssertEqual(stringValue(kk_url_decode(runtimeString("a%20b%2Bc"))), "a b+c")
+        #expect(stringValue(kk_url_encode(runtimeString("a b+c"))) == "a%20b%2Bc")
+        #expect(stringValue(kk_url_decode(runtimeString("a%20b%2Bc"))) == "a b+c")
     }
 
+    @Test
     func testURLReadBytesReturnsSignedByteValues() throws {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data([0, 127, 128, 255]).write(to: fileURL)
@@ -65,11 +70,12 @@ final class RuntimeURLTests: XCTestCase {
         let urlRaw = kk_url_new(runtimeString(fileURL.absoluteString), &thrown)
         let bytesRaw = kk_url_readBytes(urlRaw, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeListBox(from: bytesRaw)?.elements, [0, 127, -128, -1])
+        #expect(thrown == 0)
+        #expect(runtimeListBox(from: bytesRaw)?.elements == [0, 127, -128, -1])
     }
 
     // STDLIB-IO-FN-035: URL.readText()
+    @Test
     func testURLReadTextReadsFileURLContents() throws {
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".txt")
@@ -79,21 +85,23 @@ final class RuntimeURLTests: XCTestCase {
 
         var thrown = 0
         let urlRaw = kk_url_new(runtimeString(tmpURL.absoluteString), &thrown)
-        XCTAssertEqual(thrown, 0, "URL construction must not throw")
+        #expect(thrown == 0, "URL construction must not throw")
 
         let textRaw = kk_url_readText(urlRaw, &thrown)
-        XCTAssertEqual(thrown, 0, "readText on a readable file:// URL must not throw")
-        XCTAssertEqual(stringValue(textRaw), expected)
+        #expect(thrown == 0, "readText on a readable file:// URL must not throw")
+        #expect(stringValue(textRaw) == expected)
     }
 
+    @Test
     func testURLReadTextThrowsOnUnreadablePath() {
         var thrown = 0
         let nonExistentPath = "/nonexistent_kswiftk_test_\(UUID().uuidString)/file.txt"
         let urlRaw = kk_url_new(runtimeString("file://" + nonExistentPath), &thrown)
-        XCTAssertEqual(thrown, 0, "URL construction must not throw even for nonexistent paths")
+        #expect(thrown == 0, "URL construction must not throw even for nonexistent paths")
 
         let textRaw = kk_url_readText(urlRaw, &thrown)
-        XCTAssertNotEqual(thrown, 0, "readText on an unreadable file:// URL must set outThrown")
+        #expect(thrown != 0, "readText on an unreadable file:// URL must set outThrown")
         _ = textRaw
     }
 }
+#endif

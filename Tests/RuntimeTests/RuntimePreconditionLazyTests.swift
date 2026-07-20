@@ -1,5 +1,6 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
 // STDLIB-257: Regression tests for precondition lazy message failure path distinction.
 //
@@ -32,58 +33,65 @@ private func fnPtrInt(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> 
     Int(bitPattern: unsafeBitCast(fn, to: UnsafeRawPointer.self))
 }
 
-final class RuntimePreconditionLazyTests: XCTestCase {
+@Suite
+struct RuntimePreconditionLazyTests {
 
     // MARK: - kk_require (non-lazy)
 
+    @Test
     func testRequirePassingConditionDoesNotThrow() {
         var outThrown = 0
         _ = kk_require(1, &outThrown)
-        XCTAssertEqual(outThrown, 0, "require(true) should not throw")
+        #expect(outThrown == 0, "require(true) should not throw")
     }
 
+    @Test
     func testRequireFailingConditionThrowsIllegalArgument() throws {
         var outThrown = 0
         _ = kk_require(0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "require(false) should throw")
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
-        XCTAssertTrue(box.renderedMessage.contains("IllegalArgumentException"))
+        #expect(outThrown != 0, "require(false) should throw")
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(box.renderedMessage.contains("IllegalArgumentException"))
     }
 
     // MARK: - kk_check (non-lazy)
 
+    @Test
     func testCheckPassingConditionDoesNotThrow() {
         var outThrown = 0
         _ = kk_check(1, &outThrown)
-        XCTAssertEqual(outThrown, 0, "check(true) should not throw")
+        #expect(outThrown == 0, "check(true) should not throw")
     }
 
+    @Test
     func testCheckFailingConditionThrowsIllegalState() throws {
         var outThrown = 0
         _ = kk_check(0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "check(false) should throw")
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException")
-        XCTAssertTrue(box.renderedMessage.contains("IllegalStateException"))
+        #expect(outThrown != 0, "check(false) should throw")
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.renderedMessage.contains("IllegalStateException"))
     }
 
     // MARK: - kk_require_lazy: condition passes
 
+    @Test
     func testRequireLazyPassingConditionDoesNotThrow() {
         var outThrown = 0
         _ = kk_require_lazy(1, fnPtrInt(lazyMessageReturnsString), 0, &outThrown)
-        XCTAssertEqual(outThrown, 0, "require(true) { ... } should not throw")
+        #expect(outThrown == 0, "require(true) { ... } should not throw")
     }
 
     // MARK: - kk_require_lazy: condition fails, lazy message succeeds
 
+    @Test
     func testRequireLazyFailsWithCustomMessage() throws {
         var outThrown = 0
         _ = kk_require_lazy(0, fnPtrInt(lazyMessageReturnsString), 0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "require(false) { ... } should throw")
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertTrue(
+        #expect(outThrown != 0, "require(false) { ... } should throw")
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(
             box.message.contains("custom message"),
             "Should contain the lazy message, got: \(box.message)"
         )
@@ -91,23 +99,24 @@ final class RuntimePreconditionLazyTests: XCTestCase {
 
     // MARK: - kk_require_lazy: condition fails, lazy message throws (STDLIB-257 core case)
 
+    @Test
     func testRequireLazyMessageThrowsReportsPreconditionFailureWithCause() throws {
         var outThrown = 0
         _ = kk_require_lazy(0, fnPtrInt(lazyMessageThrows), 0, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0, "Should throw when condition is false")
+        #expect(outThrown != 0, "Should throw when condition is false")
 
         // The primary exception must be the precondition failure, not the lambda's exception.
-        let box = try XCTUnwrap(throwableBox(from: outThrown), "outThrown should be a RuntimeThrowableBox")
-        XCTAssertTrue(
+        let box = try #require(throwableBox(from: outThrown), "outThrown should be a RuntimeThrowableBox")
+        #expect(
             box.exceptionFQName == "kotlin.IllegalArgumentException",
             "Primary exception must be IllegalArgumentException, got: \(box.exceptionFQName)"
         )
 
         // The lambda's exception must be attached as the cause.
-        XCTAssertNotEqual(box.cause, 0, "cause must be set when lazy message threw")
-        let causeBox = try XCTUnwrap(throwableBox(from: box.cause), "cause should be a RuntimeThrowableBox")
-        XCTAssertTrue(
+        #expect(box.cause != 0, "cause must be set when lazy message threw")
+        let causeBox = try #require(throwableBox(from: box.cause), "cause should be a RuntimeThrowableBox")
+        #expect(
             causeBox.message.contains("LazyEvalError"),
             "cause should contain the lambda's exception message, got: \(causeBox.message)"
         )
@@ -115,23 +124,24 @@ final class RuntimePreconditionLazyTests: XCTestCase {
 
     // MARK: - kk_check_lazy: condition fails, lazy message throws (STDLIB-257 core case)
 
+    @Test
     func testCheckLazyMessageThrowsReportsPreconditionFailureWithCause() throws {
         var outThrown = 0
         _ = kk_check_lazy(0, fnPtrInt(lazyMessageThrows), 0, &outThrown)
 
-        XCTAssertNotEqual(outThrown, 0, "Should throw when condition is false")
+        #expect(outThrown != 0, "Should throw when condition is false")
 
         // The primary exception must be the precondition failure, not the lambda's exception.
-        let box = try XCTUnwrap(throwableBox(from: outThrown), "outThrown should be a RuntimeThrowableBox")
-        XCTAssertTrue(
+        let box = try #require(throwableBox(from: outThrown), "outThrown should be a RuntimeThrowableBox")
+        #expect(
             box.exceptionFQName == "kotlin.IllegalStateException",
             "Primary exception must be IllegalStateException, got: \(box.exceptionFQName)"
         )
 
         // The lambda's exception must be attached as the cause.
-        XCTAssertNotEqual(box.cause, 0, "cause must be set when lazy message threw")
-        let causeBox = try XCTUnwrap(throwableBox(from: box.cause), "cause should be a RuntimeThrowableBox")
-        XCTAssertTrue(
+        #expect(box.cause != 0, "cause must be set when lazy message threw")
+        let causeBox = try #require(throwableBox(from: box.cause), "cause should be a RuntimeThrowableBox")
+        #expect(
             causeBox.message.contains("LazyEvalError"),
             "cause should contain the lambda's exception message, got: \(causeBox.message)"
         )
@@ -139,50 +149,54 @@ final class RuntimePreconditionLazyTests: XCTestCase {
 
     // MARK: - kk_require_lazy: no lambda provided (fnPtr == 0) falls back to default
 
+    @Test
     func testRequireLazyNoLambdaUsesDefaultMessage() throws {
         var outThrown = 0
         _ = kk_require_lazy(0, 0, 0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0)
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertTrue(
+        #expect(outThrown != 0)
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(
             box.exceptionFQName == "kotlin.IllegalArgumentException",
             "Should use IllegalArgumentException type"
         )
-        XCTAssertEqual(box.message, "Failed requirement.")
-        XCTAssertEqual(box.cause, 0, "No cause when lambda is absent")
+        #expect(box.message == "Failed requirement.")
+        #expect(box.cause == 0, "No cause when lambda is absent")
     }
 
     // MARK: - kk_check_lazy: no lambda provided (fnPtr == 0) falls back to default
 
+    @Test
     func testCheckLazyNoLambdaUsesDefaultMessage() throws {
         var outThrown = 0
         _ = kk_check_lazy(0, 0, 0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0)
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertTrue(
+        #expect(outThrown != 0)
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(
             box.exceptionFQName == "kotlin.IllegalStateException",
             "Should use IllegalStateException type"
         )
-        XCTAssertEqual(box.message, "Check failed.")
-        XCTAssertEqual(box.cause, 0, "No cause when lambda is absent")
+        #expect(box.message == "Check failed.")
+        #expect(box.cause == 0, "No cause when lambda is absent")
     }
 
     // MARK: - kk_check_lazy: condition passes with lazy message
 
+    @Test
     func testCheckLazyPassingConditionDoesNotThrow() {
         var outThrown = 0
         _ = kk_check_lazy(1, fnPtrInt(lazyMessageReturnsString), 0, &outThrown)
-        XCTAssertEqual(outThrown, 0, "check(true) { ... } should not throw")
+        #expect(outThrown == 0, "check(true) { ... } should not throw")
     }
 
     // MARK: - kk_check_lazy: condition fails, lazy message succeeds
 
+    @Test
     func testCheckLazyFailsWithCustomMessage() throws {
         var outThrown = 0
         _ = kk_check_lazy(0, fnPtrInt(lazyMessageReturnsString), 0, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "check(false) { ... } should throw")
-        let box = try XCTUnwrap(throwableBox(from: outThrown))
-        XCTAssertTrue(
+        #expect(outThrown != 0, "check(false) { ... } should throw")
+        let box = try #require(throwableBox(from: outThrown))
+        #expect(
             box.message.contains("custom message"),
             "Should contain the lazy message, got: \(box.message)"
         )
@@ -197,3 +211,4 @@ final class RuntimePreconditionLazyTests: XCTestCase {
         return tryCast(ptr, to: RuntimeThrowableBox.self)
     }
 }
+#endif

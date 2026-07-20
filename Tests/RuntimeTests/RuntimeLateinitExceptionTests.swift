@@ -1,5 +1,6 @@
 @testable import Runtime
-import XCTest
+import Foundation
+import Testing
 
 #if canImport(Glibc)
     import Glibc
@@ -7,9 +8,8 @@ import XCTest
     import Darwin
 #endif
 
-final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimeLateinitExceptionTests {
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, value.utf8.count)) { ptr in
@@ -39,7 +39,7 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
         return Int(nominalBase | (typeID << payloadShift))
     }
 
-    func testLateinitGetOrThrowReturnsInitializedValue() {
+    @Test func lateinitGetOrThrowReturnsInitializedValue() {
         var thrown = 0
         let initialized = kk_box_int(42)
 
@@ -49,11 +49,11 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(result, initialized)
-        XCTAssertEqual(thrown, 0)
+        #expect(result == initialized)
+        #expect(thrown == 0)
     }
 
-    func testLateinitGetOrThrowCreatesTypedException() {
+    @Test func lateinitGetOrThrowCreatesTypedException() throws {
         var thrown = 0
 
         let result = kk_lateinit_get_or_throw(
@@ -62,21 +62,14 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeNullSentinelInt)
+        #expect(thrown != 0)
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: thrown),
-              let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
-        else {
-            XCTFail("Expected a RuntimeThrowableBox-compatible exception")
-            return
-        }
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let throwable = try #require(tryCast(ptr, to: RuntimeThrowableBox.self))
 
-        XCTAssertEqual(
-            throwable.message,
-            "lateinit property name has not been initialized"
-        )
-        XCTAssertTrue(
+        #expect(throwable.message == "lateinit property name has not been initialized")
+        #expect(
             runtimeThrowableBoxHasExactType(
                 throwable,
                 RuntimeUninitializedPropertyAccessExceptionBox.self
@@ -84,7 +77,7 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    func testLateinitExceptionPrintlnIncludesExceptionName() {
+    @Test func lateinitExceptionPrintlnIncludesExceptionName() {
         var thrown = 0
         _ = kk_lateinit_get_or_throw(
             runtimeNullSentinelInt,
@@ -96,13 +89,13 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
             kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown))
         }
 
-        XCTAssertEqual(
-            rendered,
-            "Throwable(UninitializedPropertyAccessException: lateinit property name has not been initialized)"
+        #expect(
+            rendered
+                == "Throwable(UninitializedPropertyAccessException: lateinit property name has not been initialized)"
         )
     }
 
-    func testLateinitExceptionMatchesExceptionHierarchyTokens() {
+    @Test func lateinitExceptionMatchesExceptionHierarchyTokens() {
         var thrown = 0
         _ = kk_lateinit_get_or_throw(
             runtimeNullSentinelInt,
@@ -110,21 +103,17 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(
-            kk_op_is(thrown, nominalTypeToken(for: "kotlin.UninitializedPropertyAccessException")),
-            1
+        #expect(
+            kk_op_is(thrown, nominalTypeToken(for: "kotlin.UninitializedPropertyAccessException")) == 1
         )
-        XCTAssertEqual(
-            kk_op_is(thrown, nominalTypeToken(for: "kotlin.RuntimeException")),
-            1
+        #expect(
+            kk_op_is(thrown, nominalTypeToken(for: "kotlin.RuntimeException")) == 1
         )
-        XCTAssertEqual(
-            kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")),
-            1
+        #expect(
+            kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")) == 1
         )
-        XCTAssertEqual(
-            kk_op_is(thrown, nominalTypeToken(for: "kotlin.Throwable")),
-            1
+        #expect(
+            kk_op_is(thrown, nominalTypeToken(for: "kotlin.Throwable")) == 1
         )
     }
 }
