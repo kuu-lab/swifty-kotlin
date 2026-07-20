@@ -457,6 +457,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
@@ -468,6 +469,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "size", type: .intptr),
                 RuntimeABIParameter(name: "step", type: .intptr),
                 RuntimeABIParameter(name: "partialWindows", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
@@ -865,20 +867,20 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "n", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Range",
-            isThrowing: false
+            section: "Range"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_range_drop",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "n", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Range",
-            isThrowing: false
+            section: "Range"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_range_sorted",
@@ -1320,6 +1322,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
@@ -1331,6 +1334,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "size", type: .intptr),
                 RuntimeABIParameter(name: "step", type: .intptr),
                 RuntimeABIParameter(name: "partialWindows", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
@@ -1642,6 +1646,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
@@ -1653,6 +1658,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "size", type: .intptr),
                 RuntimeABIParameter(name: "step", type: .intptr),
                 RuntimeABIParameter(name: "partialWindows", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Range"
