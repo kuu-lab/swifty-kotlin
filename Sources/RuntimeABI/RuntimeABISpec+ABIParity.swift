@@ -725,8 +725,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_long_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_long_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -734,8 +734,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_long_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_map_entry_to_pair", parameters: [
             p("entryRaw", .intptr),
         ],
@@ -822,8 +822,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_range_end", parameters: [
             p("rangeRaw", .intptr),
         ]),
@@ -834,8 +834,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_regex_matches_flat", parameters: [
             p("regexRaw", .intptr),
             p("data", .nullableConstUInt8Pointer),
@@ -1019,8 +1019,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_uint_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_uint_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -1028,8 +1028,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_uint_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_ulong_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -1037,8 +1037,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_ulong_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -1046,8 +1046,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
-        ],
-            isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_unpin_object", parameters: [
             p("pinnedHandle", .intptr),
         ]),
