@@ -1329,6 +1329,22 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: nullCauseExpr, value: .intLiteral(0)))
                 finalArgIDs.append(nullCauseExpr)
+            } else if loweredCalleeName == interner.intern("kk_channel_send")
+                || loweredCalleeName == interner.intern("kk_channel_receive")
+                || loweredCalleeName == interner.intern("kk_mutex_lock")
+                || loweredCalleeName == interner.intern("kk_semaphore_acquire")
+            {
+                // Implicit-receiver calls (e.g. `send(x)` inside a `produce { }`
+                // block) reach this path instead of `emitMemberCallInstruction`,
+                // which normally appends the zero continuation placeholder for
+                // these callees. Without it the runtime ABI receives one fewer
+                // argument than expected.
+                let continuationExpr = arena.appendExpr(
+                    .intLiteral(0),
+                    type: sema.types.intType
+                )
+                instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
+                finalArgIDs.append(continuationExpr)
             }
             let callCanThrow = needsThrownChannel(calleeName: loweredCalleeName, interner: interner)
             let thrownResult = callCanThrow
