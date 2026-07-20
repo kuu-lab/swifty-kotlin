@@ -1,11 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension VirtualDispatchTests {
     // MARK: - 11. InlineLoweringPass: virtualCall alias resolution
 
-    func testInlineLoweringResolvesAliasesInVirtualCall() throws {
+    @Test func testInlineLoweringResolvesAliasesInVirtualCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -103,7 +104,7 @@ extension VirtualDispatchTests {
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertTrue(hasVirtualCall, "After inlining, caller should contain the virtualCall from the inlined function body. Body: \(lowered.body)")
+        #expect(hasVirtualCall, "After inlining, caller should contain the virtualCall from the inlined function body. Body: \(lowered.body)")
 
         // Verify the dispatch kind is preserved
         let vcInstruction = lowered.body.first { instruction in
@@ -111,15 +112,15 @@ extension VirtualDispatchTests {
             return false
         }
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
-            XCTFail("Expected virtualCall instruction")
+            Issue.record("Expected virtualCall instruction")
             return
         }
-        XCTAssertEqual(dispatch, .vtable(slot: 1), "Dispatch kind should be preserved after inlining")
+        #expect(dispatch == .vtable(slot: 1), "Dispatch kind should be preserved after inlining")
     }
 
     // MARK: - 12. Regression: existing .call instructions still work
 
-    func testRegularCallInstructionNotAffectedByVirtualCallChanges() throws {
+    @Test func testRegularCallInstructionNotAffectedByVirtualCallChanges() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -195,18 +196,18 @@ extension VirtualDispatchTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("regularFunction"), "Regular .call should still work after virtual dispatch changes")
+        #expect(callees.contains("regularFunction"), "Regular .call should still work after virtual dispatch changes")
         // Should NOT have any virtualCall
         let hasVirtualCall = lowered.body.contains { instruction in
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasVirtualCall, "Regular .call should not become virtualCall")
+        #expect(!hasVirtualCall, "Regular .call should not become virtualCall")
     }
 
     // MARK: - 13. Coroutine lowering: extractCallInfo for virtualCall
 
-    func testCoroutineLoweringExtractCallInfoForVirtualCall() {
+    @Test func testCoroutineLoweringExtractCallInfoForVirtualCall() {
         let arena = KIRArena()
         let types = TypeSystem()
         let receiverExpr = arena.appendExpr(.temporary(0), type: types.anyType)
@@ -227,18 +228,18 @@ extension VirtualDispatchTests {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(instruction)
 
-        XCTAssertNotNil(callInfo, "extractCallInfo should return non-nil for virtualCall")
-        XCTAssertEqual(callInfo?.symbol, SymbolID(rawValue: 100))
-        XCTAssertEqual(callInfo?.callee, InternedString(rawValue: 5))
-        XCTAssertEqual(callInfo?.result, resultExpr)
-        XCTAssertEqual(callInfo?.canThrow, true)
-        XCTAssertEqual(callInfo?.isVirtual, true)
+        #expect(callInfo != nil, "extractCallInfo should return non-nil for virtualCall")
+        #expect(callInfo?.symbol == SymbolID(rawValue: 100))
+        #expect(callInfo?.callee == InternedString(rawValue: 5))
+        #expect(callInfo?.result == resultExpr)
+        #expect(callInfo?.canThrow == true)
+        #expect(callInfo?.isVirtual == true)
         // Arguments should NOT include receiver
-        XCTAssertEqual(callInfo?.arguments.count, 1, "extractCallInfo arguments should not include receiver")
-        XCTAssertEqual(callInfo?.arguments.first, argExpr)
+        #expect(callInfo?.arguments.count == 1, "extractCallInfo arguments should not include receiver")
+        #expect(callInfo?.arguments.first == argExpr)
     }
 
-    func testCoroutineLoweringExtractCallInfoForRegularCall() {
+    @Test func testCoroutineLoweringExtractCallInfoForRegularCall() {
         let arena = KIRArena()
         let types = TypeSystem()
         let argExpr = arena.appendExpr(.temporary(0), type: types.anyType)
@@ -256,20 +257,20 @@ extension VirtualDispatchTests {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(instruction)
 
-        XCTAssertNotNil(callInfo, "extractCallInfo should return non-nil for regular call")
-        XCTAssertEqual(callInfo?.isVirtual, false)
-        XCTAssertEqual(callInfo?.arguments.count, 1)
+        #expect(callInfo != nil, "extractCallInfo should return non-nil for regular call")
+        #expect(callInfo?.isVirtual == false)
+        #expect(callInfo?.arguments.count == 1)
     }
 
-    func testCoroutineLoweringExtractCallInfoReturnsNilForNonCall() {
+    @Test func testCoroutineLoweringExtractCallInfoReturnsNilForNonCall() {
         let pass = CoroutineLoweringPass()
         let callInfo = pass.extractCallInfo(.returnUnit)
-        XCTAssertNil(callInfo, "extractCallInfo should return nil for non-call instruction")
+        #expect(callInfo == nil, "extractCallInfo should return nil for non-call instruction")
     }
 
     // MARK: - 14. Virtual suspend call emits virtualCall (not .call) in state machine
 
-    func testCoroutineLoweringEmitsVirtualCallForVirtualSuspendFunction() throws {
+    @Test func testCoroutineLoweringEmitsVirtualCallForVirtualSuspendFunction() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -393,7 +394,7 @@ extension VirtualDispatchTests {
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            XCTAssertTrue(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
+            #expect(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
         }
         // If no lowered suspend function is found, the test still passes because
         // the coroutine lowering may not have triggered (depends on whether
@@ -404,3 +405,4 @@ extension VirtualDispatchTests {
 
     // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable
 }
+#endif

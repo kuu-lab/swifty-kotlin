@@ -122,6 +122,9 @@ extension CallLowerer {
             if args.isEmpty {
                 let runtimeName: String?
                 switch calleeStr {
+                case "countOneBits": runtimeName = "kk_long_countOneBits"
+                case "countLeadingZeroBits": runtimeName = "kk_long_countLeadingZeroBits"
+                case "countTrailingZeroBits": runtimeName = "kk_long_countTrailingZeroBits"
                 case "highestOneBit": runtimeName = "kk_long_highestOneBit"
                 case "lowestOneBit": runtimeName = "kk_long_lowestOneBit"
                 case "takeHighestOneBit": runtimeName = "kk_long_takeHighestOneBit"

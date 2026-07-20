@@ -25,6 +25,8 @@ struct RuntimeMemoryTests {
 
     @Test
     func testSystemGCLeavesMetricsQueryable() {
+        let lease = RuntimeTestIsolationLease(lockSet: .gcOnly)
+        defer { lease.release() }
         kk_system_gc()
 
         #expect(kk_runtime_totalMemory() > 0)
