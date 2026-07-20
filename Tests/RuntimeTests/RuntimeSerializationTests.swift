@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import Runtime
 import Foundation
-import XCTest
+import Testing
 
-final class RuntimeSerializationTests: XCTestCase {
+@Suite
+struct RuntimeSerializationTests {
     private func makeString(_ text: String) -> Int {
         text.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
@@ -19,11 +21,12 @@ final class RuntimeSerializationTests: XCTestCase {
     }
 
     private func jsonObject(from raw: Int) throws -> Any {
-        let string = try XCTUnwrap(extractSwiftString(raw))
-        let data = try XCTUnwrap(string.data(using: .utf8))
+        let string = try #require(extractSwiftString(raw))
+        let data = try #require(string.data(using: .utf8))
         return try JSONSerialization.jsonObject(with: data, options: [.allowFragments])
     }
 
+    @Test
     func testEncodeMapProducesJSONObject() throws {
         let json = kk_json_default()
         let mapRaw = registerRuntimeObject(RuntimeMapBox(
@@ -32,13 +35,14 @@ final class RuntimeSerializationTests: XCTestCase {
         ))
 
         let encoded = kk_json_encodeToString(json, mapRaw)
-        let object = try XCTUnwrap(try jsonObject(from: encoded) as? [String: String])
+        let object = try #require(try jsonObject(from: encoded) as? [String: String])
 
-        XCTAssertEqual(object["name"], "Alice")
-        XCTAssertEqual(object["age"], "30")
-        XCTAssertEqual(object["active"], "true")
+        #expect(object["name"] == "Alice")
+        #expect(object["age"] == "30")
+        #expect(object["active"] == "true")
     }
 
+    @Test
     func testEncodeListProducesJSONArray() throws {
         let json = kk_json_default()
         let listRaw = registerRuntimeObject(RuntimeListBox(elements: [
@@ -48,10 +52,11 @@ final class RuntimeSerializationTests: XCTestCase {
         ]))
 
         let encoded = kk_json_encodeToString(json, listRaw)
-        let array = try XCTUnwrap(try jsonObject(from: encoded) as? [String])
-        XCTAssertEqual(array, ["a", "b", "c"])
+        let array = try #require(try jsonObject(from: encoded) as? [String])
+        #expect(array == ["a", "b", "c"])
     }
 
+    @Test
     func testDecodeObjectReturnsRuntimeMap() {
         let json = kk_json_default()
         var thrown = 0
@@ -61,11 +66,11 @@ final class RuntimeSerializationTests: XCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let map = runtimeMapBox(from: decoded)
-        XCTAssertNotNil(map)
-        XCTAssertEqual(map?.keys.count, 2)
-        XCTAssertEqual(map?.values.count, 2)
+        #expect(map != nil)
+        #expect(map?.keys.count == 2)
+        #expect(map?.values.count == 2)
 
         let entries: [(String, String)] = zip(map?.keys ?? [], map?.values ?? []).compactMap { key, value in
             guard let k = extractSwiftString(key), let v = extractSwiftString(value) else {
@@ -74,9 +79,10 @@ final class RuntimeSerializationTests: XCTestCase {
             return (k, v)
         }
         let decodedDict = Dictionary(uniqueKeysWithValues: entries)
-        XCTAssertEqual(decodedDict, ["greeting": "hello", "count": "42"])
+        #expect(decodedDict == ["greeting": "hello", "count": "42"])
     }
 
+    @Test
     func testDecodeArrayReturnsRuntimeList() {
         let json = kk_json_default()
         var thrown = 0
@@ -86,11 +92,12 @@ final class RuntimeSerializationTests: XCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let list = runtimeListBox(from: decoded)
-        XCTAssertEqual(list?.elements.compactMap(extractSwiftString), ["x", "y", "z"])
+        #expect(list?.elements.compactMap(extractSwiftString) == ["x", "y", "z"])
     }
 
+    @Test
     func testDecodeInvalidJSONSetsThrowable() {
         let json = kk_json_default()
         var thrown = 0
@@ -100,10 +107,11 @@ final class RuntimeSerializationTests: XCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(decoded, runtimeNullSentinelInt)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(decoded == runtimeNullSentinelInt)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testEncodeSetUsesJSONArrayRepresentation() throws {
         let json = kk_json_default()
         let setRaw = registerRuntimeObject(RuntimeSetBox(elements: [
@@ -112,7 +120,8 @@ final class RuntimeSerializationTests: XCTestCase {
         ]))
 
         let encoded = kk_json_encodeToString(json, setRaw)
-        let array = try XCTUnwrap(try jsonObject(from: encoded) as? [String])
-        XCTAssertEqual(array, ["left", "right"])
+        let array = try #require(try jsonObject(from: encoded) as? [String])
+        #expect(array == ["left", "right"])
     }
 }
+#endif
