@@ -1,11 +1,11 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Verifies CharSequence?.isNullOrEmpty() (STDLIB-TEXT-FN-031) resolves cleanly
-/// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrEmpty`.
-final class StringIsNullOrEmptyFunctionTests: XCTestCase {
+/// in Sema through bundled Kotlin source.
+@Suite
+struct StringIsNullOrEmptyFunctionTests {
     private func allMemberCallExprIDs(
         named member: String,
         in ast: ASTModule,
@@ -24,7 +24,7 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
     }
 
     /// Sema should accept `String?.isNullOrEmpty()` and return Boolean.
-    func testIsNullOrEmptyOnNullableStringResolvesToBoolean() throws {
+    @Test func testIsNullOrEmptyOnNullableStringResolvesToBoolean() throws {
         let source = """
         fun classify(value: String?): Boolean {
             return value.isNullOrEmpty()
@@ -34,26 +34,25 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected isNullOrEmpty to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callIDs = allMemberCallExprIDs(named: "isNullOrEmpty", in: ast, interner: ctx.interner)
-            XCTAssertEqual(callIDs.count, 1)
-            let exprType = try XCTUnwrap(sema.bindings.exprTypes[callIDs[0]])
-            XCTAssertEqual(
-                exprType,
-                sema.types.booleanType,
+            #expect(callIDs.count == 1)
+            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
+            #expect(
+                exprType == sema.types.booleanType,
                 "isNullOrEmpty should be typed as Boolean"
             )
         }
     }
 
     /// Receiver typed as non-null String should still resolve isNullOrEmpty.
-    func testIsNullOrEmptyOnNonNullStringResolves() throws {
+    @Test func testIsNullOrEmptyOnNonNullStringResolves() throws {
         let source = """
         fun classify(value: String): Boolean {
             return value.isNullOrEmpty()
@@ -63,23 +62,45 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected isNullOrEmpty on non-null String to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callIDs = allMemberCallExprIDs(named: "isNullOrEmpty", in: ast, interner: ctx.interner)
-            XCTAssertEqual(callIDs.count, 1)
-            let exprType = try XCTUnwrap(sema.bindings.exprTypes[callIDs[0]])
-            XCTAssertEqual(exprType, sema.types.booleanType)
+            #expect(callIDs.count == 1)
+            let exprType = try #require(sema.bindings.exprTypes[callIDs[0]])
+            #expect(exprType == sema.types.booleanType)
         }
     }
 
-    /// The compiler should lower nullable-receiver isNullOrEmpty() to the runtime helper
-    /// `kk_string_isNullOrEmpty`, classified as non-throwing.
-    func testIsNullOrEmptyLowersToRuntimeHelperNonThrowing() throws {
+    /// A bare null receiver should stay ambiguous because Kotlin stdlib also
+    /// exposes Array/Collection/Map nullable-receiver isNullOrEmpty overloads.
+    @Test func testNullLiteralIsNullOrEmptyIsAmbiguous() throws {
+        let source = """
+        fun classify(): Boolean {
+            return null.isNullOrEmpty()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError)
+            #expect(
+                ctx.diagnostics.diagnostics.contains { diagnostic in
+                    diagnostic.code == "KSWIFTK-SEMA-0003"
+                },
+                "Expected null.isNullOrEmpty() to match kotlinc ambiguity diagnostics"
+            )
+        }
+    }
+
+    /// The compiler should not lower nullable-receiver isNullOrEmpty() to the legacy
+    /// String runtime helper after migration to bundled Kotlin source.
+    @Test func testIsNullOrEmptyDoesNotLowerToLegacyRuntimeHelper() throws {
         let source = """
         fun main() {
             val maybe: String? = null
@@ -93,15 +114,12 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let isNullOrEmptyFlags = try XCTUnwrap(
-                throwFlags["kk_string_isNullOrEmpty"],
-                "Expected kk_string_isNullOrEmpty calls to appear in main()"
-            )
-            XCTAssertEqual(isNullOrEmptyFlags.count, 2)
-            XCTAssertTrue(isNullOrEmptyFlags.allSatisfy { $0 == false })
+            #expect(throwFlags["kk_string_isNullOrEmpty"] == nil)
+            #expect(throwFlags["kk_string_isNullOrEmpty_flat"] == nil)
+            #expect(throwFlags["__string_isNullOrEmpty_flat"] == nil)
         }
     }
 }

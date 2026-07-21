@@ -82,6 +82,14 @@ extension ExprTypeChecker {
 
         let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
         let rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals)
+        // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
+        // dispatch through a user-defined (or inherited Any) `equals()` override,
+        // so they must bypass the operator-candidate resolution below entirely —
+        // any two types are comparable, and the result is always Boolean.
+        if op == .identityEqual || op == .notIdentityEqual {
+            sema.bindings.bindExprType(id, type: boolType)
+            return boolType
+        }
         if op == .add,
            isCoroutineContextLikeType(lhs, sema: sema, interner: interner),
            isCoroutineContextLikeType(rhs, sema: sema, interner: interner),
@@ -327,7 +335,7 @@ extension ExprTypeChecker {
             } else {
                 type = intType
             }
-        case .equal, .notEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             type = boolType
         case .logicalAnd, .logicalOr:
             driver.emitSubtypeConstraint(

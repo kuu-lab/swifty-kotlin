@@ -18,7 +18,26 @@ struct ComparatorSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testComparatorThenComparatorUsesRuntimeExternalLink() throws {
+    private func sourceBackedComparatorExtension(
+        named name: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let fqName = ["kotlin", "comparisons", name].map { interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard sema.symbols.externalLinkName(for: symbolID) == nil,
+                  let signature = sema.symbols.functionSignature(for: symbolID),
+                  let receiver = signature.receiverType,
+                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiver)),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"]
+        }
+    }
+
+    @Test func testComparatorThenComparatorUsesBundledStdlibFunction() throws {
         let source = """
         fun render(values: List<Int>) {
             val comparator = compareBy<Int> { it % 10 }.thenComparator { a, b -> b.compareTo(a) }
@@ -38,11 +57,11 @@ struct ComparatorSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "thenComparator"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_then_comparator", "Expected thenComparator to resolve to kk_comparator_then_comparator")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenComparator to resolve to bundled stdlib source")
         }
     }
 
-    @Test func testCompareByDescendingUsesRuntimeExternalLink() throws {
+    @Test func testCompareByDescendingUsesBundledStdlibFunction() throws {
         let source = """
         fun render(values: List<Int>) {
             val comparator = compareByDescending<Int> { it % 10 }.thenBy { it / 10 }
@@ -66,11 +85,11 @@ struct ComparatorSyntheticMemberLinkTests {
             }.first)
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_selector_primitive_descending", "Expected compareByDescending to resolve to kk_comparator_from_selector_primitive_descending")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareByDescending to resolve to bundled stdlib source")
         }
     }
 
-    @Test func testComparatorThenDescendingUsesRuntimeExternalLink() throws {
+    @Test func testComparatorThenDescendingUsesBundledStdlibFunction() throws {
         let source = """
         fun render(values: List<Int>) {
             val comparator = compareBy<Int> { it % 10 }.thenDescending { a, b -> b.compareTo(a) }
@@ -90,11 +109,11 @@ struct ComparatorSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "thenDescending"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_then_descending", "Expected thenDescending to resolve to kk_comparator_then_descending")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenDescending to resolve to bundled stdlib source")
         }
     }
 
-    @Test func testComparatorThenByUsesRuntimeExternalLink() throws {
+    @Test func testComparatorThenByUsesBundledStdlibFunction() throws {
         let source = """
         fun render(values: List<Int>) {
             val comparator = compareBy<Int> { it % 10 }.thenBy { it / 10 }
@@ -114,7 +133,7 @@ struct ComparatorSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "thenBy"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_then_by", "Expected thenBy to resolve to kk_comparator_then_by")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to resolve to bundled stdlib source")
         }
     }
 
@@ -151,37 +170,33 @@ struct ComparatorSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testComparatorThenComparatorIsRegisteredAsSyntheticMember() throws {
+    @Test func testComparatorThenComparatorIsRegisteredFromBundledStdlib() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(
-                    fqName: [
-                        ctx.interner.intern("kotlin"),
-                        ctx.interner.intern("Comparator"),
-                        ctx.interner.intern("thenComparator"),
-                    ]
-                ), "Expected synthetic Comparator.thenComparator to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_then_comparator", "Expected Comparator.thenComparator to map to kk_comparator_then_comparator")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "thenComparator",
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected Comparator.thenComparator to be registered from bundled stdlib source")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenComparator to be source-backed")
         }
     }
 
-    @Test func testComparatorThenDescendingIsRegisteredAsSyntheticMember() throws {
+    @Test func testComparatorThenDescendingIsRegisteredFromBundledStdlib() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(
-                    fqName: [
-                        ctx.interner.intern("kotlin"),
-                        ctx.interner.intern("Comparator"),
-                        ctx.interner.intern("thenDescending"),
-                    ]
-                ), "Expected synthetic Comparator.thenDescending to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_then_descending", "Expected Comparator.thenDescending to map to kk_comparator_then_descending")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "thenDescending",
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected Comparator.thenDescending to be registered from bundled stdlib source")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenDescending to be source-backed")
         }
     }
 }

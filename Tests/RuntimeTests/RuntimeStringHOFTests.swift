@@ -1,5 +1,6 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
 // Predicate: matches ASCII digit characters (0x30 .. 0x39 = '0' .. '9')
 private let isDigitPredicateForIndexOfFirst: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
@@ -216,35 +217,20 @@ private func runtimeStringValueForHOF(_ raw: Int) -> String {
 
 private func assertAggregateStringList(
     _ list: RuntimeListBox?,
-    equals expected: [String],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    equals expected: [String]
 ) {
     guard let list else {
-        XCTFail("Expected a RuntimeListBox", file: file, line: line)
+        Issue.record("Expected a RuntimeListBox")
         return
     }
-    XCTAssertEqual(
-        list.values.map(\.tag),
-        Array(repeating: RuntimeValue.stringTag, count: expected.count),
-        file: file,
-        line: line
-    )
-    XCTAssertEqual(list.values.map { runtimeRenderAnyForPrint($0) }, expected, file: file, line: line)
-    XCTAssertEqual(list.elements.map(runtimeStringValueForHOF), expected, file: file, line: line)
+    #expect(list.values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
+    #expect(list.values.map { runtimeRenderAnyForPrint($0) } == expected)
+    #expect(list.elements.map(runtimeStringValueForHOF) == expected)
 }
 
-final class RuntimeStringHOFTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
+@Suite(.serialized)
+struct RuntimeStringHOFTests {
+    @Test
     func testStringMapFlatReturnsMappedList() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -258,22 +244,20 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_map_flat")
+                Issue.record("Expected list from kk_string_map_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 2)
-            XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("a").value))
-            XCTAssertEqual(kk_unbox_char(list.elements[1]), Int(Unicode.Scalar("b").value))
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(
-                list.values.map(\.payload0),
-                [Int(Unicode.Scalar("a").value), Int(Unicode.Scalar("b").value)]
-            )
+            #expect(list.elements.count == 2)
+            #expect(kk_unbox_char(list.elements[0]) == Int(Unicode.Scalar("a").value))
+            #expect(kk_unbox_char(list.elements[1]) == Int(Unicode.Scalar("b").value))
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [Int(Unicode.Scalar("a").value), Int(Unicode.Scalar("b").value)])
         }
     }
 
+    @Test
     func testStringMapFlatStoresAggregateStringResults() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -287,11 +271,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertAggregateStringList(runtimeListBox(from: result), equals: ["alpha", "beta"])
         }
     }
 
+    @Test
     func testStringMapIndexedFlatReturnsMappedList() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -305,17 +290,18 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_mapIndexed_flat")
+                Issue.record("Expected list from kk_string_mapIndexed_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 2)
-            XCTAssertEqual(kk_unbox_int(list.elements[0]), 97)
-            XCTAssertEqual(kk_unbox_int(list.elements[1]), 99)
+            #expect(list.elements.count == 2)
+            #expect(kk_unbox_int(list.elements[0]) == 97)
+            #expect(kk_unbox_int(list.elements[1]) == 99)
         }
     }
 
+    @Test
     func testStringMapIndexedFlatStoresAggregateStringResults() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -329,11 +315,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertAggregateStringList(runtimeListBox(from: result), equals: ["0:a", "1:b"])
         }
     }
 
+    @Test
     func testStringMapNotNullFlatFiltersNullResults() {
         withFlatStringForHOF("abc") { data, length, byteCount, hash in
             var thrown = -1
@@ -347,18 +334,19 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_mapNotNull_flat")
+                Issue.record("Expected list from kk_string_mapNotNull_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 1)
-            XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("b").value))
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
-            XCTAssertEqual(list.values.map(\.payload0), [Int(Unicode.Scalar("b").value)])
+            #expect(list.elements.count == 1)
+            #expect(kk_unbox_char(list.elements[0]) == Int(Unicode.Scalar("b").value))
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [Int(Unicode.Scalar("b").value)])
         }
     }
 
+    @Test
     func testStringPartitionFlatSplitsIntoPair() {
         withFlatStringForHOF("abc") { data, length, byteCount, hash in
             var thrown = -1
@@ -372,23 +360,24 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let pairPtr = UnsafeMutableRawPointer(bitPattern: result),
                   let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
             else {
-                XCTFail("Expected Pair from kk_string_partition_flat")
+                Issue.record("Expected Pair from kk_string_partition_flat")
                 return
             }
-            XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.stringTag)
-            XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag)
-            XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.firstValue), "b")
-            XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), "ac")
-            XCTAssertEqual(runtimeElementToString(result), "(b, ac)")
-            XCTAssertEqual(runtimeStringValueForHOF(kk_pair_first(result)), "b")
-            XCTAssertEqual(runtimeStringValueForHOF(kk_pair_second(result)), "ac")
+            #expect(pairBox.firstValue.tag == RuntimeValue.stringTag)
+            #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
+            #expect(runtimeRenderAnyForPrint(pairBox.firstValue) == "b")
+            #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == "ac")
+            #expect(runtimeElementToString(result) == "(b, ac)")
+            #expect(runtimeStringValueForHOF(kk_pair_first(result)) == "b")
+            #expect(runtimeStringValueForHOF(kk_pair_second(result)) == "ac")
         }
     }
 
+    @Test
     func testStringFilterFlatReturnsFlattenedStringFields() {
         var thrown = -1
         let result = flatStringHOFValue(
@@ -398,45 +387,38 @@ final class RuntimeStringHOFTests: XCTestCase {
             thrown: &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, "12")
+        #expect(thrown == 0)
+        #expect(result == "12")
     }
 
+    @Test
     func testStringTrimPredicateFlatReturnsFlattenedStringFields() {
         let fnPtr = unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self)
 
         var trimThrown = -1
-        XCTAssertEqual(
-            flatStringHOFValue("xxabxx", entry: kk_string_trim_predicate_flat, fnPtr: fnPtr, thrown: &trimThrown),
-            "ab"
-        )
-        XCTAssertEqual(trimThrown, 0)
+        #expect(flatStringHOFValue("xxabxx", entry: kk_string_trim_predicate_flat, fnPtr: fnPtr, thrown: &trimThrown) == "ab")
+        #expect(trimThrown == 0)
 
         var trimStartThrown = -1
-        XCTAssertEqual(
-            flatStringHOFValue(
+        #expect(flatStringHOFValue(
                 "xxabxx",
                 entry: kk_string_trimStart_predicate_flat,
                 fnPtr: fnPtr,
                 thrown: &trimStartThrown
-            ),
-            "abxx"
-        )
-        XCTAssertEqual(trimStartThrown, 0)
+            ) == "abxx")
+        #expect(trimStartThrown == 0)
 
         var trimEndThrown = -1
-        XCTAssertEqual(
-            flatStringHOFValue(
+        #expect(flatStringHOFValue(
                 "xxabxx",
                 entry: kk_string_trimEnd_predicate_flat,
                 fnPtr: fnPtr,
                 thrown: &trimEndThrown
-            ),
-            "xxab"
-        )
-        XCTAssertEqual(trimEndThrown, 0)
+            ) == "xxab")
+        #expect(trimEndThrown == 0)
     }
 
+    @Test
     func testStringFilterIndexedFlatReturnsFlattenedStringFields() {
         var thrown = -1
         let result = flatStringHOFValue(
@@ -446,10 +428,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             thrown: &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, "ac")
+        #expect(thrown == 0)
+        #expect(result == "ac")
     }
 
+    @Test
     func testStringFilterNotFlatReturnsFlattenedStringFields() {
         var thrown = -1
         let result = flatStringHOFValue(
@@ -459,10 +442,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             thrown: &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, "ab")
+        #expect(thrown == 0)
+        #expect(result == "ab")
     }
 
+    @Test
     func testStringTakeAndDropWhileFlatReturnFlattenedStringFields() {
         var takeThrown = -1
         let taken = flatStringHOFValue(
@@ -479,14 +463,15 @@ final class RuntimeStringHOFTests: XCTestCase {
             thrown: &dropThrown
         )
 
-        XCTAssertEqual(takeThrown, 0)
-        XCTAssertEqual(dropThrown, 0)
-        XCTAssertEqual(taken, "abc")
-        XCTAssertEqual(dropped, "123")
+        #expect(takeThrown == 0)
+        #expect(dropThrown == 0)
+        #expect(taken == "abc")
+        #expect(dropped == "123")
     }
 
     // MARK: - kk_string_indexOfFirst_flat (STDLIB-TEXT-FN-022)
 
+    @Test
     func testIndexOfFirstReturnsIndexOfFirstMatchingChar() {
         withFlatStringForHOF("hello3world") { data, length, byteCount, hash in
             var thrown = 0
@@ -500,11 +485,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, 5)
+            #expect(thrown == 0)
+            #expect(result == 5)
         }
     }
 
+    @Test
     func testIndexOfFirstReturnsMinusOneWhenNoCharMatches() {
         withFlatStringForHOF("hello") { data, length, byteCount, hash in
             var thrown = 0
@@ -518,11 +504,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, -1)
+            #expect(thrown == 0)
+            #expect(result == -1)
         }
     }
 
+    @Test
     func testIndexOfFirstOnEmptyStringReturnsMinusOne() {
         withFlatStringForHOF("") { data, length, byteCount, hash in
             var thrown = 0
@@ -536,11 +523,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, -1)
+            #expect(thrown == 0)
+            #expect(result == -1)
         }
     }
 
+    @Test
     func testIndexOfFirstReturnsZeroWhenFirstCharMatches() {
         withFlatStringForHOF("xabc") { data, length, byteCount, hash in
             var thrown = 0
@@ -554,11 +542,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, 0)
+            #expect(thrown == 0)
+            #expect(result == 0)
         }
     }
 
+    @Test
     func testIndexOfFirstStopsAtFirstMatchNotLast() {
         withFlatStringForHOF("axbxc") { data, length, byteCount, hash in
             var thrown = 0
@@ -572,11 +561,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, 1)
+            #expect(thrown == 0)
+            #expect(result == 1)
         }
     }
 
+    @Test
     func testFirstNotNullOfReturnsFirstNonNullResult() {
         var thrown = 0
 
@@ -592,10 +582,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
+        #expect(thrown == 0)
+        #expect(runtimeStringValue(result) == "bee")
     }
 
+    @Test
     func testFirstNotNullOfFlatReturnsFirstNonNullResult() {
         var thrown = 0
 
@@ -611,10 +602,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
+        #expect(thrown == 0)
+        #expect(runtimeStringValue(result) == "bee")
     }
 
+    @Test
     func testFirstNotNullOfSetsThrownWhenNoResultMatches() {
         var thrown = 0
 
@@ -630,10 +622,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testFirstNotNullOfFlatSetsThrownWhenNoResultMatches() {
         var thrown = 0
 
@@ -649,10 +642,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testFirstNotNullOfTreatsZeroAsNullFromNullableLambda() {
         var thrown = 0
 
@@ -668,10 +662,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(result, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testTakeLastWhileUsesUTF16CodeUnits() {
         var thrown = -1
         let result = flatStringHOFValue(
@@ -681,10 +676,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             thrown: &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, "🐻")
+        #expect(thrown == 0)
+        #expect(result == "🐻")
     }
 
+    @Test
     func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {
         var thrown = 0
 
@@ -700,10 +696,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
+        #expect(thrown == 0)
+        #expect(runtimeStringValue(result) == "bee")
     }
 
+    @Test
     func testFirstNotNullOfOrNullFlatReturnsFirstNonNullResult() {
         var thrown = 0
 
@@ -719,10 +716,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "bee")
+        #expect(thrown == 0)
+        #expect(runtimeStringValue(result) == "bee")
     }
 
+    @Test
     func testFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
         var thrown = 0
 
@@ -738,10 +736,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testFirstNotNullOfOrNullFlatReturnsNullSentinelWhenNoResultMatches() {
         var thrown = 0
 
@@ -757,10 +756,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testFirstNotNullOfOrNullTreatsZeroAsNullFromNullableLambda() {
         var thrown = 0
 
@@ -776,10 +776,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testReduceRightIndexedWalksRightToLeftWithIndexes() {
         var thrown = 0
 
@@ -795,10 +796,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceRightIndexedFlatWalksRightToLeftWithIndexes() {
         var thrown = 0
 
@@ -814,10 +816,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceRightIndexedUsesLastCharacterAsInitialAccumulator() {
         var thrown = 0
 
@@ -833,10 +836,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 295)
+        #expect(thrown == 0)
+        #expect(result == 295)
     }
 
+    @Test
     func testReduceRightIndexedSetsThrownForEmptyString() {
         var thrown = 0
 
@@ -852,10 +856,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(result == runtimeExceptionCaughtSentinel)
+        #expect(thrown != 0)
     }
 
+    @Test
     func testReduceRightIndexedOrNullWalksRightToLeftWithIndexes() {
         var thrown = 0
 
@@ -871,10 +876,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceRightIndexedOrNullReturnsNullSentinelForEmptyString() {
         var thrown = 0
 
@@ -890,10 +896,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testReduceRightIndexedOrNullFlatReturnsNullSentinelForEmptyString() {
         var thrown = 0
 
@@ -909,10 +916,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
         var thrown = 0
 
@@ -928,10 +936,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 295)
+        #expect(thrown == 0)
+        #expect(result == 295)
     }
 
+    @Test
     func testReduceRightOrNullWalksRightToLeft() {
         var thrown = 0
 
@@ -947,10 +956,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceRightOrNullFlatWalksRightToLeft() {
         var thrown = 0
 
@@ -966,10 +976,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceRightOrNullReturnsNullSentinelForEmptyString() {
         var thrown = 0
 
@@ -985,10 +996,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testReduceRightOrNullUsesLastCharacterAsInitialAccumulator() {
         var thrown = 0
 
@@ -1004,12 +1016,13 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
+        #expect(thrown == 0)
+        #expect(result == 294)
     }
 
     // MARK: - STDLIB-TEXT-FN-049: kk_string_reduceOrNull_flat
 
+    @Test
     func testReduceOrNullWalksLeftToRight() {
         var thrown = 0
 
@@ -1025,10 +1038,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("b").value))
     }
 
+    @Test
     func testReduceOrNullReturnsNullSentinelForEmptyString() {
         var thrown = 0
 
@@ -1044,10 +1058,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        #expect(result == runtimeNullSentinelInt)
     }
 
+    @Test
     func testReduceOrNullUsesFirstCharacterAsInitialAccumulator() {
         var thrown = 0
 
@@ -1063,10 +1078,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
+        #expect(thrown == 0)
+        #expect(result == 294)
     }
 
+    @Test
     func testReduceOrNullFlatUsesFirstCharacterAsInitialAccumulator() {
         var thrown = 0
 
@@ -1082,10 +1098,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 294)
+        #expect(thrown == 0)
+        #expect(result == 294)
     }
 
+    @Test
     func testReduceOrNullReturnsSingleCharForOneCharString() {
         var thrown = 0
 
@@ -1101,10 +1118,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, Int(Unicode.Scalar("x").value))
+        #expect(thrown == 0)
+        #expect(result == Int(Unicode.Scalar("x").value))
     }
 
+    @Test
     func testReduceOrNullUsesUTF16CodeUnits() {
         var thrown = 0
 
@@ -1120,10 +1138,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 97 + 0xD83D + 0xDC3B)
+        #expect(thrown == 0)
+        #expect(result == 97 + 0xD83D + 0xDC3B)
     }
 
+    @Test
     func testSumByAppliesSelectorToEveryCharacter() {
         var thrown = 0
 
@@ -1139,10 +1158,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 21)
+        #expect(thrown == 0)
+        #expect(result == 21)
     }
 
+    @Test
     func testSumByFlatAppliesSelectorToEveryCharacter() {
         var thrown = 0
 
@@ -1158,10 +1178,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 21)
+        #expect(thrown == 0)
+        #expect(result == 21)
     }
 
+    @Test
     func testSumByReturnsZeroForEmptyString() {
         var thrown = 0
 
@@ -1177,10 +1198,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 0)
+        #expect(thrown == 0)
+        #expect(result == 0)
     }
 
+    @Test
     func testSumByDoubleAppliesSelectorToEveryCharacter() {
         var thrown = 0
 
@@ -1196,10 +1218,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_bits_to_double(result), 3.25, accuracy: 0.000001)
+        #expect(thrown == 0)
+        #expect(abs((kk_bits_to_double(result)) - (3.25)) <= 0.000001)
     }
 
+    @Test
     func testSumByDoubleFlatAppliesSelectorToEveryCharacter() {
         var thrown = 0
 
@@ -1215,10 +1238,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_bits_to_double(result), 3.25, accuracy: 0.000001)
+        #expect(thrown == 0)
+        #expect(abs((kk_bits_to_double(result)) - (3.25)) <= 0.000001)
     }
 
+    @Test
     func testSumByDoubleReturnsZeroForEmptyString() {
         var thrown = 0
 
@@ -1234,30 +1258,32 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_bits_to_double(result), 0.0, accuracy: 0.000001)
+        #expect(thrown == 0)
+        #expect(abs((kk_bits_to_double(result)) - (0.0)) <= 0.000001)
     }
 
     // STDLIB-316: String.zipWithNext()
+    @Test
     func testStringZipWithNextFlatPairsAdjacentScalars() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             let result = kk_string_zipWithNext_flat(data, length, byteCount, hash)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipWithNext_flat")
+                Issue.record("Expected list from kk_string_zipWithNext_flat")
                 return
             }
 
-            XCTAssertEqual(list.elements.count, 1)
+            #expect(list.elements.count == 1)
             assertCharPairValue(
                 list.values[0].legacyRawValue,
                 first: Int(Unicode.Scalar("a").value),
                 second: Int(Unicode.Scalar("b").value)
             )
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("b").value))
+            #expect(kk_unbox_char(kk_pair_first(list.elements[0])) == Int(Unicode.Scalar("a").value))
+            #expect(kk_unbox_char(kk_pair_second(list.elements[0])) == Int(Unicode.Scalar("b").value))
         }
     }
 
+    @Test
     func testStringZipWithNextTransformFlatCombinesAdjacentScalars() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -1271,18 +1297,19 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipWithNextTransform_flat")
+                Issue.record("Expected list from kk_string_zipWithNextTransform_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 1)
-            XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 98)
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
-            XCTAssertEqual(list.values.map(\.payload0), [97 + 98])
+            #expect(list.elements.count == 1)
+            #expect(kk_unbox_char(list.elements[0]) == 97 + 98)
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [97 + 98])
         }
     }
 
+    @Test
     func testStringZipWithNextTransformPassesRawCharArgs() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
             var thrown = -1
@@ -1296,16 +1323,17 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipWithNextTransform_flat")
+                Issue.record("Expected list from kk_string_zipWithNextTransform_flat")
                 return
             }
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
-            XCTAssertEqual(list.values.map(\.payload0), [97 + 98])
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [97 + 98])
         }
     }
 
+    @Test
     func testStringZipWithNextTransformFlatStoresAggregateStringResults() {
         withFlatStringForHOF("abc") { data, length, byteCount, hash in
             var thrown = -1
@@ -1319,12 +1347,13 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertAggregateStringList(runtimeListBox(from: result), equals: ["a:b", "b:c"])
         }
     }
 
     // STDLIB-TEXT-FN-116: CharSequence.zip(other)
+    @Test
     func testStringZipPairsCharsAndStopsAtShorterString() {
         withFlatStringsForHOF("abc", "XY") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1339,10 +1368,10 @@ final class RuntimeStringHOFTests: XCTestCase {
                 otherHash
             )
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zip_flat")
+                Issue.record("Expected list from kk_string_zip_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 2)
+            #expect(list.elements.count == 2)
             assertCharPairValue(
                 list.values[0].legacyRawValue,
                 first: Int(Unicode.Scalar("a").value),
@@ -1353,13 +1382,14 @@ final class RuntimeStringHOFTests: XCTestCase {
                 first: Int(Unicode.Scalar("b").value),
                 second: Int(Unicode.Scalar("Y").value)
             )
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), Int(Unicode.Scalar("b").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
+            #expect(kk_unbox_char(kk_pair_first(list.elements[0])) == Int(Unicode.Scalar("a").value))
+            #expect(kk_unbox_char(kk_pair_second(list.elements[0])) == Int(Unicode.Scalar("X").value))
+            #expect(kk_unbox_char(kk_pair_first(list.elements[1])) == Int(Unicode.Scalar("b").value))
+            #expect(kk_unbox_char(kk_pair_second(list.elements[1])) == Int(Unicode.Scalar("Y").value))
         }
     }
 
+    @Test
     func testStringZipReturnsEmptyForEmptySource() {
         withFlatStringsForHOF("", "abc") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1374,10 +1404,11 @@ final class RuntimeStringHOFTests: XCTestCase {
                 otherHash
             )
             let list = runtimeListBox(from: result)
-            XCTAssertEqual(list?.elements.count, 0)
+            #expect(list?.elements.count == 0)
         }
     }
 
+    @Test
     func testStringZipFlatUsesUTF16CodeUnits() {
         withFlatStringsForHOF("a🐻", "XYZ") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1392,21 +1423,22 @@ final class RuntimeStringHOFTests: XCTestCase {
                 otherHash
             )
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zip_flat")
+                Issue.record("Expected list from kk_string_zip_flat")
                 return
             }
 
-            XCTAssertEqual(list.elements.count, 3)
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), 97)
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), 0xD83D)
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
-            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[2])), 0xDC3B)
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[2])), Int(Unicode.Scalar("Z").value))
+            #expect(list.elements.count == 3)
+            #expect(kk_unbox_char(kk_pair_first(list.elements[0])) == 97)
+            #expect(kk_unbox_char(kk_pair_second(list.elements[0])) == Int(Unicode.Scalar("X").value))
+            #expect(kk_unbox_char(kk_pair_first(list.elements[1])) == 0xD83D)
+            #expect(kk_unbox_char(kk_pair_second(list.elements[1])) == Int(Unicode.Scalar("Y").value))
+            #expect(kk_unbox_char(kk_pair_first(list.elements[2])) == 0xDC3B)
+            #expect(kk_unbox_char(kk_pair_second(list.elements[2])) == Int(Unicode.Scalar("Z").value))
         }
     }
 
     // STDLIB-TEXT-FN-116: CharSequence.zip(other, transform)
+    @Test
     func testStringZipTransformCombinesCharsWithLambda() {
         withFlatStringsForHOF("ab", "AB") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1424,21 +1456,22 @@ final class RuntimeStringHOFTests: XCTestCase {
                 0,
                 &thrown
             )
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipTransform_flat")
+                Issue.record("Expected list from kk_string_zipTransform_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 2)
+            #expect(list.elements.count == 2)
             // 'a'(97) + 'A'(65) = 162
-            XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 65)
+            #expect(kk_unbox_char(list.elements[0]) == 97 + 65)
             // 'b'(98) + 'B'(66) = 164
-            XCTAssertEqual(kk_unbox_char(list.elements[1]), 98 + 66)
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(list.values.map(\.payload0), [97 + 65, 98 + 66])
+            #expect(kk_unbox_char(list.elements[1]) == 98 + 66)
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [97 + 65, 98 + 66])
         }
     }
 
+    @Test
     func testStringZipTransformPassesRawCharArgs() {
         withFlatStringsForHOF("ab", "AB") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1457,16 +1490,17 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipTransform_flat")
+                Issue.record("Expected list from kk_string_zipTransform_flat")
                 return
             }
-            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
-            XCTAssertEqual(list.values.map(\.payload0), [97 + 65, 98 + 66])
+            #expect(list.values.map(\.tag) == [RuntimeValue.charTag, RuntimeValue.charTag])
+            #expect(list.values.map(\.payload0) == [97 + 65, 98 + 66])
         }
     }
 
+    @Test
     func testStringZipTransformStoresAggregateStringResults() {
         withFlatStringsForHOF("ab", "XY") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1485,11 +1519,12 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             assertAggregateStringList(runtimeListBox(from: result), equals: ["a:X", "b:Y"])
         }
     }
 
+    @Test
     func testStringZipTransformFlatUsesUTF16CodeUnits() {
         withFlatStringsForHOF("🐻", "AZ") {
             data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
@@ -1508,14 +1543,14 @@ final class RuntimeStringHOFTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
+            #expect(thrown == 0)
             guard let list = runtimeListBox(from: result) else {
-                XCTFail("Expected list from kk_string_zipTransform_flat")
+                Issue.record("Expected list from kk_string_zipTransform_flat")
                 return
             }
-            XCTAssertEqual(list.elements.count, 2)
-            XCTAssertEqual(kk_unbox_char(list.elements[0]), 0xD83D + Int(Unicode.Scalar("A").value))
-            XCTAssertEqual(kk_unbox_char(list.elements[1]), 0xDC3B + Int(Unicode.Scalar("Z").value))
+            #expect(list.elements.count == 2)
+            #expect(kk_unbox_char(list.elements[0]) == 0xD83D + Int(Unicode.Scalar("A").value))
+            #expect(kk_unbox_char(list.elements[1]) == 0xDC3B + Int(Unicode.Scalar("Z").value))
         }
     }
 
@@ -1526,20 +1561,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     private func assertCharPairValue(
         _ raw: Int,
         first: Int,
-        second: Int,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        second: Int
     ) {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let pairBox = tryCast(ptr, to: RuntimePairBox.self)
         else {
-            XCTFail("Expected RuntimePairBox", file: file, line: line)
+            Issue.record("Expected RuntimePairBox")
             return
         }
 
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.charTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, first, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.charTag, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.payload0, second, file: file, line: line)
+        #expect(pairBox.firstValue.tag == RuntimeValue.charTag)
+        #expect(pairBox.firstValue.payload0 == first)
+        #expect(pairBox.secondValue.tag == RuntimeValue.charTag)
+        #expect(pairBox.secondValue.payload0 == second)
     }
 }
+#endif

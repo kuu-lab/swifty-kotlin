@@ -11,41 +11,6 @@
 /// compilation. This file is intentionally excluded from the registration
 /// dispatch (CLEANUP-STUB-056).
 extension DataFlowSemaPhase {
-    func registerSyntheticJsStringInteropStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinJsPkg = ensurePackage(
-            path: ["kotlin", "js"],
-            symbols: symbols,
-            interner: interner
-        )
-
-        let jsStringSymbol = ensureJsStringInterface(
-            packageFQName: kotlinJsPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerStringToJsStringExtension(
-            kotlinJsPkg: kotlinJsPkg,
-            jsStringSymbol: jsStringSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerJsStringToStringMember(
-            kotlinJsPkg: kotlinJsPkg,
-            jsStringSymbol: jsStringSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
     private func ensureJsStringInterface(
         packageFQName: [InternedString],
         symbols: SymbolTable,
@@ -130,54 +95,6 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: []
             ),
             for: functionSymbol
-        )
-    }
-
-    private func registerJsStringToStringMember(
-        kotlinJsPkg: [InternedString],
-        jsStringSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        guard let jsStringFQName = symbols.symbol(jsStringSymbol)?.fqName else { return }
-
-        let jsStringType = types.make(.classType(ClassType(
-            classSymbol: jsStringSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let memberName = interner.intern("toString")
-        let memberFQName = jsStringFQName + [memberName]
-        let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == jsStringType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == types.stringType
-        }
-        guard !alreadyRegistered else { return }
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(jsStringSymbol, for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: jsStringType,
-                parameterTypes: [],
-                returnType: types.stringType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: []
-            ),
-            for: memberSymbol
         )
     }
 }

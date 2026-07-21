@@ -150,10 +150,12 @@ struct RuntimeReadWriteLockTests {
 
 nonisolated(unsafe) private var readWriteLockHandle: Int = 0
 nonisolated(unsafe) private var capturedReadClosureRaw: Int = 0
-private let runtimeReadWriteLockSuiteMutex = NSLock()
+private let runtimeReadWriteLockIsolationLeaseKey = "RuntimeReadWriteLockTests.isolationLease"
 
+// Must not call kk_runtime_force_reset() here: Swift Testing suites run
+// concurrently in one process, and a global reset deallocates handles owned
+// by other suites. Leaked lock handles are reclaimed at process exit.
 private func resetReadWriteLockHarness() {
-    kk_runtime_force_reset()
     runtimeReadWriteLockStateLock.lock()
     _runtimeReadWriteLockActiveReaders = 0
     _runtimeReadWriteLockMaxReaders = 0
@@ -166,13 +168,14 @@ private func resetReadWriteLockHarness() {
 }
 
 private func beginRuntimeReadWriteLockTest() {
-    runtimeReadWriteLockSuiteMutex.lock()
+    precondition(Thread.current.threadDictionary[runtimeReadWriteLockIsolationLeaseKey] == nil)
+    Thread.current.threadDictionary[runtimeReadWriteLockIsolationLeaseKey] = RuntimeTestIsolationLease(lockSet: .all)
     resetReadWriteLockHarness()
 }
 
 private func endRuntimeReadWriteLockTest() {
     resetReadWriteLockHarness()
-    runtimeReadWriteLockSuiteMutex.unlock()
+    Thread.current.threadDictionary.removeObject(forKey: runtimeReadWriteLockIsolationLeaseKey)
 }
 
 private let readEchoThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, outThrown in

@@ -9,6 +9,31 @@ parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
 
+# XCTest ships with full Xcode and with Linux Swift toolchains, but NOT with
+# the macOS Command Line Tools. On a CLT-only toolchain 'swift test' fails in
+# confusing ways: the auto-added --num-workers below is rejected up front with
+# "'--num-workers' is only supported when testing with XCTest" (regardless of
+# what --filter selects), and even without that flag any test file importing
+# XCTest cannot build. Probe the active toolchain here so we can fail fast
+# with an actionable message instead, and skip --num-workers if the repo ever
+# becomes XCTest-free (the flag stays unsupported without XCTest).
+xctest_available=true
+if [[ "$(uname -s)" == "Darwin" ]] && ! xcrun --find xctest >/dev/null 2>&1; then
+    xctest_available=false
+    if grep -rq --include='*.swift' "import XCTest" "$SCRIPT_DIR/../Tests"; then
+        {
+            echo "error: the active Swift toolchain has no XCTest (xcrun --find xctest failed),"
+            echo "but Tests/ still contains XCTest-based tests, so 'swift test' cannot build or run them."
+            echo "On macOS this usually means xcode-select points at the Command Line Tools."
+            echo "Select a full Xcode:"
+            echo "  sudo xcode-select -s /Applications/Xcode.app"
+            echo "or prefix the command with:"
+            echo "  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer"
+        } >&2
+        exit 1
+    fi
+fi
+
 has_parallel_flag=false
 has_workers_flag=false
 has_jobs_flag=false
@@ -52,7 +77,7 @@ if [[ "$supports_parallel_flags" == true ]]; then
             command+=(--parallel)
         fi
 
-        if [[ "$has_workers_flag" == false ]]; then
+        if [[ "$has_workers_flag" == false && "$xctest_available" == true ]]; then
             workers="$workers_override"
             if [[ -z "$workers" ]]; then
                 workers="$(detect_workers)"

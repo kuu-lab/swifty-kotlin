@@ -119,11 +119,19 @@ enum GoldenHarnessDump {
         // 2. Transitively expand required symbols
         ctx.expandRequiredSymbols()
 
-        // 3. Render only required symbol lines, sorted by FQ name for stability
+        // 3. Render only required symbol lines, sorted by FQ name for stability.
+        // Synthetic scope names (__local_N, __for_N, .$classN, ...) embed a raw,
+        // unpadded arena-ordinal suffix, so a plain string comparison sorts
+        // "__local_10002" before "__local_9874" once the ordinal crosses a
+        // power-of-ten digit-count boundary (lexicographic '1' < '9'). That
+        // boundary shifts whenever unrelated bundled-stdlib edits change the
+        // total expression count, which previously scrambled the printed
+        // symbol order for cases whose ordinals happened to straddle it. Use
+        // a numeric-aware comparison so embedded ordinals sort by value.
         let requiredSymbols = sema.symbols.allSymbols()
             .filter { ctx.requiredSymbols.contains($0.id.rawValue) }
             .filter { !isExcludedBundledSymbol($0, excludedFileIDs: excludedFileIDs) }
-            .sorted { ctx.stableKey(for: $0.id) < ctx.stableKey(for: $1.id) }
+            .sorted { ctx.stableKey(for: $0.id).compare(ctx.stableKey(for: $1.id), options: .numeric) == .orderedAscending }
 
         var symbolLines: [String] = []
         for symbol in requiredSymbols {
@@ -132,6 +140,7 @@ enum GoldenHarnessDump {
 
         return (symbolLines + bodyLines).joined(separator: "\n") + "\n"
     }
+
 
     private static func bundledStdlibFileIDs(in sourceManager: SourceManager) -> Set<Int32> {
         Set(sourceManager.fileIDs()

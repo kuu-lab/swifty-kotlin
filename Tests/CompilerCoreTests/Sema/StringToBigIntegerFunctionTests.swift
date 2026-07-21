@@ -1,21 +1,23 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import RuntimeABI
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-085: `fun String.toBigInteger(): BigInteger` in `kotlin.text`.
 ///
 /// Verifies that the synthetic extension resolves to the runtime bridge and
 /// exposes the JVM-compatible `java.math.BigInteger` return type.
-final class StringToBigIntegerFunctionTests: XCTestCase {
+@Suite
+struct StringToBigIntegerFunctionTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
@@ -24,41 +26,42 @@ final class StringToBigIntegerFunctionTests: XCTestCase {
         return sema.symbols.externalLinkName(for: symbol)
     }
 
-    func testToBigIntegerStubLinksToRuntimeSymbol() throws {
+    @Test func testToBigIntegerStubLinksToRuntimeSymbol() throws {
         let (sema, interner) = try makeSema()
 
         let directLink = externalLink(for: "toBigInteger", sema: sema, interner: interner)
-        XCTAssert(
+        #expect(
             directLink == nil || directLink?.isEmpty == true,
             "String.toBigInteger should be source-backed and not have a direct external link"
         )
-        XCTAssertNotNil(
-            RuntimeABISpec.allFunctions.first { $0.name == "__kk_string_toBigInteger" },
+        #expect(
+            RuntimeABISpec.allFunctions.contains { $0.name == "__kk_string_toBigInteger" },
             "__kk_string_toBigInteger must be registered in RuntimeABISpec"
         )
     }
 
-    func testToBigIntegerReturnsJavaMathBigInteger() throws {
+    @Test func testToBigIntegerReturnsJavaMathBigInteger() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "toBigInteger"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == sema.types.stringType && signature.parameterTypes.isEmpty
             }
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
         guard case let .classType(returnType) = sema.types.kind(of: signature.returnType) else {
-            return XCTFail("String.toBigInteger() should return a class type")
+            Issue.record("String.toBigInteger() should return a class type")
+            return
         }
-        let returnSymbol = try XCTUnwrap(sema.symbols.symbol(returnType.classSymbol))
+        let returnSymbol = try #require(sema.symbols.symbol(returnType.classSymbol))
         let returnFQName = returnSymbol.fqName.map { interner.resolve($0) }
 
-        XCTAssertEqual(returnFQName, ["java", "math", "BigInteger"])
-        XCTAssertEqual(returnType.nullability, .nonNull)
+        #expect(returnFQName == ["java", "math", "BigInteger"])
+        #expect(returnType.nullability == .nonNull)
     }
 
-    func testToBigIntegerCallResolvesToRuntimeBridge() throws {
+    @Test func testToBigIntegerCallResolvesToRuntimeBridge() throws {
         let source = """
         import java.math.BigInteger
 
@@ -74,29 +77,30 @@ final class StringToBigIntegerFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected String.toBigInteger() to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "toBigInteger" && args.isEmpty
                 },
                 "Expected member call to toBigInteger() in AST"
             )
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected call binding for toBigInteger"
             )
 
-            XCTAssert(
+            #expect(
                 sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
                 "String.toBigInteger() should resolve to standard library function (no direct external link)"
             )
         }
     }
 }
+#endif
