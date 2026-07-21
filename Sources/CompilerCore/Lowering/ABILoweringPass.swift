@@ -589,8 +589,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                types: types, symbols: symbols
            )
         {
-            return [.call(symbol: nil, callee: unboxCallee, arguments: [from],
-                         result: to, canThrow: false, thrownResult: nil)]
+            var instructions: [KIRInstruction] = []
+            emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: from,
+                result: to,
+                into: &instructions
+            )
+            return instructions
         }
         return nil
     }

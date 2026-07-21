@@ -61,10 +61,12 @@ func emitBoxCallWithValueClassTag(
     into instructions: inout [KIRInstruction]
 ) {
     func emitPlainBoxCall() {
-        instructions.append(.call(
-            symbol: nil, callee: boxCallee, arguments: [value],
-            result: result, canThrow: false, thrownResult: nil
-        ))
+        emitNonThrowingCall(
+            callee: boxCallee,
+            arg: value,
+            result: result,
+            into: &instructions
+        )
     }
     guard case let .classType(classType) = rawSourceKind,
           classType.nullability == .nonNull,
@@ -82,11 +84,13 @@ func emitBoxCallWithValueClassTag(
         emitPlainBoxCall()
         return
     }
-    let boxedTemp = arena.appendTemporary(type: resultType)
-    instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: [value],
-        result: boxedTemp, canThrow: false, thrownResult: nil
-    ))
+    let boxedTemp = emitNonThrowingCall(
+        callee: boxCallee,
+        arg: value,
+        resultType: resultType,
+        arena: arena,
+        into: &instructions
+    )
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))

@@ -3806,19 +3806,14 @@ extension CallLowerer {
                         nil
                     }
 
-                    let boxedArg = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
-                    )
+                    let boxedArg = arena.appendTemporary(type: sema.types.nullableAnyType)
                     if let boxCallee {
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern(boxCallee),
-                            arguments: [loweredArgID],
+                            arg: loweredArgID,
                             result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                     } else {
                         instructions.append(.copy(from: loweredArgID, to: boxedArg))
                     }

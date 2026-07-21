@@ -348,7 +348,7 @@
 
 ### MEDIUM: 局所的だが改善余地あり
 
-- [ ] REFACT-009: boxing/unboxing call を emit する 3 行パターンを共通ヘルパーに抽出する — `appendExpr` + `instructions.append(.call(symbol: nil, canThrow: false, ...))` の組み合わせが `CallLowerer.swift`・`LambdaLowerer.swift`・`ABILoweringPass+BoxingRules.swift`・`CollectionLiteralLoweringPass+FactoryPredicates.swift` 等 12 箇所以上に重複している。`emitNonThrowingCall(callee:arg:resultType:arena:into:)` のようなヘルパーに集約する
+- [x] REFACT-009: boxing/unboxing call を emit する 3 行パターンを共通ヘルパーに抽出する — `KIRCallEmissionHelpers.swift` の `emitNonThrowingCall` overload 群に集約済み。`CallLowerer`・`LambdaLowerer`・`ABILoweringPass`・`CollectionLiteralLoweringPass` などが共有ヘルパーを利用する
 
 ### LOW: 軽微な冗長
 

@@ -321,21 +321,18 @@ extension DataEnumSealedSynthesisPass {
                 thrownResult: nil
             ))
 
-            let cmpResult = module.arena.appendTemporary(
-                type: sema.types.make(.primitive(.boolean, .nonNull))
+            let booleanType = sema.types.make(.primitive(.boolean, .nonNull))
+            let cmpResult = emitNonThrowingCall(
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: .boolean, interner: interner),
+                arg: boxedCmpResult,
+                resultType: booleanType,
+                arena: module.arena,
+                into: &body
             )
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_unbox_bool"),
-                arguments: [boxedCmpResult],
-                result: cmpResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
 
             let falseExpr = module.arena.appendExpr(
                 .boolLiteral(false),
-                type: sema.types.make(.primitive(.boolean, .nonNull))
+                type: booleanType
             )
             body.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 

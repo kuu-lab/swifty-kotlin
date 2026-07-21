@@ -580,15 +580,13 @@ extension CallLowerer {
             body.append(.label(continueLabel))
         }
 
-        let boxedResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: nil,
+        let boxedResult = emitNonThrowingCall(
             callee: boxCallee,
-            arguments: [callResult],
-            result: boxedResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: callResult,
+            resultType: returnType,
+            arena: arena,
+            into: &body
+        )
         body.append(.returnValue(boxedResult))
         body.append(.endBlock)
 
