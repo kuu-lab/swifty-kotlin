@@ -425,8 +425,8 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 
 // MARK: - Public @_cdecl functions: String.format
 
-@_cdecl("kk_string_format")
-public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+@_cdecl("__kk_string_format")
+public func __kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
@@ -457,14 +457,14 @@ public func kk_string_format_flat(
     )
 }
 
-@_cdecl("kk_string_format_locale")
-public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+@_cdecl("__kk_string_format_locale")
+public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
         locale = nil
     } else {
         guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale received invalid Locale handle")
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale received invalid Locale handle")
         }
         locale = box.locale
     }
@@ -693,37 +693,32 @@ public func kk_string_replaceIndentByMargin_flat(
 
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
-@_cdecl("__string_trimIndent")
-public func __string_trimIndent(_ strRaw: Int) -> Int {
+@_cdecl("__kk_string_trimIndent")
+public func __kk_string_trimIndent(_ strRaw: Int) -> Int {
     return kk_string_trimIndent(strRaw)
 }
 
-@_cdecl("__string_trimMargin")
-public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+@_cdecl("__kk_string_trimMargin")
+public func __kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return kk_string_trimMargin(strRaw, marginPrefixRaw, outThrown)
 }
 
-@_cdecl("__string_prependIndent")
-public func __string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
+@_cdecl("__kk_string_prependIndent")
+public func __kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
     return kk_string_prependIndent(strRaw, indentRaw)
 }
 
-@_cdecl("__string_replaceIndent")
-public func __string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
+@_cdecl("__kk_string_replaceIndent")
+public func __kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
     return kk_string_replaceIndent(strRaw, newIndentRaw)
 }
 
-@_cdecl("__string_replaceIndentByMargin")
-public func __string_replaceIndentByMargin(
+@_cdecl("__kk_string_replaceIndentByMargin")
+public func __kk_string_replaceIndentByMargin(
     _ strRaw: Int,
     _ newIndentRaw: Int,
     _ marginPrefixRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw, outThrown)
-}
-
-@_cdecl("__string_format")
-public func __string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
-    return kk_string_format(formatRaw, argsArrayRaw)
 }
