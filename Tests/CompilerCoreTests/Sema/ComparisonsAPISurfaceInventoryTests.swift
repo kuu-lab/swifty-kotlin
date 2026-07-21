@@ -76,6 +76,55 @@ struct ComparisonsAPISurfaceInventoryTests {
         return sema.symbols.lookup(fqName: interned) != nil
     }
 
+    private func hasSourceBackedFunction(
+        fqPath: [String],
+        parameterCount: Int? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let interned = fqPath.map { interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: interned).contains { symbolID in
+            guard sema.symbols.externalLinkName(for: symbolID) == nil else {
+                return false
+            }
+            guard let parameterCount else {
+                return true
+            }
+            return sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == parameterCount
+        }
+    }
+
+    private func hasComparatorReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"]
+    }
+
+    private func hasSourceBackedComparatorExtension(
+        _ name: String,
+        parameterCount: Int? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let interned = ["kotlin", "comparisons", name].map { interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: interned).contains { symbolID in
+            guard sema.symbols.externalLinkName(for: symbolID) == nil,
+                  let signature = sema.symbols.functionSignature(for: symbolID),
+                  let receiver = signature.receiverType,
+                  hasComparatorReceiver(receiver, sema: sema, interner: interner)
+            else {
+                return false
+            }
+            guard let parameterCount else {
+                return true
+            }
+            return signature.parameterTypes.count == parameterCount
+        }
+    }
+
     // MARK: - 1. kotlin.Comparator interface
 
     @Test func testComparatorInterfaceIsRegistered() throws {
@@ -90,64 +139,58 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - 2. Comparator member: thenBy
 
-    @Test func testComparatorThenByIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenByIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "Comparator", "thenBy"],
+        #expect(hasSourceBackedComparatorExtension(
+            "thenBy",
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_then_by"), "Comparator.thenBy must link to kk_comparator_then_by; found: \(links)")
-        #expect(links.contains("kk_comparator_then_by_comparator_selector"), "Comparator.thenBy(comparator, selector) must link to kk_comparator_then_by_comparator_selector; found: \(links)")
+        ), "Comparator.thenBy must be registered from bundled stdlib source")
     }
 
     // MARK: - 3. Comparator member: thenByDescending
 
-    @Test func testComparatorThenByDescendingIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenByDescendingIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
-            fqPath: ["kotlin", "Comparator", "thenByDescending"],
+        #expect(hasSourceBackedComparatorExtension(
+            "thenByDescending",
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_then_by_descending"), "Comparator.thenByDescending must link to kk_comparator_then_by_descending; found: \(links)")
-        #expect(links.contains("kk_comparator_then_by_descending_comparator_selector"), "Comparator.thenByDescending(comparator, selector) must link to kk_comparator_then_by_descending_comparator_selector; found: \(links)")
+        ), "Comparator.thenByDescending must be registered from bundled stdlib source")
     }
 
     // MARK: - 4. Comparator member: thenComparator
 
-    @Test func testComparatorThenComparatorIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenComparatorIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "thenComparator"],
+        #expect(hasSourceBackedComparatorExtension(
+            "thenComparator",
             sema: sema,
             interner: interner
-        )
-        #expect(link == "kk_comparator_then_comparator", "Comparator.thenComparator must link to kk_comparator_then_comparator")
+        ), "Comparator.thenComparator must be source-backed")
     }
 
     // MARK: - 5. Comparator member: thenDescending
 
-    @Test func testComparatorThenDescendingIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenDescendingIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "thenDescending"],
+        #expect(hasSourceBackedComparatorExtension(
+            "thenDescending",
             sema: sema,
             interner: interner
-        )
-        #expect(link == "kk_comparator_then_descending", "Comparator.thenDescending must link to kk_comparator_then_descending")
+        ), "Comparator.thenDescending must be source-backed")
     }
 
     // MARK: - 6. Comparator member: reversed
 
-    @Test func testComparatorReversedIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorReversedIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let link = externalLink(
-            fqPath: ["kotlin", "Comparator", "reversed"],
+        #expect(hasSourceBackedComparatorExtension(
+            "reversed",
+            parameterCount: 0,
             sema: sema,
             interner: interner
-        )
-        #expect(link == "kk_comparator_reversed", "Comparator.reversed must link to kk_comparator_reversed")
+        ), "Comparator.reversed must be source-backed")
     }
 
     // MARK: - 7. Comparator member: nullsFirst
@@ -178,38 +221,35 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     @Test func testCompareByTopLevelIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareBy"],
+            parameterCount: 1,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_selector") ||
-            links.contains("kk_comparator_from_selector_primitive"), "kotlin.comparisons.compareBy (single-selector) must link to a selector comparator runtime; found: \(links)")
+        ), "kotlin.comparisons.compareBy (single-selector) must be registered from bundled stdlib source")
     }
 
-    // MARK: - 10. Factory: compareBy (primitive variant)
+    // MARK: - 10. Factory: compareBy primitive variant removed
 
-    @Test func testCompareByPrimitiveVariantIsRegistered() throws {
+    @Test func testCompareByPrimitiveVariantIsNotRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(!symbolExists(
             fqPath: ["kotlin", "comparisons", "compareByPrimitive"],
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_selector_primitive"), "kotlin.comparisons.compareByPrimitive must link to kk_comparator_from_selector_primitive; found: \(links)")
+        ), "kotlin.comparisons.compareByPrimitive should not be registered after KSP-309 source migration")
     }
 
     // MARK: - 11. Factory: compareByDescending (single-selector)
 
     @Test func testCompareByDescendingTopLevelIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "compareByDescending"],
+            parameterCount: 1,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_from_selector_descending") ||
-            links.contains("kk_comparator_from_selector_primitive_descending"), "kotlin.comparisons.compareByDescending must link to a descending selector comparator; found: \(links)")
+        ), "kotlin.comparisons.compareByDescending must be registered from bundled stdlib source")
     }
 
     // MARK: - 12. Factory: compareBy with multi-selector (2 selectors)
@@ -238,26 +278,26 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - 14. Factory: naturalOrder
 
-    @Test func testNaturalOrderIsRegisteredWithCorrectLink() throws {
+    @Test func testNaturalOrderIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "naturalOrder"],
+            parameterCount: 0,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_natural_order"), "kotlin.comparisons.naturalOrder must link to kk_comparator_natural_order; found: \(links)")
+        ), "kotlin.comparisons.naturalOrder must be registered from bundled stdlib source")
     }
 
     // MARK: - 15. Factory: reverseOrder
 
-    @Test func testReverseOrderIsRegisteredWithCorrectLink() throws {
+    @Test func testReverseOrderIsRegisteredFromBundledStdlib() throws {
         let (sema, interner) = try makeSema()
-        let links = allExternalLinks(
+        #expect(hasSourceBackedFunction(
             fqPath: ["kotlin", "comparisons", "reverseOrder"],
+            parameterCount: 0,
             sema: sema,
             interner: interner
-        )
-        #expect(links.contains("kk_comparator_reverse_order"), "kotlin.comparisons.reverseOrder must link to kk_comparator_reverse_order; found: \(links)")
+        ), "kotlin.comparisons.reverseOrder must be registered from bundled stdlib source")
     }
 
     // MARK: - 16. compareValues (2 nullable args -> Int)
@@ -398,43 +438,49 @@ struct ComparisonsAPISurfaceInventoryTests {
     @Test func testAllMandatoryComparatorAPISymbolsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        // Comparator members
-        let comparatorMembers: [(path: [String], link: String)] = [
-            (["kotlin", "Comparator", "thenBy"], "kk_comparator_then_by"),
-            (["kotlin", "Comparator", "thenBy"], "kk_comparator_then_by_comparator_selector"),
-            (["kotlin", "Comparator", "thenByDescending"], "kk_comparator_then_by_descending"),
-            (["kotlin", "Comparator", "thenByDescending"], "kk_comparator_then_by_descending_comparator_selector"),
-            (["kotlin", "Comparator", "thenComparator"], "kk_comparator_then_comparator"),
-            (["kotlin", "Comparator", "thenDescending"], "kk_comparator_then_descending"),
-            (["kotlin", "Comparator", "reversed"], "kk_comparator_reversed"),
+        let sourceBackedComparatorMembers = [
+            "thenBy",
+            "thenByDescending",
+            "thenComparator",
+            "thenDescending",
+            "reversed",
+        ]
+        for name in sourceBackedComparatorMembers {
+            #expect(
+                hasSourceBackedComparatorExtension(name, sema: sema, interner: interner),
+                "Missing source-backed comparator extension: kotlin.comparisons.\(name)"
+            )
+        }
+
+        let runtimeBackedComparatorMembers: [(path: [String], link: String)] = [
             (["kotlin", "Comparator", "nullsFirst"], "kk_comparator_nulls_first"),
             (["kotlin", "Comparator", "nullsLast"], "kk_comparator_nulls_last"),
         ]
-
-        for entry in comparatorMembers {
+        for entry in runtimeBackedComparatorMembers {
             let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
             #expect(links.contains(entry.link), "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)")
         }
 
-        // Factory functions
-        // Note: compareBy (single-selector) links to kk_comparator_from_selector.
-        // kk_comparator_from_selector_primitive is the link for compareByPrimitive (internal name).
+        let sourceBackedFactories: [[String]] = [
+            ["kotlin", "comparisons", "compareBy"],
+            ["kotlin", "comparisons", "compareByDescending"],
+            ["kotlin", "comparisons", "naturalOrder"],
+            ["kotlin", "comparisons", "reverseOrder"],
+        ]
+        for path in sourceBackedFactories {
+            #expect(hasSourceBackedFunction(fqPath: path, sema: sema, interner: interner), "Missing source-backed factory: \(path.joined(separator: "."))")
+        }
+
+        // Runtime-backed factory functions.
         let factoryLinks: [(path: [String], expectedLinks: [String])] = [
             (
                 ["kotlin", "comparisons", "compareBy"],
                 [
-                    "kk_comparator_from_selector",
                     "kk_comparator_from_multi_selectors",
                     "kk_comparator_from_multi_selectors3",
                     "kk_comparator_from_multi_selectors_vararg",
                 ]
             ),
-            (
-                ["kotlin", "comparisons", "compareByPrimitive"],
-                ["kk_comparator_from_selector_primitive"]
-            ),
-            (["kotlin", "comparisons", "naturalOrder"], ["kk_comparator_natural_order"]),
-            (["kotlin", "comparisons", "reverseOrder"], ["kk_comparator_reverse_order"]),
             (["kotlin", "comparisons", "compareValues"], ["kk_compareValues"]),
             (
                 ["kotlin", "comparisons", "compareValuesBy"],
