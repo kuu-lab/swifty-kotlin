@@ -91,7 +91,7 @@
 
 ### CompilerCore: 参照ゼロの独立シンボル
 
-- [ ] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR
+- [x] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR。2026-07-16 完了: 呼び出し箇所ゼロ（同名 private/fileprivate は他5ファイルにそれぞれ独立定義され自ファイル内で使用済み、別 USR で無関係）を確認して削除、ビルド green
 - [x] DEADCODE-CORE-002: [R0] `BuildASTPhase+DeclBuilders.swift:654` の private `skipLeadingAnnotations(in:)` を削除する。2026-07-16 完了: 参照ゼロを確認し削除、Golden green
 - [x] DEADCODE-CORE-003: [R0] `CallLowerer+CollectionStdlibMemberCalls.swift:5` の `tryLowerCollectionStdlibMemberCall(...)` を削除する（1,336 行の orphan legacy entrypoint）。2026-07-16 完了: 宣言以外の参照ゼロを再確認しファイルごと削除(同ファイル削除に言及していた関連タスクの重複記載も本タスクで解消)
 - [x] DEADCODE-CORE-004: [R0] `CallLowerer+PrimitiveMemberCalls.swift:5` の `tryLowerPrimitiveMemberCall(...)` を削除する（668 行の orphan legacy entrypoint）— ファイル自体を削除。定義以外の参照ゼロを grep で確認済み。内部から呼んでいたヘルパー（`shouldLowerPrimitiveInv` 等）は他ファイルからも呼ばれておりそのまま残置
