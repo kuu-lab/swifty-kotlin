@@ -110,8 +110,8 @@
 - [x] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する。2026-07-17 完了: `registerSyntheticBooleanAnnotationPropertyAndConstructor` は宣言以外の参照ゼロ（リポジトリ全体を `grep` 照合、呼び出し元なし）を確認し削除。同ファイル内の `registerSyntheticStringAnnotationPropertyAndConstructor` 等の姉妹関数は他から呼ばれておりそのまま残置。`swift build` 成功・`git diff --check` クリーンを確認済み。`CompilerCoreTests` フルスイートは同時 8〜16 worktree・load average 25〜246・空きメモリ数百MB/swap 0 の高負荷環境下で `swiftpm-testing-helper` が signal 10 (SIGBUS) で複数回異常終了し完走不可（worker 数を 14→4 に絞っても再発、対象コード変更とは無関係の環境要因と判断）。変更箇所を直接カバーする `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（worker 数 2）は 297/297 green を確認済み
 - [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
 - [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
-- [ ] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する
-- [ ] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する
+- [x] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロを再確認し、CORE-024 と合わせてファイルごと削除
+- [x] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する。2026-07-17 完了: 唯一の呼び出し元は CORE-023 の `registerSyntheticW3CDomStubs` のみで他に参照なし。ファイルが空になるため `HeaderHelpers+SyntheticW3CDomStubs.swift` ごと削除
 - [ ] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない
 - [ ] DEADCODE-CORE-026: [R0] `SemanticsModels.swift:1013` の private `areKindsCompatibleForExpectActual(expect:actual:)` を削除する
 - [ ] DEADCODE-CORE-027: [R0] `CallTypeChecker+MemberCallInferenceFallbacks.swift:386` の `isKotlinDurationType(_:sema:interner:)` を削除する
