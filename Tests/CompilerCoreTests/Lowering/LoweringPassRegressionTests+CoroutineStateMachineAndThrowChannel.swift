@@ -193,7 +193,8 @@ extension LoweringPassRegressionTests {
         #expect(getSpillCount == 1)
 
         let throwFlags = extractThrowFlags(from: loweredSuspend.body, interner: interner)
-        #expect(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true } == true)
+        #expect(loweredCalls.contains("kk_coroutine_call_direct_suspend"))
+        #expect(throwFlags["kk_coroutine_call_direct_suspend"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_state_set_spill"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_state_get_spill"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
@@ -448,7 +449,7 @@ extension LoweringPassRegressionTests {
         #expect(mainThrowFlags["kk_suspend_top"]?.allSatisfy { $0 == true } == true)
 
         let topThrowFlags = extractThrowFlags(from: loweredTop.body, interner: interner)
-        #expect(topThrowFlags["kk_suspend_leaf"]?.allSatisfy { $0 == true } == true)
+        #expect(topThrowFlags["kk_coroutine_call_direct_suspend"]?.allSatisfy { $0 == false } == true)
         #expect(topThrowFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false } == true)
         #expect(topThrowFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
 

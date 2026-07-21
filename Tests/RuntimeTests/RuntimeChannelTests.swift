@@ -32,6 +32,42 @@ private func channelReceiveValue(_ handle: Int, _ continuation: Int = 0) -> Int 
     channelReceivePair(handle, continuation).value
 }
 
+
+// MARK: - BUG-041 × channel blocking interaction
+
+/// Shared rendezvous-channel handle for `runtime_test_channel_pending_launch_send`.
+private final class ChannelPendingLaunchTestState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var channelHandle = 0
+
+    func setChannel(_ handle: Int) {
+        lock.lock()
+        channelHandle = handle
+        lock.unlock()
+    }
+
+    func channel() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return channelHandle
+    }
+}
+
+private let channelPendingLaunchTestState = ChannelPendingLaunchTestState()
+private let channelPendingLaunchFunctionID = 9201
+private typealias ChannelPendingLaunchEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
+/// Launched body: send `42` into the shared rendezvous channel, then exit.
+@_cdecl("runtime_test_channel_pending_launch_send")
+func runtime_test_channel_pending_launch_send(
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let status = kk_channel_send(channelPendingLaunchTestState.channel(), 42, continuation)
+    return kk_coroutine_state_exit(continuation, status)
+}
+
 final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -742,4 +778,36 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             "Cancelled receiver should get failure status"
         )
     }
+
+    /// BUG-041 deferred `launch{}` must be flushed before channel receive blocks.
+    ///
+    /// Reproduces the channel_basic.kt hang (diff run exit 124): inside an active
+    /// coroutine burst, `launch { send }` is queued in RuntimePendingLaunchQueue
+    /// and never dispatched until the burst yields. Channel receive is still a
+    /// blocking semaphore wait (not a true suspend point), so without an explicit
+    /// flush before `wait()` the receiver deadlocks forever.
+    func testReceiveFlushesPendingLaunchBeforeBlocking() {
+        let channel = kk_channel_create(0)
+        channelPendingLaunchTestState.setChannel(channel)
+
+        RuntimeCoroutineBurstDepth.enter()
+        defer {
+            RuntimeCoroutineBurstDepth.exit()
+            RuntimePendingLaunchQueue.flush()
+        }
+
+        let entryRaw = unsafeBitCast(
+            runtime_test_channel_pending_launch_send as ChannelPendingLaunchEntry,
+            to: Int.self
+        )
+        let job = kk_kxmini_launch(entryRaw, channelPendingLaunchFunctionID)
+        XCTAssertNotEqual(job, 0, "launch should return a job handle")
+
+        var value = 0
+        let status = kk_channel_receive(channel, 0, &value)
+        XCTAssertEqual(status, kChannelResultSuccess, "receive should complete after flushing the pending sender")
+        XCTAssertEqual(value, 42)
+        XCTAssertEqual(kk_job_join(job, 0), kChannelResultSuccess)
+    }
+
 }

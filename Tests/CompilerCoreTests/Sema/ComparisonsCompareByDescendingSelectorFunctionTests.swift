@@ -6,7 +6,7 @@ import Testing
 /// Sema-level coverage for the kotlin.comparisons.compareByDescending(selector) function
 /// (STDLIB-COMP-FN-002).
 ///
-/// Verifies that the synthetic top-level
+/// Verifies that the bundled stdlib top-level
 /// `fun <T> compareByDescending(selector: (T) -> Comparable<*>?): Comparator<T>`
 /// is registered in the `kotlin.comparisons` package and resolves from Kotlin
 /// source code that explicitly imports the function.
@@ -27,12 +27,13 @@ struct ComparisonsCompareByDescendingSelectorFunctionTests {
                 ctx.interner.intern("compareByDescending"),
             ]
             let candidates = sema.symbols.lookupAll(fqName: fqName)
-            #expect(!(candidates.isEmpty), "Expected kotlin.comparisons.compareByDescending to be registered as a synthetic top-level function")
-
-            let externalLinks = Set(
-                candidates.compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(externalLinks.contains("kk_comparator_from_selector_descending"), "Expected at least one compareByDescending overload to link to kk_comparator_from_selector_descending, got: \(externalLinks)")
+            let sourceBackedSelectorOverloads = candidates.filter { symbolID in
+                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes.count == 1
+                    && sig.valueParameterIsVararg == [false]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            }
+            #expect(!(sourceBackedSelectorOverloads.isEmpty), "Expected kotlin.comparisons.compareByDescending selector overload to be registered from bundled stdlib source")
         }
     }
 

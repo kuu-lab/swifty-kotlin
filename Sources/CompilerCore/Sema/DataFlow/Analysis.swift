@@ -94,14 +94,16 @@ final class DataFlowAnalyzer {
         scope: Scope
     ) -> ConditionBranch {
         switch op {
-        case .equal, .notEqual:
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            // `x === null` / `x !== null` narrow nullability exactly like `==`/`!=`
+            // (identity comparison against the null literal is not overridable).
             let nullResult = branchOnNullComparison(
                 lhsID: lhsID, rhsID: rhsID,
                 base: base, locals: locals,
                 ast: ast, sema: sema, interner: interner
             )
             if let nullResult {
-                if op == .notEqual {
+                if op == .notEqual || op == .notIdentityEqual {
                     return ConditionBranch(trueState: nullResult.falseState, falseState: nullResult.trueState)
                 }
                 return nullResult
