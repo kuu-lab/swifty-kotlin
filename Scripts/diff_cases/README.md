@@ -77,5 +77,6 @@ Cases:
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
 - `class_body_property_init.kt`: クラス本体で宣言されたストアドプロパティのインライン初期化子（`var a: Int = 10` の形）が実際に per-instance field へ書き込まれ、読み出せることの parity。primary constructor パラメータ併存クラス・型無注釈プロパティ・`object` singleton・`init` ブロックと交互配置された複数プロパティの組み合わせをカバー
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
+- `array_for_loop.kt`: `for (x in array)` による ByteArray / IntArray / `Array<String>` の直接イテレーション（DEBT-KIR-005）、空配列での 0 回実行、`continue`/`break` との組み合わせの parity
 
 The set intentionally includes both successful programs and compile-error cases.

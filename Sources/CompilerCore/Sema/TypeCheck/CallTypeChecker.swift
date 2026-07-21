@@ -1557,7 +1557,12 @@ final class CallTypeChecker {
            args.count == 2 || args.count == 3,
            interner.resolve(calleeName) == "compareBy",
            args.allSatisfy({ isLambdaOrCallableRefArg($0.expr, ast: ast) }),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", "compareBy"],
+               ctx: ctx
+           ) != nil
         {
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
@@ -1621,9 +1626,13 @@ final class CallTypeChecker {
            args.count == 2,
            ["compareBy", "compareByDescending"].contains(interner.resolve(calleeName)),
            !isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", interner.resolve(calleeName)],
+               ctx: ctx
+           ) != nil
         {
-            let calleeNameStr = interner.resolve(calleeName)
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
             let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
@@ -1676,13 +1685,10 @@ final class CallTypeChecker {
             }
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
-            let expectedExternalLink = calleeNameStr == "compareBy"
-                ? "kk_comparator_from_comparator_selector"
-                : "kk_comparator_from_comparator_selector_descending"
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                 guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                return sig.parameterTypes.count == 2 &&
-                    sema.symbols.externalLinkName(for: candidate) == expectedExternalLink
+                return sig.parameterTypes.count == 2
+                    && sema.symbols.externalLinkName(for: candidate) == nil
             }) {
                 sema.bindings.bindCall(
                     id,
@@ -1702,7 +1708,12 @@ final class CallTypeChecker {
         if let calleeName,
            args.count >= 4,
            interner.resolve(calleeName) == "compareBy",
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil,
+           sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "comparisons", "compareBy"],
+               ctx: ctx
+           ) != nil
         {
             let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
                 explicitT
@@ -1763,10 +1774,15 @@ final class CallTypeChecker {
         // --- Comparator factory functions: compareBy, compareByDescending (STDLIB-649) ---
         if let calleeName,
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil
         {
             let calleeNameStr = interner.resolve(calleeName)
-            if calleeNameStr == "compareBy" || calleeNameStr == "compareByDescending" {
+            if (calleeNameStr == "compareBy" || calleeNameStr == "compareByDescending"),
+               sourceOrSyntheticStdlibFunctionSymbol(
+                   calleeName,
+                   fqComponents: ["kotlin", "comparisons", calleeNameStr],
+                   ctx: ctx
+               ) != nil {
                 // Resolve the Comparator<T> return type.
                 // The lambda selector has signature (T) -> Comparable<*>.
                 // T is inferred from explicit type args, calling context, or defaults to Any.
@@ -1785,7 +1801,7 @@ final class CallTypeChecker {
                 }
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.anyType,
+                    returnType: sema.types.nullableAnyType,
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -1806,33 +1822,14 @@ final class CallTypeChecker {
                     sema.types.anyType
                 }
 
-                // Bind to the synthetic function symbol
+                // Bind to the bundled Kotlin source symbol.
                 let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
                 let funcFQName = comparisonsPkg + [calleeName]
-                let primitiveCalleeName = calleeNameStr == "compareBy"
-                    ? interner.intern("compareByPrimitive")
-                    : interner.intern("compareByDescendingPrimitive")
-                let primitiveFQName = comparisonsPkg + [primitiveCalleeName]
-                let primitiveCompareKind: Bool = {
-                    switch sema.types.kind(of: sema.types.makeNonNullable(elementType)) {
-                    case .primitive(.int, _), .primitive(.ubyte, _), .primitive(.ushort, _),
-                         .primitive(.long, _), .primitive(.uint, _), .primitive(.ulong, _),
-                         .primitive(.boolean, _), .primitive(.char, _),
-                         .primitive(.float, _), .primitive(.double, _):
-                        return true
-                    default:
-                        return false
-                    }
-                }()
-                if let chosen = (primitiveCompareKind
-                    ? sema.symbols.lookupAll(fqName: primitiveFQName).first(where: { candidate in
-                        guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                        return sig.parameterTypes.count == 1
-                    })
-                    : nil)
-                    ?? sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
+                if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.count == 1
+                        && sig.valueParameterIsVararg != [true]
+                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -1852,10 +1849,15 @@ final class CallTypeChecker {
         // --- Comparator factory functions: naturalOrder, reverseOrder (STDLIB-649) ---
         if let calleeName,
            args.isEmpty,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           locals[calleeName] == nil
         {
             let calleeNameStr = interner.resolve(calleeName)
-            if calleeNameStr == "naturalOrder" || calleeNameStr == "reverseOrder" {
+            if (calleeNameStr == "naturalOrder" || calleeNameStr == "reverseOrder"),
+               sourceOrSyntheticStdlibFunctionSymbol(
+                   calleeName,
+                   fqComponents: ["kotlin", "comparisons", calleeNameStr],
+                   ctx: ctx
+               ) != nil {
                 let elementType: TypeID = if let explicitTypeArg = explicitTypeArgs.first {
                     explicitTypeArg
                 } else if let expectedType,
@@ -1887,6 +1889,7 @@ final class CallTypeChecker {
                 if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.isEmpty
+                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -2735,6 +2738,35 @@ final class CallTypeChecker {
             return returnType
         }
         if !candidates.isEmpty {
+            // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
+            // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
+            // rather than made generic over the block's return type, because a
+            // real type parameter there hangs the constraint solver. When the
+            // call site
+            // has a concrete expectedType (e.g. a declared function return
+            // type), Any fails the return-type-vs-expectedType compatibility
+            // check and every candidate is rejected ("no viable overload").
+            // Resolve with expectedType relaxed to nil instead -- the same path
+            // already picks the right overload correctly via argument matching
+            // when there is no expected type -- then restore expectedType as
+            // the call's result type below. The lambda body itself was already
+            // checked against expectedType via coroutineLauncherExpectedLambdaType
+            // / withContextExpectedLambdaType above.
+            //
+            // Matched by FQName + the synthetic flag (not just the short name)
+            // so a user-defined function that happens to also be named
+            // "withContext" doesn't get its return type silently overridden --
+            // registerSyntheticCoroutineTopLevelFunction doesn't set an
+            // externalLinkName for withContext (the runtime callee swap happens
+            // later, in CoroutineLoweringPass, purely by name), so externalLinkName
+            // isn't available here to disambiguate instead.
+            let coroutinesWithContextFQName = [
+                interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("withContext"),
+            ]
+            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
+            }
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2742,7 +2774,7 @@ final class CallTypeChecker {
                 range: range,
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
-                expectedType: expectedType,
+                expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: ctx.implicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -2779,7 +2811,7 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            let adjustedReturnType: TypeID = if let coroutineLauncherName,
+            var adjustedReturnType: TypeID = if let coroutineLauncherName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
                 ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
                 args.indices.contains(launcherIndex)
@@ -2871,6 +2903,14 @@ final class CallTypeChecker {
                 }
             } else {
                 returnType
+            }
+            // STDLIB-CORO-BUG-02: restore the real expectedType as the result
+            // of withContext calls -- see the matching comment above
+            // resolveCallRespectingLambdaReturnType.
+            if isCoroutineBuilderWithHardcodedAnyReturn,
+               let expectedType, expectedType != sema.types.errorType
+            {
+                adjustedReturnType = expectedType
             }
             if args.count == 2,
                let externalLinkName = sema.symbols.externalLinkName(for: chosen),

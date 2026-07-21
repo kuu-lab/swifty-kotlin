@@ -1,5 +1,30 @@
 
 extension ExprLowerer {
+    /// A generic Array cast only changes the erased element type. When both
+    /// sides are statically the same non-null Array class, checking the
+    /// parameterized type at runtime is both unnecessary and impossible: the
+    /// runtime array handle does not carry its erased element type.
+    func isRedundantGenericArrayCast(
+        from sourceType: TypeID?,
+        to targetType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let sourceType,
+              sema.types.nullability(of: sourceType) == .nonNull,
+              let (sourceClass, sourceSymbol) = resolveClassTypeSymbol(sourceType, sema: sema),
+              let (targetClass, targetSymbol) = resolveClassTypeSymbol(targetType, sema: sema)
+        else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return sourceSymbol.name == knownNames.array
+            && targetSymbol.name == knownNames.array
+            && sourceClass.classSymbol == targetClass.classSymbol
+            && sourceClass.args.count == 1
+            && targetClass.args.count == 1
+    }
+
     func lowerIsCheckTypeTokenExpr(
         typeRefID: TypeRefID,
         ast: ASTModule,
