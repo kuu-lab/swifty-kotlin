@@ -43,7 +43,6 @@ struct RuntimeRegexNamedGroupTests {
     func testNamedGroupsExposeValuesByName() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
@@ -61,7 +60,6 @@ struct RuntimeRegexNamedGroupTests {
     func testMissingNamedGroupReturnsNullSentinel() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
         let groupsRaw = kk_match_result_groups(matchRaw)
@@ -74,7 +72,6 @@ struct RuntimeRegexNamedGroupTests {
     func testGroupNamesReturnsAllNamedGroups() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
         let setRaw = kk_regex_group_names(regexRaw)
 
@@ -91,7 +88,6 @@ struct RuntimeRegexNamedGroupTests {
     func testGroupNamesEmptyForUnnamedPattern() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer { kk_runtime_force_reset() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
         let setRaw = kk_regex_group_names(regexRaw)
 

@@ -4,10 +4,6 @@ import Testing
 
 @Suite(.serialized)
 struct RuntimeListPropertyTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     private func makeList(_ elements: [Int]) -> Int {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0
