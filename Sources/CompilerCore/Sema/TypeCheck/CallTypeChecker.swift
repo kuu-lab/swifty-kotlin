@@ -2738,6 +2738,35 @@ final class CallTypeChecker {
             return returnType
         }
         if !candidates.isEmpty {
+            // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
+            // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
+            // rather than made generic over the block's return type, because a
+            // real type parameter there hangs the constraint solver. When the
+            // call site
+            // has a concrete expectedType (e.g. a declared function return
+            // type), Any fails the return-type-vs-expectedType compatibility
+            // check and every candidate is rejected ("no viable overload").
+            // Resolve with expectedType relaxed to nil instead -- the same path
+            // already picks the right overload correctly via argument matching
+            // when there is no expected type -- then restore expectedType as
+            // the call's result type below. The lambda body itself was already
+            // checked against expectedType via coroutineLauncherExpectedLambdaType
+            // / withContextExpectedLambdaType above.
+            //
+            // Matched by FQName + the synthetic flag (not just the short name)
+            // so a user-defined function that happens to also be named
+            // "withContext" doesn't get its return type silently overridden --
+            // registerSyntheticCoroutineTopLevelFunction doesn't set an
+            // externalLinkName for withContext (the runtime callee swap happens
+            // later, in CoroutineLoweringPass, purely by name), so externalLinkName
+            // isn't available here to disambiguate instead.
+            let coroutinesWithContextFQName = [
+                interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("withContext"),
+            ]
+            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
+            }
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2745,7 +2774,7 @@ final class CallTypeChecker {
                 range: range,
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
-                expectedType: expectedType,
+                expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: ctx.implicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -2782,7 +2811,7 @@ final class CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            let adjustedReturnType: TypeID = if let coroutineLauncherName,
+            var adjustedReturnType: TypeID = if let coroutineLauncherName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
                 ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
                 args.indices.contains(launcherIndex)
@@ -2874,6 +2903,14 @@ final class CallTypeChecker {
                 }
             } else {
                 returnType
+            }
+            // STDLIB-CORO-BUG-02: restore the real expectedType as the result
+            // of withContext calls -- see the matching comment above
+            // resolveCallRespectingLambdaReturnType.
+            if isCoroutineBuilderWithHardcodedAnyReturn,
+               let expectedType, expectedType != sema.types.errorType
+            {
+                adjustedReturnType = expectedType
             }
             if args.count == 2,
                let externalLinkName = sema.symbols.externalLinkName(for: chosen),

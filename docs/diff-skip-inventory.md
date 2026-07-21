@@ -89,12 +89,34 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | 領域 | cases | owner |
 | --- | --- | --- |
-| base suspend / withContext / exception | `coroutine_base_edge_cases.kt`, `coroutine_context_switching.kt`, `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
+| lazy/deferred coroutine start (cancel-before-first-run, `CoroutineStart.LAZY`) | `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
 | cancellation（解除済み） | ~~`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`~~ | `currentCoroutineContext()`/`ensureActive()`/`NonCancellable`/`CoroutineContext.isActive` を追加し、`withTimeoutOrNull` の null 判定バグ（`runtimeNullSentinelInt` ではなく生の `0` を返していた）と `coroutineScope`/`supervisorScope` の直接 throw 握りつぶしバグ（`outThrown` を forward していなかった）、および `job.join()`/`Job.await()` が返却後にハンドルを解放し join 後の `isCancelled` 参照が use-after-free になっていたバグを修正して通常 diff へ復帰 |
 | CoroutineScope lifecycle（未解除） | `coroutine_scope_lifecycle.kt` | `CoroutineScope.launch { }` は `CoroutineLoweringPass+LauncherSupport.swift` の `rewriteCoroutineScopeLaunchCall`/`rewriteZeroArgCoroutineScopeLauncherCall` でレシーバを保持したまま entryPoint/functionID split する形に対応済み（`kk_coroutine_scope_launch(scopeHandle, entryPointRaw, functionID)`、ローカル変数レシーバで動作確認済み。キャプチャ付きラムダは未対応で `KSWIFTK-CORO-0003` を返す）。この diff case は依然 2 件の別バグでブロックされている: (1) `private val scope = CoroutineScope(...)`（型注釈なしのクラスプロパティ）がシブリングのメンバ関数チェック時に未解決型のまま扱われる `typeCheckClassLikeMembers`（`DeclTypeChecker+ClassAndObjectChecking.swift`）のパス順序バグ、(2) 型注釈を付けて (1) を回避しても、非ctor引数のクラスプロパティ初期化子（`private val scope: CoroutineScope = ...`）がインスタンスへ書き込まれず（コンストラクタに `kk_array_set` 相当の書き込みが無い）`kk_coroutine_scope_launch` が invalid scope handle で fatalError する、`class-instance-property-init-storage-bug` と同種の問題（PR #4691 `claude/recursing-rhodes-5a8c58` で対応中、未マージ）。両方の解消後に `SKIP-DIFF` を外す |
 | structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task。詳細調査結果と残ブロッカーは下記「structured concurrency / Deferred / Supervisor 詳細」節を参照 |
 | Channel / produce / Flow backpressure | `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
 | sync primitives | `coroutine_mutex_semaphore.kt` | Sema: `launch { }` 直下の `Mutex.withLock` / `Semaphore.withPermit` 呼び出しが overload 解決に失敗する既存バグ |
+
+`coroutine_base_edge_cases.kt`（direct suspend call のデッドロック、try/catch 内 suspend call の例外もみ消し）と
+`coroutine_context_switching.kt`（`withContext` の期待型ハンドリング）は 2026-07-09 に skip 解除済み。
+
+残る2件は当初 "advanced coroutine API 未実装" という一般的理由だったが、実際の root cause は次の通りに絞り込めた:
+
+- `coroutine_exception_handling.kt`: `async { throw ... }.await()` の例外もみ消しは `kk_kxmini_async` が完了時に continuation の
+  `thrownException` を確認せず `task.complete(with: result)` を無条件に呼んでいたバグで、これは修正済み
+  （`kk_kxmini_launch_with_exception_handler` と同じパターンを適用）。残る唯一の差分は、`launch{}` 直後に同期 `cancel()`
+  すると JVM 参照には出ない `"cancelled cleanly"` 行が余分に出力されること。原因は `launch{}` が本体を実 GCD キューへ
+  即座にディスパッチするため、cancel が本体の最初のサスペンションポイント到達より先に届くべきタイミングを再現できないこと
+  （kotlinx の `runBlocking` は協調的シングルスレッドイベントループで、親がサスペンドするまで子は一切実行されない）。
+- `coroutine_edge_cases.kt`: `launch(start = CoroutineStart.LAZY) { ... }` がそもそもコンパイルできない
+  （`CoroutineStart` 型・`launch(start:, block:)` オーバーロードを意図的に未登録のまま）。理由は
+  `rewriteLauncherCall` の dispatcher-aware path が 2 引数 `launch` の第一引数を無条件に `CoroutineDispatcher` として
+  `kk_kxmini_launch_with_dispatcher` に渡すため、`CoroutineStart` 値を渡すと実行時にクラッシュ（`kk_job_is_cancelled`
+  内で `EXC_BAD_ACCESS`）する。type-aware disambiguation なしで登録するのは危険なので見送った。
+
+両ケースとも、根っこは同じ「ジョブの genuine な "pending, not yet started" 状態が無い」という欠落に行き着く。
+`CoroutineStart.LAZY` を実装するにも、`launch{}` 直後の同期 cancel タイミングを JVM と揃えるにも、
+実際に本体を dispatch する前に "start()/最初の親 suspend まで待つ" フェーズを持つ RuntimeJobHandle 状態が要る。
+scheduler の分岐が広いため、単発の bug fix ではなく別 task として切り出すべき。
 
 解除順は、`runBlocking` + simple suspend、`withContext`、`async/await`、Channel、Flow、Supervisor / cancellation の順にする。
 

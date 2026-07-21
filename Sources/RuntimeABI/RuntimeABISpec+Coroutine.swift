@@ -27,6 +27,17 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_call_direct_suspend",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "childContinuation", type: .intptr),
+                RuntimeABIParameter(name: "callerContinuationRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_continuation_factory",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -881,6 +892,15 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Coroutine"
+        ),
+        // STDLIB-CORO-BUG-04: ABI backing for a bare `isActive` reference
+        // (no explicit CoroutineScope receiver) inside a coroutine builder body.
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_current_is_active",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_is_cancelled",
