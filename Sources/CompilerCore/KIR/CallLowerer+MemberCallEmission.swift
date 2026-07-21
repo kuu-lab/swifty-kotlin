@@ -240,7 +240,7 @@ extension CallLowerer {
         // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
         // registration since Random stopped being a synthetic object). loweredCallee
         // gets corrected to the range-object bridge name below, but
-        // emitCallInstruction (NativeEmitter+CallEmission.swift) prefers calling
+        // emitFunctionBody's call emission path prefers calling
         // `symbol`'s own internal compiled body over `callee`'s name whenever
         // `symbol` resolves to a known internal function — so without also
         // clearing the symbol here, the corrected callee *name* is silently

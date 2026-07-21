@@ -174,60 +174,63 @@
 
 > `rg 'FunctionEmissionState\s*\(' Sources Tests` は 0 件。現行パスは `NativeEmitter+FunctionEmission.swift` の monolithic `emitFunctionBody` を使う。まず root 呼び出しを削除し、D ヘルパを順次消し、最後に owner type と 3 ファイルを削除する。
 
-- [ ] DEADCODE-BACKEND-001: [R0] `NativeEmitter+InstructionEmission.swift:7` の `FunctionEmissionState.emitInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-002: [D: BACKEND-001] `NativeEmitter+CallEmission.swift:8` の `emitCallInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-003: [D: BACKEND-001] 同ファイル `:332` の `emitVirtualCallInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-004: [D: BACKEND-001] `NativeEmitter+InstructionEmission.swift:285` の private `updateDebugLocation(...)` を削除する
-- [ ] DEADCODE-BACKEND-005: [D: BACKEND-001] 同ファイル `:323` の private `emitConstValueDebugInfo(...)` を削除する
-- [ ] DEADCODE-BACKEND-006: [D: BACKEND-001] 同ファイル `:392` の private `emitNullAssert(...)` を削除する
-- [ ] DEADCODE-BACKEND-007: [D: BACKEND-001] `NativeEmitter+FunctionEmissionState.swift:84` の `assignmentTargets(for:)` を削除する。live な同名 local function は別 USR
-- [ ] DEADCODE-BACKEND-008: [D] 同ファイル `:114` の `declareExternalFunction(...)` を削除する
-- [ ] DEADCODE-BACKEND-009: [D] 同ファイル `:150` の `resolveUnnamedInternalFunction(...)` を削除する
-- [ ] DEADCODE-BACKEND-010: [D] 同ファイル `:173` の `valueForConstant(_:expressionRawID:)` を削除する
-- [ ] DEADCODE-BACKEND-011: [D] 同ファイル `:189` の `resolveValue(_:)` を削除する
-- [ ] DEADCODE-BACKEND-012: [D] 同ファイル `:204` の `rawComparableValues(lhs:rhs:)` を削除する
-- [ ] DEADCODE-BACKEND-013: [D] 同ファイル `:228` の `storeResult(_:_:)` を削除する
-- [ ] DEADCODE-BACKEND-014: [D] 同ファイル `:245` の `blockForLabel(_:)` を削除する
-- [ ] DEADCODE-BACKEND-015: [D] 同ファイル `:256` の `buildThrownSlotCondition(from:name:)` を削除する
-- [ ] DEADCODE-BACKEND-016: [D] 同ファイル `:263` の `storeOutThrownIfNonNull(_:suffix:)` を削除する
-- [ ] DEADCODE-BACKEND-017: [D] 同ファイル `:303` の `emitFramePop(_:)` を削除する
-- [ ] DEADCODE-BACKEND-018: [D] 同ファイル `:316` の `emitBuiltinCall(...)` を削除する。live な同名 local function は別 USR
-- [ ] DEADCODE-BACKEND-019: [R0] 同ファイル `:335` の `setupFrame(function:)` を削除する
-- [ ] DEADCODE-BACKEND-020: [D: BACKEND-021〜050] `NativeEmitter+FunctionEmissionState.swift:39` の `FunctionEmissionState.init(...)` を削除する
-- [ ] DEADCODE-BACKEND-021: [D] 同ファイル `:5` の stored property `emitter` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-022: [D] 同ファイル `:6` の stored property `builder` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-023: [D] 同ファイル `:7` の stored property `int64Type` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-024: [D] 同ファイル `:8` の stored property `zeroValue` を削除し、initializer の property assignment も消す
-- [ ] DEADCODE-BACKEND-025: [D] 同ファイル `:9` の stored property `context` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-026: [D] 同ファイル `:10` の stored property `llvmModule` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-027: [D] 同ファイル `:11` の stored property `llvmFunction` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-028: [D] 同ファイル `:12` の stored property `outThrownPointerType` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-029: [D] 同ファイル `:13` の stored property `outThrownParameter` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-030: [D] 同ファイル `:14` の stored property `nullThrownPointer` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-031: [D] 同ファイル `:15` の stored property `parameterValues` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-032: [D] 同ファイル `:16` の stored property `internalFunctions` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-033: [D] 同ファイル `:17` の stored property `globalVariables` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-034: [D] 同ファイル `:18` の stored property `maxKIRArgumentCountByExternalCallee` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-035: [D] 同ファイル `:19` の stored property `builderState` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-036: [D] 同ファイル `:20` の stored property `copyTargetAllocas` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-037: [D] 同ファイル `:22` の stored property `framePopFunction` を削除する
-- [ ] DEADCODE-BACKEND-038: [D] 同ファイル `:23` の stored property `coroutineRegisterRootFunction` を削除する
-- [ ] DEADCODE-BACKEND-039: [D] 同ファイル `:24` の stored property `coroutineUnregisterRootFunction` を削除する
-- [ ] DEADCODE-BACKEND-040: [D] 同ファイル `:25` の stored property `functionIDValue` と initializer `:77` の初期化を削除する
-- [ ] DEADCODE-BACKEND-041: [D] 同ファイル `:27` の stored property `currentBlock` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-042: [D] 同ファイル `:28` の stored property `values` を削除する
-- [ ] DEADCODE-BACKEND-043: [D] 同ファイル `:29` の stored property `rawResultValues` を削除する
-- [ ] DEADCODE-BACKEND-044: [D] 同ファイル `:30` の stored property `externalFunctions` を削除する
-- [ ] DEADCODE-BACKEND-045: [D] 同ファイル `:31` の stored property `labelBlocks` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-046: [D] 同ファイル `:32` の stored property `generatedStringLiteralCount` を削除する
-- [ ] DEADCODE-BACKEND-047: [D] 同ファイル `:34` の computed property `bindings` を削除する
-- [ ] DEADCODE-BACKEND-048: [D] 同ファイル `:35` の computed property `module` を削除する
-- [ ] DEADCODE-BACKEND-049: [D] 同ファイル `:36` の computed property `interner` を削除する
-- [ ] DEADCODE-BACKEND-050: [D] 同ファイル `:37` の computed property `sourceManager` を削除する
-- [ ] DEADCODE-BACKEND-051: [R0/type; 前提 BACKEND-001〜050] `NativeEmitter.FunctionEmissionState` (`NativeEmitter+FunctionEmissionState.swift:4`) と、空になる `NativeEmitter+FunctionEmissionState.swift` / `NativeEmitter+CallEmission.swift` / `NativeEmitter+InstructionEmission.swift` を削除する
-- [ ] DEADCODE-BACKEND-052: [R0] `NativeEmitter.swift:424` の private `emitFunctionBodiesParallel(...)` を削除する。parallel codegen は `:361` のコメントどおり disabled、local type `ParallelEmissionWork` も本 body と同時に消す
-- [ ] DEADCODE-BACKEND-053: [W0] `NativeEmitter.swift:308` の local `functionDeclInfo` と `:356` の append を削除する。同名の後続参照は dead parallel method の別 parameter/field
-- [ ] DEADCODE-BACKEND-054: [D: BACKEND-052] `LLVMCAPIBindings+Core.swift:126` の `linkModules(_:source:)` を削除する。唯一の caller は dead parallel emission body
+- [x] DEADCODE-BACKEND-001: [R0] `NativeEmitter+InstructionEmission.swift:7` の `FunctionEmissionState.emitInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-002: [D: BACKEND-001] `NativeEmitter+CallEmission.swift:8` の `emitCallInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-003: [D: BACKEND-001] 同ファイル `:332` の `emitVirtualCallInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-004: [D: BACKEND-001] `NativeEmitter+InstructionEmission.swift:285` の private `updateDebugLocation(...)` を削除する
+- [x] DEADCODE-BACKEND-005: [D: BACKEND-001] 同ファイル `:323` の private `emitConstValueDebugInfo(...)` を削除する
+- [x] DEADCODE-BACKEND-006: [D: BACKEND-001] 同ファイル `:392` の private `emitNullAssert(...)` を削除する
+- [x] DEADCODE-BACKEND-007: [D: BACKEND-001] `NativeEmitter+FunctionEmissionState.swift:84` の `assignmentTargets(for:)` を削除する。live な同名 local function は別 USR
+- [x] DEADCODE-BACKEND-008: [D] 同ファイル `:114` の `declareExternalFunction(...)` を削除する
+- [x] DEADCODE-BACKEND-009: [D] 同ファイル `:150` の `resolveUnnamedInternalFunction(...)` を削除する
+- [x] DEADCODE-BACKEND-010: [D] 同ファイル `:173` の `valueForConstant(_:expressionRawID:)` を削除する
+- [x] DEADCODE-BACKEND-011: [D] 同ファイル `:189` の `resolveValue(_:)` を削除する
+- [x] DEADCODE-BACKEND-012: [D] 同ファイル `:204` の `rawComparableValues(lhs:rhs:)` を削除する
+- [x] DEADCODE-BACKEND-013: [D] 同ファイル `:228` の `storeResult(_:_:)` を削除する
+- [x] DEADCODE-BACKEND-014: [D] 同ファイル `:245` の `blockForLabel(_:)` を削除する
+- [x] DEADCODE-BACKEND-015: [D] 同ファイル `:256` の `buildThrownSlotCondition(from:name:)` を削除する
+- [x] DEADCODE-BACKEND-016: [D] 同ファイル `:263` の `storeOutThrownIfNonNull(_:suffix:)` を削除する
+- [x] DEADCODE-BACKEND-017: [D] 同ファイル `:303` の `emitFramePop(_:)` を削除する
+- [x] DEADCODE-BACKEND-018: [D] 同ファイル `:316` の `emitBuiltinCall(...)` を削除する。live な同名 local function は別 USR
+- [x] DEADCODE-BACKEND-019: [R0] 同ファイル `:335` の `setupFrame(function:)` を削除する
+- [x] DEADCODE-BACKEND-020: [D: BACKEND-021〜050] `NativeEmitter+FunctionEmissionState.swift:39` の `FunctionEmissionState.init(...)` を削除する
+- [x] DEADCODE-BACKEND-021: [D] 同ファイル `:5` の stored property `emitter` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-022: [D] 同ファイル `:6` の stored property `builder` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-023: [D] 同ファイル `:7` の stored property `int64Type` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-024: [D] 同ファイル `:8` の stored property `zeroValue` を削除し、initializer の property assignment も消す
+- [x] DEADCODE-BACKEND-025: [D] 同ファイル `:9` の stored property `context` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-026: [D] 同ファイル `:10` の stored property `llvmModule` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-027: [D] 同ファイル `:11` の stored property `llvmFunction` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-028: [D] 同ファイル `:12` の stored property `outThrownPointerType` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-029: [D] 同ファイル `:13` の stored property `outThrownParameter` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-030: [D] 同ファイル `:14` の stored property `nullThrownPointer` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-031: [D] 同ファイル `:15` の stored property `parameterValues` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-032: [D] 同ファイル `:16` の stored property `internalFunctions` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-033: [D] 同ファイル `:17` の stored property `globalVariables` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-034: [D] 同ファイル `:18` の stored property `maxKIRArgumentCountByExternalCallee` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-035: [D] 同ファイル `:19` の stored property `builderState` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-036: [D] 同ファイル `:20` の stored property `copyTargetAllocas` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-037: [D] 同ファイル `:22` の stored property `framePopFunction` を削除する
+- [x] DEADCODE-BACKEND-038: [D] 同ファイル `:23` の stored property `coroutineRegisterRootFunction` を削除する
+- [x] DEADCODE-BACKEND-039: [D] 同ファイル `:24` の stored property `coroutineUnregisterRootFunction` を削除する
+- [x] DEADCODE-BACKEND-040: [D] 同ファイル `:25` の stored property `functionIDValue` と initializer `:77` の初期化を削除する
+- [x] DEADCODE-BACKEND-041: [D] 同ファイル `:27` の stored property `currentBlock` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-042: [D] 同ファイル `:28` の stored property `values` を削除する
+- [x] DEADCODE-BACKEND-043: [D] 同ファイル `:29` の stored property `rawResultValues` を削除する
+- [x] DEADCODE-BACKEND-044: [D] 同ファイル `:30` の stored property `externalFunctions` を削除する
+- [x] DEADCODE-BACKEND-045: [D] 同ファイル `:31` の stored property `labelBlocks` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-046: [D] 同ファイル `:32` の stored property `generatedStringLiteralCount` を削除する
+- [x] DEADCODE-BACKEND-047: [D] 同ファイル `:34` の computed property `bindings` を削除する
+- [x] DEADCODE-BACKEND-048: [D] 同ファイル `:35` の computed property `module` を削除する
+- [x] DEADCODE-BACKEND-049: [D] 同ファイル `:36` の computed property `interner` を削除する
+- [x] DEADCODE-BACKEND-050: [D] 同ファイル `:37` の computed property `sourceManager` を削除する
+- [x] DEADCODE-BACKEND-051: [R0/type; 前提 BACKEND-001〜050] `NativeEmitter.FunctionEmissionState` (`NativeEmitter+FunctionEmissionState.swift:4`) と、空になる `NativeEmitter+FunctionEmissionState.swift` / `NativeEmitter+CallEmission.swift` / `NativeEmitter+InstructionEmission.swift` を削除する
+- [x] DEADCODE-BACKEND-052: [R0] `NativeEmitter.swift:424` の private `emitFunctionBodiesParallel(...)` を削除する。parallel codegen は `:361` のコメントどおり disabled、local type `ParallelEmissionWork` も本 body と同時に消す
+- [x] DEADCODE-BACKEND-053: [W0] `NativeEmitter.swift:308` の local `functionDeclInfo` と `:356` の append を削除する。同名の後続参照は dead parallel method の別 parameter/field
+- [x] DEADCODE-BACKEND-054: [D: BACKEND-052] `LLVMCAPIBindings+Core.swift:126` の `linkModules(_:source:)` を削除する。唯一の caller は dead parallel emission body
+
+> 2026-07-21 完了: `FunctionEmissionState` とその call/instruction emission extension、無効化済み parallel codegen、専用の LLVM module linker helper/binding を削除。現行の `NativeEmitter+FunctionEmission.swift` の serial emission path は維持する。
+> 検証: Xcode beta toolchain の `swift build`、`VirtualDispatchCodegenTests.testLLVMBackendCompilesVirtualCallWithoutError` 1/1、`RuntimeStubImplementationTests` 1/1、`KotlinCompilationObjectEmissionTests` 10/10 が成功。`CompilerBackendTests` 全体は `LinkPhase.swift:109` の既存 `outputUnavailable` が実行系ケースで再発したため中断（KIR/ABI ケースは通過）。
 
 ### Runtime: 完全到達不能 export / legacy bridge
 
