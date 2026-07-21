@@ -82,6 +82,122 @@ final class CodegenSequenceLazyEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
         try assertKotlinOutput(source, moduleName: "GenerateSequenceNullTermination", expected: "[1, 2, 3, 4]\n")
     }
 
+    // KSP-500: generateSequence's seed and every element produced by nextFunction
+    // must be boxed when the sequence is used as Sequence<Any>, matching how
+    // sequenceOf(...)/listOf(...) already box their elements. A plain
+    // filterIsInstance<Int>() check does NOT catch a boxing regression here:
+    // kk_op_is has an "unboxed numeric value matches any numeric type" fallback,
+    // so an unboxed Int element coincidentally still passes `is Int`. Checking
+    // `is Long`/`is Char` alongside `is Int` is what actually discriminates a
+    // boxed element (only `is Int` true) from an unboxed one (all three true).
+    func testGenerateSequenceElementsAreBoxedNotJustNumericFallback() throws {
+        let source = """
+        fun main() {
+            val values: Sequence<Any> = generateSequence(1) { if (it < 3) it + 1 else null }
+            for (v in values.toList()) {
+                println("" + (v is Int) + " " + (v is Long) + " " + (v is Char))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceElementsBoxedIfElse",
+            expected:
+                """
+                true false false
+                true false false
+                true false false
+                """ + "\n"
+        )
+    }
+
+    // Same as above, but for a nextFunction with no if/else `null` branch —
+    // this shape doesn't happen to trigger ABILoweringPass's incidental
+    // copy-boxing, so it's a distinct regression risk from the if/else case.
+    func testGenerateSequenceElementsAreBoxedWithoutIfElseBranch() throws {
+        let source = """
+        fun main() {
+            val naturals: Sequence<Any> = generateSequence(1) { it + 1 }
+            for (v in naturals.take(3).toList()) {
+                println("" + (v is Int) + " " + (v is Long) + " " + (v is Char))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceElementsBoxedNoIfElse",
+            expected:
+                """
+                true false false
+                true false false
+                true false false
+                """ + "\n"
+        )
+    }
+
+    // 1-arg form generateSequence(nextFunction: () -> T?) — STDLIB-SEQ-002.
+    func testGenerateSequenceNoArgElementsAreBoxed() throws {
+        let source = """
+        fun main() {
+            val values: Sequence<Any> = generateSequence { 42 }
+            for (v in values.take(2).toList()) {
+                println("" + (v is Int) + " " + (v is Long) + " " + (v is Char))
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceNoArgElementsBoxed",
+            expected:
+                """
+                true false false
+                true false false
+                """ + "\n"
+        )
+    }
+
+    // 1-arg form with a captured local var — regression test for a related bug
+    // found alongside the boxing leak: this overload's call used to be built
+    // without expanding the closure to (fnPtr, closureRaw), which silently
+    // dropped captures (closureRaw was padded to 0) and crashed at runtime
+    // with a kk_array_get_inbounds precondition failure for any capturing
+    // closure of this form.
+    func testGenerateSequenceNoArgWithCapturedStateWorks() throws {
+        let source = """
+        fun main() {
+            var n = 0
+            val values: Sequence<Any> = generateSequence {
+                n = n + 1
+                if (n <= 3) n else null
+            }
+            println(values.toList())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "GenerateSequenceNoArgCapturedState", expected: "[1, 2, 3]\n")
+    }
+
+    // Mirrors the sequenceOf(...) mixed-type test above (testSequenceFilterIsInstanceKeepsMatchingTypes),
+    // but for generateSequence: concatenating with a String-producing sequenceOf
+    // gives filterIsInstance<Int> a real, non-Int element to reject, so this
+    // only passes if generateSequence's elements are actually boxed (an unboxed
+    // Int would still coincidentally pass `is Int`, but a genuinely-typed
+    // String element correctly fails it either way — this test's value is
+    // pinning the end-to-end user-facing scenario from the bug report).
+    func testGenerateSequenceFilterIsInstanceKeepsMatchingTypes() throws {
+        let source = """
+        fun main() {
+            val values: Sequence<Any> = generateSequence(1) { if (it < 3) it + 1 else null } + sequenceOf("two")
+            println(values.filterIsInstance<Int>().toList())
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "GenerateSequenceFilterIsInstance", expected: "[1, 2, 3]\n")
+    }
+
     func testSequenceBuilderYieldAndYieldAll() throws {
         let source = """
         fun main() {

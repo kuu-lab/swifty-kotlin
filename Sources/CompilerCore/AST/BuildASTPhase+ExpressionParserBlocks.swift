@@ -96,7 +96,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if hasNewline, lastTokenIndex >= groupStart {
                     let lastKind = tokens[lastTokenIndex].kind
-                    let lastIsContinuation = isBinaryOperatorTokenKind(lastKind)
+                    let lastIsContinuation = isStatementContinuationAtLineEnd(lastKind)
                         || lastKind == .symbol(.lParen)
                         || lastKind == .symbol(.comma)
                     let nextIsContinuation = isBinaryOperatorTokenKind(token.kind)
@@ -131,6 +131,10 @@ extension BuildASTPhase.ExpressionParser {
 
     func isBinaryOperatorTokenKind(_ kind: TokenKind) -> Bool {
         BuildASTPhase.isBinaryOperatorToken(kind)
+    }
+
+    func isStatementContinuationAtLineEnd(_ kind: TokenKind) -> Bool {
+        BuildASTPhase.isStatementContinuationAtLineEnd(kind)
     }
 
     func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {

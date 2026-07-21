@@ -6,13 +6,17 @@ import Testing
 /// STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
 /// (`isData` / `isSealed` / `isValue`) lowering.
 ///
-/// These members are end-to-end wired (Sema inference → KIR lowering → runtime),
-/// so the tests assert that the expected runtime callee is emitted for both
-/// receiver forms:
+/// KSP-496 moved these to ordinary Kotlin extension properties
+/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so `main`'s
+/// KIR body now calls the Kotlin getter (e.g. `isData`) directly — the
+/// `__kk_kclass_is_*` runtime call happens one level deeper, inside that
+/// getter's own KIR function body. These tests assert that `main` resolves
+/// to the getter (i.e. does not fall through to an undefined symbol) for
+/// both receiver forms:
 /// - a compile-time class literal (`Foo::class.isData`), and
 /// - a stored `KClass<T>` variable (`val k: KClass<Foo> = Foo::class; k.isData`),
 ///   which exercises the `.classType`-wrapping-KClass receiver representation.
-@Suite @MainActor
+@Suite
 struct KClassBooleanIntrospectionTests {
 
     private func calleesForMain(_ source: String) throws -> Set<String> {
@@ -41,13 +45,13 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("kk_kclass_is_data"),
-            "Point::class.isData should lower to kk_kclass_is_data, got: \(callees)"
+            callees.contains("isData"),
+            "Point::class.isData should resolve to the Kotlin isData getter, got: \(callees)"
         )
         // The flag bits are read from the metadata registry, so the literal-class
         // query must also register the metadata (keyed by the same type token).
         #expect(
-            callees.contains("kk_kclass_register_metadata"),
+            callees.contains("__kk_kclass_register_metadata"),
             "Point::class.isData should register metadata so the flag resolves, got: \(callees)"
         )
     }
@@ -60,8 +64,8 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("kk_kclass_is_sealed"),
-            "Shape::class.isSealed should lower to kk_kclass_is_sealed, got: \(callees)"
+            callees.contains("isSealed"),
+            "Shape::class.isSealed should resolve to the Kotlin isSealed getter, got: \(callees)"
         )
     }
 
@@ -74,20 +78,20 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("kk_kclass_is_value"),
-            "Wrapped::class.isValue should lower to kk_kclass_is_value, got: \(callees)"
+            callees.contains("isValue"),
+            "Wrapped::class.isValue should resolve to the Kotlin isValue getter, got: \(callees)"
         )
     }
 
-    /// The type-kind members (isEnum/isInterface/isObject/isFun) must also be
-    /// routed by the KIR dispatch set to the lowerer — without that they would
-    /// fall through to a regular call and link-fail with an undefined symbol.
+    /// The type-kind members (isEnum/isInterface/isObject/isFun) must also
+    /// resolve to their Kotlin getters — without that they would fall
+    /// through to a regular call and link-fail with an undefined symbol.
     @Test func testClassLiteralTypeKindMembersEmitRuntimeCalls() throws {
-        let cases: [(decl: String, ref: String, member: String, callee: String)] = [
-            ("enum class Color { RED }", "Color", "isEnum", "kk_kclass_is_enum"),
-            ("interface Iface", "Iface", "isInterface", "kk_kclass_is_interface"),
-            ("object Singleton", "Singleton", "isObject", "kk_kclass_is_object"),
-            ("fun interface F { fun run() }", "F", "isFun", "kk_kclass_is_fun"),
+        let cases: [(decl: String, ref: String, member: String)] = [
+            ("enum class Color { RED }", "Color", "isEnum"),
+            ("interface Iface", "Iface", "isInterface"),
+            ("object Singleton", "Singleton", "isObject"),
+            ("fun interface F { fun run() }", "F", "isFun"),
         ]
         for testCase in cases {
             let callees = try calleesForMain("""
@@ -97,8 +101,8 @@ struct KClassBooleanIntrospectionTests {
             }
             """)
             #expect(
-                callees.contains(testCase.callee),
-                "\(testCase.ref)::class.\(testCase.member) should lower to \(testCase.callee), got: \(callees)"
+                callees.contains(testCase.member),
+                "\(testCase.ref)::class.\(testCase.member) should resolve to the Kotlin \(testCase.member) getter, got: \(callees)"
             )
         }
     }
@@ -116,8 +120,8 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("kk_kclass_is_data"),
-            Comment(rawValue: "k.isData on a KClass<Point> variable should lower to kk_kclass_is_data "
+            callees.contains("isData"),
+            Comment(rawValue: "k.isData on a KClass<Point> variable should resolve to the Kotlin isData getter "
                 + "(not fall through to an undefined _isData symbol), got: \(callees)")
         )
     }
@@ -134,7 +138,7 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("kk_kclass_register_metadata"),
+            callees.contains("__kk_kclass_register_metadata"),
             "Standalone Point::class should register metadata, got: \(callees)"
         )
     }

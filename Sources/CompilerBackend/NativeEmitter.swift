@@ -305,7 +305,6 @@ struct NativeEmitter {
 
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
-        var functionDeclInfo: [(SymbolID, String, Int)] = []
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
@@ -353,12 +352,8 @@ struct NativeEmitter {
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
             emittableFunctions.append((function, functionName))
-            functionDeclInfo.append((function.symbol, functionName, function.params.count))
         }
 
-        // Parallel codegen is disabled: LLVMLinkModules2 requires source and
-        // destination modules to share the same LLVMContext.  Per-function
-        // contexts produce cross-context type references that segfault on link.
         do {
             let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
                 ? createDebugInfoContext(
@@ -419,168 +414,6 @@ struct NativeEmitter {
         )
 
         return (context: context, module: llvmModule)
-    }
-
-    private func emitFunctionBodiesParallel(
-        emittableFunctions: [(KIRFunction, String)],
-        mainModule: LLVMCAPIBindings.LLVMModuleRef,
-        mainContext: LLVMCAPIBindings.LLVMContextRef,
-        functionDeclInfo: [(SymbolID, String, Int)],
-        globalSlotNames: [(SymbolID, String)],
-        triple: String
-    ) throws {
-        let count = emittableFunctions.count
-
-        final class ParallelEmissionWork: @unchecked Sendable {
-            let bindings: LLVMCAPIBindings
-            let emitter: NativeEmitter
-            let emittableFunctions: [(KIRFunction, String)]
-            let functionDeclInfo: [(SymbolID, String, Int)]
-            let globalSlotNames: [(SymbolID, String)]
-            let triple: String
-            let linkOnceODRSymbols: Set<SymbolID>
-
-            private let lock = NSLock()
-            var perFunctionContexts: [LLVMCAPIBindings.LLVMContextRef?]
-            var perFunctionModules: [LLVMCAPIBindings.LLVMModuleRef?]
-            var firstError: Error?
-
-            init(
-                bindings: LLVMCAPIBindings,
-                emitter: NativeEmitter,
-                emittableFunctions: [(KIRFunction, String)],
-                functionDeclInfo: [(SymbolID, String, Int)],
-                globalSlotNames: [(SymbolID, String)],
-                triple: String,
-                linkOnceODRSymbols: Set<SymbolID>
-            ) {
-                self.bindings = bindings
-                self.emitter = emitter
-                self.emittableFunctions = emittableFunctions
-                self.functionDeclInfo = functionDeclInfo
-                self.globalSlotNames = globalSlotNames
-                self.triple = triple
-                self.linkOnceODRSymbols = linkOnceODRSymbols
-                self.perFunctionContexts = Array(repeating: nil, count: emittableFunctions.count)
-                self.perFunctionModules = Array(repeating: nil, count: emittableFunctions.count)
-            }
-
-            func emitFunction(at index: Int) {
-                lock.lock()
-                let hasError = firstError != nil
-                lock.unlock()
-                if hasError { return }
-
-                let (function, _) = emittableFunctions[index]
-                do {
-                    guard let funcContext = bindings.createContext() else {
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: context creation failed")
-                    }
-                    guard let funcModule = bindings.createModule(name: "pf_\(index)", context: funcContext) else {
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: module creation failed")
-                    }
-                    bindings.setTarget(funcModule, triple: triple)
-
-                    guard let localInt64 = bindings.int64Type(context: funcContext) else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: int64 type failed")
-                    }
-                    guard let localPtrType = bindings.pointerType(localInt64, addressSpace: 0) else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: pointer type failed")
-                    }
-                    let localTypeLowering = emitter.makeLLVMTypeLowering(context: funcContext, int64Type: localInt64)
-
-                    var localFunctions: [SymbolID: NativeEmitter.LLVMFunction] = [:]
-                    for (symbol, name, paramCount) in functionDeclInfo {
-                        var paramTypes = Array(repeating: localInt64 as LLVMCAPIBindings.LLVMTypeRef?, count: paramCount)
-                        paramTypes.append(localPtrType)
-                        guard let fType = bindings.functionType(returnType: localInt64, parameters: paramTypes, isVarArg: false),
-                              let fValue = bindings.addFunction(module: funcModule, name: name, functionType: fType)
-                        else { continue }
-                        if linkOnceODRSymbols.contains(symbol) {
-                            bindings.setLinkOnceODRLinkage(fValue)
-                        }
-                        localFunctions[symbol] = NativeEmitter.LLVMFunction(value: fValue, type: fType)
-                    }
-
-                    var localGlobals: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-                    for (symbol, slotName) in globalSlotNames {
-                        if let g = bindings.addGlobal(module: funcModule, type: localInt64, name: slotName) {
-                            localGlobals[symbol] = g
-                        }
-                    }
-
-                    guard let llvmFunc = localFunctions[function.symbol] else {
-                        bindings.disposeModule(funcModule)
-                        bindings.disposeContext(funcContext)
-                        throw LLVMBackendError.nativeEmissionFailed("parallel: target function not found")
-                    }
-
-                    try emitter.emitFunctionBody(
-                        function: function,
-                        llvmFunction: llvmFunc,
-                        llvmModule: funcModule,
-                        context: funcContext,
-                        int64Type: localInt64,
-                        typeLowering: localTypeLowering,
-                        outThrownPointerType: localPtrType,
-                        internalFunctions: localFunctions,
-                        globalVariables: localGlobals,
-                        diContext: nil
-                    )
-
-                    lock.lock()
-                    perFunctionContexts[index] = funcContext
-                    perFunctionModules[index] = funcModule
-                    lock.unlock()
-                } catch {
-                    lock.lock()
-                    if firstError == nil { firstError = error }
-                    lock.unlock()
-                }
-            }
-        }
-
-        let work = ParallelEmissionWork(
-            bindings: bindings,
-            emitter: self,
-            emittableFunctions: emittableFunctions,
-            functionDeclInfo: functionDeclInfo,
-            globalSlotNames: globalSlotNames,
-            triple: triple,
-            linkOnceODRSymbols: linkOnceODRSymbols
-        )
-
-        DispatchQueue.concurrentPerform(iterations: count) { index in
-            work.emitFunction(at: index)
-        }
-
-        if let error = work.firstError {
-            for i in 0..<count {
-                if let m = work.perFunctionModules[i] { bindings.disposeModule(m) }
-                if let c = work.perFunctionContexts[i] { bindings.disposeContext(c) }
-            }
-            throw error
-        }
-
-        for i in 0..<count {
-            guard let funcModule = work.perFunctionModules[i],
-                  let funcContext = work.perFunctionContexts[i]
-            else { continue }
-            if !bindings.linkModules(mainModule, source: funcModule) {
-                bindings.disposeContext(funcContext)
-                for j in (i + 1)..<count {
-                    if let m = work.perFunctionModules[j] { bindings.disposeModule(m) }
-                    if let c = work.perFunctionContexts[j] { bindings.disposeContext(c) }
-                }
-                throw LLVMBackendError.nativeEmissionFailed("parallel: module linking failed at index \(i)")
-            }
-            bindings.disposeContext(funcContext)
-        }
     }
 
     /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)

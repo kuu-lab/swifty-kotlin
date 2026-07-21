@@ -42,6 +42,45 @@ public func kk_sequence_joinToString(_ seqRaw: Int, _ separatorRaw: Int, _ prefi
     })
 }
 
+// `runtimeSequenceSourceElementsOrPanic` accepts Sequence, List, Array, and Set handles
+// alike, so this also fixes the transform-dropping bug for `Array<T>.joinToString(...) { }`
+// calls: those are lowered through this same "unresolved sequence-like member" path
+// (see `tryLowerCollectionStdlibMemberCall`) because Array's own synthetic `joinToString`
+// member is never actually resolved as the callee for that call shape.
+@_cdecl("kk_sequence_joinToString_transform")
+public func kk_sequence_joinToString_transform(
+    _ seqRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    var renderedParts: [String] = []
+    renderedParts.reserveCapacity(elements.count)
+    for element in elements {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: element,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        renderedParts.append(runtimeElementToString(transformed))
+    }
+    return runtimeMakeStringRaw(prefix + renderedParts.joined(separator: separator) + postfix)
+}
+
 @_cdecl("kk_sequence_sumOf")
 public func kk_sequence_sumOf(
     _ seqRaw: Int,
@@ -478,19 +517,14 @@ private func runtimeSequenceExtremumWith(
 ) -> Int {
     var bestElement: Int?
     var didThrow = false
+    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: caller, outThrown: outThrown) { elem in
         guard let current = bestElement else {
             bestElement = elem
             return true
         }
         var thrown = 0
-        let comparison = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: elem,
-            rhs: current,
-            outThrown: &thrown
-        )
+        let comparison = comparatorInvoke(elem, current, &thrown)
         if thrown != 0 {
             _ = handleCollectionLambdaThrow(thrown, outThrown)
             didThrow = true

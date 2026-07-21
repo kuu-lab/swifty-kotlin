@@ -56,13 +56,6 @@ extension CallLowerer {
         {
             return interner.intern(runtimeLinkName)
         }
-        if memberName == "toString",
-           argumentCount == 0,
-           isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner)
-        {
-            return interner.intern("kk_string_builder_toString")
-        }
-
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
@@ -82,10 +75,6 @@ extension CallLowerer {
                 return interner.intern("kk_string_compareTo_flat")
             case "get":
                 return interner.intern("kk_string_get_flat")
-            case "lines":
-                return interner.intern("kk_string_lines_flat")
-            case "lineSequence":
-                return interner.intern("kk_string_lineSequence_flat")
             case "toRegex":
                 return argumentCount == 0
                     ? interner.intern("kk_string_toRegex_flat")

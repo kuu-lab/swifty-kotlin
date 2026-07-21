@@ -48,10 +48,27 @@ private let setThrowingHOF: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
     return 0
 }
 
+/// `.serialized` because tests share `gSetHOFState`. Must not call
+/// `kk_runtime_force_reset()`: Swift Testing suites run concurrently in one
+/// process, and a global reset deallocates handles owned by other suites.
 @Suite(.serialized)
 struct RuntimeSetCollectionHOFTests {
+    // NOTE: Deliberately does NOT call `kk_runtime_force_reset()` here.
+    // `Testing` suites in this target run concurrently with each other in a
+    // single shared process (unlike XCTest classes, which SwiftPM's
+    // `--parallel` isolates into separate worker processes), so a
+    // process-wide reset in `init()` races with every other `@Suite`'s
+    // in-flight tests and deallocates heap objects/handles out from under
+    // them (observed: `RuntimeNativePrimitiveByteArraySettersTests` crashing
+    // with "invalid array handle" when this suite's reset fired mid-test).
+    // `.serialized` only serializes this suite's own tests against each
+    // other, not against unrelated concurrently-running suites, so it does
+    // not make the reset safe. None of the tests below depend on the global
+    // heap/handle table being empty — each allocates and inspects only its
+    // own set/array/list handles — so the reset was unnecessary. Only the
+    // suite-local `gSetHOFState` (already synchronized via its own lock)
+    // needs resetting between tests. See TODO.md BUG-024.
     init() {
-        kk_runtime_force_reset()
         gSetHOFState.reset()
     }
 

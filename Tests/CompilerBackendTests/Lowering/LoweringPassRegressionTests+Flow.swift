@@ -84,7 +84,12 @@ final class LoweringFlowCodegenTests: XCTestCase {
             }
 
             let callArgs = try XCTUnwrap(collectCallArgs, "Expected kk_flow_collect call after lowering.")
-            XCTAssertEqual(callArgs.count, 3)
+            // (flowHandle, collectorFnPtr, collectorEnvPtr, continuation/functionID).
+            // The third slot (collectorEnvPtr) was added so collectors that
+            // capture outer variables (e.g. `collect { capturedList.add(it) }`)
+            // receive their closure environment instead of always being invoked
+            // with a null environment pointer.
+            XCTAssertEqual(callArgs.count, 4)
 
             guard let collectorExpr = module.arena.expr(callArgs[1]),
                   case let .symbolRef(collectorSymbol) = collectorExpr
@@ -102,10 +107,10 @@ final class LoweringFlowCodegenTests: XCTestCase {
                 "Collector argument should be rewritten to suspend-lowered entry point."
             )
 
-            guard let functionIDExpr = module.arena.expr(callArgs[2]),
+            guard let functionIDExpr = module.arena.expr(callArgs[3]),
                   case let .intLiteral(functionID) = functionIDExpr
             else {
-                XCTFail("kk_flow_collect third argument must be a function ID literal.")
+                XCTFail("kk_flow_collect fourth argument must be a function ID literal.")
                 return
             }
             XCTAssertNotEqual(functionID, 0)

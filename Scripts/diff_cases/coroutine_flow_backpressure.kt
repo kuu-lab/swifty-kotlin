@@ -1,4 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// SKIP-DIFF (DEBT-DIFF-003): delay() inside a flow{} emitter resumes on a GCD
+// global-queue thread, but RuntimeFlowCollectContext is tracked via pthread
+// thread-local storage, so emits after the first delay are dropped (see
+// docs/diff-skip-inventory.md).
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 

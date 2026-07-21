@@ -93,16 +93,11 @@ private func runtimeListExtremumWith(
     guard !list.elements.isEmpty else {
         return emptyResult.value(outThrown: outThrown)
     }
+    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
     var bestElem = list.elements[0]
     for elem in list.elements.dropFirst() {
         var thrown = 0
-        let cmp = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: elem,
-            rhs: bestElem,
-            outThrown: &thrown
-        )
+        let cmp = comparatorInvoke(elem, bestElem, &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if direction.isBetter(cmp) {
             bestElem = elem
@@ -134,6 +129,7 @@ private func runtimeListExtremumOfWith(
         outThrown: &thrown
     )
     if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: cmpFnPtr, closureRaw: cmpClosureRaw)
     for elem in list.elements.dropFirst() {
         thrown = 0
         let value = runtimeInvokeCollectionLambda1(
@@ -144,13 +140,7 @@ private func runtimeListExtremumOfWith(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         thrown = 0
-        let cmp = runtimeInvokeCollectionLambda2(
-            fnPtr: cmpFnPtr,
-            closureRaw: cmpClosureRaw,
-            lhs: value,
-            rhs: bestValue,
-            outThrown: &thrown
-        )
+        let cmp = comparatorInvoke(value, bestValue, &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if direction.isBetter(cmp) {
             bestValue = value
@@ -387,6 +377,9 @@ public func kk_list_average(_ listRaw: Int) -> Int {
                     continue
                 } else if let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
                     sum += Double(longBox.value)
+                    continue
+                } else if let ulongBox = tryCast(ptr, to: RuntimeULongBox.self) {
+                    sum += Double(UInt(bitPattern: ulongBox.value))
                     continue
                 } else if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
                     sum += Double(intBox.value)

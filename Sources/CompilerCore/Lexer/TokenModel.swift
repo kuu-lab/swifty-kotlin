@@ -151,6 +151,8 @@ public enum Symbol: String, Sendable {
     case bang = "!"
     case equalEqual = "=="
     case bangEqual = "!="
+    case tripleEqual = "==="
+    case notTripleEqual = "!=="
     case lessThan = "<"
     case lessOrEqual = "<="
     case greaterThan = ">"

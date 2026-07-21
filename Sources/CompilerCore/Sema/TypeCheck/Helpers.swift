@@ -458,7 +458,7 @@ struct TypeCheckHelpers {
         case knownNames.emit:
             guard argumentCount == 1 else { return nil }
             return sema.types.unitType
-        case interner.intern("collect"):
+        case interner.intern("collect"), interner.intern("collectLatest"):
             guard argumentCount >= 1 else { return nil }
             return sema.types.unitType
         case interner.intern("map"), interner.intern("filter"), interner.intern("take"),
@@ -606,6 +606,27 @@ struct TypeCheckHelpers {
                     }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: symbolID,
+                        args: resolvedArgs,
+                        nullability: nullability
+                    )))
+                }
+                let stringBuilderName = interner.intern("StringBuilder")
+                let kotlinTextStringBuilderFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("text"),
+                    stringBuilderName,
+                ]
+                if (path.count == 1 && shortName == stringBuilderName) || path == kotlinTextStringBuilderFQName {
+                    let stringBuilderSymbol = ensureKotlinTextStringBuilderSymbol(
+                        symbols: sema.symbols,
+                        interner: interner
+                    )
+                    let resolvedArgs = resolveTypeArgRefsForTypeCheck(
+                        argRefs, ast: ast, sema: sema, interner: interner,
+                        scope: scope, diagnostics: diagnostics
+                    )
+                    return sema.types.make(.classType(ClassType(
+                        classSymbol: stringBuilderSymbol,
                         args: resolvedArgs,
                         nullability: nullability
                     )))

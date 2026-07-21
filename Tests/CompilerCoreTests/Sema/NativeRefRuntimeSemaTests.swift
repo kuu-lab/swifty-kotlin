@@ -1,3 +1,4 @@
+#if canImport(Testing)
 /// STDLIB-NATIVE-REF-002: Sema-level tests for `kotlin.native.ref` and
 /// `kotlin.native.runtime` exposure.
 ///
@@ -9,9 +10,10 @@
 
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class NativeRefRuntimeSemaTests: XCTestCase {
+@Suite
+struct NativeRefRuntimeSemaTests {
     // MARK: - Shared helpers
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -39,10 +41,15 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         sema: SemaModule,
         interner: StringInterner
     ) throws -> String {
-        guard case let .classType(classType) = sema.types.kind(of: type) else {
-            throw XCTSkip("Expected class type, got \(sema.types.kind(of: type))")
-        }
-        let symbol = try XCTUnwrap(sema.symbols.symbol(classType.classSymbol))
+        let typeKind = sema.types.kind(of: type)
+        let classType = try requireTestValue(
+            { () -> ClassType? in
+                guard case let .classType(classType) = typeKind else { return nil }
+                return classType
+            }(),
+            "Expected class type, got \(typeKind)"
+        )
+        let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
         return interner.resolve(symbol.name)
     }
 
@@ -51,159 +58,168 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         sema: SemaModule,
         interner: StringInterner
     ) throws -> String {
-        guard case let .classType(mapType) = sema.types.kind(of: type) else {
-            throw XCTSkip("Expected Map class type, got \(sema.types.kind(of: type))")
-        }
-        let mapSymbol = try XCTUnwrap(sema.symbols.symbol(mapType.classSymbol))
-        XCTAssertEqual(interner.resolve(mapSymbol.name), "Map")
-        guard mapType.args.count >= 2,
-              case let .out(valueType) = mapType.args[1]
-        else {
-            throw XCTSkip("Expected Map<String, V> value projection")
-        }
+        let typeKind = sema.types.kind(of: type)
+        let mapType = try requireTestValue(
+            { () -> ClassType? in
+                guard case let .classType(mapType) = typeKind else { return nil }
+                return mapType
+            }(),
+            "Expected Map class type, got \(typeKind)"
+        )
+        let mapSymbol = try #require(sema.symbols.symbol(mapType.classSymbol))
+        #expect(interner.resolve(mapSymbol.name) == "Map")
+        let valueType = try requireTestValue(
+            { () -> TypeID? in
+                guard mapType.args.count >= 2,
+                      case let .out(valueType) = mapType.args[1]
+                else {
+                    return nil
+                }
+                return valueType
+            }(),
+            "Expected Map<String, V> value projection"
+        )
         return try className(for: valueType, sema: sema, interner: interner)
     }
 
     // MARK: - Package hierarchy
 
+    @Test
     func testNativeRefPackageIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fqName),
+        #expect(
+            sema.symbols.lookup(fqName: fqName) != nil,
             "Expected kotlin.native.ref package to be registered"
         )
     }
 
+    @Test
     func testNativeRuntimePackageIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fqName),
+        #expect(
+            sema.symbols.lookup(fqName: fqName) != nil,
             "Expected kotlin.native.runtime package to be registered"
         )
     }
 
+    @Test
     func testNativeRuntimeApiMarkerIsRegisteredAsRequiresOptIn() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "NativeRuntimeApi"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.NativeRuntimeApi to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .annotationClass)
+        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbol)
-        XCTAssertTrue(
+        #expect(
             annotations.contains {
                 $0.annotationFQName == "kotlin.RequiresOptIn"
                     && $0.arguments.contains("level=RequiresOptIn.Level.ERROR")
-            },
-            "NativeRuntimeApi should carry @RequiresOptIn(ERROR), got \(annotations)"
+            }, "NativeRuntimeApi should carry @RequiresOptIn(ERROR), got \(annotations)"
         )
-        XCTAssertTrue(
+        #expect(
             annotations.contains {
                 $0.annotationFQName == "kotlin.annotation.Target"
                     && $0.arguments.contains("AnnotationTarget.FUNCTION")
                     && $0.arguments.contains("AnnotationTarget.PROPERTY")
                     && $0.arguments.contains("AnnotationTarget.TYPEALIAS")
-            },
-            "NativeRuntimeApi should carry the Kotlin/Native runtime target set, got \(annotations)"
+            }, "NativeRuntimeApi should carry the Kotlin/Native runtime target set, got \(annotations)"
         )
     }
 
     // MARK: - WeakReference<T>
 
+    @Test
     func testWeakReferenceClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.ref.WeakReference to be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.symbol(symbol)?.kind, .class,
-            "WeakReference should be a class"
-        )
+        #expect(sema.symbols.symbol(symbol)?.kind == .class, "WeakReference should be a class")
     }
 
+    @Test
     func testWeakReferenceHasTypeParameter() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
-        let classSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: classFQName))
+        let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
         let typeParams = sema.types.nominalTypeParameterSymbols(for: classSymbol)
-        XCTAssertEqual(typeParams.count, 1, "WeakReference should have exactly one type parameter")
+        #expect(typeParams.count == 1, "WeakReference should have exactly one type parameter")
     }
 
+    @Test
     func testWeakReferenceHasGetMember() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let getMemberFQName = classFQName + [interner.intern("get")]
         let members = sema.symbols.lookupAll(fqName: getMemberFQName)
-        XCTAssertFalse(members.isEmpty, "WeakReference should have a get() member")
+        #expect(!(members.isEmpty), "WeakReference should have a get() member")
 
-        let getMember = try XCTUnwrap(members.first)
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: getMember))
-        XCTAssertEqual(
-            signature.parameterTypes.count, 0,
-            "WeakReference.get() should take no parameters"
-        )
+        let getMember = try #require(members.first)
+        let signature = try #require(sema.symbols.functionSignature(for: getMember))
+        #expect(signature.parameterTypes.count == 0, "WeakReference.get() should take no parameters")
         // Return type should be nullable (T?)
         let returnKind = sema.types.kind(of: signature.returnType)
         if case let .typeParam(param) = returnKind {
-            XCTAssertEqual(param.nullability, .nullable, "get() return type should be nullable T")
+            #expect(param.nullability == .nullable, "get() return type should be nullable T")
         } else {
-            XCTFail("Expected return type to be a nullable type param, got \(returnKind)")
+            Issue.record("Expected return type to be a nullable type param, got \(returnKind)")
         }
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: getMember),
-            "kk_weak_ref_get",
+        #expect(
+            sema.symbols.externalLinkName(for: getMember) == "kk_weak_ref_get",
             "WeakReference.get() should lower to kk_weak_ref_get"
         )
     }
 
+    @Test
     func testWeakReferenceHasConstructor() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
-        let ctor = try XCTUnwrap(
+        let ctor = try #require(
             sema.symbols.lookupAll(fqName: ctorFQName).first,
             "WeakReference should have a constructor"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctor))
-        XCTAssertEqual(signature.parameterTypes.count, 1)
-        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(signature.classTypeParameterCount, 1)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: ctor),
-            "kk_weak_ref_create",
+        let signature = try #require(sema.symbols.functionSignature(for: ctor))
+        #expect(signature.parameterTypes.count == 1)
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(signature.classTypeParameterCount == 1)
+        #expect(
+            sema.symbols.externalLinkName(for: ctor) == "kk_weak_ref_create",
             "WeakReference constructor should lower to kk_weak_ref_create"
         )
     }
 
+    @Test
     func testWeakReferenceHasClearMember() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let clearMemberFQName = classFQName + [interner.intern("clear")]
-        let clearMember = try XCTUnwrap(
+        let clearMember = try #require(
             sema.symbols.lookupAll(fqName: clearMemberFQName).first,
             "WeakReference should have a clear() member"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: clearMember))
-        XCTAssertEqual(signature.parameterTypes.count, 0)
-        XCTAssertEqual(signature.returnType, sema.types.unitType)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: clearMember),
-            "kk_weak_ref_clear",
+        let signature = try #require(sema.symbols.functionSignature(for: clearMember))
+        #expect(signature.parameterTypes.count == 0)
+        #expect(signature.returnType == sema.types.unitType)
+        #expect(
+            sema.symbols.externalLinkName(for: clearMember) == "kk_weak_ref_clear",
             "WeakReference.clear() should lower to kk_weak_ref_clear"
         )
     }
 
+    @Test
     func testWeakReferenceIsTaggedExperimentalNativeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "ExperimentalNativeApi", sema: sema),
             "WeakReference should carry @ExperimentalNativeApi annotation"
         )
@@ -211,34 +227,33 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - createCleaner
 
+    @Test
     func testCreateCleanerFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
-        XCTAssertFalse(symbols.isEmpty, "Expected kotlin.native.ref.createCleaner to be registered")
+        #expect(!(symbols.isEmpty), "Expected kotlin.native.ref.createCleaner to be registered")
     }
 
+    @Test
     func testCreateCleanerHasTwoParameters() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(sema.symbols.lookupAll(fqName: fqName).first)
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        XCTAssertEqual(
-            signature.parameterTypes.count, 2,
-            "createCleaner should accept (value, block)"
-        )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_cleaner_create",
+        let sym = try #require(sema.symbols.lookupAll(fqName: fqName).first)
+        let signature = try #require(sema.symbols.functionSignature(for: sym))
+        #expect(signature.parameterTypes.count == 2, "createCleaner should accept (value, block)")
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_cleaner_create",
             "createCleaner should lower to kk_cleaner_create"
         )
     }
 
+    @Test
     func testCreateCleanerIsTaggedExperimentalNativeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(sema.symbols.lookupAll(fqName: fqName).first)
-        XCTAssertTrue(
+        let sym = try #require(sema.symbols.lookupAll(fqName: fqName).first)
+        #expect(
             hasOptInAnnotation(on: sym, markerContaining: "ExperimentalNativeApi", sema: sema),
             "createCleaner should carry @ExperimentalNativeApi annotation"
         )
@@ -246,50 +261,49 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - GC object
 
+    @Test
     func testGCObjectIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.GC to be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.symbol(symbol)?.kind, .object,
-            "GC should be an object"
-        )
+        #expect(sema.symbols.symbol(symbol)?.kind == .object, "GC should be an object")
     }
 
+    @Test
     func testGCHasCollectMember() throws {
         let (sema, interner) = try makeSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let collectFQName = objectFQName + [interner.intern("collect")]
         let members = sema.symbols.lookupAll(fqName: collectFQName)
-        XCTAssertFalse(members.isEmpty, "GC should have a collect() member")
+        #expect(!(members.isEmpty), "GC should have a collect() member")
 
-        let member = try XCTUnwrap(members.first)
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: member))
-        XCTAssertEqual(sig.returnType, sema.types.unitType, "GC.collect() should return Unit")
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: member),
-            "kk_gc_collect",
+        let member = try #require(members.first)
+        let sig = try #require(sema.symbols.functionSignature(for: member))
+        #expect(sig.returnType == sema.types.unitType, "GC.collect() should return Unit")
+        #expect(
+            sema.symbols.externalLinkName(for: member) == "kk_gc_collect",
             "GC.collect() should lower to kk_gc_collect"
         )
     }
 
+    @Test
     func testGCHasScheduleMember() throws {
         let (sema, interner) = try makeSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
         let scheduleFQName = objectFQName + [interner.intern("schedule")]
         let members = sema.symbols.lookupAll(fqName: scheduleFQName)
-        XCTAssertFalse(members.isEmpty, "GC should have a schedule() member")
-        let member = try XCTUnwrap(members.first)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: member),
-            "kk_gc_schedule",
+        #expect(!(members.isEmpty), "GC should have a schedule() member")
+        let member = try #require(members.first)
+        #expect(
+            sema.symbols.externalLinkName(for: member) == "kk_gc_schedule",
             "GC.schedule() should lower to kk_gc_schedule"
         )
     }
 
+    @Test
     func testGCHasRuntimeTuningProperties() throws {
         let (sema, interner) = try makeSema()
         let objectFQName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
@@ -301,20 +315,21 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
         for property in expected {
             let propertyFQName = objectFQName + [interner.intern(property.name)]
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: propertyFQName),
                 "GC should have \(property.name)"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: symbol), property.type)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), property.link)
+            #expect(sema.symbols.propertyType(for: symbol) == property.type)
+            #expect(sema.symbols.externalLinkName(for: symbol) == property.link)
         }
     }
 
+    @Test
     func testGCIsTaggedNativeRuntimeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "GC"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "GC should carry @NativeRuntimeApi annotation"
         )
@@ -322,16 +337,18 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - RootSetStatistics class
 
+    @Test
     func testRootSetStatisticsClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.RootSetStatistics to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .class)
+        #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
+    @Test
     func testRootSetStatisticsHasConstructorAndProperties() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
@@ -343,29 +360,30 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         ]
 
         for property in expectedProperties {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "RootSetStatistics should expose \(property)"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: symbol), sema.types.longType)
+            #expect(sema.symbols.propertyType(for: symbol) == sema.types.longType)
         }
 
-        let ctor = try XCTUnwrap(
+        let ctor = try #require(
             sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first,
             "RootSetStatistics should expose its primary constructor"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctor))
-        XCTAssertEqual(
-            signature.parameterTypes,
-            Array(repeating: sema.types.longType, count: expectedProperties.count)
+        let signature = try #require(sema.symbols.functionSignature(for: ctor))
+        #expect(
+            signature.parameterTypes
+                == Array(repeating: sema.types.longType, count: expectedProperties.count)
         )
     }
 
+    @Test
     func testRootSetStatisticsIsTaggedNativeRuntimeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "RootSetStatistics"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "RootSetStatistics should carry @NativeRuntimeApi annotation"
         )
@@ -373,16 +391,18 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - SweepStatistics class
 
+    @Test
     func testSweepStatisticsClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.SweepStatistics to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .class)
+        #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
+    @Test
     func testSweepStatisticsHasConstructorAndProperties() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
@@ -392,29 +412,30 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         ]
 
         for property in expectedProperties {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "SweepStatistics should expose \(property)"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: symbol), sema.types.longType)
+            #expect(sema.symbols.propertyType(for: symbol) == sema.types.longType)
         }
 
-        let ctor = try XCTUnwrap(
+        let ctor = try #require(
             sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first,
             "SweepStatistics should expose its primary constructor"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctor))
-        XCTAssertEqual(
-            signature.parameterTypes,
-            Array(repeating: sema.types.longType, count: expectedProperties.count)
+        let signature = try #require(sema.symbols.functionSignature(for: ctor))
+        #expect(
+            signature.parameterTypes
+                == Array(repeating: sema.types.longType, count: expectedProperties.count)
         )
     }
 
+    @Test
     func testSweepStatisticsIsTaggedNativeRuntimeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "SweepStatistics"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "SweepStatistics should carry @NativeRuntimeApi annotation"
         )
@@ -422,45 +443,47 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - GCInfo class
 
+    @Test
     func testGCInfoClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.GCInfo to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .class)
+        #expect(sema.symbols.symbol(symbol)?.kind == .class)
     }
 
+    @Test
     func testGCInfoConstructorMatchesKotlinNativeSurface() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
-        let ctor = try XCTUnwrap(
+        let ctor = try #require(
             sema.symbols.lookupAll(fqName: ctorFQName).first,
             "GCInfo should expose its primary constructor"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctor))
-        XCTAssertEqual(signature.parameterTypes.count, 15)
-        XCTAssertEqual(
-            signature.parameterTypes[0],
-            sema.types.longType,
+        let signature = try #require(sema.symbols.functionSignature(for: ctor))
+        #expect(signature.parameterTypes.count == 15)
+        #expect(
+            signature.parameterTypes[0] == sema.types.longType,
             "GCInfo.epoch constructor parameter should be Long"
         )
-        XCTAssertEqual(
-            signature.parameterTypes[10],
-            try XCTUnwrap(sema.symbols.propertyType(for: try XCTUnwrap(
-                sema.symbols.lookup(fqName: classFQName + [interner.intern("rootSet")])
-            )))
+        let rootSetSymbol = try #require(
+            sema.symbols.lookup(fqName: classFQName + [interner.intern("rootSet")])
         )
-        XCTAssertEqual(
-            signature.parameterTypes[12],
-            try XCTUnwrap(sema.symbols.propertyType(for: try XCTUnwrap(
-                sema.symbols.lookup(fqName: classFQName + [interner.intern("sweepStatistics")])
-            )))
+        let rootSetType = try #require(sema.symbols.propertyType(for: rootSetSymbol))
+        #expect(signature.parameterTypes[10] == rootSetType)
+        let sweepStatisticsSymbol = try #require(
+            sema.symbols.lookup(fqName: classFQName + [interner.intern("sweepStatistics")])
         )
+        let sweepStatisticsType = try #require(
+            sema.symbols.propertyType(for: sweepStatisticsSymbol)
+        )
+        #expect(signature.parameterTypes[12] == sweepStatisticsType)
     }
 
+    @Test
     func testGCInfoHasTimingProperties() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
@@ -473,11 +496,11 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
             "firstPauseEndTimeNs",
         ]
         for property in longProperties {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "GCInfo should expose \(property)"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: symbol), sema.types.longType)
+            #expect(sema.symbols.propertyType(for: symbol) == sema.types.longType)
         }
 
         let nullableLongProperties = [
@@ -487,88 +510,90 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
             "postGcCleanupTimeNs",
         ]
         for property in nullableLongProperties {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "GCInfo should expose \(property)"
             )
-            let type = try XCTUnwrap(sema.symbols.propertyType(for: symbol))
-            XCTAssertEqual(sema.types.nullability(of: type), .nullable)
-            XCTAssertEqual(sema.types.makeNonNullable(type), sema.types.longType)
+            let type = try #require(sema.symbols.propertyType(for: symbol))
+            #expect(sema.types.nullability(of: type) == .nullable)
+            #expect(sema.types.makeNonNullable(type) == sema.types.longType)
         }
     }
 
+    @Test
     func testGCInfoHasSummaryProperties() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
 
-        let rootSetSymbol = try XCTUnwrap(
+        let rootSetSymbol = try #require(
             sema.symbols.lookup(fqName: classFQName + [interner.intern("rootSet")])
         )
-        let rootSetType = try XCTUnwrap(sema.symbols.propertyType(for: rootSetSymbol))
-        XCTAssertEqual(
-            try className(for: rootSetType, sema: sema, interner: interner),
-            "RootSetStatistics"
+        let rootSetType = try #require(sema.symbols.propertyType(for: rootSetSymbol))
+        #expect(
+            try className(for: rootSetType, sema: sema, interner: interner) == "RootSetStatistics"
         )
 
-        let markedCountSymbol = try XCTUnwrap(
+        let markedCountSymbol = try #require(
             sema.symbols.lookup(fqName: classFQName + [interner.intern("markedCount")])
         )
-        XCTAssertEqual(sema.symbols.propertyType(for: markedCountSymbol), sema.types.longType)
+        #expect(sema.symbols.propertyType(for: markedCountSymbol) == sema.types.longType)
 
-        let sweepStatisticsSymbol = try XCTUnwrap(
+        let sweepStatisticsSymbol = try #require(
             sema.symbols.lookup(fqName: classFQName + [interner.intern("sweepStatistics")])
         )
-        XCTAssertEqual(
-            try mapValueClassName(
-                for: try XCTUnwrap(sema.symbols.propertyType(for: sweepStatisticsSymbol)),
-                sema: sema,
-                interner: interner
-            ),
-            "SweepStatistics"
+        let sweepStatisticsType = try #require(
+            sema.symbols.propertyType(for: sweepStatisticsSymbol)
         )
+        let sweepStatisticsClassName = try mapValueClassName(
+            for: sweepStatisticsType,
+            sema: sema,
+            interner: interner
+        )
+        #expect(sweepStatisticsClassName == "SweepStatistics")
 
         for property in ["memoryUsageBefore", "memoryUsageAfter"] {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)])
             )
-            XCTAssertEqual(
-                try mapValueClassName(
-                    for: try XCTUnwrap(sema.symbols.propertyType(for: symbol)),
-                    sema: sema,
-                    interner: interner
-                ),
-                "MemoryUsage"
+            let propertyType = try #require(sema.symbols.propertyType(for: symbol))
+            let valueClassName = try mapValueClassName(
+                for: propertyType,
+                sema: sema,
+                interner: interner
             )
+            #expect(valueClassName == "MemoryUsage")
         }
     }
 
+    @Test
     func testMemoryUsageSurfaceForGCInfoIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let classFQName = ["kotlin", "native", "runtime", "MemoryUsage"].map { interner.intern($0) }
-        let classSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: classFQName))
-        XCTAssertEqual(sema.symbols.symbol(classSymbol)?.kind, .class)
-        XCTAssertTrue(
+        let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
+        #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
+        #expect(
             hasOptInAnnotation(on: classSymbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "MemoryUsage should carry @NativeRuntimeApi annotation"
         )
 
-        let propertySymbol = try XCTUnwrap(
+        let propertySymbol = try #require(
             sema.symbols.lookup(fqName: classFQName + [interner.intern("totalObjectsSizeBytes")])
         )
-        XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), sema.types.longType)
+        #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.longType)
 
-        let ctor = try XCTUnwrap(
+        let ctor = try #require(
             sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctor))
-        XCTAssertEqual(signature.parameterTypes, [sema.types.longType])
+        let signature = try #require(sema.symbols.functionSignature(for: ctor))
+        #expect(signature.parameterTypes == [sema.types.longType])
     }
 
+    @Test
     func testGCInfoIsTaggedNativeRuntimeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "GCInfo"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "GCInfo should carry @NativeRuntimeApi annotation"
         )
@@ -576,37 +601,34 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - Debugging object
 
+    @Test
     func testDebuggingObjectIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.Debugging to be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.symbol(symbol)?.kind, .object,
-            "Debugging should be an object"
-        )
+        #expect(sema.symbols.symbol(symbol)?.kind == .object, "Debugging should be an object")
     }
 
+    @Test
     func testDebuggingHasIsThreadStateRunnableProperty() throws {
         let (sema, interner) = try makeSema()
         let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
         let propFQName = objectFQName + [interner.intern("isThreadStateRunnable")]
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: propFQName),
             "Debugging should expose isThreadStateRunnable property"
         )
-        XCTAssertEqual(
-            sema.symbols.propertyType(for: sym), sema.types.booleanType,
+        #expect(
+            sema.symbols.propertyType(for: sym) == sema.types.booleanType,
             "isThreadStateRunnable should be Boolean"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_debugging_is_thread_state_runnable"
-        )
+        #expect(sema.symbols.externalLinkName(for: sym) == "kk_debugging_is_thread_state_runnable")
     }
 
+    @Test
     func testDebuggingHasTrackingProperties() throws {
         let (sema, interner) = try makeSema()
         let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
@@ -618,23 +640,24 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
         for property in expected {
             let propFQName = objectFQName + [interner.intern(property.name)]
-            let sym = try XCTUnwrap(
+            let sym = try #require(
                 sema.symbols.lookup(fqName: propFQName),
                 "Debugging should expose \(property.name) property"
             )
-            XCTAssertEqual(
-                sema.symbols.propertyType(for: sym), sema.types.intType,
+            #expect(
+                sema.symbols.propertyType(for: sym) == sema.types.intType,
                 "\(property.name) should be Int"
             )
-            XCTAssertEqual(sema.symbols.externalLinkName(for: sym), property.link)
+            #expect(sema.symbols.externalLinkName(for: sym) == property.link)
         }
     }
 
+    @Test
     func testDebuggingIsTaggedNativeRuntimeApi() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        XCTAssertTrue(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "Debugging should carry @NativeRuntimeApi annotation"
         )
@@ -642,6 +665,7 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
 
     // MARK: - Opt-in diagnostic integration
 
+    @Test
     func testUsingWeakReferenceWithoutOptInProducesDiagnostic() {
         let source = """
         import kotlin.native.ref.WeakReference
@@ -654,12 +678,13 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN"
         }
-        XCTAssertFalse(
-            optInDiagnostics.isEmpty,
+        #expect(
+            !(optInDiagnostics.isEmpty),
             "Expected opt-in diagnostic for WeakReference usage without @OptIn"
         )
     }
 
+    @Test
     func testUsingWeakReferenceWithOptInSuppressesDiagnostic() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -673,12 +698,13 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN"
         }
-        XCTAssertTrue(
+        #expect(
             optInDiagnostics.isEmpty,
             "Expected no opt-in diagnostic when @OptIn(ExperimentalNativeApi::class) is present"
         )
     }
 
+    @Test
     func testUsingGCWithoutNativeRuntimeApiOptInProducesDiagnostic() {
         let source = """
         import kotlin.native.runtime.GC
@@ -691,12 +717,13 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN"
         }
-        XCTAssertFalse(
-            optInDiagnostics.isEmpty,
+        #expect(
+            !(optInDiagnostics.isEmpty),
             "Expected opt-in diagnostic for GC usage without @OptIn(NativeRuntimeApi::class)"
         )
     }
 
+    @Test
     func testUsingGCWithNativeRuntimeApiOptInSuppressesDiagnostic() {
         let source = """
         @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
@@ -710,9 +737,10 @@ final class NativeRefRuntimeSemaTests: XCTestCase {
         let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN"
         }
-        XCTAssertTrue(
+        #expect(
             optInDiagnostics.isEmpty,
             "Expected no opt-in diagnostic when @OptIn(NativeRuntimeApi::class) is present"
         )
     }
 }
+#endif

@@ -96,12 +96,10 @@ extension CallSupportLowerer {
             case 0:
                 return interner.intern("kk_string_builder_new")
             case 1:
-                // Two 1-arg overloads exist: StringBuilder(content: String) and
-                // StringBuilder(capacity: Int). Disambiguate by argument type —
-                // routing an Int capacity through the string-taking entry point
-                // would misinterpret the raw Int as a string pointer/length quad.
-                if argumentTypes[0] == types.intType {
-                    return interner.intern("kk_string_builder_new_with_capacity")
+                if let firstArgumentType = argumentTypes.first,
+                   !types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
+                {
+                    return interner.intern("kk_string_builder_new")
                 }
                 return interner.intern("kk_string_builder_new_from_string_flat")
             default:
@@ -115,6 +113,14 @@ extension CallSupportLowerer {
     func builtinBinaryRuntimeCallee(for op: BinaryOp, interner: StringInterner) -> InternedString? {
         switch op {
         case .notEqual:
+            interner.intern("kk_op_ne")
+        // `===`/`!==` are raw word-equality comparisons — the same primitive
+        // already used for data-object identity checks (see
+        // appendSyntheticDataObjectEqualsIfNeeded). Reference-typed operands are
+        // single-word pointers, so this is a genuine pointer-identity comparison.
+        case .identityEqual:
+            interner.intern("kk_op_eq")
+        case .notIdentityEqual:
             interner.intern("kk_op_ne")
         case .lessThan:
             interner.intern("kk_op_lt")
