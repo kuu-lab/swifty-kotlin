@@ -59,28 +59,6 @@ extension DataFlowSemaPhase {
         )))
     }
 
-    private func syntheticListType(
-        elementType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let collectionsPkg = ensurePackage(
-            path: ["kotlin", "collections"],
-            symbols: symbols,
-            interner: interner
-        )
-        let listFQName = collectionsPkg + [interner.intern("List")]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     func syntheticThrowableType(
         symbols: SymbolTable,
         types: TypeSystem,

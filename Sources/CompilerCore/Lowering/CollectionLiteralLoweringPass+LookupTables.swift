@@ -465,7 +465,6 @@ struct CollectionLiteralLookupTables {
     let filterNotName: InternedString
     let mapNotNullName: InternedString
     let filterNotNullName: InternedString
-    let filterIsInstanceName: InternedString
     let filterToName: InternedString
     let filterNotToName: InternedString
     let mapToName: InternedString
@@ -752,7 +751,6 @@ struct CollectionLiteralLookupTables {
     let kkFileTreeWalkToListName: InternedString
     let onEnterName: InternedString
     let kkFileTreeWalkOnEnterName: InternedString
-    let onLeaveName: InternedString
     let kkFileTreeWalkOnLeaveName: InternedString
     let kkFileTreeWalkOnFailName: InternedString
     let kkFileTreeWalkForEachName: InternedString
@@ -1244,7 +1242,6 @@ struct CollectionLiteralLookupTables {
         filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
         filterNotNullName = interner.intern("filterNotNull")
-        filterIsInstanceName = interner.intern("filterIsInstance")
         filterToName = interner.intern("filterTo")
         filterNotToName = interner.intern("filterNotTo")
         mapToName = interner.intern("mapTo")
@@ -1521,7 +1518,6 @@ struct CollectionLiteralLookupTables {
         kkFileTreeWalkToListName = interner.intern("kk_file_tree_walk_to_list")
         onEnterName = interner.intern("onEnter")
         kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_onEnter")
-        onLeaveName = interner.intern("onLeave")
         kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_onLeave")
         kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
         kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")

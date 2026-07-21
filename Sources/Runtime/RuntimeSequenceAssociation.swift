@@ -44,9 +44,9 @@ public func kk_sequence_joinToString(_ seqRaw: Int, _ separatorRaw: Int, _ prefi
 
 // `runtimeSequenceSourceElementsOrPanic` accepts Sequence, List, Array, and Set handles
 // alike, so this also fixes the transform-dropping bug for `Array<T>.joinToString(...) { }`
-// calls: those are lowered through this same "unresolved sequence-like member" path
-// (see `tryLowerCollectionStdlibMemberCall`) because Array's own synthetic `joinToString`
-// member is never actually resolved as the callee for that call shape.
+// calls: those are lowered through this same "unresolved sequence-like member" path (see
+// `lowerMemberLikeCallExpr` in CallLowerer+LegacyMemberLikeCalls.swift) because Array's own
+// synthetic `joinToString` member is never actually resolved as the callee for that call shape.
 @_cdecl("kk_sequence_joinToString_transform")
 public func kk_sequence_joinToString_transform(
     _ seqRaw: Int,

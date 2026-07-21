@@ -1,4 +1,10 @@
 fun main() {
+    // Basic nested lists
+    val basic = listOf(listOf(1, 2), listOf(3, 4))
+    println(basic.flatten())
+    val varied = listOf(listOf(1, 2), listOf(3, 4), listOf(5))
+    println(varied.flatten())
+
     // Empty nested lists
     println("=== Empty nested lists ===")
     println(emptyList<List<Int>>().flatten())  // []
@@ -10,6 +16,11 @@ fun main() {
     println("\n=== Deep nesting ===")
     val deep = listOf(listOf(listOf(1, 2), listOf(3)), listOf(listOf(4)))
     println(deep.flatten())  // Should only flatten one level
+
+    // Mixed types with Any
+    println("\n=== Mixed types ===")
+    val mixed: List<List<Any>> = listOf(listOf(1, "a"), listOf(2.5, true))
+    println(mixed.flatten())
     
     // Large data
     println("\n=== Large data ===")
