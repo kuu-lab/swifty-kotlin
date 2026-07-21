@@ -132,11 +132,9 @@ extension CodegenBackendIntegrationTests {
     }
 
     // The 1-arg composition variants (thenByDescending { selector }, thenDescending { a, b -> },
-    // thenComparator { a, b -> }) share the same lowering path as thenBy: the receiver comparator
-    // is expanded into a (trampolineFn, closureRaw) pair before being handed to the runtime
-    // kk_comparator_then_* entry points (STDLIB-COMP-002, #3802). Only thenBy was previously
-    // exercised end-to-end; these tests lock in the fix for the remaining three callees, which
-    // crashed at runtime before the receiver-expansion was added.
+    // thenComparator { a, b -> }) now lower through bundled Kotlin comparator source and are
+    // consumed by sortedWith as Comparator objects. These tests keep the composition behavior
+    // covered after the old kk_comparator_then_* runtime helpers were removed.
 
     func testCodegenCompilesComparatorThenByDescendingSelector() throws {
         let source = """
@@ -203,7 +201,11 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ComparatorThenComparator", expected: "[1:20, 1:30, 2:10, 2:40]\n")
     }
 
-    func testCodegenCompilesComparatorCompositionEdgeCases() throws {
+    // Keep the nullable comparator scenarios in this existing XCTest method.
+    // CodegenBackendIntegrationTests is already a large XCTestCase, and Swift's
+    // generated discovery array can otherwise exceed the type-checker time limit
+    // when several methods are added.
+    func testCodegenCompilesComparatorCompositionAndNullOrderingEdgeCases() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
 
@@ -223,6 +225,12 @@ extension CodegenBackendIntegrationTests {
 
             val words = listOf("pear", "fig", "apple")
             println(words.sortedWith(reverseOrder()))
+
+            val nullableValues = listOf(14, null, 3, null, 25, 17, 4)
+            println(nullableValues.sortedWith(compareBy<Int?> { it }.nullsFirst()))
+            println(nullableValues.sortedWith(compareBy<Int?> { it }.nullsLast()))
+            println(nullableValues.sortedWith(nullsFirst(compareBy<Int> { it })))
+            println(nullableValues.sortedWith(nullsLast(compareBy<Int> { it })))
         }
         """
 
@@ -234,9 +242,12 @@ extension CodegenBackendIntegrationTests {
                 [1:30, 1:20, 2:40, 2:10]
                 [2:10, 2:40, 1:20, 1:30]
                 [pear, fig, apple]
+                [null, null, 3, 4, 14, 17, 25]
+                [3, 4, 14, 17, 25, null, null]
+                [null, null, 3, 4, 14, 17, 25]
+                [3, 4, 14, 17, 25, null, null]
                 """
                 + "\n"
         )
     }
 }
-
