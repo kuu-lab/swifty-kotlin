@@ -130,7 +130,7 @@
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
 - [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する
 - [x] DEADCODE-CORE-043: [W0] 同ファイル `:778` の `onFailName` と initializer `:1569` の代入を削除する
-- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live
+- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869 open
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
 
 ### CompilerCore: ReceiverClassifier 統合後の残存
