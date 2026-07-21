@@ -42,6 +42,15 @@ extension CallLowerer {
         "isActive", "isCompleted", "isCancelled"
     ]
     static let unresolvedChannelMemberNames: Set<String> = ["send", "receive", "close", "isClosedForReceive", "isClosedForSend"]
+    // Flow operators beyond map/filter/take/collect (already covered by
+    // unresolvedCollectionMemberNames because those names also exist on
+    // collections). These names are Flow-specific, so a Flow receiver with an
+    // unresolved chosenCallee still needs its receiver argument inserted here.
+    static let unresolvedFlowMemberNames: Set<String> = [
+        "buffer", "conflate", "collectLatest", "debounce", "sample", "delayEach", "flowOn",
+        "transform", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
+        "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume", "single",
+    ]
 
     enum PrimitiveCompareABIKind: Int32 {
         case int = 0
@@ -164,6 +173,22 @@ extension CallLowerer {
             return false
         }
         return knownNames.isChannelSymbol(symbol)
+    }
+
+    func isFlowReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (classType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+              let flowSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlinx"), interner.intern("coroutines"),
+                  interner.intern("flow"), interner.intern("Flow"),
+              ])
+        else {
+            return false
+        }
+        return classType.classSymbol == flowSymbol
     }
 
     func isCoroutineContextReceiverType(

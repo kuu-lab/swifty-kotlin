@@ -140,16 +140,7 @@ public open class Base64 internal constructor(
             if (value < 0) {
                 throw IllegalArgumentException("Illegal base64 character in input")
             }
-            // `value` (from indexOf, a function call) must be the LEFT
-            // operand of `or`: this compiler drops the right operand of
-            // `or` when it was produced by a preceding function call
-            // (`x or value` works, `value or x` does not, regardless of
-            // the self-referential `buffer` reassignment). Tracked as
-            // DEBT-KIR-004 in TODO.md; do not "simplify" this back to
-            // `buffer = (buffer shl 6) or value` without that bug being
-            // fixed first.
-            val shifted = buffer shl 6
-            buffer = value or shifted
+            buffer = (buffer shl 6) or value
             bitsCollected += 6
             if (bitsCollected >= 8) {
                 bitsCollected -= 8

@@ -202,26 +202,10 @@ struct CollectionLiteralLookupTables {
     let kkListTakeWhileName: InternedString
 
     // Comparator ABI names (STDLIB-175, STDLIB-177, STDLIB-613)
-    let kkComparatorFromSelectorName: InternedString
-    let kkComparatorFromSelectorDescendingName: InternedString
-    let kkComparatorFromSelectorTrampolineName: InternedString
-    let kkComparatorFromSelectorDescendingTrampolineName: InternedString
     let kkComparatorFromMultiSelectorsName: InternedString
     let kkComparatorFromMultiSelectors3Name: InternedString
     let kkComparatorFromMultiSelectorsVarargName: InternedString
     let kkComparatorFromMultiSelectorsTrampolineName: InternedString
-    let kkComparatorNaturalOrderName: InternedString
-    let kkComparatorReverseOrderName: InternedString
-    let kkComparatorNaturalOrderTrampolineName: InternedString
-    let kkComparatorReverseOrderTrampolineName: InternedString
-    let kkComparatorThenByName: InternedString
-    let kkComparatorThenByDescendingName: InternedString
-    let kkComparatorThenDescendingName: InternedString
-    let kkComparatorThenComparatorName: InternedString
-    let kkComparatorThenByTrampolineName: InternedString
-    let kkComparatorThenByDescendingTrampolineName: InternedString
-    let kkComparatorThenDescendingTrampolineName: InternedString
-    let kkComparatorThenComparatorTrampolineName: InternedString
     let kkComparatorNullsFirstName: InternedString
     let kkComparatorNullsLastName: InternedString
     let kkComparatorNullsFirstTrampolineName: InternedString
@@ -230,8 +214,6 @@ struct CollectionLiteralLookupTables {
     let kkComparatorNullsFirstComparableTrampolineName: InternedString
     let kkComparatorNullsLastNaturalName: InternedString
     let kkComparatorNullsLastNaturalTrampolineName: InternedString
-    let kkComparatorReversedName: InternedString
-    let kkComparatorReversedTrampolineName: InternedString
 
     // Sequence ABI names (STDLIB-003)
     let kkSequenceMapName: InternedString
@@ -1010,26 +992,10 @@ struct CollectionLiteralLookupTables {
         kkListPartitionName = interner.intern("kk_list_partition")
         kkListTakeWhileName = interner.intern("kk_list_takeWhile")
 
-        kkComparatorFromSelectorName = interner.intern("kk_comparator_from_selector")
-        kkComparatorFromSelectorDescendingName = interner.intern("kk_comparator_from_selector_descending")
-        kkComparatorFromSelectorTrampolineName = interner.intern("kk_comparator_from_selector_trampoline")
-        kkComparatorFromSelectorDescendingTrampolineName = interner.intern("kk_comparator_from_selector_descending_trampoline")
         kkComparatorFromMultiSelectorsName = interner.intern("kk_comparator_from_multi_selectors")
         kkComparatorFromMultiSelectors3Name = interner.intern("kk_comparator_from_multi_selectors3")
         kkComparatorFromMultiSelectorsVarargName = interner.intern("kk_comparator_from_multi_selectors_vararg")
         kkComparatorFromMultiSelectorsTrampolineName = interner.intern("kk_comparator_from_multi_selectors_trampoline")
-        kkComparatorNaturalOrderName = interner.intern("kk_comparator_natural_order")
-        kkComparatorReverseOrderName = interner.intern("kk_comparator_reverse_order")
-        kkComparatorNaturalOrderTrampolineName = interner.intern("kk_comparator_natural_order_trampoline")
-        kkComparatorReverseOrderTrampolineName = interner.intern("kk_comparator_reverse_order_trampoline")
-        kkComparatorThenByName = interner.intern("kk_comparator_then_by")
-        kkComparatorThenByDescendingName = interner.intern("kk_comparator_then_by_descending")
-        kkComparatorThenDescendingName = interner.intern("kk_comparator_then_descending")
-        kkComparatorThenComparatorName = interner.intern("kk_comparator_then_comparator")
-        kkComparatorThenByTrampolineName = interner.intern("kk_comparator_then_by_trampoline")
-        kkComparatorThenByDescendingTrampolineName = interner.intern("kk_comparator_then_by_descending_trampoline")
-        kkComparatorThenDescendingTrampolineName = interner.intern("kk_comparator_then_descending_trampoline")
-        kkComparatorThenComparatorTrampolineName = interner.intern("kk_comparator_then_comparator_trampoline")
         kkComparatorNullsFirstName = interner.intern("kk_comparator_nulls_first")
         kkComparatorNullsLastName = interner.intern("kk_comparator_nulls_last")
         kkComparatorNullsFirstTrampolineName = interner.intern("kk_comparator_nulls_first_trampoline")
@@ -1038,8 +1004,6 @@ struct CollectionLiteralLookupTables {
         kkComparatorNullsFirstComparableTrampolineName = interner.intern("kk_comparator_nulls_first_comparable_trampoline")
         kkComparatorNullsLastNaturalName = interner.intern("kk_comparator_nulls_last_natural")
         kkComparatorNullsLastNaturalTrampolineName = interner.intern("kk_comparator_nulls_last_natural_trampoline")
-        kkComparatorReversedName = interner.intern("kk_comparator_reversed")
-        kkComparatorReversedTrampolineName = interner.intern("kk_comparator_reversed_trampoline")
 
         kkSequenceMapName = interner.intern("kk_sequence_map")
         kkSequenceFilterName = interner.intern("kk_sequence_filter")

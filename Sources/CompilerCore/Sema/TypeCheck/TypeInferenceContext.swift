@@ -77,10 +77,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLabelStack.contains(label)
     }
 
-    func with(enclosingClassSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
-        var copy = self; copy.enclosingClassSymbol = newSymbol; return copy
-    }
-
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
     }

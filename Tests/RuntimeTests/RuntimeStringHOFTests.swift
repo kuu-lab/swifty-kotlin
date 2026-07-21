@@ -230,10 +230,6 @@ private func assertAggregateStringList(
 
 @Suite(.serialized)
 struct RuntimeStringHOFTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     @Test
     func testStringMapFlatReturnsMappedList() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
