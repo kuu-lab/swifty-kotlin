@@ -103,9 +103,6 @@ struct RuntimeSynchronizedTests {
     func testSynchronizedReturnsBlockResult() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         let fn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -122,9 +119,6 @@ struct RuntimeSynchronizedTests {
     func testSynchronizedPropagatesThrownValue() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         let fn = unsafeBitCast(
             runtime_synchronized_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -141,9 +135,6 @@ struct RuntimeSynchronizedTests {
     func testSynchronizedPassesClosureRawToThunk() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         synchronizedCapturedClosureRaw = 0
         let fn = unsafeBitCast(
@@ -163,9 +154,6 @@ struct RuntimeSynchronizedTests {
     func testSynchronizedSupportsReentrantLocking() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         let nestedFn = unsafeBitCast(
             runtime_synchronized_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
