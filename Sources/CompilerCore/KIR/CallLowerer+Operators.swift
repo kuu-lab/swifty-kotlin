@@ -891,6 +891,38 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        // Array<T>'s backing store holds boxed elements for primitive T (mirroring
+        // listOf/kk_list_get), unlike IntArray/CharArray/... which store raw
+        // primitives directly. Unbox right after the raw read so this result carries
+        // the same raw-primitive representation any other primitive-typed KIR value
+        // does; otherwise the boxed pointer gets misread as a raw value downstream
+        // (e.g. re-boxed a second time at the next Any boundary).
+        let receiverIsGenericArray = isGenericArrayReceiverType(nonNullReceiverType, sema: sema, interner: interner)
+        if receiverIsGenericArray,
+           let elementType = boundType,
+           let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+               for: elementType,
+               types: sema.types,
+               requireNonNull: true
+           )
+        {
+            let boxedResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get"),
+                arguments: [receiverID, indexID],
+                result: boxedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: boxedResult,
+                result: result,
+                into: &instructions
+            )
+            return result
+        }
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
@@ -943,7 +975,19 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        if let callBinding = sema.bindings.callBindings[exprID] {
+        // A cast to Array<Any?> can make Sema bind the generic `Array.set`
+        // member, but indexed assignment still has to use the array runtime
+        // entry point. Emitting the source-backed member call here drops the
+        // write from the KIR body and leaves the original array unchanged.
+        let assignReceiverType = sema.types.makeNonNullable(
+            sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        )
+        let assignReceiverIsArrayLike = isConcreteArrayLikeType(
+            assignReceiverType,
+            sema: sema,
+            interner: interner
+        )
+        if let callBinding = sema.bindings.callBindings[exprID], !assignReceiverIsArrayLike {
             let chosenSet = callBinding.chosenCallee
             var loweredIndices: [KIRExprID] = []
             for (i, indexExpr) in indices.enumerated() {
@@ -994,10 +1038,38 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // arr[i] = value on a generic Array<T> must box a primitive value before
+        // storing it, matching how arrayOf(...) boxes elements at construction time
+        // (packVarargArguments) and how arr[i] unboxes on read (above). Leaving this
+        // unboxed would corrupt the array with a mix of boxed and raw elements.
+        let assignReceiverIsGenericArray = isGenericArrayReceiverType(
+            sema.bindings.exprTypes[receiverExpr],
+            sema: sema,
+            interner: interner
+        )
+        let storedValueID: KIRExprID
+        if assignReceiverIsGenericArray,
+           let valueType = arena.exprType(valueID),
+           let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+               for: valueType,
+               types: sema.types,
+               requireNonNull: false
+           )
+        {
+            storedValueID = emitNonThrowingCall(
+                callee: boxCallee,
+                arg: valueID,
+                resultType: sema.types.anyType,
+                arena: arena,
+                into: &instructions
+            )
+        } else {
+            storedValueID = valueID
+        }
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
-            arguments: [receiverID, indexID, valueID],
+            arguments: [receiverID, indexID, storedValueID],
             result: nil,
             canThrow: false,
             thrownResult: nil
@@ -1052,15 +1124,49 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let getResult = arena.appendTemporary(type: sema.types.anyType)
+        // Derive element type from the receiver's array type.
+        // Mirrors TypeCheckHelpers.arrayElementType logic.
+        let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
+        // Array<T>'s backing store holds boxed elements for primitive T (mirroring
+        // lowerIndexedAccessExpr / lowerIndexedAssignExpr); IntArray/CharArray/...
+        // keep storing raw primitives directly. Without unbox-before-op and
+        // box-before-store here, a[i] += v on Array<Double>/Array<Boolean>/... reads
+        // a boxed pointer as if it were a raw primitive and corrupts the slot with a
+        // raw value, breaking every later boxed-aware read of that element.
+        let compoundReceiverIsGenericArray = isGenericArrayReceiverType(receiverBoundType, sema: sema, interner: interner)
+        let boxingTable = BoxingCalleeTable(interner: interner)
+        // Prefer the receiver's own type argument (Array<T>'s T) over the RHS
+        // value's type: the RHS may be a narrower type that gets implicitly
+        // widened (e.g. an Int literal assigned into an Array<Long> slot), and
+        // boxing/unboxing must use the slot's actual element type, not the
+        // operand's.
+        let compoundPrimitiveElementType: TypeID? = compoundReceiverIsGenericArray
+            ? (genericArrayElementType(of: receiverBoundType, sema: sema) ?? arena.exprType(valueID))
+            : nil
+
+        let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
             arguments: [receiverID, indexID],
-            result: getResult,
+            result: rawGetResult,
             canThrow: false,
             thrownResult: nil
         ))
+        let getResult: KIRExprID
+        if let elementType = compoundPrimitiveElementType,
+           let unboxCallee = boxingTable.unboxCallee(for: elementType, types: sema.types, requireNonNull: true)
+        {
+            getResult = emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: rawGetResult,
+                resultType: elementType,
+                arena: arena,
+                into: &instructions
+            )
+        } else {
+            getResult = rawGetResult
+        }
         let opResult = arena.appendTemporary(type: sema.types.anyType)
         guard let expr = ast.arena.expr(exprID),
               case let .indexedCompoundAssign(op, _, _, _, _) = expr
@@ -1075,15 +1181,33 @@ extension CallLowerer {
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
-        // Derive element type from the receiver's array type.
-        let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
         let receiverElementType = receiverBoundType.flatMap {
             TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
         }
         let isStringElement = receiverElementType == stringType
         let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
+        let floatingPointPrefix: String? = if let receiverElementType {
+            switch sema.types.kind(of: receiverElementType) {
+            case .primitive(.double, _): "d"
+            case .primitive(.float, _): "f"
+            default: nil
+            }
+        } else {
+            nil
+        }
         let opName = if op == .plusAssign, isStringElement {
             "kk_string_concat_flat"
+        } else if let floatingPointPrefix {
+            // Compound assignment on Array<Double>/Array<Float> must use the
+            // floating-point runtime ABI. The generic integer stubs reinterpret
+            // the bit-encoded operands as signed integers and corrupt the result.
+            switch op {
+            case .plusAssign: "kk_op_\(floatingPointPrefix)add"
+            case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
+            case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
+            case .divAssign: "kk_op_\(floatingPointPrefix)div"
+            case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+            }
         } else {
             switch op {
             case .plusAssign: "kk_op_add"
@@ -1101,10 +1225,24 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        let storedOpResult: KIRExprID
+        if let elementType = compoundPrimitiveElementType,
+           let boxCallee = boxingTable.boxCallee(for: elementType, types: sema.types, requireNonNull: false)
+        {
+            storedOpResult = emitNonThrowingCall(
+                callee: boxCallee,
+                arg: opResult,
+                resultType: sema.types.anyType,
+                arena: arena,
+                into: &instructions
+            )
+        } else {
+            storedOpResult = opResult
+        }
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
-            arguments: [receiverID, indexID, opResult],
+            arguments: [receiverID, indexID, storedOpResult],
             result: nil,
             canThrow: false,
             thrownResult: nil
@@ -1116,4 +1254,35 @@ extension CallLowerer {
 
     // NOTE: isSequenceLikeType is defined once in CallLowerer+MemberCalls.swift
     // and shared across all CallLowerer extensions.
+
+    /// True when `receiverType` is the generic `Array<T>` class specifically, as
+    /// opposed to one of the specialized primitive array types (IntArray,
+    /// CharArray, ...). Array<T>'s backing store holds boxed elements for
+    /// primitive T (mirroring List<T>); the primitive-specialized array types
+    /// share the same "kk_array_of"/"kk_array_get"/"kk_array_set" runtime entry
+    /// points but store raw values and must never be boxed/unboxed.
+    func isGenericArrayReceiverType(_ receiverType: TypeID?, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard let receiverType,
+              let (_, symbol) = resolveClassTypeSymbol(sema.types.makeNonNullable(receiverType), sema: sema)
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "Array"
+    }
+
+    /// Extracts `T` from a `classType`'s first (invariant/out/in) type
+    /// argument, e.g. `Array<T>` or `MutableList<T>`. Returns nil for a star
+    /// projection or a non-generic/non-class receiver type.
+    func genericArrayElementType(of receiverType: TypeID?, sema: SemaModule) -> TypeID? {
+        guard let receiverType,
+              case let .classType(classType) = sema.types.kind(of: receiverType),
+              let firstArg = classType.args.first
+        else {
+            return nil
+        }
+        switch firstArg {
+        case let .invariant(t), let .out(t), let .in(t): return t
+        case .star: return nil
+        }
+    }
 }
