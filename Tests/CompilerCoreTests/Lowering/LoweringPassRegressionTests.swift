@@ -133,7 +133,8 @@ struct LoweringPassRegressionTests {
         #expect(hasSuspendGuard)
 
         let throwFlags = extractThrowFlags(from: loweredSuspend.body, interner: fixture.interner)
-        #expect(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true } == true)
+        #expect(loweredSuspendCallees.contains("kk_coroutine_call_direct_suspend"))
+        #expect(throwFlags["kk_coroutine_call_direct_suspend"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false } == true)
         #expect(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
@@ -273,11 +274,11 @@ struct LoweringPassRegressionTests {
             }))
 
             let outerCallees = extractCallees(from: loweredOuter.body, interner: ctx.interner)
-            #expect(outerCallees.contains("kk_suspend_localSuspendBridge"))
+            #expect(outerCallees.contains("kk_coroutine_call_direct_suspend"))
             #expect(!outerCallees.contains("localSuspendBridge"))
 
             let localCallees = extractCallees(from: loweredLocal.body, interner: ctx.interner)
-            #expect(localCallees.contains("kk_suspend_delayedValue"))
+            #expect(localCallees.contains("kk_coroutine_call_direct_suspend"))
             #expect(localCallees.contains("kk_coroutine_state_enter"))
             #expect(localCallees.contains("kk_coroutine_state_exit"))
         }

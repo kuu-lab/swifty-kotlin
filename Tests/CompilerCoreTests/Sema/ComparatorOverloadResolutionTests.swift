@@ -25,9 +25,33 @@ struct ComparatorOverloadResolutionTests {
         }
     }
 
+    private func sourceBackedComparatorExtension(
+        named name: String,
+        parameterCount: Int? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let fqName = ["kotlin", "comparisons", name].map { interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard sema.symbols.externalLinkName(for: symbolID) == nil,
+                  let signature = sema.symbols.functionSignature(for: symbolID),
+                  let receiver = signature.receiverType,
+                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiver)),
+                  let symbol = sema.symbols.symbol(classType.classSymbol),
+                  symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "Comparator"]
+            else {
+                return false
+            }
+            guard let parameterCount else {
+                return true
+            }
+            return signature.parameterTypes.count == parameterCount
+        }
+    }
+
     // MARK: - compareBy { } single-selector overload
 
-    @Test func testCompareByLambdaOverloadSelectsPrimitiveVariant() throws {
+    @Test func testCompareByLambdaOverloadSelectsSourceBackedVariant() throws {
         let source = """
         fun sample() {
             val cmp = compareBy<Int> { it * 2 }
@@ -49,8 +73,9 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a call to compareBy")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy { }")
-            let link = sema.symbols.externalLinkName(for: chosenCallee)
-            #expect(link == "kk_comparator_from_selector_primitive" || link == "kk_comparator_from_selector", "Expected compareBy<Int> { } to link to a selector-based comparator runtime, got: \(link ?? "nil")")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "comparisons", "compareBy"], "Expected compareBy<Int> { } to resolve to the bundled stdlib compareBy")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareBy<Int> { } to be source-backed without a runtime comparator link")
         }
     }
 
@@ -180,12 +205,12 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("thenBy"),
-                ]), "Expected synthetic Comparator.thenBy to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_then_by", "Expected Comparator.thenBy to map to kk_comparator_then_by")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "thenBy",
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected source-backed Comparator.thenBy to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenBy to be source-backed")
         }
     }
 
@@ -209,7 +234,7 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a thenBy member call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenBy to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_then_by", "Expected thenBy to link to kk_comparator_then_by")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to be source-backed")
         }
     }
 
@@ -221,12 +246,12 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("thenByDescending"),
-                ]), "Expected synthetic Comparator.thenByDescending to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_then_by_descending", "Expected Comparator.thenByDescending to map to kk_comparator_then_by_descending")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "thenByDescending",
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected source-backed Comparator.thenByDescending to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenByDescending to be source-backed")
         }
     }
 
@@ -250,7 +275,7 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a thenByDescending member call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenByDescending to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_then_by_descending", "Expected thenByDescending to link to kk_comparator_then_by_descending")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenByDescending to be source-backed")
         }
     }
 
@@ -291,12 +316,13 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                    ctx.interner.intern("kotlin"),
-                    ctx.interner.intern("Comparator"),
-                    ctx.interner.intern("reversed"),
-                ]), "Expected synthetic Comparator.reversed to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_reversed", "Expected Comparator.reversed to map to kk_comparator_reversed")
+            let symbolID = try #require(sourceBackedComparatorExtension(
+                named: "reversed",
+                parameterCount: 0,
+                sema: sema,
+                interner: ctx.interner
+            ), "Expected source-backed Comparator.reversed to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.reversed to be source-backed")
         }
     }
 
@@ -320,7 +346,7 @@ struct ComparatorOverloadResolutionTests {
             }, "Expected a reversed member call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reversed() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_reversed", "Expected reversed() to link to kk_comparator_reversed")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reversed() to be source-backed")
         }
     }
 
@@ -365,8 +391,8 @@ struct ComparatorOverloadResolutionTests {
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("comparisons"),
                     ctx.interner.intern("naturalOrder"),
-                ]), "Expected synthetic naturalOrder to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_natural_order", "Expected naturalOrder() to map to kk_comparator_natural_order")
+                ]), "Expected source-backed naturalOrder to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected naturalOrder() to be source-backed")
         }
     }
 
@@ -380,8 +406,8 @@ struct ComparatorOverloadResolutionTests {
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("comparisons"),
                     ctx.interner.intern("reverseOrder"),
-                ]), "Expected synthetic reverseOrder to be registered")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_comparator_reverse_order", "Expected reverseOrder() to map to kk_comparator_reverse_order")
+                ]), "Expected source-backed reverseOrder to be registered")
+            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected reverseOrder() to be source-backed")
         }
     }
 
@@ -407,7 +433,7 @@ struct ComparatorOverloadResolutionTests {
                 }.first, "Expected a naturalOrder() call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected naturalOrder() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_natural_order", "Expected naturalOrder() to link to kk_comparator_natural_order")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected naturalOrder() to be source-backed")
         }
     }
 
@@ -433,7 +459,7 @@ struct ComparatorOverloadResolutionTests {
                 }.first, "Expected a reverseOrder() call")
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reverseOrder() to resolve to a callee")
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_reverse_order", "Expected reverseOrder() to link to kk_comparator_reverse_order")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected reverseOrder() to be source-backed")
         }
     }
 
@@ -614,6 +640,23 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func testNullableCompareBySelectorCanFeedNullsFirstAndLast() throws {
+        let source = """
+        fun sample(values: List<Int?>) {
+            val a = compareBy<Int?> { it }.nullsFirst()
+            val b = compareBy<Int?> { it }.nullsLast()
+            values.sortedWith(a)
+            values.sortedWith(b)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
         }
     }
 }

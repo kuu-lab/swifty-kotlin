@@ -27,6 +27,8 @@ extension KotlinLexer {
         ("->", .arrow),
         ("&&", .ampAmp),
         ("||", .barBar),
+        ("===", .tripleEqual),
+        ("!==", .notTripleEqual),
         ("==", .equalEqual),
         ("!=", .bangEqual),
         ("<=", .lessOrEqual),

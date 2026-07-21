@@ -1169,6 +1169,25 @@ extension CallTypeChecker {
         }
 
         let calleeStr = interner.resolve(calleeName)
+        func sourceBackedComparisonsExtension(parameterCount: Int) -> SymbolID? {
+            let fqName = [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                calleeName,
+            ]
+            return sema.symbols.lookupAll(fqName: fqName).first(where: { candidate in
+                guard sema.symbols.externalLinkName(for: candidate) == nil,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == parameterCount,
+                      let receiver = signature.receiverType,
+                      resolvedComparatorElementType(of: receiver, sema: sema, interner: interner) != nil
+                else {
+                    return false
+                }
+                return true
+            })
+        }
+
         if args.count == 2, ["thenBy", "thenByDescending"].contains(calleeStr) {
             let keyComparatorType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             guard let keyType = resolvedComparatorElementType(
@@ -1191,20 +1210,7 @@ extension CallTypeChecker {
                 expectedType: expectedLambdaType
             )
 
-            let comparatorMemberFQName: [InternedString] = [
-                interner.intern("kotlin"),
-                interner.intern("Comparator"),
-                calleeName,
-            ]
-            let externalLinkName = switch calleeStr {
-            case "thenBy":
-                "kk_comparator_then_by_comparator_selector"
-            default:
-                "kk_comparator_then_by_descending_comparator_selector"
-            }
-            guard let chosen = sema.symbols.lookupAll(fqName: comparatorMemberFQName).first(where: { candidate in
-                sema.symbols.externalLinkName(for: candidate) == externalLinkName
-            }) else {
+            guard let chosen = sourceBackedComparisonsExtension(parameterCount: 2) else {
                 return nil
             }
 
@@ -1255,18 +1261,7 @@ extension CallTypeChecker {
             expectedType: expectedLambdaType
         )
 
-        let comparatorMemberFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("Comparator"),
-            calleeName,
-        ]
-        guard let chosen = sema.symbols.lookupAll(fqName: comparatorMemberFQName).first(where: { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
-            }
-            return sema.symbols.symbol(candidate)?.flags.contains(.synthetic) == true
-                && signature.parameterTypes.count == 1
-        }) else {
+        guard let chosen = sourceBackedComparisonsExtension(parameterCount: 1) else {
             return nil
         }
 
