@@ -1,9 +1,11 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 @testable import Runtime
 
 /// Tests for string split, join, chunked, windowed, zip functions migrated to Kotlin stdlib
 /// MIGRATION-TEXT-004
-final class RuntimeStringSplitJoinTests: XCTestCase {
+@Suite
+struct RuntimeStringSplitJoinTests {
 
     private func runtimeMakeStringRaw(_ value: String) -> Int {
         value.withCString { cstr in
@@ -85,76 +87,86 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
 
     // MARK: - chunked tests
 
+    @Test
     func testChunkedTransformFunctionExists() {
         // Verify the function symbol exists. Cannot invoke with a real lambda at the
         // runtime level without a compiled Kotlin closure.
         let fn: (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_string_chunked_sequence_transform
-        XCTAssertNotNil(fn as Any)
+        #expect((fn as Any?) != nil)
     }
 
     // MARK: - windowed tests
 
+    @Test
     func testWindowedTransformFunctionExists() {
         let fn: (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_string_windowedSequence_transform
-        XCTAssertNotNil(fn as Any)
+        #expect((fn as Any?) != nil)
     }
 
     // MARK: - zipWithNext tests
 
+    @Test
     func testZipWithNextEmpty() {
         let result = zipWithNext("")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list != nil)
+        #expect(list?.elements.count == 0)
     }
 
+    @Test
     func testZipWithNextSingleChar() {
         let result = zipWithNext("a")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
+        #expect(list != nil)
+        #expect(list?.elements.count == 0)
     }
 
+    @Test
     func testZipWithNextBasic() {
         let result = zipWithNext("abc")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 2)
+        #expect(list != nil)
+        #expect(list?.elements.count == 2)
     }
 
+    @Test
     func testZipWithNextTransformFunctionExists() {
         let fn: (UnsafePointer<UInt8>?, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int =
             kk_string_zipWithNextTransform_flat
-        XCTAssertNotNil(fn as Any)
+        #expect((fn as Any?) != nil)
     }
 
     // MARK: - zip tests
 
+    @Test
     func testZipBasic() {
         let result = zip("abc", "xyz")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
+        #expect(list != nil)
+        #expect(list?.elements.count == 3)
     }
 
+    @Test
     func testZipLengthMismatch() {
         let result = zip("abc", "xy")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 2) // Shorter side
+        #expect(list != nil)
+        #expect(list?.elements.count == 2) // Shorter side
     }
 
+    @Test
     func testZipTransformFunctionExists() {
         let fn: (
             UnsafePointer<UInt8>?, Int, Int, Int,
             UnsafePointer<UInt8>?, Int, Int, Int,
             Int, Int, UnsafeMutablePointer<Int>?
         ) -> Int = kk_string_zipTransform_flat
-        XCTAssertNotNil(fn as Any)
+        #expect((fn as Any?) != nil)
     }
 
     // MARK: - joinToString tests
 
+    @Test
     func testJoinToStringBasic() {
         let elements = [runtimeMakeStringRaw("a"), runtimeMakeStringRaw("b"), runtimeMakeStringRaw("c")]
         let listRaw = runtimeMakeListRaw(elements)
@@ -164,9 +176,10 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
         
         let result = kk_string_joinToString(listRaw, separator, prefix, postfix)
         let resultStr = runtimeStringFromRaw(result)
-        XCTAssertEqual(resultStr, "a, b, c")
+        #expect(resultStr == "a, b, c")
     }
 
+    @Test
     func testJoinToStringWithPrefixPostfix() {
         let elements = [runtimeMakeStringRaw("a"), runtimeMakeStringRaw("b")]
         let listRaw = runtimeMakeListRaw(elements)
@@ -176,42 +189,48 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
         
         let result = kk_string_joinToString(listRaw, separator, prefix, postfix)
         let resultStr = runtimeStringFromRaw(result)
-        XCTAssertEqual(resultStr, "[a, b]")
+        #expect(resultStr == "[a, b]")
     }
 
     // MARK: - splitToSequence tests
 
+    @Test
     func testSplitToSequenceBasic() {
         let result = splitToSequence("a,b,c", delimiter: ",")
-        XCTAssertNotNil(result)
+        #expect((result as Int?) != nil)
         // Should return a sequence
     }
 
+    @Test
     func testSplitToSequenceEmptyDelimiter() {
         let result = splitToSequence("abc", delimiter: "")
-        XCTAssertNotNil(result)
+        #expect((result as Int?) != nil)
     }
 
     // MARK: - split tests (existing bridge functions)
 
+    @Test
     func testSplitBasic() {
         let result = split("a,b,c", delimiter: ",")
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
+        #expect(list != nil)
+        #expect(list?.elements.count == 3)
     }
 
+    @Test
     func testSplitWithLimit() {
         let result = splitLimit("a,b,c,d", delimiter: ",", ignoreCase: 0, limit: 2)
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 2)
+        #expect(list != nil)
+        #expect(list?.elements.count == 2)
     }
 
+    @Test
     func testSplitWithIgnoreCase() {
         let result = splitLimit("A,B,C", delimiter: ",", ignoreCase: 1, limit: 0)
         let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
+        #expect(list != nil)
+        #expect(list?.elements.count == 3)
     }
 }
+#endif

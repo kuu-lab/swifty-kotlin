@@ -38,6 +38,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("emit"),
             ctx.interner.intern("asFlow"),
             ctx.interner.intern("collect"),
+            ctx.interner.intern("collectLatest"),
             ctx.interner.intern("map"),
             ctx.interner.intern("filter"),
             ctx.interner.intern("take"),
@@ -105,6 +106,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
         let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
+        let flowCollectLatestCallee = ctx.interner.intern("kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [
             kxMiniDelayCallee,
             runtimeDelayCallee,
@@ -313,6 +315,7 @@ final class CoroutineLoweringPass: LoweringPass {
             intType: intType,
             unitType: unitType,
             flowCollectCallee: flowCollectCallee,
+            flowCollectLatestCallee: flowCollectLatestCallee,
             withContextCallee: kxMiniWithContextCallee,
             runtimeWithContextCallee: ctx.interner.intern("kk_with_context"),
             withTimeoutCallee: kxMiniWithTimeoutCallee,
@@ -329,6 +332,7 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,
             continuationFactory: continuationFactory,
+            directSuspendCallCallee: ctx.interner.intern("kk_coroutine_call_direct_suspend"),
             launcherArgSetCallee: launcherArgSetCallee,
             runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,

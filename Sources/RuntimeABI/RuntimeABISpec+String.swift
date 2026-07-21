@@ -780,15 +780,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_isNullOrEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_isNullOrBlank_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2537,29 +2528,7 @@ public extension RuntimeABISpec {
         // STDLIB-192
         // STDLIB-190
         // STDLIB-187
-        RuntimeABIFunctionSpec(
-            name: "kk_string_ifBlank",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         flatStringHOFReturnSpec(name: "kk_string_ifBlank_flat"),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_ifEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         flatStringHOFReturnSpec(name: "kk_string_ifEmpty_flat"),
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBigDecimal_flat",
@@ -3049,7 +3018,7 @@ public extension RuntimeABISpec {
         ),
         // MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
         RuntimeABIFunctionSpec(
-            name: "__string_trimIndent",
+            name: "__kk_string_trimIndent",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
@@ -3057,16 +3026,17 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__string_trimMargin",
+            name: "__kk_string_trimMargin",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "marginPrefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__string_prependIndent",
+            name: "__kk_string_prependIndent",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "indentRaw", type: .intptr),
@@ -3075,7 +3045,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__string_replaceIndent",
+            name: "__kk_string_replaceIndent",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "newIndentRaw", type: .intptr),
@@ -3084,7 +3054,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__string_replaceIndentByMargin",
+            name: "__kk_string_replaceIndentByMargin",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "newIndentRaw", type: .intptr),
@@ -3095,8 +3065,18 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__string_format",
+            name: "__kk_string_format",
             parameters: [
+                RuntimeABIParameter(name: "formatRaw", type: .intptr),
+                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_format_locale",
+            parameters: [
+                RuntimeABIParameter(name: "localeRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
             ],

@@ -51,6 +51,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // Custom setters must run before direct storage paths so their bodies
+        // observe explicit-receiver assignments as Kotlin does.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           ownerInfo.kind == .class || ownerInfo.kind == .interface
+           || ownerInfo.kind == .object,
+           memberPropertyHasCustomSetterBody(propertySymbol, ast: ast, sema: sema)
+        {
+            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            instructions.append(.call(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                arguments: [receiverID, valueID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
         // `object` member properties are stored as flat global slots keyed by
         // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
         // reads via `loadGlobal` and bare-name assignment inside the object body

@@ -1,11 +1,9 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathGetLastModifiedTimeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathGetLastModifiedTimeTests {
     private func makeRuntimeString(_ value: String) -> Int {
         let bytes = Array(value.utf8)
         return bytes.withUnsafeBufferPointer { buffer -> Int in
@@ -18,7 +16,7 @@ final class RuntimePathGetLastModifiedTimeTests: IsolatedRuntimeXCTestCase {
         kk_path_new(makeRuntimeString(path))
     }
 
-    func testGetLastModifiedTimeReturnsPositiveMillisForExistingFile() throws {
+    @Test func getLastModifiedTimeReturnsPositiveMillisForExistingFile() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -28,14 +26,14 @@ final class RuntimePathGetLastModifiedTimeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let fileTimeRaw = kk_path_getLastModifiedTime(pathRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let millis = kk_fileTime_toMillis(fileTimeRaw)
         // The modification time should be a positive number of milliseconds
         // since the Unix epoch (i.e. after 1970-01-01).
-        XCTAssertGreaterThan(millis, 0)
+        #expect(millis > 0)
     }
 
-    func testGetLastModifiedTimeThrowsForMissingFile() {
+    @Test func getLastModifiedTimeThrowsForMissingFile() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
 
@@ -43,10 +41,10 @@ final class RuntimePathGetLastModifiedTimeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_getLastModifiedTime(pathRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an IOException throwable for a non-existent path")
+        #expect(thrown != 0, "Expected an IOException throwable for a non-existent path")
     }
 
-    func testGetLastModifiedTimeIgnoresOptionsArgument() throws {
+    @Test func getLastModifiedTimeIgnoresOptionsArgument() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -60,8 +58,8 @@ final class RuntimePathGetLastModifiedTimeTests: IsolatedRuntimeXCTestCase {
         // the same modification time as the default zero-options call.
         let fileTimeRaw2 = kk_path_getLastModifiedTime(pathRaw, 42, &thrown2)
 
-        XCTAssertEqual(thrown1, 0)
-        XCTAssertEqual(thrown2, 0)
-        XCTAssertEqual(kk_fileTime_toMillis(fileTimeRaw1), kk_fileTime_toMillis(fileTimeRaw2))
+        #expect(thrown1 == 0)
+        #expect(thrown2 == 0)
+        #expect(kk_fileTime_toMillis(fileTimeRaw1) == kk_fileTime_toMillis(fileTimeRaw2))
     }
 }

@@ -1,5 +1,4 @@
 struct ReceiverClassification {
-    let receiverType: TypeID
     let isArrayReceiver: Bool
     let isIterableReceiver: Bool
     let isCollectionReceiver: Bool
@@ -36,7 +35,6 @@ struct ReceiverClassifier {
             && !isMapReceiver
             && !isListFactoryReceiver
         return ReceiverClassification(
-            receiverType: receiverType,
             isArrayReceiver: isArrayLikeType(receiverType),
             isIterableReceiver: isIterableLikeType(receiverType),
             isCollectionReceiver: isCollectionExpr || isCollectionType,
@@ -65,13 +63,6 @@ struct ReceiverClassifier {
         return knownNames.isArrayLikeName(symbol.name)
     }
 
-    func isCollectionLikeReceiver(receiverID: ExprID) -> Bool {
-        if sema.bindings.isCollectionExpr(receiverID) {
-            return true
-        }
-        return isCollectionLikeType(receiverType(for: receiverID))
-    }
-
     func isIterableLikeReceiver(receiverID: ExprID) -> Bool {
         isIterableLikeType(receiverType(for: receiverID))
     }
@@ -86,10 +77,6 @@ struct ReceiverClassifier {
                 interner.intern("collections"),
                 interner.intern("Iterable"),
             ]
-    }
-
-    func isSequenceLikeReceiver(receiverID: ExprID) -> Bool {
-        isSequenceLikeType(receiverType(for: receiverID))
     }
 
     func isSequenceLikeType(_ type: TypeID) -> Bool {
@@ -126,29 +113,12 @@ struct ReceiverClassifier {
         return knownNames.isConcreteListLikeSymbol(symbol) && classType.args.count == 1
     }
 
-    func isMapLikeCollectionReceiver(receiverID: ExprID) -> Bool {
-        isMapLikeCollectionType(receiverType(for: receiverID))
-    }
-
     func isMapLikeCollectionType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
-    }
-
-    func isMutableListType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let symbol = nominalSymbol(of: sema.types.makeNonNullable(type)) else {
-            return false
-        }
-        return symbol.name == knownNames.mutableList
-            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-    }
-
-    func isMutableCollectionReceiver(receiverID: ExprID) -> Bool {
-        isMutableCollectionType(receiverType(for: receiverID))
     }
 
     func isMutableCollectionType(_ type: TypeID) -> Bool {
@@ -167,10 +137,6 @@ struct ReceiverClassifier {
         return false
     }
 
-    func isMutableListCollectionReceiver(receiverID: ExprID) -> Bool {
-        isMutableListCollectionType(receiverType(for: receiverID))
-    }
-
     func isMutableListCollectionType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
@@ -182,20 +148,12 @@ struct ReceiverClassifier {
         ) && classType.args.count == 1
     }
 
-    func isMutableSetReceiver(receiverID: ExprID) -> Bool {
-        isMutableSetType(receiverType(for: receiverID))
-    }
-
     func isMutableSetType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return knownNames.isMutableSetSymbol(symbol) && classType.args.count == 1
-    }
-
-    func isMutableMapReceiver(receiverID: ExprID) -> Bool {
-        isMutableMapType(receiverType(for: receiverID))
     }
 
     func isMutableMapType(_ type: TypeID) -> Bool {
@@ -206,20 +164,12 @@ struct ReceiverClassifier {
         return knownNames.isMutableMapSymbol(symbol) && classType.args.count == 2
     }
 
-    func isConcreteListLikeCollectionReceiver(receiverID: ExprID) -> Bool {
-        isConcreteListLikeCollectionType(receiverType(for: receiverID))
-    }
-
     func isConcreteListLikeCollectionType(_ type: TypeID) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return knownNames.isConcreteListLikeSymbol(symbol) && !knownNames.isMapLikeSymbol(symbol)
-    }
-
-    func isSetLikeCollectionReceiver(receiverID: ExprID) -> Bool {
-        isSetLikeCollectionType(receiverType(for: receiverID))
     }
 
     func isSetLikeCollectionType(_ type: TypeID) -> Bool {
@@ -281,22 +231,6 @@ struct ReceiverClassifier {
             return []
         }
     }
-
-    private func nominalSymbol(of type: TypeID) -> SemanticSymbol? {
-        switch sema.types.kind(of: type) {
-        case let .classType(classType):
-            return sema.symbols.symbol(classType.classSymbol)
-        case let .intersection(parts):
-            for part in parts {
-                if let symbol = nominalSymbol(of: part) {
-                    return symbol
-                }
-            }
-            return nil
-        default:
-            return nil
-        }
-    }
 }
 
 extension CallTypeChecker {
@@ -310,38 +244,6 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         receiverClassifier(sema: sema, interner: interner).isArrayLikeReceiver(receiverID: receiverID)
-    }
-
-    func isMutableListType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isMutableListType(type)
-    }
-
-    func isMapLikeCollectionType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isMapLikeCollectionType(type)
-    }
-
-    func isConcreteListLikeType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isConcreteListLikeType(type)
-    }
-
-    func isCollectionLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isCollectionLikeReceiver(receiverID: receiverID)
-    }
-
-    func isIterableLikeReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isIterableLikeReceiver(receiverID: receiverID)
     }
 
     func isSequenceLikeType(
@@ -366,17 +268,5 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         receiverClassifier(sema: sema, interner: interner).isListLikeType(receiverType)
-    }
-
-    func isListCollectionFactoryReceiver(
-        receiverID: ExprID,
-        ast: ASTModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        receiverClassifier(sema: sema, interner: interner).isListCollectionFactoryReceiver(
-            receiverID: receiverID,
-            ast: ast
-        )
     }
 }

@@ -82,7 +82,7 @@ extension CodegenBackendIntegrationTests {
             println(result)
         }
         """
-        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_02", expected: "[seed, 0:10, 2:30]\n[seed, 0:10, 2:30]\n")
+        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_02", expected: "true\n[seed, 0:10, 2:30]\n")
     }
 
     func testSequenceFlatMapIndexedToAppendsFlattenedIndexedTransforms() throws {

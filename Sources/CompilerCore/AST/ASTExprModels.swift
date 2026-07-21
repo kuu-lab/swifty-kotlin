@@ -20,6 +20,8 @@ public enum BinaryOp: Equatable, Codable {
     case modulo
     case equal
     case notEqual
+    case identityEqual
+    case notIdentityEqual
     case lessThan
     case lessOrEqual
     case greaterThan
@@ -48,6 +50,10 @@ public enum BinaryOp: Equatable, Codable {
         case .modulo: "rem"
         case .equal: "equals"
         case .notEqual: "equals"
+        // `===`/`!==` are compiler intrinsics (raw identity comparison) with no
+        // backing Kotlin function; Sema never routes them through operator-function
+        // lookup, so this value is unreachable in practice.
+        case .identityEqual, .notIdentityEqual: ""
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual: "compareTo"
         case .logicalAnd: "and"
         case .logicalOr: "or"

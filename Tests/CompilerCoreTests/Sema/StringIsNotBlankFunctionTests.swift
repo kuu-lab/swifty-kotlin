@@ -4,7 +4,7 @@ import Testing
 /// STDLIB-TEXT-FN-029: Validates that `isNotBlank` resolves through Sema for
 /// both `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// Both String and CharSequence receivers link to the flattened String ABI.
+/// Both String and CharSequence receivers are implemented in bundled Kotlin source.
 @Suite
 struct StringIsNotBlankFunctionTests {
     @Test func testIsNotBlankFunctionResolvesInSource() throws {
@@ -29,7 +29,7 @@ struct StringIsNotBlankFunctionTests {
         )
     }
 
-    @Test func testIsNotBlankStringExtensionHasRuntimeLink() throws {
+    @Test func testIsNotBlankStringExtensionIsBundledKotlin() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
 
@@ -41,8 +41,8 @@ struct StringIsNotBlankFunctionTests {
             "Expected kotlin.text.isNotBlank to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotBlank_flat",
-            "Expected isNotBlank extension to link to kk_string_isNotBlank"
+            sema.symbols.externalLinkName(for: symbol) == nil,
+            "Expected isNotBlank extension to be bundled Kotlin without a C external link"
         )
     }
 }

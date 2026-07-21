@@ -212,9 +212,11 @@ extension BuildKIRRegressionTests {
             #expect(jumpCount >= 4)
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_range_iterator"))
-            #expect(callees.contains("kk_range_hasNext"))
-            #expect(callees.contains("kk_range_next"))
+            #expect(!callees.contains("kk_range_iterator"), "Array for-loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!callees.contains("kk_range_hasNext"), "Array for-loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!callees.contains("kk_range_next"), "Array for-loop should not use kk_range_next, got: \(callees)")
+            #expect(callees.contains("kk_array_size"), "Array for-loop should call kk_array_size, got: \(callees)")
+            #expect(callees.contains("kk_array_get_inbounds"), "Array for-loop should call kk_array_get_inbounds, got: \(callees)")
         }
     }
 

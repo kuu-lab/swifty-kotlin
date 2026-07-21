@@ -1,4 +1,12 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// SKIP-DIFF (DEBT-DIFF-003): launch{} dispatches its body eagerly onto a real
+// GCD queue instead of a cooperative single-thread event loop, so a
+// synchronous cancel() right after launch{} can race ahead of (or land
+// after) the body reaching its first suspension point. Case 4 below
+// ("CancellationException is not treated as a failure") prints an extra
+// "cancelled cleanly" line that the JVM reference never emits, because on
+// the JVM the coroutine body never starts running before the cancel takes
+// effect. Needs a genuine "pending, not yet started" job state (same gap
+// blocking CoroutineStart.LAZY in coroutine_edge_cases.kt).
 import kotlinx.coroutines.*
 
 // TEST-CORO-003: Exception handling in coroutines — CoroutineExceptionHandler,
