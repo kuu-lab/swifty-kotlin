@@ -292,7 +292,8 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if runtimeAnyKind(lhs, lhsTag) != runtimeAnyKind(rhs, rhsTag) {
         return kk_box_bool(0)
     }
-    return kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+    let equal = runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)
+    return kk_box_bool(equal ? 1 : 0)
 }
 
 /// 1-arg member-dispatch wrappers for kotlin.Any virtual methods.

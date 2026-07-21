@@ -4,20 +4,12 @@ import Testing
 
 @Suite(.serialized)
 struct RuntimeSecureRandomTests {
-    init() {
-        kk_runtime_force_reset()
-    }
-
     private func runtimeArrayInts(_ raw: Int) -> [Int] {
         runtimeArrayBox(from: raw)?.elements ?? []
     }
 
     @Test
     func testSecureRandomGenerateSeedProducesRequestedLength() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let secure = __kk_secure_random_get_instance()
         let bytes = runtimeArrayInts(__kk_secure_random_generate_seed(secure, 8))
 
@@ -26,10 +18,6 @@ struct RuntimeSecureRandomTests {
 
     @Test
     func testSecureRandomSetSeedMakesOutputDeterministic() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let a = __kk_secure_random_get_instance()
         let b = __kk_secure_random_get_instance()
         _ = __kk_secure_random_set_seed(a, 12345)
@@ -43,10 +31,6 @@ struct RuntimeSecureRandomTests {
 
     @Test
     func testSecureRandomNextBytesUsesInputLength() {
-        defer {
-            kk_runtime_force_reset()
-        }
-
         let secure = __kk_secure_random_get_instance()
         let input = registerRuntimeObject(RuntimeArrayBox(length: 5))
         let output = runtimeArrayInts(__kk_secure_random_next_bytes(secure, input))

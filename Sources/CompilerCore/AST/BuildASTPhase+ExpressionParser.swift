@@ -257,6 +257,10 @@ extension BuildASTPhase {
                 return .equal
             case .symbol(.bangEqual):
                 return .notEqual
+            case .symbol(.tripleEqual):
+                return .identityEqual
+            case .symbol(.notTripleEqual):
+                return .notIdentityEqual
             case .symbol(.lessThan):
                 return .lessThan
             case .symbol(.lessOrEqual):
@@ -303,7 +307,7 @@ extension BuildASTPhase {
                 90
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 80
-            case .equal, .notEqual:
+            case .equal, .notEqual, .identityEqual, .notIdentityEqual:
                 70
             case .logicalAnd:
                 60

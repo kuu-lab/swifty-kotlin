@@ -48,6 +48,9 @@ private let setThrowingHOF: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
     return 0
 }
 
+/// `.serialized` because tests share `gSetHOFState`. Must not call
+/// `kk_runtime_force_reset()`: Swift Testing suites run concurrently in one
+/// process, and a global reset deallocates handles owned by other suites.
 @Suite(.serialized)
 struct RuntimeSetCollectionHOFTests {
     // NOTE: Deliberately does NOT call `kk_runtime_force_reset()` here.
