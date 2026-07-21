@@ -128,7 +128,7 @@
 - [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
 - [x] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する。2026-07-17 完了: 宣言・初期化とも他に参照なしを確認の上削除、`swift build` green
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
-- [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する
+- [x] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する。2026-07-17 完了: プロジェクト全体 grep で宣言・初期化子代入(現行行番号は `:775`/`:1565`)以外の参照ゼロを確認し削除。`swift build` 成功、`loc_report.sh` メトリクス悪化なし、Golden(13 tests/6 suites)・拡張タイムアウト版 `diff_kotlinc`(639 中 0 failed)は green
 - [x] DEADCODE-CORE-043: [W0] 同ファイル `:778` の `onFailName` と initializer `:1569` の代入を削除する
 - [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869 open
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
