@@ -1067,6 +1067,17 @@ final class CallLowerer {
                 thrownResult: nil
             ))
             if let ownerNominalSymbol {
+                if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
+                    let registerDataClassResult = arena.appendTemporary(type: intType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_runtime_register_data_class"),
+                        arguments: [classIDExpr],
+                        result: registerDataClassResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
                     sema: sema,
