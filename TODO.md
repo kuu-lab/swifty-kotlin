@@ -115,7 +115,7 @@
 - [ ] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない
 - [ ] DEADCODE-CORE-026: [R0] `SemanticsModels.swift:1013` の private `areKindsCompatibleForExpectActual(expect:actual:)` を削除する
 - [ ] DEADCODE-CORE-027: [R0] `CallTypeChecker+MemberCallInferenceFallbacks.swift:386` の `isKotlinDurationType(_:sema:interner:)` を削除する
-- [ ] DEADCODE-CORE-028: [R0] `CallTypeChecker+SyntheticDispatchHelpers.swift:187` の `shouldUseRuntimeStdlibSpecialCall(...)` を削除する
+- [x] DEADCODE-CORE-028: [R0] `CallTypeChecker+SyntheticDispatchHelpers.swift:187` の `shouldUseRuntimeStdlibSpecialCall(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロ（リポジトリ全体 `rg` で再確認）を確認し関数本体とドキュメントコメントを削除。`swift build` 成功・`git diff --check` クリーン・`--filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（297件）と `--filter CompilerCoreTests.TypeCheckHelpersCoverageTests`（7件）が "All tests passed." で green を確認済み。フル `--filter CompilerCoreTests` は本タスクとは無関係な既存の環境要因クラッシュ（BUG-045）に3回とも巻き込まれ完走しなかったため、影響範囲に絞った上記2スイートを代替エビデンスとした
 - [ ] DEADCODE-CORE-029: [R0] `BundledDeclarationIndex.swift:67` の `build(symbols:types:sourceManager:interner:)` overload を削除する。`Phase.swift` が使う `build(ast:symbols:types:sourceManager:interner:)` は残す
 - [x] DEADCODE-CORE-030: [R0] `TypeInferenceContext.swift:80` の `with(enclosingClassSymbol:)` を削除する。`copying(...enclosingClassSymbol:)` は別 API として残す。2026-07-17 完了: `rg` で宣言以外の呼び出しゼロを確認し削除、`copying(enclosingClassSymbol:)` 経由の呼び出し（`DeclTypeChecker+ClassAndObjectChecking.swift` 等）は変更なし。`swift build` 成功、Sema ゴールデン含むテストで回帰なしを確認
 - [x] DEADCODE-CORE-031: [R0] `SyntheticStubSurfaceSpec.swift:18` の static `float` 型参照定数を削除する
