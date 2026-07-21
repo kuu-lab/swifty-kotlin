@@ -91,7 +91,9 @@ final class LoadSourcesPhase: CompilerPhase {
             throw CompilerPipelineError.loadError
         }
 
-        injectBundledStdlib(into: ctx.sourceManager)
+        if ctx.options.includeStdlib {
+            injectBundledStdlib(into: ctx.sourceManager)
+        }
 
         for path in ctx.options.inputs {
             if ctx.sourceManager.containsFile(path: path) { continue }
