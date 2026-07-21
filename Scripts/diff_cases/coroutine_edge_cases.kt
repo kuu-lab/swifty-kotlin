@@ -1,4 +1,12 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// SKIP-DIFF (DEBT-DIFF-003): `CoroutineStart.LAZY` / `launch(start = ...)` is
+// intentionally not registered (see HeaderHelpers+SyntheticCoroutineRegistry.swift,
+// STDLIB-CORO-072 note): rewriteLauncherCall's dispatcher-aware path treats
+// ANY 2-arg launch call's first argument as a CoroutineDispatcher, so a
+// CoroutineStart value there crashes at runtime instead of compiling. Needs
+// (1) lowering-side disambiguation of the 2nd launch argument by type, and
+// (2) a real "pending, not yet started" RuntimeJobHandle state that
+// cancel()/start()/join() honor before the body ever runs (same gap behind
+// the extra "cancelled cleanly" line in coroutine_exception_handling.kt).
 import kotlinx.coroutines.*
 
 // TEST-CORO-003: Coroutine edge cases — empty scope, immediate cancellation,
