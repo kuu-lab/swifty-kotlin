@@ -63,20 +63,6 @@ struct BundledDeclarationIndex: Sendable {
         )
     }
 
-    /// Build from bundled SymbolTable declarations after bundled header collection.
-    static func build(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        sourceManager: SourceManager,
-        interner: StringInterner
-    ) -> BundledDeclarationIndex {
-        buildFromSymbols(
-            symbols: symbols,
-            types: types,
-            sourceManager: sourceManager,
-            interner: interner
-        )
-    }
 
     static func memberKey(
         for symbol: SemanticSymbol,
