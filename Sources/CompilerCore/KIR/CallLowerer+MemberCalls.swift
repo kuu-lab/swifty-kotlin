@@ -405,6 +405,22 @@ extension CallLowerer {
                         canThrow: false,
                         thrownResult: nil
                     ))
+                } else if let localExprID = driver.ctx.localValue(for: localSym),
+                          let invokeCallee = runtimeCallableInvokeCallee(
+                              callableValueCallBinding: callableBinding,
+                              sema: sema,
+                              interner: interner
+                          )
+                {
+                    let allArgs = [localExprID, loweredReceiver] + loweredArgIDs
+                    instructions.append(.call(
+                        symbol: localSym,
+                        callee: invokeCallee,
+                        arguments: allArgs,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
                 } else {
                     let allArgs = [loweredReceiver] + loweredArgIDs
                     instructions.append(.call(

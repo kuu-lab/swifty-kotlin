@@ -111,10 +111,11 @@ extension CallTypeChecker {
             id,
             calleeName: calleeName,
             argExpr: samArgExpr,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
+               ctx: ctx,
+               locals: &locals,
+               expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs
+           ) {
             return samType
         }
 
@@ -206,12 +207,20 @@ extension CallTypeChecker {
         argExpr: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
+        expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         // Look up the callee name as an interface symbol.
-        let interfaceCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+        var interfaceCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+        }
+        if interfaceCandidates.isEmpty {
+            let kotlinFQName = [ctx.interner.intern("kotlin"), calleeName]
+            interfaceCandidates = ctx.sema.symbols.lookupAll(fqName: kotlinFQName).filter { candidate in
+                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
+                return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+            }
         }
         guard let interfaceSymID = interfaceCandidates.first else {
             return nil
@@ -220,7 +229,14 @@ extension CallTypeChecker {
         let interfaceTypeParameters = sema.types.nominalTypeParameterSymbols(for: interfaceSymID)
         let interfaceArgs: [TypeArg]
         if explicitTypeArgs.isEmpty {
-            interfaceArgs = []
+            if let expectedType,
+               let expectedClassType = resolveClassType(expectedType, sema: sema),
+               expectedClassType.classSymbol == interfaceSymID
+            {
+                interfaceArgs = expectedClassType.args
+            } else {
+                interfaceArgs = []
+            }
         } else {
             guard explicitTypeArgs.count == interfaceTypeParameters.count else {
                 return nil

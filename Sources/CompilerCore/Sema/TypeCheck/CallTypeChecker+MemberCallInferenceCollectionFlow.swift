@@ -45,12 +45,30 @@ extension CallTypeChecker {
         let flowHOFNames: Set = ["map", "filter", "collect"]
         let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
         let mutableListOnlyCollectionHOFNames: Set = ["sort", "sortBy", "sortByDescending", "sortWith"]
+        // Fallback for receivers that were never routed through a `flow { }`/operator
+        // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
+        // `isFlowExpr`/`isFlowSymbol` bindings above were never marked. Recover the
+        // same information directly from the receiver's inferred class type.
+        let flowClassSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlinx"), interner.intern("coroutines"),
+            interner.intern("flow"), interner.intern("Flow"),
+        ])
+        let receiverFlowClassType: ClassType? = if let flowClassSymbol,
+                                                    case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                                                    classType.classSymbol == flowClassSymbol
+        {
+            classType
+        } else {
+            nil
+        }
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
             true
         } else if case .nameRef = ast.arena.expr(receiverID),
                   let receiverSymbol = sema.bindings.identifierSymbol(for: receiverID),
                   sema.bindings.isFlowSymbol(receiverSymbol)
         {
+            true
+        } else if receiverFlowClassType != nil {
             true
         } else {
             false
@@ -62,6 +80,13 @@ extension CallTypeChecker {
                   let elementType = sema.bindings.flowElementType(forSymbol: receiverSymbol)
         {
             elementType
+        } else if let firstArg = receiverFlowClassType?.args.first {
+            switch firstArg {
+            case let .invariant(t), let .out(t), let .in(t):
+                t
+            case .star:
+                sema.types.anyType
+            }
         } else {
             sema.types.anyType
         }
