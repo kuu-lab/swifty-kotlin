@@ -343,8 +343,8 @@
 
 ### HIGH: 影響大（多数ファイル or バグ温床）
 
-- [ ] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — symbol 定義 → パラメータループ → `setFunctionSignature` の一連の処理が `HeaderHelpers+SyntheticStringRegistrationHelpers.swift`・`+SyntheticSequenceRegistrationHelpers`・`+SyntheticMutableListStubs`・`+SyntheticMathStubs`・`+SyntheticPathStubs+SymbolRegistration` の 5 ファイルで 60〜90 行ずつ重複している。共有ファイルに `registerSyntheticFunctionStub(...)` フリー関数を定義して各ヘルパーから呼び出す
-- [ ] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `guard case let .classType(...) = sema.types.kind(of: sema.types.makeNonNullable(...))` という 3 行ガードが 61 ファイルに散在している。`func resolveClassTypeSymbol(_ type: TypeID, sema: SemaModule) -> (ClassType, Symbol)?` のような共有ヘルパーを定義して置き換える
+- [x] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — `SyntheticFunctionStubRegistration.swift` の `registerSyntheticFunctionStub(...)` が symbol 定義・パラメータ登録・signature 設定を集約済み。対象の String / Sequence / MutableList / Math / Path helper が同関数を利用する
+- [x] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `ClassTypeResolution.swift` の `resolveClassTypeSymbol` / `resolveClassType` に集約し、残存していた direct `classType` ガードも置換済み
 
 ### MEDIUM: 局所的だが改善余地あり
 
