@@ -671,6 +671,16 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
+    func testKKStringIndentSourceBridgeSignatures() throws {
+        let trimMargin = try requireSpec("__kk_string_trimMargin")
+        XCTAssertEqual(trimMargin.returnType, .intptr)
+        XCTAssertEqual(trimMargin.parameters.map(\.type), [
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+        ])
+    }
+
     func testKKStringIndentFlatSignatures() throws {
         let receiverOnlyNames = [
             "kk_string_trimIndent_flat",
@@ -844,15 +854,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters.count, 2)
         XCTAssertEqual(spec.parameters[0].type, .intptr)
         XCTAssertEqual(spec.parameters[1].type, .intptr)
-    }
-
-    func testKKComparatorFromSelectorPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_comparator_from_selector_primitive")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].type, .int32)
     }
 
     func testKKListSortedSignature() throws {

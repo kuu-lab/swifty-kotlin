@@ -73,6 +73,13 @@ func runtime_test_suspend_async(_ continuation: Int, _ outThrown: UnsafeMutableP
     return kk_coroutine_state_exit(continuation, 73)
 }
 
+/// Direct suspend-call test entry that completes without reaching a suspend point.
+@_cdecl("runtime_test_direct_suspend_immediate")
+func runtime_test_direct_suspend_immediate(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 123)
+}
+
 @_cdecl("runtime_test_suspend_with_arg")
 func runtime_test_suspend_with_arg(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let arg = kk_coroutine_launcher_arg_get(continuation, 0)
@@ -227,6 +234,26 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         let handle = kk_kxmini_async(entryRaw, runtimeKxMiniAsyncFunctionID)
         XCTAssertNotEqual(handle, 0)
         XCTAssertEqual(kk_kxmini_async_await(handle, 0), 73)
+    }
+
+    func testDirectSuspendCallReturnsImmediateChildResult() {
+        let callerContinuation = kk_coroutine_continuation_new(9108)
+        defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+        let childContinuation = kk_coroutine_continuation_new(9109)
+        let entryRaw = unsafeBitCast(
+            runtime_test_direct_suspend_immediate as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+
+        let result = kk_coroutine_call_direct_suspend(
+            entryRaw,
+            childContinuation,
+            callerContinuation
+        )
+
+        XCTAssertEqual(result, 123)
+        XCTAssertNotEqual(result, Int(bitPattern: kk_coroutine_suspended()))
+        XCTAssertEqual(kk_coroutine_state_get_completion(callerContinuation), 123)
     }
 
     func testLauncherArgSetAndGetRoundTrips() {

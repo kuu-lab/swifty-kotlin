@@ -761,6 +761,11 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return .suspended
         }
 
+        // BUG-041: blocking fallback (see RuntimeJobHandle.join()) -- flush
+        // undispatched launches from this thread before the gate.wait() below
+        // so a task that's still pending in RuntimePendingLaunchQueue actually
+        // gets a chance to run and signal completion.
+        RuntimePendingLaunchQueue.flush()
         let gate = DispatchSemaphore(value: 0)
         let snapshot = RuntimeTaskAwaitSnapshot()
         addCompletionResumer { result, thrown in
@@ -849,6 +854,91 @@ enum RuntimeJobHandleTaskKey {
         return ObjectIdentifier(token)
     }
 
+}
+
+/// BUG-041 fix: tracks whether the current thread is synchronously inside a
+/// `runSuspendEntryLoopWithContinuation` burst (running compiled Kotlin
+/// coroutine body code), as opposed to a raw/host call straight into a
+/// `kk_kxmini_*` entry point (e.g. white-box runtime tests that call
+/// `kk_kxmini_launch` directly and never suspend or join anything). Only the
+/// former can race a synchronous `cancel()` against the dispatch queue --
+/// there's no "next yield" to defer to for the latter, so deferring
+/// unconditionally would leave those launches stranded forever.
+///
+/// A depth counter (not a flag) so a burst that itself synchronously drives a
+/// nested `runSuspendEntryLoopWithContinuation` (e.g. a nested `runBlocking`)
+/// doesn't have the inner call's exit clear the outer burst's "active" status
+/// early.
+enum RuntimeCoroutineBurstDepth {
+    private static let pthreadKey: pthread_key_t = makePthreadKey()
+    private final class Box: @unchecked Sendable { var depth: Int = 0 }
+
+    private static func currentBox() -> Box {
+        if let existing: Box = pthreadGetValue(pthreadKey) {
+            return existing
+        }
+        let box = Box()
+        pthreadSetValue(pthreadKey, box)
+        return box
+    }
+
+    static func enter() { currentBox().depth += 1 }
+    static func exit() { let box = currentBox(); box.depth = max(0, box.depth - 1) }
+    static var isActive: Bool { currentBox().depth > 0 }
+}
+
+/// BUG-041 fix: defers the real GCD dispatch of a launched job's work item
+/// until the enqueuing thread's current synchronous burst actually yields
+/// (the next suspension or completion inside `runSuspendEntryLoopWithContinuation`).
+///
+/// Real kotlinx.coroutines schedules a freshly `launch`-ed child onto the same
+/// single-threaded event loop as its parent, so the child never gets a turn to
+/// run until the parent suspends or finishes. `DispatchQueue.global()` gives
+/// this runtime true OS-thread parallelism instead, so without this queue a
+/// pool thread can start running the child (and observe "not yet cancelled")
+/// before a synchronous, same-thread `job.cancel()` right after `launch{}`
+/// takes effect -- the exact race in BUG-041. Deferring dispatch until this
+/// thread's burst yields makes that race impossible: a `cancel()` called
+/// before the next yield always finds the job still undispatched.
+enum RuntimePendingLaunchQueue {
+    private static let pthreadKey: pthread_key_t = makePthreadKey()
+
+    private final class Box: @unchecked Sendable {
+        var items: [(job: RuntimeJobHandle, workItem: DispatchWorkItem)] = []
+    }
+
+    private static func currentBox() -> Box {
+        if let existing: Box = pthreadGetValue(pthreadKey) {
+            return existing
+        }
+        let box = Box()
+        pthreadSetValue(pthreadKey, box)
+        return box
+    }
+
+    /// Queue `workItem` for dispatch on this thread's next `flush()` -- unless
+    /// there's no active burst to flush it at (a direct, non-coroutine call),
+    /// in which case there's no race to close and it's dispatched right away.
+    static func enqueue(job: RuntimeJobHandle, workItem: DispatchWorkItem) {
+        guard RuntimeCoroutineBurstDepth.isActive else {
+            KxMiniRuntime.launch(workItem: workItem)
+            return
+        }
+        currentBox().items.append((job, workItem))
+    }
+
+    /// Dispatch every work item queued on this thread since the last flush.
+    /// Jobs already cancelled while pending are dropped instead of dispatched --
+    /// equivalent to `DispatchWorkItem.cancel()` winning before the block runs.
+    static func flush() {
+        let box = currentBox()
+        guard !box.items.isEmpty else { return }
+        let pending = box.items
+        box.items = []
+        for entry in pending where !entry.job.cancellationSnapshot() {
+            KxMiniRuntime.launch(workItem: entry.workItem)
+        }
+    }
 }
 
 /// A job handle representing a launched coroutine. Supports join, cancellation,
@@ -1127,6 +1217,11 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// a GCD thread) is handled by `kk_job_join` via `addJoinResumer` (CORO-004); this
     /// method is the synchronous fallback for non-suspend contexts.
     func join() -> Int {
+        // BUG-041: this (or a sibling launched on the same thread) may still be
+        // sitting undispatched in RuntimePendingLaunchQueue -- flush before any
+        // chance of blocking below, or a job that was never handed to GCD would
+        // never signal completionSemaphore.
+        RuntimePendingLaunchQueue.flush()
         lock.lock()
         if state.isCompleted {
             let value = terminalValueLocked()
@@ -1451,6 +1546,79 @@ public func kk_coroutine_continuation_new(_ functionID: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+private final class RuntimeDirectSuspendCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hasReturned = false
+    private var outcome: (result: Int, thrown: Int)?
+
+    /// Record completion and report whether the caller already returned.
+    func record(result: Int, thrown: Int) -> Bool {
+        lock.lock()
+        outcome = (result, thrown)
+        let shouldSignal = hasReturned
+        lock.unlock()
+        return shouldSignal
+    }
+
+    /// Mark the initial invocation as returned and return a completion that
+    /// happened before that point, if any.
+    func markReturned() -> (result: Int, thrown: Int)? {
+        lock.lock()
+        hasReturned = true
+        let completed = outcome
+        lock.unlock()
+        return completed
+    }
+}
+
+/// STDLIB-CORO-BUG-01: runtime support for a suspend function calling another
+/// suspend function directly (not through launch/async/withContext). The
+/// callee runs on its own fresh continuation (childContinuation) via the
+/// standard entry loop; its completion is relayed into the caller's own
+/// continuation (callerContinuationRaw) instead of being dropped, so the
+/// caller's entry loop -- already about to suspend on this call -- gets woken
+/// up with the real result. A synchronously completed child returns its result
+/// directly; only a child that remains suspended schedules a caller resume.
+@_cdecl("kk_coroutine_call_direct_suspend")
+public func kk_coroutine_call_direct_suspend(
+    _ entryPointRaw: Int,
+    _ childContinuation: Int,
+    _ callerContinuationRaw: Int
+) -> Int {
+    guard let callerState = runtimeContinuationState(from: callerContinuationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_call_direct_suspend received invalid caller continuation handle")
+    }
+    if let childState = runtimeContinuationState(from: childContinuation) {
+        childState.scope = callerState.scope
+        childState.jobHandle = callerState.jobHandle
+    }
+    let completion = RuntimeDirectSuspendCompletion()
+    _ = runSuspendEntryLoopWithContinuation(
+        entryPointRaw: entryPointRaw,
+        continuation: childContinuation,
+        onCompletion: { result, thrown in
+            if thrown != 0 {
+                callerState.thrownException = thrown
+            } else {
+                callerState.completion = Int64(result)
+            }
+            if completion.record(result: result, thrown: thrown) {
+                callerState.signalResume()
+            }
+        }
+    )
+    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
+    if let outcome = completion.markReturned() {
+        if outcome.thrown != 0 {
+            // The state machine reads the thrown exception after a resume.
+            callerState.signalResume()
+            return suspendedToken
+        }
+        return outcome.result
+    }
+    return suspendedToken
 }
 
 @_cdecl("kk_create_coroutine_unintercepted")
@@ -1875,7 +2043,7 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     }
     job.dispatchWorkItem = workItem
     job.markScheduled()
-    KxMiniRuntime.launch(workItem: workItem)
+    RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
 
@@ -1897,13 +2065,25 @@ public func kk_kxmini_async(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
+    // STDLIB-CORO-BUG-05: capture the continuation state so we can tell a
+    // thrown exception apart from a normal (possibly zero) result after the
+    // entry loop returns -- mirrors kk_kxmini_launch_with_exception_handler.
+    // Without this, `async { throw ... }` completed the task with `result`
+    // (which the loop forces to 0 on a throw, see runSuspendEntryLoopWithContinuation),
+    // so `await()` observed thrownException == 0 and silently resumed with 0
+    // instead of re-throwing.
+    let capturedContState = runtimeContinuationState(from: continuation)
 
     KxMiniRuntime.launch {
         task.markStarted()
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw, continuation: continuation
         )
-        task.complete(with: result)
+        if let thrown = capturedContState?.thrownException, thrown != 0 {
+            task.completeExceptionally(with: thrown)
+        } else {
+            task.complete(with: result)
+        }
     }
     return Int(bitPattern: taskPtr)
 }
@@ -2008,7 +2188,7 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
     }
     job.dispatchWorkItem = workItem
     job.markScheduled()
-    KxMiniRuntime.launch(workItem: workItem)
+    RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
 
@@ -2026,6 +2206,13 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
     }
+    // STDLIB-CORO-BUG-05: same fix as kk_kxmini_async -- this is the launcher-thunk
+    // (argument-bearing) counterpart, taken whenever the async {} block captures
+    // anything from the enclosing scope, so it needs the same thrownException
+    // check before completing the task, or `async { ...; throw ... }.await()`
+    // silently resumes with 0 instead of re-throwing whenever the block closes
+    // over an outer variable.
+    let capturedContState = runtimeContinuationState(from: continuation)
 
     KxMiniRuntime.launch {
         task.markStarted()
@@ -2033,7 +2220,11 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
         RuntimeCoroutineScope.current = nil
-        task.complete(with: result)
+        if let thrown = capturedContState?.thrownException, thrown != 0 {
+            task.completeExceptionally(with: thrown)
+        } else {
+            task.complete(with: result)
+        }
     }
     return Int(bitPattern: taskPtr)
 }
@@ -2329,7 +2520,7 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
     }
     job.dispatchWorkItem = workItem
     job.markScheduled()
-    KxMiniRuntime.launch(workItem: workItem)
+    RuntimePendingLaunchQueue.enqueue(job: job, workItem: workItem)
     return Int(bitPattern: jobPtr)
 }
 
@@ -3000,6 +3191,19 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
     return 0
 }
 
+/// Zero-arg ABI backing for the bare `isActive` reference inside a coroutine
+/// builder body (kotlinx.coroutines.isActive), which reads the currently
+/// running job rather than an explicit receiver. No enclosing job (e.g. at
+/// the outermost runBlocking root) is treated as active, matching the
+/// not-yet-cancelled default.
+@_cdecl("kk_coroutine_current_is_active")
+public func kk_coroutine_current_is_active() -> Int {
+    guard let job = RuntimeJobHandle.current else {
+        return 1
+    }
+    return job.isActiveSnapshot() ? 1 : 0
+}
+
 /// Returns 1 if the job has completed (either normally or by cancellation).
 /// ABI backing for `job.isCompleted` in Kotlin.
 @_cdecl("kk_job_is_completed")
@@ -3264,9 +3468,18 @@ func runSuspendEntryLoopWithContinuation(
     let taskKeyBox = TaskKeyBox(key: currentTaskKey)
 
     loopBodyBox.body = {
+        // BUG-041: mark this thread as synchronously running a coroutine body
+        // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
+        // knows any `launch{}` it makes has a real burst to be flushed at.
+        RuntimeCoroutineBurstDepth.enter()
         var thrownValue = 0
         let result = entryPoint(continuation, &thrownValue)
         if thrownValue != 0 {
+            // BUG-041: this burst is ending (with a thrown exception); dispatch
+            // anything it `launch`-ed for real now that no more synchronous
+            // code on this thread can race a cancel() against them.
+            RuntimeCoroutineBurstDepth.exit()
+            RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
@@ -3288,6 +3501,10 @@ func runSuspendEntryLoopWithContinuation(
             return
         }
         if result != suspendedToken {
+            // BUG-041: burst completed with a concrete result; flush before
+            // signalling completion for the same reason as the thrown path.
+            RuntimeCoroutineBurstDepth.exit()
+            RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
@@ -3303,6 +3520,10 @@ func runSuspendEntryLoopWithContinuation(
             return
         }
         guard let state = runtimeContinuationState(from: continuation) else {
+            // BUG-041: defensive terminal fallback; flush for consistency with
+            // the other exit paths above.
+            RuntimeCoroutineBurstDepth.exit()
+            RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
@@ -3338,6 +3559,11 @@ func runSuspendEntryLoopWithContinuation(
             state.resetResumeState()
             loopBodyBox.body?()
         }
+        // BUG-041: this burst is suspending, so it's yielding the thread --
+        // dispatch anything it `launch`-ed for real now, exactly like a
+        // single-threaded Kotlin dispatcher would once the caller yields.
+        RuntimeCoroutineBurstDepth.exit()
+        RuntimePendingLaunchQueue.flush()
         // The current thread is released here — no blocking.
     }
 

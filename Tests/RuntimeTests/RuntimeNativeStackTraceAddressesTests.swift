@@ -1,14 +1,13 @@
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeNativeStackTraceAddressesTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testGetStackTraceAddressesReturnsRuntimeList() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeStackTraceAddressesTests {
+    @Test func getStackTraceAddressesReturnsRuntimeList() throws {
         let raw = kk_native_getStackTraceAddresses()
-        let ptr = try XCTUnwrap(UnsafeMutableRawPointer(bitPattern: raw))
-        let list = try XCTUnwrap(tryCast(ptr, to: RuntimeListBox.self))
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: raw))
+        let list = try #require(tryCast(ptr, to: RuntimeListBox.self))
 
-        XCTAssertFalse(list.elements.isEmpty)
+        #expect(!list.elements.isEmpty)
     }
 }

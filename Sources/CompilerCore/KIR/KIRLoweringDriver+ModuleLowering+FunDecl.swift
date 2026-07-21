@@ -271,8 +271,7 @@ extension KIRLoweringDriver {
             // These string APIs are source-backed for Sema, while call sites
             // are still lowered by the String stdlib member call lowerers.
             switch name {
-            case "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
-                 "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
+            case "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
                  "isBlankLine", "trimBlankEdges":
                 return true
             default:

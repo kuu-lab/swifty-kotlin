@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCreateTempDirectoryTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCreateTempDirectoryPrefixAttributesCreatesDirectory() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCreateTempDirectoryTests {
+    @Test func pathCreateTempDirectoryPrefixAttributesCreatesDirectory() throws {
         var thrown = 0
         let resultRaw = kk_path_createTempDirectory_prefix_attributes(makeRuntimeString("kswiftk-"), 0, &thrown)
         let createdPath = extractStringRaw(kk_path_pathString(resultRaw))
@@ -14,14 +13,14 @@ final class RuntimePathCreateTempDirectoryTests: IsolatedRuntimeXCTestCase {
         }
 
         var isDirectory: ObjCBool = false
-        XCTAssertEqual(thrown, 0)
-        XCTAssertTrue(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
-        XCTAssertTrue((createdPath as NSString).lastPathComponent.hasPrefix("kswiftk-"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: createdPath, isDirectory: &isDirectory))
-        XCTAssertTrue(isDirectory.boolValue)
+        #expect(thrown == 0)
+        #expect(createdPath.hasPrefix(FileManager.default.temporaryDirectory.path))
+        #expect((createdPath as NSString).lastPathComponent.hasPrefix("kswiftk-"))
+        #expect(FileManager.default.fileExists(atPath: createdPath, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
     }
 
-    func testPathCreateTempDirectoryPrefixAttributesUsesDefaultPrefixForNull() throws {
+    @Test func pathCreateTempDirectoryPrefixAttributesUsesDefaultPrefixForNull() throws {
         var thrown = 0
         let resultRaw = kk_path_createTempDirectory_prefix_attributes(0, 0, &thrown)
         let createdPath = extractStringRaw(kk_path_pathString(resultRaw))
@@ -30,10 +29,10 @@ final class RuntimePathCreateTempDirectoryTests: IsolatedRuntimeXCTestCase {
         }
 
         var isDirectory: ObjCBool = false
-        XCTAssertEqual(thrown, 0)
-        XCTAssertTrue((createdPath as NSString).lastPathComponent.hasPrefix("tmp"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: createdPath, isDirectory: &isDirectory))
-        XCTAssertTrue(isDirectory.boolValue)
+        #expect(thrown == 0)
+        #expect((createdPath as NSString).lastPathComponent.hasPrefix("tmp"))
+        #expect(FileManager.default.fileExists(atPath: createdPath, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
     }
 
     private func makeRuntimeString(_ value: String) -> Int {

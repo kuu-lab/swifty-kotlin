@@ -1,11 +1,10 @@
 extension TypeSystem {
     public func isSubtype(_ subtype: TypeID, _ supertype: TypeID) -> Bool {
+        let (subtype, lhs) = normalizedBuiltinDisguisedClassTypeAndKind(subtype)
+        let (supertype, rhs) = normalizedBuiltinDisguisedClassTypeAndKind(supertype)
         if subtype == supertype {
             return true
         }
-
-        let lhs = kind(of: subtype)
-        let rhs = kind(of: supertype)
 
         if case .nothing(.nonNull) = lhs {
             return true
@@ -402,6 +401,40 @@ extension TypeSystem {
         default:
             return false
         }
+    }
+
+    /// Normalizes a `.classType` wrapping one of the synthetic `kotlin.<Name>`
+    /// disguise symbols (`stringClassSymbol`/`charClassSymbol`/`anyClassSymbol`
+    /// — see their doc comments on `TypeSystem`) back to the canonical builtin
+    /// `TypeID`, preserving nullability, and returns its (already-known) kind
+    /// alongside it — `isSubtype` needs both anyway, and computing the kind
+    /// directly here instead of via a second `kind(of:)` call keeps this at
+    /// exactly one lookup per input, same as before this normalization
+    /// existed. A no-op for every other type.
+    ///
+    /// Without this, `String::class`'s `classRefTargetType` (which resolves to
+    /// the disguised nominal form via scope lookup — see `inferClassRefExpr`)
+    /// compares as unrelated to the canonical `stringType` that an ordinary
+    /// `is String` check uses, so e.g. inferring `KClass<T>.cast(): T` with a
+    /// `String::class` receiver against an explicit `String`-typed call site
+    /// reports "Conflicting bounds for type variable" even though both bounds
+    /// mean the same type.
+    private func normalizedBuiltinDisguisedClassTypeAndKind(_ type: TypeID) -> (TypeID, TypeKind) {
+        let kind = kind(of: type)
+        guard case let .classType(classType) = kind else {
+            return (type, kind)
+        }
+        let nullability = classType.nullability
+        if let stringClassSymbol, classType.classSymbol == stringClassSymbol {
+            return (withNullability(nullability, for: stringType), .stringStruct(nullability))
+        }
+        if let charClassSymbol, classType.classSymbol == charClassSymbol {
+            return (withNullability(nullability, for: charType), .primitive(.char, nullability))
+        }
+        if let anyClassSymbol, classType.classSymbol == anyClassSymbol {
+            return (withNullability(nullability, for: anyType), .any(nullability))
+        }
+        return (type, kind)
     }
 
     public func lub(_ types: [TypeID]) -> TypeID {

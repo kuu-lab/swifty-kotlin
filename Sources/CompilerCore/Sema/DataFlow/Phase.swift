@@ -67,6 +67,18 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+        let stringBuilderOwner = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("text"),
+            ctx.interner.intern("StringBuilder"),
+        ]
+        if bundledIndex.contains(ownerFQName: stringBuilderOwner, name: ctx.interner.intern("append"), arity: 1) {
+            patchSourceBackedStringBuilderSupertypes(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+        }
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
