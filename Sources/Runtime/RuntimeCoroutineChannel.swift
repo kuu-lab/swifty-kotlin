@@ -187,6 +187,9 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // Channel send is not yet lowered as a true suspend point, so the
         // runtime must block here until a receiver or close/cancellation wakes it.
+        // BUG-041 interaction: flush undispatched launch{} work before blocking
+        // so a sibling `launch { receive() }` queued on this thread can run.
+        RuntimePendingLaunchQueue.flush()
         senderSem.wait()
 
         // After waking, check the wakeup reason.
@@ -270,6 +273,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // Channel receive is not yet lowered as a true suspend point, so the
         // runtime must block here until a sender, close, or cancellation wakes it.
+        // BUG-041 interaction: flush undispatched launch{} work before blocking
+        // so a sibling `launch { send(x) }` queued on this thread can run.
+        // Without this, channel_basic-style rendezvous deadlocks (run exit 124).
+        RuntimePendingLaunchQueue.flush()
         receiverEntry.semaphore.wait()
 
         // After waking, check the wakeup reason.

@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine/channel/flow parity tracking
 // NOTE: Requires kotlinx-coroutines on classpath.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*

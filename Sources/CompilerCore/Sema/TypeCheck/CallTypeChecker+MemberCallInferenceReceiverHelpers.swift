@@ -143,7 +143,7 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let memberName = ctx.interner.resolve(calleeName)
         let flowMembers: Set = [
-            "map", "filter", "take", "collect", "toList", "first",
+            "map", "filter", "take", "collect", "collectLatest", "toList", "first",
             "single",
             "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
             "buffer", "conflate", "flowOn", "debounce", "sample", "delayEach",
@@ -240,7 +240,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
 
-        case "map", "filter", "collect", "transform", "takeWhile", "dropWhile",
+        case "map", "filter", "collect", "collectLatest", "transform", "takeWhile", "dropWhile",
              "flatMapConcat", "flatMapMerge", "flatMapLatest",
              "catch", "retryWhen", "onErrorReturn", "onErrorResume":
             guard args.count == 1 else {
@@ -255,7 +255,7 @@ extension CallTypeChecker {
             let lambdaReturnType: TypeID = switch memberName {
             case "filter":
                 sema.types.booleanType
-            case "collect":
+            case "collect", "collectLatest":
                 sema.types.unitType
             case "takeWhile", "dropWhile":
                 sema.types.unitType
@@ -277,7 +277,7 @@ extension CallTypeChecker {
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: lambdaParameterTypes,
                 returnType: lambdaReturnType,
-                isSuspend: memberName == "collect",
+                isSuspend: memberName == "collect" || memberName == "collectLatest",
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {
@@ -286,7 +286,7 @@ extension CallTypeChecker {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             }
 
-            if memberName != "collect" {
+            if memberName != "collect" && memberName != "collectLatest" {
                 sema.bindings.markFlowExpr(id)
                 let resultElementType: TypeID = if memberName == "map" || memberName == "transform",
                                                    case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
@@ -302,7 +302,7 @@ extension CallTypeChecker {
             }
 
             let resultType: TypeID
-            if memberName == "collect" {
+            if memberName == "collect" || memberName == "collectLatest" {
                 resultType = sema.types.unitType
             } else {
                 let resultElement = sema.bindings.flowElementType(forExpr: id) ?? receiverElementType
