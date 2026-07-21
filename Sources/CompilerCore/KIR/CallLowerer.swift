@@ -1067,6 +1067,17 @@ final class CallLowerer {
                 thrownResult: nil
             ))
             if let ownerNominalSymbol {
+                if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
+                    let registerDataClassResult = arena.appendTemporary(type: intType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_runtime_register_data_class"),
+                        arguments: [classIDExpr],
+                        result: registerDataClassResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
                     sema: sema,
@@ -1185,6 +1196,17 @@ final class CallLowerer {
                   let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
         {
             finalArgIDs.insert(implicitReceiver, at: 0)
+        }
+        if loweredCallable == nil {
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArgIDs
+            )
         }
         if loweredCallable == nil, let chosen {
             finalArgIDs = appendClosureArgumentsIfNeeded(
@@ -1318,6 +1340,22 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: nullCauseExpr, value: .intLiteral(0)))
                 finalArgIDs.append(nullCauseExpr)
+            } else if loweredCalleeName == interner.intern("kk_channel_send")
+                || loweredCalleeName == interner.intern("kk_channel_receive")
+                || loweredCalleeName == interner.intern("kk_mutex_lock")
+                || loweredCalleeName == interner.intern("kk_semaphore_acquire")
+            {
+                // Implicit-receiver calls (e.g. `send(x)` inside a `produce { }`
+                // block) reach this path instead of `emitMemberCallInstruction`,
+                // which normally appends the zero continuation placeholder for
+                // these callees. Without it the runtime ABI receives one fewer
+                // argument than expected.
+                let continuationExpr = arena.appendExpr(
+                    .intLiteral(0),
+                    type: sema.types.intType
+                )
+                instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
+                finalArgIDs.append(continuationExpr)
             }
             let callCanThrow = needsThrownChannel(calleeName: loweredCalleeName, interner: interner)
             let thrownResult = callCanThrow
@@ -1388,7 +1426,7 @@ final class CallLowerer {
         return result
     }
 
-    private func runtimeCallableInvokeCallee(
+    func runtimeCallableInvokeCallee(
         callableValueCallBinding: CallableValueCallBinding?,
         sema: SemaModule,
         interner: StringInterner
@@ -1401,8 +1439,10 @@ final class CallLowerer {
             return nil
         }
 
+        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+
         if functionType.isSuspend {
-            switch functionType.params.count {
+            switch valueArity {
             case 0:
                 return interner.intern("kk_suspend_function_invoke_0")
             case 1:
@@ -1412,7 +1452,7 @@ final class CallLowerer {
             }
         }
 
-        switch functionType.params.count {
+        switch valueArity {
         case 0:
             return interner.intern("kk_function_invoke_0")
         case 1:
@@ -1441,6 +1481,8 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
+            "__kk_string_trimMargin",
+            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(name)
     }
@@ -1454,6 +1496,8 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
+            "__kk_string_trimMargin",
+            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }

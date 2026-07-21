@@ -18,12 +18,10 @@ struct BoxingCalleeTableTests {
     ]
 
     @Test
-    func testPrimitiveNameLookupUsesRuntimeAliases() {
+    func testPrimitiveNameLookupUsesRuntimeTable() {
         for (primitive, boxName, unboxName) in primitiveExpectations {
             #expect(BoxingCalleeTable.boxCalleeName(for: primitive) == boxName)
             #expect(BoxingCalleeTable.unboxCalleeName(for: primitive) == unboxName)
-            #expect(ABILoweringPass.primitiveBoxingCalleeName(for: primitive) == boxName)
-            #expect(ABILoweringPass.primitiveUnboxingCalleeName(for: primitive) == unboxName)
         }
     }
 

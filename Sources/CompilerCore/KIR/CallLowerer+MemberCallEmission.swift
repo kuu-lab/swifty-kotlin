@@ -127,6 +127,12 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
+        if Self.unresolvedFlowMemberNames.contains(calleeText),
+           isFlowReceiverType(receiverType, sema: sema, interner: interner)
+        {
+            arguments.insert(loweredReceiverID, at: 0)
+            return
+        }
         // removeFirst/removeLast are scoped to ArrayDeque receivers only;
         // they must NOT go through the general unresolvedCollectionMemberNames
         // path because MutableList also has these methods and would get
@@ -217,6 +223,15 @@ extension CallLowerer {
             instructions: &instructions,
             arguments: &finalArguments
         )
+        materializeSourceBackedFunctionValueArguments(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: &finalArguments
+        )
 
         var loweredCallee = loweredMemberCalleeName(
             chosenCallee: chosenCallee,
@@ -240,7 +255,7 @@ extension CallLowerer {
         // "kk_random_nextLong_until", which no longer exist anywhere in Sema's
         // registration since Random stopped being a synthetic object). loweredCallee
         // gets corrected to the range-object bridge name below, but
-        // emitCallInstruction (NativeEmitter+CallEmission.swift) prefers calling
+        // emitFunctionBody's call emission path prefers calling
         // `symbol`'s own internal compiled body over `callee`'s name whenever
         // `symbol` resolves to a known internal function — so without also
         // clearing the symbol here, the corrected callee *name* is silently
@@ -371,57 +386,6 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        // thenBy/thenByDescending/thenDescending/thenComparator (1-arg variants):
-        // receiver comparator + lambda/comparison → (c1Fn, c1Closure, fn, closure)
-        let thenByOneArgCallees: Set<InternedString> = [
-            interner.intern("kk_comparator_then_by"),
-            interner.intern("kk_comparator_then_by_descending"),
-            interner.intern("kk_comparator_then_descending"),
-            interner.intern("kk_comparator_then_comparator"),
-        ]
-        if thenByOneArgCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           sourceArgExprs.count == 1,
-           let primaryComparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: receiver.expr,
-               loweredComparatorID: finalArguments[0],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
-        {
-            let (fnExpr, envExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = primaryComparatorArgs + [fnExpr, envExpr]
-        }
-        if loweredCallee == interner.intern("kk_comparator_then_by_comparator_selector")
-            || loweredCallee == interner.intern("kk_comparator_then_by_descending_comparator_selector"),
-           finalArguments.count == 3,
-           sourceArgExprs.count == 2,
-           let primaryComparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: receiver.expr,
-               loweredComparatorID: finalArguments[0],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
-        {
-            let (selectorFnExpr, selectorEnvExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = primaryComparatorArgs + [finalArguments[1], selectorFnExpr, selectorEnvExpr]
-        }
         if normalized.defaultMask != 0,
            loweredCallee == interner.intern("kk_array_binarySearch_compare")
         {
@@ -908,6 +872,8 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
+            interner.intern("kk_sequence_maxWith"),
+            interner.intern("kk_sequence_maxWithOrNull"),
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
             interner.intern("kk_list_sortedWith"),
@@ -937,6 +903,16 @@ extension CallLowerer {
             )
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
+        }
+        if (loweredCallee == interner.intern("kk_comparator_nulls_first")
+            || loweredCallee == interner.intern("kk_comparator_nulls_last")
+            || loweredCallee == interner.intern("kk_comparator_nulls_first_of")
+            || loweredCallee == interner.intern("kk_comparator_nulls_last_of")),
+           finalArguments.count == 1
+        {
+            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
+            finalArguments.append(zeroClosureExpr)
         }
         // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation) and
         // kk_semaphore_withPermit(handle, actionFnPtr, actionEnvPtr, continuation): split the
