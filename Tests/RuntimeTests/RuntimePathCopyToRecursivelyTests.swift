@@ -1,11 +1,10 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathCopyToRecursivelyTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCopyToRecursivelyCopiesDirectoryTree() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCopyToRecursivelyTests {
+    @Test func pathCopyToRecursivelyCopiesDirectoryTree() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let nestedURL = sourceURL.appendingPathComponent("nested")
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -27,19 +26,18 @@ final class RuntimePathCopyToRecursivelyTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(resultRaw, 0)
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("root.txt"), encoding: .utf8),
-            "root"
+        #expect(thrown == 0)
+        #expect(resultRaw != 0)
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("root.txt"), encoding: .utf8) == "root"
         )
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("nested/child.txt"), encoding: .utf8),
-            "child"
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("nested/child.txt"), encoding: .utf8)
+                == "child"
         )
     }
 
-    func testPathCopyToRecursivelyOverwriteReplacesTargetTree() throws {
+    @Test func pathCopyToRecursivelyOverwriteReplacesTargetTree() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -61,12 +59,12 @@ final class RuntimePathCopyToRecursivelyTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertNotEqual(resultRaw, 0)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("old.txt").path))
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("value.txt"), encoding: .utf8),
-            "replacement"
+        #expect(thrown == 0)
+        #expect(resultRaw != 0)
+        #expect(!FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("old.txt").path))
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("value.txt"), encoding: .utf8)
+                == "replacement"
         )
     }
 
