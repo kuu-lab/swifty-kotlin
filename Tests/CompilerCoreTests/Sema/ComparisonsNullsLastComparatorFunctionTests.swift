@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsNullsLastComparatorFunctionTests: XCTestCase {
-    func testNullsLastComparatorFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsNullsLastComparatorFunctionTests {
+    @Test func testNullsLastComparatorFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.nullsLast
         import kotlin.comparisons.naturalOrder
@@ -12,6 +14,7 @@ final class ComparisonsNullsLastComparatorFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

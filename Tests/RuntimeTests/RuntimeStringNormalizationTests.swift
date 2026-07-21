@@ -1,7 +1,9 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
 
-final class RuntimeStringNormalizationTests: XCTestCase {
+@Suite
+struct RuntimeStringNormalizationTests {
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) throws -> T
@@ -39,33 +41,36 @@ final class RuntimeStringNormalizationTests: XCTestCase {
         }
     }
 
+    @Test
     func testNormalizeNFCComposesDecomposedAccent() {
         let decomposed = "e\u{0301}"
-        XCTAssertEqual(normalizedFlatValue(decomposed, form: __kk_normalization_form_nfc()), "\u{00E9}")
+        #expect(normalizedFlatValue(decomposed, form: __kk_normalization_form_nfc()) == "\u{00E9}")
     }
 
+    @Test
     func testNormalizeNFDDecomposesPrecomposedAccent() {
         let precomposed = "\u{00E9}"
-        XCTAssertEqual(normalizedFlatValue(precomposed, form: __kk_normalization_form_nfd()), "e\u{0301}")
+        #expect(normalizedFlatValue(precomposed, form: __kk_normalization_form_nfd()) == "e\u{0301}")
     }
 
+    @Test
     func testNormalizeNFKCRewritesCompatibilityGlyph() {
         let source = "\u{FB01}"
-        XCTAssertEqual(normalizedFlatValue(source, form: __kk_normalization_form_nfkc()), "fi")
+        #expect(normalizedFlatValue(source, form: __kk_normalization_form_nfkc()) == "fi")
     }
 
+    @Test
     func testFlatIsNormalizedDetectsCanonicalForm() {
         withFlatString("e\u{0301}") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
-                0
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()) == 0
             )
         }
         withFlatString("\u{00E9}") { data, length, byteCount, hash in
-            XCTAssertEqual(
-                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()),
-                1
+            #expect(
+                __kk_string_isNormalized_flat(data, length, byteCount, hash, __kk_normalization_form_nfc()) == 1
             )
         }
     }
 }
+#endif
