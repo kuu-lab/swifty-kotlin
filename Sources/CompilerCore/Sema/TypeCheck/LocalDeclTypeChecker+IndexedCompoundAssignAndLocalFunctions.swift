@@ -19,6 +19,25 @@ extension LocalDeclTypeChecker {
         }
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
+        // Array<*>'s element type is erased to Any? at the type-check level, but the
+        // backing store's actual boxed representation (IntBox/LongBox/DoubleBox/...)
+        // is only known for a concrete type argument. KIR lowering needs the real
+        // element type to pick the matching box/unbox pair for the read-modify-write;
+        // without it, it would have to guess (e.g. from the RHS operand's type), which
+        // silently corrupts the slot whenever that guess doesn't match the actual
+        // runtime element type. Reject at the type-check boundary instead, matching
+        // real Kotlin's own restriction that `set` is inaccessible on an out-projected
+        // array (`Array<*>` prohibits writes for the same variance-safety reason).
+        if isStarProjectedArrayReceiver(receiverType, sema: sema, interner: ctx.interner) {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-STAR-PROJECTED-WRITE",
+                "Compound assignment to an element of a star-projected array ('Array<*>') is not allowed: the element type is erased, so it cannot be determined which primitive representation to read and write.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
         let (elementType, operatorResolved) = resolveIndexedGetElement(
             id: id, receiverType: receiverType, indexTypes: indexTypes,
             range: range, ctx: ctx
@@ -52,6 +71,23 @@ extension LocalDeclTypeChecker {
 
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    /// True when `receiverType` is the generic `Array<*>` class specifically (star
+    /// type argument), as opposed to a concrete `Array<T>` or one of the
+    /// primitive-specialized array types (IntArray, ...). Mirrors
+    /// CallLowerer+Operators.swift's isGenericArrayReceiverType/
+    /// genericArrayElementType, which need a concrete T to select the matching
+    /// box/unbox pair.
+    private func isStarProjectedArrayReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              interner.resolve(symbol.name) == "Array",
+              let firstArg = classType.args.first,
+              case .star = firstArg
+        else {
+            return false
+        }
+        return true
     }
 
     /// Resolve `operator fun get` on the receiver and return (elementType, wasResolved).

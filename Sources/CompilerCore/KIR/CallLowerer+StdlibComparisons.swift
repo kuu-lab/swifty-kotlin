@@ -227,7 +227,7 @@ extension CallLowerer {
             /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
             case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
-            case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
+            case comparator(comparatorArgIndex: Int)
         }
 
         let comparisonStrategy: ComparisonStrategy
@@ -252,21 +252,8 @@ extension CallLowerer {
             guard comparatorArgIndex >= 0, comparatorArgIndex < loweredArgIDs.count else {
                 return nil
             }
-            guard let trampolineName = comparatorTrampolineName(
-                comparatorExprID: args[comparatorArgIndex].expr,
-                loweredComparatorID: loweredArgIDs[comparatorArgIndex],
-                sema: sema,
-                interner: interner,
-                instructions: instructions
-            ) else {
-                return nil
-            }
-            let trampolineCallee = interner.intern(trampolineName)
             comparisonArgIndices = args.indices.filter { $0 != comparatorArgIndex }
-            comparisonStrategy = .comparator(
-                comparatorArgIndex: comparatorArgIndex,
-                trampolineCallee: trampolineCallee
-            )
+            comparisonStrategy = .comparator(comparatorArgIndex: comparatorArgIndex)
         }
 
         guard !comparisonArgIndices.isEmpty else {
@@ -320,12 +307,12 @@ extension CallLowerer {
                     rhs: zeroExpr,
                     result: conditionExpr
                 ))
-            case let .comparator(comparatorArgIndex, trampolineCallee):
+            case let .comparator(comparatorArgIndex):
                 let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: trampolineCallee,
+                    callee: interner.intern("kk_compare_with_comparator"),
                     arguments: [loweredArgIDs[comparatorArgIndex], candidateExpr, currentExpr],
                     result: compareResultExpr,
                     canThrow: true,

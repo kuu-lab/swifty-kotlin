@@ -114,6 +114,14 @@ extension CallSupportLowerer {
         switch op {
         case .notEqual:
             interner.intern("kk_op_ne")
+        // `===`/`!==` are raw word-equality comparisons — the same primitive
+        // already used for data-object identity checks (see
+        // appendSyntheticDataObjectEqualsIfNeeded). Reference-typed operands are
+        // single-word pointers, so this is a genuine pointer-identity comparison.
+        case .identityEqual:
+            interner.intern("kk_op_eq")
+        case .notIdentityEqual:
+            interner.intern("kk_op_ne")
         case .lessThan:
             interner.intern("kk_op_lt")
         case .lessOrEqual:

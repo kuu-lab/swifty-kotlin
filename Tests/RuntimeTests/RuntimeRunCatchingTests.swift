@@ -26,9 +26,6 @@ struct RuntimeRunCatchingTests {
     func testRunCatchingWrapsSuccessAsResult() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         var thrown = 0
         let fn = unsafeBitCast(runtime_runcatching_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
@@ -44,9 +41,6 @@ struct RuntimeRunCatchingTests {
     func testRunCatchingWrapsFailureWithoutThrowingOutward() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         var thrown = 0
         let fn = unsafeBitCast(runtime_runcatching_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
