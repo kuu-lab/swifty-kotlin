@@ -70,6 +70,32 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
 }
 
+func runtimeRegisterDataClass(classID: Int64) {
+    guard classID != 0 else { return }
+    runtimeStorage.withMetadataLock { state in
+        state.dataClassIDs.insert(classID)
+    }
+}
+
+func runtimeIsDataClass(classID: Int64) -> Bool {
+    guard classID != 0 else { return false }
+    return runtimeStorage.withMetadataLock { state in
+        state.dataClassIDs.contains(classID)
+    }
+}
+
+/// Registers a nominal class whose generated equality is structural.
+///
+/// The compiler emits this immediately after allocating a data-class instance,
+/// before an Any-erased equality call can observe it. Plain classes deliberately
+/// remain unregistered so their inherited Any.equals implementation can use
+/// reference identity.
+@_cdecl("kk_runtime_register_data_class")
+public func kk_runtime_register_data_class(_ classID: Int) -> Int {
+    runtimeRegisterDataClass(classID: Int64(classID))
+    return 0
+}
+
 func runtimeRegisterTypeEdge(childTypeID: Int64, parentTypeID: Int64) {
     guard childTypeID != 0, parentTypeID != 0 else {
         return

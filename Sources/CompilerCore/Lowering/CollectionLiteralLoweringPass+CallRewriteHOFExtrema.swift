@@ -141,27 +141,39 @@ extension CollectionLiteralConstructionLoweringPass {
                 let source = isComparatorFromCall(
                     exprID: comparatorExpr,
                     body: function.body,
-                    ascendingCallee: lookup.kkComparatorFromSelectorName,
-                    descendingCallee: lookup.kkComparatorFromSelectorDescendingName,
                     multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                    naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
-                    reverseOrderCallee: lookup.kkComparatorReverseOrderName,
-                    thenByCallee: lookup.kkComparatorThenByName,
-                    thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                    thenDescendingCallee: lookup.kkComparatorThenDescendingName,
-                    thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                     nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                     nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-                    reversedCallee: lookup.kkComparatorReversedName
                 )
-                let trampolineName: InternedString
-                let closureExpr: KIRExprID
-                if case .unknown = source {
-                    // Direct lambda comparator — pass as fnPtr with closureRaw
+                if let (trampolineName, closureExpr) = retainedComparatorRuntimePair(
+                    source: source,
+                    comparatorExpr: comparatorExpr,
+                    module: module,
+                    lookup: lookup,
+                    loweredBody: &loweredBody
+                ) {
+                    let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
+                    loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
+                    let hofResult = module.arena.appendTemporary(type: nil
+                    )
+                    loweredBody.append(.call(
+                        symbol: nil,
+                        callee: kkName,
+                        arguments: [receiverID, trampolineExpr, closureExpr],
+                        result: hofResult,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult
+                    ))
+                    if let result {
+                        loweredBody.append(.copy(from: hofResult, to: result))
+                    }
+                    return true
+                } else {
+                    // Direct lambda or source-backed Comparator object.
                     let closureRawID: KIRExprID
                     if arguments.count == 3 {
                         closureRawID = arguments[2]
@@ -185,162 +197,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     }
                     return true
                 }
-                switch source {
-                case .descending:
-                    trampolineName = lookup.kkComparatorFromSelectorDescendingTrampolineName
-                    closureExpr = comparatorExpr
-                case .multiSelector:
-                    trampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
-                    closureExpr = comparatorExpr
-                case .thenBy:
-                    trampolineName = lookup.kkComparatorThenByTrampolineName
-                    closureExpr = comparatorExpr
-                case .thenByDescending:
-                    trampolineName = lookup.kkComparatorThenByDescendingTrampolineName
-                    closureExpr = comparatorExpr
-                case .thenDescending:
-                    trampolineName = lookup.kkComparatorThenDescendingTrampolineName
-                    closureExpr = comparatorExpr
-                case .thenComparator:
-                    trampolineName = lookup.kkComparatorThenComparatorTrampolineName
-                    closureExpr = comparatorExpr
-                case .nullsFirst:
-                    trampolineName = lookup.kkComparatorNullsFirstTrampolineName
-                    closureExpr = comparatorExpr
-                case .nullsLast:
-                    trampolineName = lookup.kkComparatorNullsLastTrampolineName
-                    closureExpr = comparatorExpr
-                case .nullsFirstComparable:
-                    trampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    closureExpr = zero
-                case .nullsLastNatural:
-                    trampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    closureExpr = zero
-                case .naturalOrder:
-                    trampolineName = lookup.kkComparatorNaturalOrderTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    closureExpr = zero
-                case .reverseOrder:
-                    trampolineName = lookup.kkComparatorReverseOrderTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    closureExpr = zero
-                case let .reversed(innerExpr):
-                    trampolineName = lookup.kkComparatorReversedTrampolineName
-                    let innerSource = isComparatorFromCall(
-                        exprID: innerExpr,
-                        body: function.body,
-                        ascendingCallee: lookup.kkComparatorFromSelectorName,
-                        descendingCallee: lookup.kkComparatorFromSelectorDescendingName,
-                        multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                        naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
-                        reverseOrderCallee: lookup.kkComparatorReverseOrderName,
-                        thenByCallee: lookup.kkComparatorThenByName,
-                        thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                        thenDescendingCallee: lookup.kkComparatorThenDescendingName,
-                        thenComparatorCallee: lookup.kkComparatorThenComparatorName,
-                        nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                        nullsLastCallee: lookup.kkComparatorNullsLastName,
-                        nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                        nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                        multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                        multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-                        reversedCallee: lookup.kkComparatorReversedName
-                    )
-                    let innerTrampolineName: InternedString
-                    let innerClosureExpr: KIRExprID
-                    switch innerSource {
-                    case .ascending:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .descending:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .multiSelector:
-                        innerTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenBy:
-                        innerTrampolineName = lookup.kkComparatorThenByTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenByDescending:
-                        innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenDescending:
-                        innerTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenComparator:
-                        innerTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsFirst:
-                        innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsLast:
-                        innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsFirstComparable:
-                        innerTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .nullsLastNatural:
-                        innerTrampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .naturalOrder:
-                        innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .reverseOrder:
-                        innerTrampolineName = lookup.kkComparatorReverseOrderTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    default:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                        innerClosureExpr = innerExpr
-                    }
-                    let innerTrampolineExpr = module.arena.appendExpr(
-                        .externSymbolAddress(innerTrampolineName), type: nil)
-                    loweredBody.append(.constValue(
-                        result: innerTrampolineExpr,
-                        value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkComparatorReversedName,
-                        arguments: [innerTrampolineExpr, innerClosureExpr],
-                        result: reversedClosureResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    closureExpr = reversedClosureResult
-                default:
-                    trampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                    closureExpr = comparatorExpr
-                }
-                let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
-                loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkName,
-                    arguments: [receiverID, trampolineExpr, closureExpr],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
             }
         }
     }
@@ -400,168 +256,35 @@ extension CollectionLiteralConstructionLoweringPass {
                 let cmpSource = isComparatorFromCall(
                     exprID: cmpExpr,
                     body: function.body,
-                    ascendingCallee: lookup.kkComparatorFromSelectorName,
-                    descendingCallee: lookup.kkComparatorFromSelectorDescendingName,
                     multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                    naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
-                    reverseOrderCallee: lookup.kkComparatorReverseOrderName,
-                    thenByCallee: lookup.kkComparatorThenByName,
-                    thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                    thenDescendingCallee: lookup.kkComparatorThenDescendingName,
-                    thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                     nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                     nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-                    reversedCallee: lookup.kkComparatorReversedName
                 )
-                let cmpTrampolineName: InternedString
-                let cmpClosureExpr: KIRExprID
-                switch cmpSource {
-                case .descending:
-                    cmpTrampolineName = lookup.kkComparatorFromSelectorDescendingTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .multiSelector:
-                    cmpTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .thenBy:
-                    cmpTrampolineName = lookup.kkComparatorThenByTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .thenByDescending:
-                    cmpTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .thenDescending:
-                    cmpTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .thenComparator:
-                    cmpTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .nullsFirst:
-                    cmpTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .nullsLast:
-                    cmpTrampolineName = lookup.kkComparatorNullsLastTrampolineName
-                    cmpClosureExpr = cmpExpr
-                case .nullsFirstComparable:
-                    cmpTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    cmpClosureExpr = zero
-                case .nullsLastNatural:
-                    cmpTrampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    cmpClosureExpr = zero
-                case .naturalOrder:
-                    cmpTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    cmpClosureExpr = zero
-                case .reverseOrder:
-                    cmpTrampolineName = lookup.kkComparatorReverseOrderTrampolineName
-                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                    cmpClosureExpr = zero
-                case let .reversed(innerExpr):
-                    cmpTrampolineName = lookup.kkComparatorReversedTrampolineName
-                    let innerSource = isComparatorFromCall(
-                        exprID: innerExpr,
-                        body: function.body,
-                        ascendingCallee: lookup.kkComparatorFromSelectorName,
-                        descendingCallee: lookup.kkComparatorFromSelectorDescendingName,
-                        multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                        naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
-                        reverseOrderCallee: lookup.kkComparatorReverseOrderName,
-                        thenByCallee: lookup.kkComparatorThenByName,
-                        thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                        thenDescendingCallee: lookup.kkComparatorThenDescendingName,
-                        thenComparatorCallee: lookup.kkComparatorThenComparatorName,
-                        nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                        nullsLastCallee: lookup.kkComparatorNullsLastName,
-                        nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                        nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                        multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                        multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-                        reversedCallee: lookup.kkComparatorReversedName
-                    )
-                    let innerTrampolineName: InternedString
-                    let innerClosureExpr: KIRExprID
-                    switch innerSource {
-                    case .ascending:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .descending:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .multiSelector:
-                        innerTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenBy:
-                        innerTrampolineName = lookup.kkComparatorThenByTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenByDescending:
-                        innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenDescending:
-                        innerTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .thenComparator:
-                        innerTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsFirst:
-                        innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsLast:
-                        innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
-                        innerClosureExpr = innerExpr
-                    case .nullsFirstComparable:
-                        innerTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .nullsLastNatural:
-                        innerTrampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .naturalOrder:
-                        innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    case .reverseOrder:
-                        innerTrampolineName = lookup.kkComparatorReverseOrderTrampolineName
-                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                        innerClosureExpr = zero
-                    default:
-                        innerTrampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                        innerClosureExpr = innerExpr
-                    }
-                    let innerTrampolineExpr = module.arena.appendExpr(
-                        .externSymbolAddress(innerTrampolineName), type: nil)
+                let (cmpFunctionExpr, cmpClosureExpr): (KIRExprID, KIRExprID)
+                if let (cmpTrampolineName, retainedClosureExpr) = retainedComparatorRuntimePair(
+                    source: cmpSource,
+                    comparatorExpr: cmpExpr,
+                    module: module,
+                    lookup: lookup,
+                    loweredBody: &loweredBody
+                ) {
+                    let cmpTrampolineExpr = module.arena.appendExpr(.externSymbolAddress(cmpTrampolineName), type: nil)
                     loweredBody.append(.constValue(
-                        result: innerTrampolineExpr,
-                        value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkComparatorReversedName,
-                        arguments: [innerTrampolineExpr, innerClosureExpr],
-                        result: reversedClosureResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        result: cmpTrampolineExpr,
+                        value: .externSymbolAddress(cmpTrampolineName)
                     ))
-                    cmpClosureExpr = reversedClosureResult
-                default:
-                    // Unknown or ascending: pass as fnPtr with closureRaw=0
-                    cmpTrampolineName = lookup.kkComparatorFromSelectorTrampolineName
-                    cmpClosureExpr = cmpExpr
+                    cmpFunctionExpr = cmpTrampolineExpr
+                    cmpClosureExpr = retainedClosureExpr
+                } else {
+                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                    cmpFunctionExpr = cmpExpr
+                    cmpClosureExpr = zero
                 }
-                let cmpTrampolineExpr = module.arena.appendExpr(.externSymbolAddress(cmpTrampolineName), type: nil)
-                loweredBody.append(.constValue(result: cmpTrampolineExpr, value: .externSymbolAddress(cmpTrampolineName)))
                 let kkName: InternedString = switch callee {
                 case lookup.maxOfWithName: lookup.kkListMaxOfWithName
                 case lookup.maxOfWithOrNullName: lookup.kkListMaxOfWithOrNullName
@@ -573,7 +296,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: kkName,
-                    arguments: [receiverID, cmpTrampolineExpr, cmpClosureExpr, selLambdaID, selClosureRawID],
+                    arguments: [receiverID, cmpFunctionExpr, cmpClosureExpr, selLambdaID, selClosureRawID],
                     result: hofResult,
                     canThrow: canThrow,
                     thrownResult: thrownResult

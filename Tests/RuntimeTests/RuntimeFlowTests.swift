@@ -313,14 +313,14 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let firstTake = kk_flow_emit(flowHandle, 3, RuntimeFlowTag.take.rawValue)
         let chainedTake = kk_flow_emit(firstTake, 2, RuntimeFlowTag.take.rawValue)
 
-        _ = kk_flow_collect(chainedTake, collectorPtr, 0)
+        _ = kk_flow_collect(chainedTake, collectorPtr, 0, 0)
         let snapshot1 = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot1.values, [1, 2], "Both take steps should be applied in a chain.")
         // Emitter should stop after take(2) terminates: 2 delivered + 1 that sees sentinel = 3.
         XCTAssertLessThanOrEqual(snapshot1.emitCalls, 3, "Emitter should stop early after chained take exhaustion.")
 
         runtimeFlowTestState.reset()
-        _ = kk_flow_collect(chainedTake, collectorPtr, 0)
+        _ = kk_flow_collect(chainedTake, collectorPtr, 0, 0)
         let snapshot2 = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot2.values, [1, 2], "take counters should reset on each collect.")
         XCTAssertLessThanOrEqual(snapshot2.emitCalls, 3, "Emitter should stop early on re-collect too.")
@@ -333,7 +333,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
-        _ = kk_flow_collect(mapped, collectorPtr, 0)
+        _ = kk_flow_collect(mapped, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [1], "Values after a thrown map step must not reach collector.")
@@ -355,7 +355,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let mapped = kk_flow_emit(filtered, mapPtr, RuntimeFlowTag.map.rawValue)
         let taken = kk_flow_emit(mapped, 1, RuntimeFlowTag.take.rawValue)
 
-        _ = kk_flow_collect(taken, collectorPtr, 0)
+        _ = kk_flow_collect(taken, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [4], "filter/map/take pipeline should keep order and stop after one element.")
@@ -375,7 +375,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let throwingCollectorPtr = unsafeBitCast(runtime_test_flow_collect_throw_on_first as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
-        _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [1], "Collector throw should stop subsequent emissions.")
@@ -398,7 +398,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let taken = kk_flow_emit(flowHandle, 3, RuntimeFlowTag.take.rawValue)
         let filtered = kk_flow_emit(taken, filterPtr, RuntimeFlowTag.filter.rawValue)
 
-        _ = kk_flow_collect(filtered, collectorPtr, 0)
+        _ = kk_flow_collect(filtered, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         // The filter rejects everything so nothing reaches the collector.
@@ -424,13 +424,13 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_flow_release(flowHandle)
 
         runtimeFlowTestState.reset()
-        _ = kk_flow_collect(retained, collectorPtr, 0)
+        _ = kk_flow_collect(retained, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3, 4])
 
         _ = kk_flow_release(retained)
 
         runtimeFlowTestState.reset()
-        _ = kk_flow_collect(retained, collectorPtr, 0)
+        _ = kk_flow_collect(retained, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [])
     }
 
@@ -447,13 +447,13 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 0, "Emitter should not run before collect.")
 
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         let firstCollect = runtimeFlowTestState.snapshot().values
         XCTAssertEqual(firstCollect, [1, 2, 3, 4])
         XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 1, "Emitter should run exactly once after first collect.")
 
         runtimeFlowTestState.reset()
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         let secondCollect = runtimeFlowTestState.snapshot().values
         XCTAssertEqual(secondCollect, [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
         XCTAssertEqual(runtimeFlowEmitterCallCounter.count, 2, "Emitter should run again on second collect (cold stream).")
@@ -469,7 +469,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
         let taken = kk_flow_emit(mapped, 2, RuntimeFlowTag.take.rawValue)
 
-        _ = kk_flow_collect(taken, collectorPtr, 0)
+        _ = kk_flow_collect(taken, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [2, 4], "take(2) after map should yield first 2 mapped values.")
@@ -484,7 +484,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let withOnEach = kk_flow_emit(flowHandle, onEachPtr, RuntimeFlowTag.onEach.rawValue)
 
-        _ = kk_flow_collect(withOnEach, collectorPtr, 0)
+        _ = kk_flow_collect(withOnEach, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         // onEach runs the action but does not change the value.
@@ -500,7 +500,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let distinct = kk_flow_emit(flowHandle, 0, RuntimeFlowTag.distinctUntilChanged.rawValue)
 
-        _ = kk_flow_collect(distinct, collectorPtr, 0)
+        _ = kk_flow_collect(distinct, collectorPtr, 0, 0)
 
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [1, 2, 3, 1], "distinctUntilChanged should remove consecutive duplicates.")
@@ -517,13 +517,13 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let flowHandle = kk_flow_of(arrayHandle, 3)
 
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [10, 20, 30], "flowOf should emit the provided values.")
 
         // Cold stream: collect again should yield same values.
         runtimeFlowTestState.reset()
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [10, 20, 30], "flowOf cold stream: re-collect yields same values.")
     }
 
@@ -540,7 +540,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
         let taken = kk_flow_emit(mapped, 2, RuntimeFlowTag.take.rawValue)
 
-        _ = kk_flow_collect(taken, collectorPtr, 0)
+        _ = kk_flow_collect(taken, collectorPtr, 0, 0)
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [10, 20], "flowOf with map+take should work correctly.")
         XCTAssertEqual(snapshot.mapCalls, 2, "Lazy: map should only run for elements before take exhausted.")
@@ -550,7 +550,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
         let flowHandle = kk_flow_empty(0)
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [], "emptyFlow should emit nothing.")
     }
@@ -561,7 +561,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let listHandle = registerRuntimeObject(RuntimeListBox(elements: [7, 8, 9]))
         let flowHandle = kk_flow_as_flow(listHandle, 0)
 
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [7, 8, 9], "asFlow(list) should emit list elements in order.")
     }
 
@@ -574,7 +574,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         _ = kk_array_set(arrayHandle, 2, 13, nil)
 
         let flowHandle = kk_flow_as_flow(arrayHandle, 0)
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0)
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 12, 13], "asFlow(array) should emit array elements in order.")
     }
@@ -654,7 +654,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let taken = kk_flow_emit(flowHandle, 0, RuntimeFlowTag.take.rawValue)
 
-        _ = kk_flow_collect(taken, collectorPtr, 0)
+        _ = kk_flow_collect(taken, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [], "take(0) should emit nothing.")
     }
 
@@ -665,7 +665,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let debounced = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.debounce.rawValue)
 
-        _ = kk_flow_collect(debounced, collectorPtr, 0)
+        _ = kk_flow_collect(debounced, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [3], "debounce should keep only the last value in a tight burst.")
     }
 
@@ -676,7 +676,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let sampled = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.sample.rawValue)
 
-        _ = kk_flow_collect(sampled, collectorPtr, 0)
+        _ = kk_flow_collect(sampled, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3], "sample should emit the latest value available at each sampling tick.")
     }
 
@@ -687,7 +687,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let conflated = kk_flow_emit(flowHandle, 0, RuntimeFlowTag.conflate.rawValue)
 
-        _ = kk_flow_collect(conflated, collectorPtr, 0)
+        _ = kk_flow_collect(conflated, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [3], "conflate should keep the latest value from a same-timestamp burst.")
     }
 
@@ -699,7 +699,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let delayed = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.delayEach.rawValue)
 
         let startedAt = Date()
-        _ = kk_flow_collect(delayed, collectorPtr, 0)
+        _ = kk_flow_collect(delayed, collectorPtr, 0, 0)
         let elapsedMs = Date().timeIntervalSince(startedAt) * 1_000.0
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3], "delayEach should preserve values.")
@@ -763,7 +763,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
         let caught = kk_flow_emit(mapped, catchPtr, RuntimeFlowTag.catchHandler.rawValue)
 
-        _ = kk_flow_collect(caught, collectorPtr, 0)
+        _ = kk_flow_collect(caught, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1])
         XCTAssertEqual(runtimeFlowErrorTestState.snapshot().catchCalls, 1)
@@ -776,7 +776,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let retried = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.retry.rawValue)
 
-        _ = kk_flow_collect(retried, collectorPtr, 0)
+        _ = kk_flow_collect(retried, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 1, 2])
         XCTAssertEqual(runtimeFlowErrorTestState.snapshot().retryEmitterInvocations, 2)
@@ -790,7 +790,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let retried = kk_flow_emit(flowHandle, retryWhenPtr, RuntimeFlowTag.retryWhen.rawValue)
 
-        _ = kk_flow_collect(retried, collectorPtr, 0)
+        _ = kk_flow_collect(retried, collectorPtr, 0, 0)
 
         let errorSnapshot = runtimeFlowErrorTestState.snapshot()
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [7, 7])
@@ -805,7 +805,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let recovered = kk_flow_emit(flowHandle, 99, RuntimeFlowTag.onErrorReturn.rawValue)
 
-        _ = kk_flow_collect(recovered, collectorPtr, 0)
+        _ = kk_flow_collect(recovered, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [5, 99])
     }
@@ -822,7 +822,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let resumed = kk_flow_emit(flowHandle, fallbackFlow, RuntimeFlowTag.onErrorResume.rawValue)
 
-        _ = kk_flow_collect(resumed, collectorPtr, 0)
+        _ = kk_flow_collect(resumed, collectorPtr, 0, 0)
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [5, 42, 43])
     }
@@ -837,7 +837,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let rightFlow = runtimeFlowOf([10, 20])
         let zipped = kk_flow_zip(leftFlow, rightFlow, combinerPtr, 0)
 
-        _ = kk_flow_collect(zipped, collectorPtr, 0)
+        _ = kk_flow_collect(zipped, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22], "zip should stop at the shorter source and combine pairwise")
     }
 
@@ -849,7 +849,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let rightFlow = runtimeFlowOf([10, 20, 30])
         let combined = kk_flow_combine(leftFlow, rightFlow, combinerPtr, 0)
 
-        _ = kk_flow_collect(combined, collectorPtr, 0)
+        _ = kk_flow_collect(combined, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22, 32], "combine should repeat the latest value from the shorter source")
     }
 
@@ -866,7 +866,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         let merged = kk_flow_merge(flowArray, 3, 0)
 
-        _ = kk_flow_collect(merged, collectorPtr, 0)
+        _ = kk_flow_collect(merged, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3, 4, 5], "merge should concatenate flows in the provided order")
     }
 
@@ -877,17 +877,17 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let source = runtimeFlowOf([1, 2])
 
         let concat = kk_flow_flat_map_concat(source, mapperPtr, 0)
-        _ = kk_flow_collect(concat, collectorPtr, 0)
+        _ = kk_flow_collect(concat, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapConcat should append each inner flow in source order")
 
         runtimeFlowTestState.reset()
         let merge = kk_flow_flat_map_merge(source, mapperPtr, 0)
-        _ = kk_flow_collect(merge, collectorPtr, 0)
+        _ = kk_flow_collect(merge, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapMerge should match concat in the synchronous runtime")
 
         runtimeFlowTestState.reset()
         let latest = kk_flow_flat_map_latest(source, mapperPtr, 0)
-        _ = kk_flow_collect(latest, collectorPtr, 0)
+        _ = kk_flow_collect(latest, collectorPtr, 0, 0)
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [2, 12], "flatMapLatest should keep only the last mapped flow")
     }
 }

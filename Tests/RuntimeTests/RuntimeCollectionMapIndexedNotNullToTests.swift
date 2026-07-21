@@ -13,9 +13,6 @@ struct RuntimeCollectionMapIndexedNotNullToTests {
     func testMapIndexedNotNullToAppendsOnlyNonNullResults() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
-        defer {
-            kk_runtime_force_reset()
-        }
 
         let source = makeList([10, 20, 30, 40])
         let destination = makeList([])

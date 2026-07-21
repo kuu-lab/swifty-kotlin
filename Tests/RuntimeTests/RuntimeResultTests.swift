@@ -20,6 +20,16 @@ private func runtime_result_failure_lambda(
     return 0
 }
 
+@_cdecl("runtime_result_transform_lambda")
+private func runtime_result_transform_lambda(
+    _: Int,
+    _: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    return 1
+}
+
 @Suite
 struct RuntimeResultTests {
     @Test
@@ -36,6 +46,21 @@ struct RuntimeResultTests {
     }
 
     @Test
+    func testRunCatchingAcceptsBoxedFunctionValue() {
+        var thrown = 0
+        let fn = unsafeBitCast(runtime_result_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let boxedFn = kk_function_create_0(fn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let resultRaw = runtimeResultRunCatching(boxedFn, 0, &thrown)
+
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 1)
+        #expect(runtimeResultGetOrThrow(resultRaw, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    @Test
     func testResultFailureStateAndGetOrThrowRethrows() {
         var thrown = 0
         let fn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
@@ -46,6 +71,36 @@ struct RuntimeResultTests {
         #expect(runtimeResultFailureFlag(resultRaw) == 1)
         _ = runtimeResultGetOrThrow(resultRaw, &thrown)
         #expect(thrown != 0)
+    }
+
+    @Test
+    func testResultGetOrElseUsesFailureTransform() {
+        var thrown = 0
+        let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let transformFn = unsafeBitCast(runtime_result_transform_lambda as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+
+        let resultRaw = runtimeResultRunCatching(failureFn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let fallbackValue = runtimeResultGetOrElse(resultRaw, transformFn, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(fallbackValue == 1)
+    }
+
+    @Test
+    func testResultGetOrElseAcceptsBoxedFunctionValue() {
+        var thrown = 0
+        let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let transformFn = unsafeBitCast(runtime_result_transform_lambda as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let boxedTransform = kk_function_create_1(transformFn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let resultRaw = runtimeResultRunCatching(failureFn, 0, &thrown)
+        #expect(thrown == 0)
+
+        let fallbackValue = runtimeResultGetOrElse(resultRaw, boxedTransform, 0, &thrown)
+        #expect(thrown == 0)
+        #expect(fallbackValue == 1)
     }
 
     @Test
