@@ -141,6 +141,7 @@ enum GoldenHarnessDump {
         return (symbolLines + bodyLines).joined(separator: "\n") + "\n"
     }
 
+
     private static func bundledStdlibFileIDs(in sourceManager: SourceManager) -> Set<Int32> {
         Set(sourceManager.fileIDs()
             .filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }

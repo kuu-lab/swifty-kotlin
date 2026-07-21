@@ -2,28 +2,6 @@
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
 
-    static let primitiveBoxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveBoxingCalleeNamesByPrimitive
-    static let primitiveUnboxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveUnboxingCalleeNamesByPrimitive
-
-    static let primitiveBoxingCalleeNames = BoxingCalleeTable.primitiveBoxingCalleeNames
-    static let primitiveUnboxingCalleeNames = BoxingCalleeTable.primitiveUnboxingCalleeNames
-
-    static func primitiveBoxingCalleeName(for primitive: PrimitiveType) -> String? {
-        BoxingCalleeTable.boxCalleeName(for: primitive)
-    }
-
-    static func primitiveUnboxingCalleeName(for primitive: PrimitiveType) -> String? {
-        BoxingCalleeTable.unboxCalleeName(for: primitive)
-    }
-
-    static func primitiveBoxingCalleeName(for kind: TypeKind) -> String? {
-        BoxingCalleeTable.boxCalleeName(for: kind)
-    }
-
-    static func primitiveUnboxingCalleeName(for kind: TypeKind) -> String? {
-        BoxingCalleeTable.unboxCalleeName(for: kind)
-    }
-
     static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
         guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {
             preconditionFailure("No boxing callee registered for \(primitive)")
@@ -36,10 +14,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             preconditionFailure("No unboxing callee registered for \(primitive)")
         }
         return callee
-    }
-
-    static func primitiveBoxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
-        BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
     }
 
     static func primitiveUnboxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {

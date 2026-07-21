@@ -6,7 +6,7 @@ import Testing
 /// Sema-level coverage for the kotlin.comparisons.compareBy(selector) function
 /// (STDLIB-COMP-FN-001).
 ///
-/// Verifies that the synthetic top-level
+/// Verifies that the bundled stdlib top-level
 /// `fun <T> compareBy(selector: (T) -> Comparable<*>?): Comparator<T>`
 /// is registered in the `kotlin.comparisons` package and resolves from Kotlin
 /// source code that explicitly imports the function.
@@ -27,12 +27,13 @@ struct ComparisonsCompareBySelectorFunctionTests {
                 ctx.interner.intern("compareBy"),
             ]
             let candidates = sema.symbols.lookupAll(fqName: fqName)
-            #expect(!(candidates.isEmpty), "Expected kotlin.comparisons.compareBy to be registered as a synthetic top-level function")
-
-            let externalLinks = Set(
-                candidates.compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(externalLinks.contains("kk_comparator_from_selector"), "Expected at least one compareBy overload to link to kk_comparator_from_selector, got: \(externalLinks)")
+            let sourceBackedSelectorOverloads = candidates.filter { symbolID in
+                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes.count == 1
+                    && sig.valueParameterIsVararg == [false]
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            }
+            #expect(!(sourceBackedSelectorOverloads.isEmpty), "Expected kotlin.comparisons.compareBy selector overload to be registered from bundled stdlib source")
         }
     }
 
