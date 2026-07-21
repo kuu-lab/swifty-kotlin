@@ -19,7 +19,7 @@
 ### Phase RF2+RF3+RF4+RF5: Stdlib パイプライン・合成スタブ削減・名前文字列特殊処理排除・Lowering 再編（残り 7 件）
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
 > 背景: TypeCheck に `interner.resolve(...) == "名前"` が 104 箇所、`CallLowerer+LegacyMemberLikeCalls.swift` は 4,055 行・`kk_` リテラル 601 個。
-- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `--no-stdlib` での opt-out、source origin、ユーザー入力との診断パス区別）。残作業は `KSP-INF-001` / `KSP-INF-008` と連携して完了させる。
+- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。2026-07-15 監査で残リストを補正: ユーザー入力との診断パス区別は `__bundled_` 接頭辞機構で実装済みのため残から除外。2026-07-19 に PR #4842 で `--no-stdlib` の実配線と回帰テストを追加済み。残: 形式的な source origin 型の導入）
 - [~] RF-STUB-003: (c) 残留スタブ向けの宣言的登録 API を導入する（RuntimeABI の `StdlibSurfaceSpec` パターンを Sema 登録へ拡張し、~340 個の `registerXxxMember` 手書き関数をデータテーブル化）。2026-07-07: `SyntheticConstructorStubSpec` と fallback 型参照を追加し、`SyntheticStubSurfaceSpec+NativeRefRuntime.swift` へ `WeakReference` / `GC` / `GCInfo` / `Debugging` surface を移行。
 - [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
@@ -28,8 +28,8 @@
 - [ ] RF-LOWER-006: `DataEnumSealedSynthesisPass+DataClassMethods`（1,268 行・TODO 33 件）を整理し、`.jscpd.json` の ignore 固定 3 ファイルを解消する
 
 ### Phase RF6: Runtime 縮小・ABI 整合（M タスク進行と連動）（残り 2 件）
-- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する
-- [ ] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する
+- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する。2026-07-15 注記: `70c77932aa`（本タスク名義のコミット）で共有内部ヘルパー方式の統合（`RuntimeRangeSharedHOF.swift` 782 行）がマージ済みだが、generics 化そのものは未実施のため open を維持
+- [~] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する。2026-07-15 監査で `[ ]` から更新: PR #4589（share runtime HOF helpers）がマージ済みで、fold/scan 共通化（`RuntimeSequenceFoldScan.swift` 295 行）と責務分割（本体は 2,983 / 3,771 行に縮小）が実在。残: filter/map 系など残共通化箇所の棚卸しと完了判定の記録
 
 ### Phase RF7: テスト資産再編（残り 4 件）
 - [ ] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）
@@ -91,25 +91,25 @@
 
 ### CompilerCore: 参照ゼロの独立シンボル
 
-- [ ] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR
+- [x] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR。2026-07-16 完了: 呼び出し箇所ゼロ（同名 private/fileprivate は他5ファイルにそれぞれ独立定義され自ファイル内で使用済み、別 USR で無関係）を確認して削除、ビルド green
 - [x] DEADCODE-CORE-002: [R0] `BuildASTPhase+DeclBuilders.swift:654` の private `skipLeadingAnnotations(in:)` を削除する。2026-07-16 完了: 参照ゼロを確認し削除、Golden green
-- [ ] DEADCODE-CORE-003: [R0] `CallLowerer+CollectionStdlibMemberCalls.swift:5` の `tryLowerCollectionStdlibMemberCall(...)` を削除する（1,336 行の orphan legacy entrypoint）
+- [x] DEADCODE-CORE-003: [R0] `CallLowerer+CollectionStdlibMemberCalls.swift:5` の `tryLowerCollectionStdlibMemberCall(...)` を削除する（1,336 行の orphan legacy entrypoint）。2026-07-16 完了: 宣言以外の参照ゼロを再確認しファイルごと削除(同ファイル削除に言及していた関連タスクの重複記載も本タスクで解消)
 - [x] DEADCODE-CORE-004: [R0] `CallLowerer+PrimitiveMemberCalls.swift:5` の `tryLowerPrimitiveMemberCall(...)` を削除する（668 行の orphan legacy entrypoint）— ファイル自体を削除。定義以外の参照ゼロを grep で確認済み。内部から呼んでいたヘルパー（`shouldLowerPrimitiveInv` 等）は他ファイルからも呼ばれておりそのまま残置
-- [ ] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）
+- [~] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）。2026-07-17: 削除完了（宣言のみ・呼び出し箇所0を`rg`で確認、ファイル全体がこの関数のみだったためファイルごと削除。使用先ヘルパー`isStringBuilderLikeType`/`isThrowingStringBuilderRuntimeFunction`は他ファイルで存続）。`swift build` green、StringBuilder関連 Sema/Lowering テスト4スイート69件 green（serial）。`diff_kotlinc.sh` はCI側のfull gate結果待ち — 完了ゲート未達につき`[x]`は見送り
 - [x] DEADCODE-CORE-006: [R0] `CallLowerer+StringStdlibMemberCalls.swift:53` の `tryLowerStringStdlibMemberCall(...)` を削除する。先頭の live `tryLowerTableDrivenStringMemberCall` は残す
 - [x] DEADCODE-CORE-007: [D: CORE-006] `CallLowerer+StringStdlibMemberCalls.swift:1355` 内 local `boxedFormatArgument(_:loweredArgID:)` を削除する。呼び出しは dead parent 内のみ
-- [x] DEADCODE-CORE-008: [R0] `HeaderHelpers+SyntheticCoroutineRegistry.swift:2522` の `registerSyntheticCoroutinesABIStubs(...)` を削除する。`STDLIB-CORO-ABI-001` surface がまだ必要なら、削除ではなく live registry へ配線して本 ID を閉じる 2026-07-21 完了: 未到達の ABI registry extension を削除。live の coroutine registry は維持。
-- [x] DEADCODE-CORE-009: [R0] `HeaderHelpers+SyntheticDynamicStubs.swift:4` の `registerSyntheticDynamicStubs(...)` を削除する（Native 対象外の Kotlin/JS surface） 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
-- [x] DEADCODE-CORE-010: [D: CORE-009] 同ファイル `:42` の private `registerDynamicIterator(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
-- [x] DEADCODE-CORE-011: [R0] `HeaderHelpers+SyntheticFileIOStubs.swift:1937` の private `registerKotlinIOExtensionProperty(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
-- [x] DEADCODE-CORE-012: [R0] `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift:7` の `registerSyntheticJsArrayExternalClassStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
-- [x] DEADCODE-CORE-013: [R0] `HeaderHelpers+SyntheticJsArrayStubs.swift:4` の `registerSyntheticJsArrayStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
-- [x] DEADCODE-CORE-015: [D: CORE-014] 同ファイル `:49` の private `ensureJsStringInterface(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
-- [x] DEADCODE-CORE-016: [D: CORE-014] 同ファイル `:88` の private `registerStringToJsStringExtension(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
-- [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
+- [ ] DEADCODE-CORE-008: [R0] `HeaderHelpers+SyntheticCoroutineRegistry.swift:2522` の `registerSyntheticCoroutinesABIStubs(...)` を削除する。`STDLIB-CORO-ABI-001` surface がまだ必要なら、削除ではなく live registry へ配線して本 ID を閉じる
+- [ ] DEADCODE-CORE-009: [R0] `HeaderHelpers+SyntheticDynamicStubs.swift:4` の `registerSyntheticDynamicStubs(...)` を削除する（Native 対象外の Kotlin/JS surface）
+- [ ] DEADCODE-CORE-010: [D: CORE-009] 同ファイル `:42` の private `registerDynamicIterator(...)` を削除する
+- [ ] DEADCODE-CORE-011: [R0] `HeaderHelpers+SyntheticFileIOStubs.swift:1937` の private `registerKotlinIOExtensionProperty(...)` を削除する
+- [ ] DEADCODE-CORE-012: [R0] `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift:7` の `registerSyntheticJsArrayExternalClassStubs(...)` を削除する
+- [ ] DEADCODE-CORE-013: [R0] `HeaderHelpers+SyntheticJsArrayStubs.swift:4` の `registerSyntheticJsArrayStubs(...)` を削除する
+- [ ] DEADCODE-CORE-015: [D: CORE-014] 同ファイル `:49` の private `ensureJsStringInterface(...)` を削除する
+- [ ] DEADCODE-CORE-016: [D: CORE-014] 同ファイル `:88` の private `registerStringToJsStringExtension(...)` を削除する
+- [x] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
 - [x] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する。2026-07-17 完了: `registerSyntheticBooleanAnnotationPropertyAndConstructor` は宣言以外の参照ゼロ（リポジトリ全体を `grep` 照合、呼び出し元なし）を確認し削除。同ファイル内の `registerSyntheticStringAnnotationPropertyAndConstructor` 等の姉妹関数は他から呼ばれておりそのまま残置。`swift build` 成功・`git diff --check` クリーンを確認済み。`CompilerCoreTests` フルスイートは同時 8〜16 worktree・load average 25〜246・空きメモリ数百MB/swap 0 の高負荷環境下で `swiftpm-testing-helper` が signal 10 (SIGBUS) で複数回異常終了し完走不可（worker 数を 14→4 に絞っても再発、対象コード変更とは無関係の環境要因と判断）。変更箇所を直接カバーする `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（worker 数 2）は 297/297 green を確認済み
-- [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
-- [x] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [x] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する。2026-07-17 完了: `rg`/`grep` で全ソース照合し宣言以外の参照ゼロを再確認（同ファイル唯一のエントリポイント `registerSyntheticPropertyInterfaceStubs` は兄弟の private register* 関数を全て呼ぶ一方、本関数だけ未配線と判明。`setExternalLinkName` 等の RuntimeABI 登録も無く Runtime/Tests 側の参照も皆無）。`extension DataFlowSemaPhase` ブロックごと削除（2565→2520行）。`swift build` green、`git diff --check` green、`CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden` 297/297 green（並列worktree多数稼働の高負荷環境のため396秒）— PR #4875
+- [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
 - [x] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロを再確認し、CORE-024 と合わせてファイルごと削除
 - [x] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する。2026-07-17 完了: 唯一の呼び出し元は CORE-023 の `registerSyntheticW3CDomStubs` のみで他に参照なし。ファイルが空になるため `HeaderHelpers+SyntheticW3CDomStubs.swift` ごと削除
 - [x] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
@@ -122,37 +122,37 @@
 - [ ] DEADCODE-CORE-032: [R0] `SyntheticStubSurfaceSpec.swift:21` の static `uint` 型参照定数を削除する
 - [x] DEADCODE-CORE-033: [R0] `SyntheticStubSurfaceSpec.swift:22` の static `ulong` 型参照定数を削除する。2026-07-17 完了: `SyntheticStubTypeRef.ulong` は宣言以外の参照ゼロ（呼び出し元 4 ファイル — `HeaderHelpers+SyntheticExceptionStubs.swift` / `+SyntheticIteratorStubs.swift` / `+SyntheticCharStubs.swift` / `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` — で `.ulong` 未使用と確認済み、テストからの直接参照もなし）を確認し削除。`SyntheticStubBuiltinType.ulong` ケースと `resolveSyntheticStubBuiltinType` 内の対応 switch アームは、`.error`/`.nothing` 同様に convenience `static let` を持たない他ケースと同型の型ボキャブラリ定義のため残置。`swift build` 成功・`git diff --check` クリーン・`CompilerCoreTests` green を確認済み
 - [x] DEADCODE-CORE-034: [R0] `SyntheticStubSurfaceSpec.swift:23` の static `ubyte` 型参照定数を削除する。2026-07-17 完了: `rg`で全ソース照合し宣言以外の参照ゼロを再確認して削除（`SyntheticStubBuiltinType.ubyte` enum case と `resolveSyntheticStubBuiltinType` 内の対応 case は exhaustive switch 維持のため残置、対象外）。`swift build` green。並列フルテストで `CompilerBackendTests` 17件のタイムアウトと Golden 実行中の `swiftpm-testing-helper` SIGBUS クラッシュが発生したが、いずれも ubyte/UByte 非依存かつ本変更と無関係の箇所（Int算術・コンストラクタ委譲等）で、直列再実行（`SWIFT_TEST_PARALLEL=0`）では `CompilerBackendTests` 全937件・Golden全13件/6スイートとも green となり、高負荷時の環境要因（既存 flaky 傾向、BUG-039系）による偽陽性と確認済み。`git diff --check` green。`diff_kotlinc.sh` は本変更が実行時コードパスに影響しない（宣言のみの削除）ため未実施
-- [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
-- [x] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す 2026-07-21 確認: 宣言・initializer とも現 HEAD に存在せず、TODO の stale entry を同期。
-- [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
+- [x] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
+- [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
+- [x] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する。2026-07-17 完了: 宣言・initializer 代入とも削除、他箇所からの参照なし（`filterIsInstance` 自体は別経路の文字列比較で実装済み）
 - [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
 - [x] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する。2026-07-17 完了: 宣言・初期化とも他に参照なしを確認の上削除、`swift build` green
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
-- [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する
+- [x] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する。2026-07-17 完了: プロジェクト全体 grep で宣言・初期化子代入(現行行番号は `:775`/`:1565`)以外の参照ゼロを確認し削除。`swift build` 成功、`loc_report.sh` メトリクス悪化なし、Golden(13 tests/6 suites)・拡張タイムアウト版 `diff_kotlinc`(639 中 0 failed)は green
 - [x] DEADCODE-CORE-043: [W0] 同ファイル `:778` の `onFailName` と initializer `:1569` の代入を削除する
-- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live
+- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869 open
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
 
 ### CompilerCore: ReceiverClassifier 統合後の残存
 
-- [ ] DEADCODE-CORE-046: [R0] `ReceiverClassifier.swift:91` の `ReceiverClassifier.isSequenceLikeReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-047: [R0] 同ファイル `:129` の `ReceiverClassifier.isMapLikeCollectionReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-048: [R0] 同ファイル `:170` の `ReceiverClassifier.isMutableListCollectionReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-049: [R0] 同ファイル `:209` の `ReceiverClassifier.isConcreteListLikeCollectionReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-050: [R0] 同ファイル `:221` の `ReceiverClassifier.isSetLikeCollectionReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-051: [D: CORE-052] 同ファイル `:68` の `ReceiverClassifier.isCollectionLikeReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-052: [R0] 同ファイル `:331` の `CallTypeChecker.isCollectionLikeReceiver(receiverID:sema:interner:)` forwarding overload を削除する
-- [ ] DEADCODE-CORE-053: [D: CORE-054] 同ファイル `:141` の `ReceiverClassifier.isMutableListType(_:)` を削除する
-- [ ] DEADCODE-CORE-054: [R0] 同ファイル `:315` の `CallTypeChecker.isMutableListType(_:sema:interner:)` forwarding overload を削除する
-- [ ] DEADCODE-CORE-055: [R0] 同ファイル `:150` の `ReceiverClassifier.isMutableCollectionReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-056: [R0] 同ファイル `:185` の `ReceiverClassifier.isMutableSetReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-057: [R0] 同ファイル `:197` の `ReceiverClassifier.isMutableMapReceiver(receiverID:)` を削除する
-- [ ] DEADCODE-CORE-058: [R0] 同ファイル `:323` の `CallTypeChecker.isMapLikeCollectionType(_:sema:interner:)` forwarding overload を削除する。Classifier 側の型判定本体は live
-- [ ] DEADCODE-CORE-059: [R0] 同ファイル `:339` の `CallTypeChecker.isIterableLikeReceiver(receiverID:sema:interner:)` forwarding overload を削除する。Classifier 側は live
-- [ ] DEADCODE-CORE-060: [R0] 同ファイル `:371` の `CallTypeChecker.isListCollectionFactoryReceiver(receiverID:ast:sema:interner:)` forwarding overload を削除する。Classifier 側は live
-- [ ] DEADCODE-CORE-061: [D: CORE-053] 同ファイル `:285` の private `nominalSymbol(of:)` を削除する
-- [ ] DEADCODE-CORE-062: [R0] 同ファイル `:327` の `CallTypeChecker.isConcreteListLikeType(_:sema:interner:)` forwarding overload を削除する
-- [ ] DEADCODE-CORE-063: [W0] `ReceiverClassification.receiverType` (`ReceiverClassifier.swift:2`) を削除し、`classify` の初期化引数 `:39` も消す。判定フラグ群は残す
+- [x] DEADCODE-CORE-046: [R0] `ReceiverClassifier.swift:91` の `ReceiverClassifier.isSequenceLikeReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-047: [R0] 同ファイル `:129` の `ReceiverClassifier.isMapLikeCollectionReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-048: [R0] 同ファイル `:170` の `ReceiverClassifier.isMutableListCollectionReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-049: [R0] 同ファイル `:209` の `ReceiverClassifier.isConcreteListLikeCollectionReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-050: [R0] 同ファイル `:221` の `ReceiverClassifier.isSetLikeCollectionReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-051: [D: CORE-052] 同ファイル `:68` の `ReceiverClassifier.isCollectionLikeReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-052: [R0] 同ファイル `:331` の `CallTypeChecker.isCollectionLikeReceiver(receiverID:sema:interner:)` forwarding overload を削除する
+- [x] DEADCODE-CORE-053: [D: CORE-054] 同ファイル `:141` の `ReceiverClassifier.isMutableListType(_:)` を削除する
+- [x] DEADCODE-CORE-054: [R0] 同ファイル `:315` の `CallTypeChecker.isMutableListType(_:sema:interner:)` forwarding overload を削除する
+- [x] DEADCODE-CORE-055: [R0] 同ファイル `:150` の `ReceiverClassifier.isMutableCollectionReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-056: [R0] 同ファイル `:185` の `ReceiverClassifier.isMutableSetReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-057: [R0] 同ファイル `:197` の `ReceiverClassifier.isMutableMapReceiver(receiverID:)` を削除する
+- [x] DEADCODE-CORE-058: [R0] 同ファイル `:323` の `CallTypeChecker.isMapLikeCollectionType(_:sema:interner:)` forwarding overload を削除する。Classifier 側の型判定本体は live
+- [x] DEADCODE-CORE-059: [R0] 同ファイル `:339` の `CallTypeChecker.isIterableLikeReceiver(receiverID:sema:interner:)` forwarding overload を削除する。Classifier 側は live
+- [x] DEADCODE-CORE-060: [R0] 同ファイル `:371` の `CallTypeChecker.isListCollectionFactoryReceiver(receiverID:ast:sema:interner:)` forwarding overload を削除する。Classifier 側は live
+- [x] DEADCODE-CORE-061: [D: CORE-053] 同ファイル `:285` の private `nominalSymbol(of:)` を削除する
+- [x] DEADCODE-CORE-062: [R0] 同ファイル `:327` の `CallTypeChecker.isConcreteListLikeType(_:sema:interner:)` forwarding overload を削除する
+- [x] DEADCODE-CORE-063: [W0] `ReceiverClassification.receiverType` (`ReceiverClassifier.swift:2`) を削除し、`classify` の初期化引数 `:39` も消す。判定フラグ群は残す。2026-07-21 完了: 対象 API 18件を削除。`swift build` 成功、`ListSyntheticMemberLinkTests` 120件成功、対象 API の残存参照なし、`git diff --check` clean を確認
 
 ### CompilerCore: ABI / boxing の未参照 alias・overload
 
@@ -176,60 +176,63 @@
 
 > `rg 'FunctionEmissionState\s*\(' Sources Tests` は 0 件。現行パスは `NativeEmitter+FunctionEmission.swift` の monolithic `emitFunctionBody` を使う。まず root 呼び出しを削除し、D ヘルパを順次消し、最後に owner type と 3 ファイルを削除する。
 
-- [ ] DEADCODE-BACKEND-001: [R0] `NativeEmitter+InstructionEmission.swift:7` の `FunctionEmissionState.emitInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-002: [D: BACKEND-001] `NativeEmitter+CallEmission.swift:8` の `emitCallInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-003: [D: BACKEND-001] 同ファイル `:332` の `emitVirtualCallInstruction(...)` を削除する
-- [ ] DEADCODE-BACKEND-004: [D: BACKEND-001] `NativeEmitter+InstructionEmission.swift:285` の private `updateDebugLocation(...)` を削除する
-- [ ] DEADCODE-BACKEND-005: [D: BACKEND-001] 同ファイル `:323` の private `emitConstValueDebugInfo(...)` を削除する
-- [ ] DEADCODE-BACKEND-006: [D: BACKEND-001] 同ファイル `:392` の private `emitNullAssert(...)` を削除する
-- [ ] DEADCODE-BACKEND-007: [D: BACKEND-001] `NativeEmitter+FunctionEmissionState.swift:84` の `assignmentTargets(for:)` を削除する。live な同名 local function は別 USR
-- [ ] DEADCODE-BACKEND-008: [D] 同ファイル `:114` の `declareExternalFunction(...)` を削除する
-- [ ] DEADCODE-BACKEND-009: [D] 同ファイル `:150` の `resolveUnnamedInternalFunction(...)` を削除する
-- [ ] DEADCODE-BACKEND-010: [D] 同ファイル `:173` の `valueForConstant(_:expressionRawID:)` を削除する
-- [ ] DEADCODE-BACKEND-011: [D] 同ファイル `:189` の `resolveValue(_:)` を削除する
-- [ ] DEADCODE-BACKEND-012: [D] 同ファイル `:204` の `rawComparableValues(lhs:rhs:)` を削除する
-- [ ] DEADCODE-BACKEND-013: [D] 同ファイル `:228` の `storeResult(_:_:)` を削除する
-- [ ] DEADCODE-BACKEND-014: [D] 同ファイル `:245` の `blockForLabel(_:)` を削除する
-- [ ] DEADCODE-BACKEND-015: [D] 同ファイル `:256` の `buildThrownSlotCondition(from:name:)` を削除する
-- [ ] DEADCODE-BACKEND-016: [D] 同ファイル `:263` の `storeOutThrownIfNonNull(_:suffix:)` を削除する
-- [ ] DEADCODE-BACKEND-017: [D] 同ファイル `:303` の `emitFramePop(_:)` を削除する
-- [ ] DEADCODE-BACKEND-018: [D] 同ファイル `:316` の `emitBuiltinCall(...)` を削除する。live な同名 local function は別 USR
-- [ ] DEADCODE-BACKEND-019: [R0] 同ファイル `:335` の `setupFrame(function:)` を削除する
-- [ ] DEADCODE-BACKEND-020: [D: BACKEND-021〜050] `NativeEmitter+FunctionEmissionState.swift:39` の `FunctionEmissionState.init(...)` を削除する
-- [ ] DEADCODE-BACKEND-021: [D] 同ファイル `:5` の stored property `emitter` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-022: [D] 同ファイル `:6` の stored property `builder` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-023: [D] 同ファイル `:7` の stored property `int64Type` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-024: [D] 同ファイル `:8` の stored property `zeroValue` を削除し、initializer の property assignment も消す
-- [ ] DEADCODE-BACKEND-025: [D] 同ファイル `:9` の stored property `context` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-026: [D] 同ファイル `:10` の stored property `llvmModule` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-027: [D] 同ファイル `:11` の stored property `llvmFunction` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-028: [D] 同ファイル `:12` の stored property `outThrownPointerType` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-029: [D] 同ファイル `:13` の stored property `outThrownParameter` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-030: [D] 同ファイル `:14` の stored property `nullThrownPointer` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-031: [D] 同ファイル `:15` の stored property `parameterValues` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-032: [D] 同ファイル `:16` の stored property `internalFunctions` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-033: [D] 同ファイル `:17` の stored property `globalVariables` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-034: [D] 同ファイル `:18` の stored property `maxKIRArgumentCountByExternalCallee` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-035: [D] 同ファイル `:19` の stored property `builderState` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-036: [D] 同ファイル `:20` の stored property `copyTargetAllocas` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-037: [D] 同ファイル `:22` の stored property `framePopFunction` を削除する
-- [ ] DEADCODE-BACKEND-038: [D] 同ファイル `:23` の stored property `coroutineRegisterRootFunction` を削除する
-- [ ] DEADCODE-BACKEND-039: [D] 同ファイル `:24` の stored property `coroutineUnregisterRootFunction` を削除する
-- [ ] DEADCODE-BACKEND-040: [D] 同ファイル `:25` の stored property `functionIDValue` と initializer `:77` の初期化を削除する
-- [ ] DEADCODE-BACKEND-041: [D] 同ファイル `:27` の stored property `currentBlock` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-042: [D] 同ファイル `:28` の stored property `values` を削除する
-- [ ] DEADCODE-BACKEND-043: [D] 同ファイル `:29` の stored property `rawResultValues` を削除する
-- [ ] DEADCODE-BACKEND-044: [D] 同ファイル `:30` の stored property `externalFunctions` を削除する
-- [ ] DEADCODE-BACKEND-045: [D] 同ファイル `:31` の stored property `labelBlocks` を削除し、initializer parameter / assignment も消す
-- [ ] DEADCODE-BACKEND-046: [D] 同ファイル `:32` の stored property `generatedStringLiteralCount` を削除する
-- [ ] DEADCODE-BACKEND-047: [D] 同ファイル `:34` の computed property `bindings` を削除する
-- [ ] DEADCODE-BACKEND-048: [D] 同ファイル `:35` の computed property `module` を削除する
-- [ ] DEADCODE-BACKEND-049: [D] 同ファイル `:36` の computed property `interner` を削除する
-- [ ] DEADCODE-BACKEND-050: [D] 同ファイル `:37` の computed property `sourceManager` を削除する
-- [ ] DEADCODE-BACKEND-051: [R0/type; 前提 BACKEND-001〜050] `NativeEmitter.FunctionEmissionState` (`NativeEmitter+FunctionEmissionState.swift:4`) と、空になる `NativeEmitter+FunctionEmissionState.swift` / `NativeEmitter+CallEmission.swift` / `NativeEmitter+InstructionEmission.swift` を削除する
-- [ ] DEADCODE-BACKEND-052: [R0] `NativeEmitter.swift:424` の private `emitFunctionBodiesParallel(...)` を削除する。parallel codegen は `:361` のコメントどおり disabled、local type `ParallelEmissionWork` も本 body と同時に消す
-- [ ] DEADCODE-BACKEND-053: [W0] `NativeEmitter.swift:308` の local `functionDeclInfo` と `:356` の append を削除する。同名の後続参照は dead parallel method の別 parameter/field
-- [ ] DEADCODE-BACKEND-054: [D: BACKEND-052] `LLVMCAPIBindings+Core.swift:126` の `linkModules(_:source:)` を削除する。唯一の caller は dead parallel emission body
+- [x] DEADCODE-BACKEND-001: [R0] `NativeEmitter+InstructionEmission.swift:7` の `FunctionEmissionState.emitInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-002: [D: BACKEND-001] `NativeEmitter+CallEmission.swift:8` の `emitCallInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-003: [D: BACKEND-001] 同ファイル `:332` の `emitVirtualCallInstruction(...)` を削除する
+- [x] DEADCODE-BACKEND-004: [D: BACKEND-001] `NativeEmitter+InstructionEmission.swift:285` の private `updateDebugLocation(...)` を削除する
+- [x] DEADCODE-BACKEND-005: [D: BACKEND-001] 同ファイル `:323` の private `emitConstValueDebugInfo(...)` を削除する
+- [x] DEADCODE-BACKEND-006: [D: BACKEND-001] 同ファイル `:392` の private `emitNullAssert(...)` を削除する
+- [x] DEADCODE-BACKEND-007: [D: BACKEND-001] `NativeEmitter+FunctionEmissionState.swift:84` の `assignmentTargets(for:)` を削除する。live な同名 local function は別 USR
+- [x] DEADCODE-BACKEND-008: [D] 同ファイル `:114` の `declareExternalFunction(...)` を削除する
+- [x] DEADCODE-BACKEND-009: [D] 同ファイル `:150` の `resolveUnnamedInternalFunction(...)` を削除する
+- [x] DEADCODE-BACKEND-010: [D] 同ファイル `:173` の `valueForConstant(_:expressionRawID:)` を削除する
+- [x] DEADCODE-BACKEND-011: [D] 同ファイル `:189` の `resolveValue(_:)` を削除する
+- [x] DEADCODE-BACKEND-012: [D] 同ファイル `:204` の `rawComparableValues(lhs:rhs:)` を削除する
+- [x] DEADCODE-BACKEND-013: [D] 同ファイル `:228` の `storeResult(_:_:)` を削除する
+- [x] DEADCODE-BACKEND-014: [D] 同ファイル `:245` の `blockForLabel(_:)` を削除する
+- [x] DEADCODE-BACKEND-015: [D] 同ファイル `:256` の `buildThrownSlotCondition(from:name:)` を削除する
+- [x] DEADCODE-BACKEND-016: [D] 同ファイル `:263` の `storeOutThrownIfNonNull(_:suffix:)` を削除する
+- [x] DEADCODE-BACKEND-017: [D] 同ファイル `:303` の `emitFramePop(_:)` を削除する
+- [x] DEADCODE-BACKEND-018: [D] 同ファイル `:316` の `emitBuiltinCall(...)` を削除する。live な同名 local function は別 USR
+- [x] DEADCODE-BACKEND-019: [R0] 同ファイル `:335` の `setupFrame(function:)` を削除する
+- [x] DEADCODE-BACKEND-020: [D: BACKEND-021〜050] `NativeEmitter+FunctionEmissionState.swift:39` の `FunctionEmissionState.init(...)` を削除する
+- [x] DEADCODE-BACKEND-021: [D] 同ファイル `:5` の stored property `emitter` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-022: [D] 同ファイル `:6` の stored property `builder` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-023: [D] 同ファイル `:7` の stored property `int64Type` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-024: [D] 同ファイル `:8` の stored property `zeroValue` を削除し、initializer の property assignment も消す
+- [x] DEADCODE-BACKEND-025: [D] 同ファイル `:9` の stored property `context` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-026: [D] 同ファイル `:10` の stored property `llvmModule` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-027: [D] 同ファイル `:11` の stored property `llvmFunction` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-028: [D] 同ファイル `:12` の stored property `outThrownPointerType` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-029: [D] 同ファイル `:13` の stored property `outThrownParameter` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-030: [D] 同ファイル `:14` の stored property `nullThrownPointer` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-031: [D] 同ファイル `:15` の stored property `parameterValues` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-032: [D] 同ファイル `:16` の stored property `internalFunctions` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-033: [D] 同ファイル `:17` の stored property `globalVariables` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-034: [D] 同ファイル `:18` の stored property `maxKIRArgumentCountByExternalCallee` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-035: [D] 同ファイル `:19` の stored property `builderState` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-036: [D] 同ファイル `:20` の stored property `copyTargetAllocas` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-037: [D] 同ファイル `:22` の stored property `framePopFunction` を削除する
+- [x] DEADCODE-BACKEND-038: [D] 同ファイル `:23` の stored property `coroutineRegisterRootFunction` を削除する
+- [x] DEADCODE-BACKEND-039: [D] 同ファイル `:24` の stored property `coroutineUnregisterRootFunction` を削除する
+- [x] DEADCODE-BACKEND-040: [D] 同ファイル `:25` の stored property `functionIDValue` と initializer `:77` の初期化を削除する
+- [x] DEADCODE-BACKEND-041: [D] 同ファイル `:27` の stored property `currentBlock` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-042: [D] 同ファイル `:28` の stored property `values` を削除する
+- [x] DEADCODE-BACKEND-043: [D] 同ファイル `:29` の stored property `rawResultValues` を削除する
+- [x] DEADCODE-BACKEND-044: [D] 同ファイル `:30` の stored property `externalFunctions` を削除する
+- [x] DEADCODE-BACKEND-045: [D] 同ファイル `:31` の stored property `labelBlocks` を削除し、initializer parameter / assignment も消す
+- [x] DEADCODE-BACKEND-046: [D] 同ファイル `:32` の stored property `generatedStringLiteralCount` を削除する
+- [x] DEADCODE-BACKEND-047: [D] 同ファイル `:34` の computed property `bindings` を削除する
+- [x] DEADCODE-BACKEND-048: [D] 同ファイル `:35` の computed property `module` を削除する
+- [x] DEADCODE-BACKEND-049: [D] 同ファイル `:36` の computed property `interner` を削除する
+- [x] DEADCODE-BACKEND-050: [D] 同ファイル `:37` の computed property `sourceManager` を削除する
+- [x] DEADCODE-BACKEND-051: [R0/type; 前提 BACKEND-001〜050] `NativeEmitter.FunctionEmissionState` (`NativeEmitter+FunctionEmissionState.swift:4`) と、空になる `NativeEmitter+FunctionEmissionState.swift` / `NativeEmitter+CallEmission.swift` / `NativeEmitter+InstructionEmission.swift` を削除する
+- [x] DEADCODE-BACKEND-052: [R0] `NativeEmitter.swift:424` の private `emitFunctionBodiesParallel(...)` を削除する。parallel codegen は `:361` のコメントどおり disabled、local type `ParallelEmissionWork` も本 body と同時に消す
+- [x] DEADCODE-BACKEND-053: [W0] `NativeEmitter.swift:308` の local `functionDeclInfo` と `:356` の append を削除する。同名の後続参照は dead parallel method の別 parameter/field
+- [x] DEADCODE-BACKEND-054: [D: BACKEND-052] `LLVMCAPIBindings+Core.swift:126` の `linkModules(_:source:)` を削除する。唯一の caller は dead parallel emission body
+
+> 2026-07-21 完了: `FunctionEmissionState` とその call/instruction emission extension、無効化済み parallel codegen、専用の LLVM module linker helper/binding を削除。現行の `NativeEmitter+FunctionEmission.swift` の serial emission path は維持する。
+> 検証: Xcode beta toolchain の `swift build`、`VirtualDispatchCodegenTests.testLLVMBackendCompilesVirtualCallWithoutError` 1/1、`RuntimeStubImplementationTests` 1/1、`KotlinCompilationObjectEmissionTests` 10/10 が成功。`CompilerBackendTests` 全体は `LinkPhase.swift:109` の既存 `outputUnavailable` が実行系ケースで再発したため中断（KIR/ABI ケースは通過）。
 
 ### Runtime: 完全到達不能 export / legacy bridge
 
@@ -343,8 +346,8 @@
 
 ### HIGH: 影響大（多数ファイル or バグ温床）
 
-- [ ] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — symbol 定義 → パラメータループ → `setFunctionSignature` の一連の処理が `HeaderHelpers+SyntheticStringRegistrationHelpers.swift`・`+SyntheticSequenceRegistrationHelpers`・`+SyntheticMutableListStubs`・`+SyntheticMathStubs`・`+SyntheticPathStubs+SymbolRegistration` の 5 ファイルで 60〜90 行ずつ重複している。共有ファイルに `registerSyntheticFunctionStub(...)` フリー関数を定義して各ヘルパーから呼び出す
-- [ ] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `guard case let .classType(...) = sema.types.kind(of: sema.types.makeNonNullable(...))` という 3 行ガードが 61 ファイルに散在している。`func resolveClassTypeSymbol(_ type: TypeID, sema: SemaModule) -> (ClassType, Symbol)?` のような共有ヘルパーを定義して置き換える
+- [x] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — `SyntheticFunctionStubRegistration.swift` の `registerSyntheticFunctionStub(...)` が symbol 定義・パラメータ登録・signature 設定を集約済み。対象の String / Sequence / MutableList / Math / Path helper が同関数を利用する
+- [x] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `ClassTypeResolution.swift` の `resolveClassTypeSymbol` / `resolveClassType` に集約し、残存していた direct `classType` ガードも置換済み
 
 ### MEDIUM: 局所的だが改善余地あり
 
@@ -444,7 +447,7 @@
 
 ### KSP-INF: パイプラインのインフラ・検証（2026-07-10 監査で判明した設計要求の未実装分）
 
-- [ ] KSP-INF-001: `--no-stdlib` を実装する（**現状デッドフラグ**: `CLIParser.swift` でパースするが `CompilerOptions.includeStdlib` の読み出し箇所ゼロ、`LoadSourcesPhase.run` は無条件注入）。`FrontendPhases.swift` で分岐 + CLI テスト + 動作テスト追加。完了: includeStdlib の読出実装 + テスト green + G
+- [x] KSP-INF-001: `--no-stdlib` を実装する（`CLIParser.swift` でパースした `CompilerOptions.includeStdlib` に従って `LoadSourcesPhase.run` の bundled stdlib 注入を制御）。PR #4842 で分岐 + 動作テストを追加。完了: includeStdlib の読出実装 + `FrontendPhasesTests.testLoadSourcesRespectsIncludeStdlibOption` green
 - [ ] KSP-INF-002: bundled stdlib のフィンガープリントを `IncrementalCompilationCache` に含める（現状 `computeCurrentFingerprints` はユーザー入力のみ = bundled .kt 変更後も stale cache を再利用する正当性バグ）。`IncrementalBuildConfiguration` へ stdlib manifest hash を追加し、変更時は full rebuild に倒す
 - [ ] KSP-INF-003: @KsSymbolName ↔ RuntimeABISpec の**型署名**突合を enforcing にする（KSP-103 はアリティのみ検証で完了扱いになっていた。`docs/stdlib-pipeline.md` §6 の「型署名が一致する」要求を充足する後継タスク）
 - [ ] KSP-INF-004: `DiagnosticEngine` に severity 別集計（`hasWarning` 等）を追加し、「bundled stdlib 全体で診断ゼロ（warning 含む）」を横断 enforcing テスト化する（§8 の未実装要求）
@@ -472,7 +475,7 @@
   - 注意: `CollectionLiteralLoweringPass` がファクトリ呼び出しを直接 `kk_*` へ書き換えている。ブリッジ残留: 生成コア `kk_list_of`, `kk_set_of`, `kk_map_of`, `kk_emptyList`, `kk_emptySet`, `kk_emptyMap` は `__kk_` 降格（アロケーション主体のため）
   - 削除: `CallLowerer+StdlibArrayConstructor.swift` のファクトリ特例 / 各 `HeaderHelpers+Synthetic{List,Set,Map,Array}Stubs.swift` のファクトリ登録
   - 手順: T / diff: `collection_builders.kt`（既存）
-  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_simple.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
+  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_comprehensive.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
 - [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録
@@ -852,3 +855,17 @@
 - [x] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift` の vtable dispatch gate を解除。`kk_alloc` / `KTypeInfo` vtable は raw heap object fallback として残しつつ、既存 `kk_object_new` ベースの class/object/object-literal allocation は itable と同型の object-local vtable method registry を登録し、`kk_vtable_lookup` が override 実装を取得できるようにした。`VirtualDispatchTests` と backend 実行テストで open-class / safe-call 経路を検証済み
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
 - [ ] DEBT-KIR-004: 自己参照ではない `x or y` において、`y` が直前の関数呼び出し結果（例: `String.indexOf`）の場合に右オペランドが無視され 0 として計算されるバグを調査・修正する。再現: `val value = alphabet.indexOf(c); val r = 0 or value` は `r == 0`（誤り、正しくは `value`）になるが `value or 0` は正しく計算される。KSP-482 (#4625) の `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt:107` (`decodeRaw`) でオペランド順序を入れ替えるワークアラウンドを適用済み（コメント参照）。`and`/`xor` 等の他ビット演算子でも同型の問題がないか要確認。**調査結果（2026-07-15）: 現行 HEAD（`8f3c04fb4c`、PR #4625 マージ後）ではこのバグは再現しない。** `.build/debug/kswiftc` を実際にビルドし、(1) TODO.md 記載の最小再現（`val value = alphabet.indexOf(c); val r = 0 or value` / `value or 0`）を単独関数で実行、(2) `decodeRaw` と同型の `while` ループ＋self-referential `var buffer` アキュムレータで `buffer = (buffer shl 6) or value`（ワークアラウンド適用前の順序）を実行し `"SGVsbG8="` を `"Hello"`（バイト列 72,101,108,108,111）へ正しくデコード、(3) `and`/`xor`/`shl`/`shr`/`ushr` それぞれを Int/Long・両オペランド順序・self-referential アキュムレータループで検証して Python で独立計算した期待値と完全一致、(4) 実際の `Base64.kt` のワークアラウンドを一時的に除去し、既存 `Base64EdgeCasesTests`（`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+Base64EdgeCases.swift`）と同一の14ケースを手動実行して全一致、(5) 上記 (2)(3) を `Scripts/diff_kotlinc.sh` で実 kotlinc（kotlinc-jvm 2.4.0）と突き合わせて PASS、をそれぞれ確認した。**対応: ワークアラウンドを除去**し `Base64.kt` を自然な `buffer = (buffer shl 6) or value` に戻した。再発防止として `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+BitwiseOperatorArgumentOrder.swift`（XCTest 統合テスト、6 演算子 × Int/Long × 両オペランド順序 + self-referential アキュムレータループ）と `Scripts/diff_cases/bitwise_operator_call_derived_operand.kt`（kotlinc 比較ケース、diff_kotlinc.sh で PASS 確認済み）を追加。**推定される真因**: PR #4625（2026-07-12 マージ）から本調査時点までの間に着地した他の数値/ランタイム関連修正（`bda5fa2568` KSP-466 ULong division/modulo 修正、`24e43cce5d` vararg Any-element boxing 修正等）のいずれかが副次的に解消したと推定されるが、当時の再現バイナリが残っていないため bisect による厳密な特定はできていない。**環境注記**: 本調査を行ったサンドボックスは Xcode.app 未インストール（Command Line Tools のみ）のため `swift test`（XCTest ベース）が一切ビルドできず、追加した XCTest 統合テストは同環境では未実行（CI では実行される想定）。代わりに `kswiftc` 実バイナリの直接実行と `Scripts/diff_kotlinc.sh` による実 kotlinc との突き合わせで検証した。修正 PR: #4844（マージ後に `[x]` 化する）
+- [x] DEADCODE-CORE-008: [R0] `HeaderHelpers+SyntheticCoroutineRegistry.swift:2522` の `registerSyntheticCoroutinesABIStubs(...)` を削除する。`STDLIB-CORO-ABI-001` surface がまだ必要なら、削除ではなく live registry へ配線して本 ID を閉じる 2026-07-21 完了: 未到達の ABI registry extension を削除。live の coroutine registry は維持。
+- [x] DEADCODE-CORE-009: [R0] `HeaderHelpers+SyntheticDynamicStubs.swift:4` の `registerSyntheticDynamicStubs(...)` を削除する（Native 対象外の Kotlin/JS surface） 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-010: [D: CORE-009] 同ファイル `:42` の private `registerDynamicIterator(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-011: [R0] `HeaderHelpers+SyntheticFileIOStubs.swift:1937` の private `registerKotlinIOExtensionProperty(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [x] DEADCODE-CORE-012: [R0] `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift:7` の `registerSyntheticJsArrayExternalClassStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-013: [R0] `HeaderHelpers+SyntheticJsArrayStubs.swift:4` の `registerSyntheticJsArrayStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-015: [D: CORE-014] 同ファイル `:49` の private `ensureJsStringInterface(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
+- [x] DEADCODE-CORE-016: [D: CORE-014] 同ファイル `:88` の private `registerStringToJsStringExtension(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
+- [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
+- [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
+- [x] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
+- [x] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す 2026-07-21 確認: 宣言・initializer とも現 HEAD に存在せず、TODO の stale entry を同期。
+- [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
