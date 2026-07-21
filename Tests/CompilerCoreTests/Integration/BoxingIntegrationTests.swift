@@ -291,9 +291,9 @@ struct BoxingIntegrationTests {
         let module: KIRModule = try #require(ctx.kir)
         let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
 
-        let boxLongCalls = testFunc.body.filter { instruction in
+        let boxLongNonnullCalls = testFunc.body.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "kk_box_long"
+                return ctx.interner.resolve(callee) == "kk_box_long_nonnull"
             }
             return false
         }
@@ -307,9 +307,13 @@ struct BoxingIntegrationTests {
         // arr[0] += 5L on an Array<Long> must unbox the read element and box the
         // stored result using the receiver's own element type (Long), derived from
         // Array<Long>'s type argument rather than heuristically re-derived from the
-        // RHS expression — the two happen to agree here, but only the former stays
-        // correct if the RHS were ever a different (compiler-permitted) numeric type.
-        #expect(!boxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should box the result as Long. Found \(boxLongCalls.count)")
+        // RHS expression. Non-null Long boxing intentionally uses the sentinel-safe
+        // kk_box_long_nonnull ABI. The four calls are three arrayOf elements plus
+        // one boxed compound-assign store result.
+        #expect(
+            boxLongNonnullCalls.count == 4,
+            "arr[0] += 5L on Array<Long> should box array construction and the stored result as non-null Long. Found \(boxLongNonnullCalls.count)"
+        )
         #expect(!unboxLongCalls.isEmpty, "arr[0] += 5L on Array<Long> should unbox the read element as Long. Found \(unboxLongCalls.count)")
     }
 
