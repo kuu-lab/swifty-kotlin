@@ -67,9 +67,6 @@ struct BoxingCalleeTable {
         return result
     }()
 
-    static let primitiveBoxingCalleeNames: Set<String> = Set(primitiveBoxingCalleeNamesByPrimitive.values)
-    static let primitiveUnboxingCalleeNames: Set<String> = Set(primitiveUnboxingCalleeNamesByPrimitive.values)
-
     /// Box callees used in place of the default one when the source's static
     /// type is provably non-null (TypeKind nullability `.nonNull`).
     ///
@@ -128,23 +125,6 @@ struct BoxingCalleeTable {
 
     static func unboxCalleeName(for primitive: PrimitiveType) -> String? {
         primitiveUnboxingCalleeNamesByPrimitive[primitive]
-    }
-
-    static func boxCalleeName(for kind: TypeKind, requireNonNull: Bool = false) -> String? {
-        guard let primitive = primitive(for: kind, requireNonNull: requireNonNull) else {
-            return nil
-        }
-        if isProvablyNonNull(kind), let override = nonNullOnlyBoxCalleeOverridesByPrimitive[primitive] {
-            return override
-        }
-        return boxCalleeName(for: primitive)
-    }
-
-    static func unboxCalleeName(for kind: TypeKind, requireNonNull: Bool = false) -> String? {
-        guard let primitive = primitive(for: kind, requireNonNull: requireNonNull) else {
-            return nil
-        }
-        return unboxCalleeName(for: primitive)
     }
 
     func boxCallee(for primitive: PrimitiveType) -> InternedString? {

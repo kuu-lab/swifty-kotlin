@@ -116,7 +116,7 @@ extension BuildASTPhase {
             if !rawGroups.isEmpty {
                 let previousFiltered = filteredGroups[filteredGroups.count - 1]
                 let previousEndsWithContinuation = previousFiltered.last.map {
-                    Self.isBinaryOperatorToken($0.kind)
+                    Self.isStatementContinuationAtLineEnd($0.kind)
                         || $0.kind == .symbol(.lParen)
                         || $0.kind == .symbol(.comma)
                 } ?? false
@@ -248,7 +248,9 @@ extension BuildASTPhase {
                     return false
                 }
                 if hasNewline, !current.isEmpty {
-                    let lastIsContinuation = current.last.map { Self.isBinaryOperatorToken($0.kind) } ?? false
+                    let lastIsContinuation = current.last.map {
+                        Self.isStatementContinuationAtLineEnd($0.kind)
+                    } ?? false
                     let nextIsContinuation = Self.isBinaryOperatorToken(token.kind)
                     let nextIsTrailingLambda = token.kind == .symbol(.lBrace) && Self.canAcceptTrailingLambda(on: current)
                     if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
@@ -284,6 +286,18 @@ extension BuildASTPhase {
             true
         default:
             false
+        }
+    }
+
+    /// A closing `>` can be either a binary comparison operator or the end of
+    /// a generic type argument list. At a line ending it completes the latter,
+    /// so it must not merge the following statement into the current group.
+    static func isStatementContinuationAtLineEnd(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.greaterThan):
+            return false
+        default:
+            return isBinaryOperatorToken(kind)
         }
     }
 

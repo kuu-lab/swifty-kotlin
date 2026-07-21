@@ -72,6 +72,33 @@ final class ControlFlowLowerer {
             )
         }
 
+        // DEBT-KIR-005: Array types (Array<T>, IntArray, ByteArray, etc.) have no
+        // real (non-synthetic) `iterator()` member, so bindLoopIterationOperators
+        // never produces a LoopIterationBinding for them (see
+        // ControlFlowTypeChecker.bindLoopIterationOperators, which filters out
+        // `.synthetic` iterator() candidates). Without that binding they would
+        // otherwise fall into the range-iterator intrinsics below, which
+        // silently misinterpret the array object as a range and never enter
+        // the loop body (hasNext reads unrelated memory as the range bound).
+        // Lower directly to an index-based loop instead, matching how arrays
+        // are already indexed everywhere else (kk_array_size / kk_array_get_inbounds).
+        if ReceiverClassifier(sema: sema, interner: interner)
+            .isArrayLikeType(sema.types.makeNonNullable(iterableType))
+        {
+            return lowerArrayForExpr(
+                exprID,
+                iterableExpr: iterableExpr,
+                bodyExpr: bodyExpr,
+                label: label,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
         let iterableID = driver.lowerExpr(
             iterableExpr,
@@ -204,6 +231,117 @@ final class ControlFlowLowerer {
         }
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
+        }
+
+        driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
+        _ = driver.lowerExpr(
+            bodyExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        _ = driver.ctx.popLoopControl()
+        instructions.append(.jump(continueLabel))
+        instructions.append(.label(breakLabel))
+
+        if let loopVariableSymbol {
+            if let previousLoopValue {
+                driver.ctx.setLocalValue(previousLoopValue, for: loopVariableSymbol)
+            } else {
+                driver.ctx.clearLocalValue(for: loopVariableSymbol)
+            }
+        }
+
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
+    /// (`i = 0; while (i < kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
+    /// rather than the range-iterator intrinsics used by lowerForExpr's
+    /// general path, since arrays have no real `iterator()` member for Sema
+    /// to bind (see the DEBT-KIR-005 comment at the lowerForExpr call site).
+    /// The index is advanced before the body runs (mirroring how the
+    /// iterator-based loop's next() call both reads and advances ahead of
+    /// the body) so that `continue` — which jumps back to continueLabel —
+    /// re-checks the bound against the already-advanced index.
+    private func lowerArrayForExpr(
+        _ exprID: ExprID,
+        iterableExpr: ExprID,
+        bodyExpr: ExprID,
+        label: InternedString?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
+        let arrayID = driver.lowerExpr(
+            iterableExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let sizeID = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_size"),
+            arguments: [arrayID],
+            result: sizeID,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let indexSlot = arena.appendTemporary(type: intType)
+        let zeroID = arena.appendExpr(.intLiteral(0), type: intType)
+        instructions.append(.constValue(result: zeroID, value: .intLiteral(0)))
+        instructions.append(.copy(from: zeroID, to: indexSlot))
+
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let breakLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.label(continueLabel))
+
+        let hasMoreID = arena.appendTemporary(type: boolType)
+        instructions.append(.binary(op: .lessThan, lhs: indexSlot, rhs: sizeID, result: hasMoreID))
+        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
+        instructions.append(.jumpIfEqual(lhs: hasMoreID, rhs: falseID, target: breakLabel))
+
+        let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
+        let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
+        let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
+            ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
+            ?? sema.types.anyType
+        let elementID = arena.appendTemporary(type: loopVarType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_get_inbounds"),
+            arguments: [arrayID, indexSlot],
+            result: elementID,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let oneID = arena.appendExpr(.intLiteral(1), type: intType)
+        instructions.append(.constValue(result: oneID, value: .intLiteral(1)))
+        let nextIndexID = arena.appendTemporary(type: intType)
+        instructions.append(.binary(op: .add, lhs: indexSlot, rhs: oneID, result: nextIndexID))
+        instructions.append(.copy(from: nextIndexID, to: indexSlot))
+
+        if let loopVariableSymbol {
+            driver.ctx.setLocalValue(elementID, for: loopVariableSymbol)
         }
 
         driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)

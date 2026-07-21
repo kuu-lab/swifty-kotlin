@@ -267,6 +267,18 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        // STDLIB-CORO-076: `CoroutineScope` is registered as an empty marker
+        // interface so extension functions declared as `fun CoroutineScope.foo()`
+        // (a common pattern for user-defined producer/consumer helpers) type-check.
+        // Builder blocks (runBlocking/launch/coroutineScope/...) do not yet carry
+        // this as their lambda receiver type, so such extensions only resolve when
+        // called with an explicit receiver.
+        _ = ensureInterfaceSymbol(
+            named: "CoroutineScope",
+            in: coroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let jobSymbol = ensureClassSymbol(
             named: "Job",
             in: coroutinesPkg,
@@ -803,6 +815,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // NOTE: CoroutineStart.LAZY / launch(start:, block:) is intentionally
+        // NOT registered yet. rewriteLauncherCall's dispatcher-aware path
+        // (STDLIB-CORO-072) treats ANY 2-arg launch call's first argument as
+        // a CoroutineDispatcher and forwards it to kk_kxmini_launch_with_dispatcher,
+        // which dereferences it as such -- a CoroutineStart value there
+        // crashes (EXC_BAD_ACCESS deep in kk_job_is_cancelled once the bogus
+        // "dispatcher" corrupts later state). Registering the enum without
+        // teaching the lowering to tell start apart from context, and without
+        // real deferred-start scheduling semantics, would trade a clean
+        // compile error for a crash while still not matching reference
+        // behavior. Needs: (1) lowering-side disambiguation by argument type,
+        // (2) an actual "pending, not yet started" RuntimeJobHandle state
+        // that .start()/.join()/.cancel() honor before the body ever runs.
         registerSyntheticCoroutineExtensionFunction(
             named: "intercepted",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -2054,6 +2079,44 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-CORO-078: `ReceiveChannel<T>` is the read-only view of `Channel<T>`
+        // that `produce { }` returns in real kotlinx.coroutines. Registered as a
+        // type alias (rather than a separate interface) so send/receive/close/
+        // isClosedForReceive/for-loop iteration resolve through the same Channel
+        // member lookup instead of duplicating it for a second symbol.
+        let receiveChannelName = interner.intern("ReceiveChannel")
+        let receiveChannelFQName = channelsPkg + [receiveChannelName]
+        if symbols.lookup(fqName: receiveChannelFQName) == nil {
+            let receiveChannelAliasSymbol = symbols.define(
+                kind: .typeAlias,
+                name: receiveChannelName,
+                fqName: receiveChannelFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            let receiveChannelTypeParamName = interner.intern("T")
+            let receiveChannelTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: receiveChannelTypeParamName,
+                fqName: receiveChannelFQName + [receiveChannelTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeAliasTypeParameters([receiveChannelTypeParamSymbol], for: receiveChannelAliasSymbol)
+            let receiveChannelTypeParamType = types.make(.typeParam(TypeParamType(
+                symbol: receiveChannelTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let receiveChannelUnderlyingType = types.make(.classType(ClassType(
+                classSymbol: channelSymbol,
+                args: [.invariant(receiveChannelTypeParamType)],
+                nullability: .nonNull
+            )))
+            symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
+        }
+
         registerSyntheticObjectProperty(
             ownerSymbol: dispatchersSymbol,
             ownerType: dispatchersType,
@@ -2137,6 +2200,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-CORO-BUG-04: bare `isActive` reference (no explicit
+        // CoroutineScope receiver) inside a coroutine builder body, e.g.
+        // `launch { if (isActive) { ... } }`.
+        registerSyntheticCoroutineTopLevelProperty(
+            named: "isActive",
+            packageFQName: coroutinesPkg,
+            returnType: types.booleanType,
+            externalLinkName: "kk_coroutine_current_is_active",
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-CORO-070: Job state properties
         registerSyntheticObjectProperty(
             ownerSymbol: jobSymbol,
@@ -3048,40 +3122,17 @@ extension DataFlowSemaPhase {
 ///
 /// Consolidated here with the coroutine package registry for RF-STUB-005.
 extension DataFlowSemaPhase {
+    // STDLIB-CORO-BUG-04: this used to also register a `Job.cancel()`
+    // extension function under kotlin.coroutines.cancellation, duplicating
+    // the member declared in registerSyntheticCoroutineStubs (same receiver,
+    // arity, and external link name) and making `job.cancel()` ambiguous.
+    // Removed; kept as a no-op since the SyntheticStubRegistryEntry bucket
+    // table references this function by name.
     func registerSyntheticCoroutineCancellationStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
-    ) {
-        let jobFQName: [InternedString] = [interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("Job")]
-        guard let jobSymbol = symbols.lookup(fqName: jobFQName) else {
-            return
-        }
-        let jobType = types.make(.classType(ClassType(
-            classSymbol: jobSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let cancellationPkg = ensureSyntheticCoroutinePackage(
-            ensurePackage(
-                path: ["kotlin", "coroutines", "cancellation"],
-                symbols: symbols,
-                interner: interner
-            ),
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticCoroutineExtensionFunction(
-            named: "cancel",
-            packageFQName: cancellationPkg,
-            receiverType: jobType,
-            externalLinkName: "kk_job_cancel",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-    }
+    ) {}
 
     func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
