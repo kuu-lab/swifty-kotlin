@@ -495,6 +495,17 @@ extension DataFlowSemaPhase {
                 !(isCallableLike($0.kind) || $0.kind == .property || isNominalTypeSymbol($0.kind))
             }
         }
+        // KSP-CAP-006: a class/interface/object/enum/annotation-class/typealias
+        // may coexist with a top-level function of the same name (e.g. `class
+        // Random` + `fun Random(seed: Long): Random`, the real kotlin-stdlib
+        // factory-function idiom). This mirrors the tolerance already granted
+        // above for the opposite declaration order (callable declared first),
+        // so the check no longer depends on which of the two comes first in
+        // source order. A second nominal type (or a property) of the same name
+        // still conflicts.
+        if isNominalTypeSymbol(newKind) {
+            return existing.contains { !isCallableLike($0.kind) }
+        }
         if isOverloadableSymbol(newKind) {
             return existing.contains(where: { !isOverloadableSymbol($0.kind) })
         }
