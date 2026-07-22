@@ -3,7 +3,7 @@ symbol fq=__local_1.b kind=local vis=private flags=_ type=Long
 symbol fq=__local_2.c kind=local vis=private flags=_ type=Long
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomLong kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_nextlong package=_
   decl useRandomLong fun useRandomLong sym=useRandomLong
 expr e@4:13 name(Random) type=kotlin.random.Random.Default ref=kotlin.random.Random
 expr e@4:13#1 memberCall recv=e@4:13 callee=nextLong args=[] type=Long call=kotlin.random.Random.Default.nextLong#0

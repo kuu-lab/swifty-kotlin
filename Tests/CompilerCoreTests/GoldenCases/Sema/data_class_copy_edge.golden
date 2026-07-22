@@ -24,7 +24,7 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=testCopyBasic kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testCopySingleProperty kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testCopyWithOverride kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fdata_class_copy_edge package=_
   decl Point class Point sym=Point
   decl Name class Name sym=Name
   decl testCopyBasic fun testCopyBasic sym=testCopyBasic

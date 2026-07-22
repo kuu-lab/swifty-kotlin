@@ -3,7 +3,7 @@ symbol fq=__local_1.a kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.b kind=local vis=private flags=_ type=Long
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomDefault kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_default package=_
   decl useRandomDefault fun useRandomDefault sym=useRandomDefault
 expr e@4:15 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e@4:15#1 memberCall recv=e@4:15 callee=Default args=[] type=kotlin.random.Random.Default ref=kotlin.random.Random.Default

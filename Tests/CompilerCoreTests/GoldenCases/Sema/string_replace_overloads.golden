@@ -2,7 +2,7 @@ symbol fq=golden.sema.useReplaceChar kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.useReplaceCharCaseSensitive kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceCharIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceStringIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-file f0 package=golden.sema
+file fstring_replace_overloads package=golden.sema
   decl golden.sema.useReplaceChar fun useReplaceChar sym=golden.sema.useReplaceChar
   decl golden.sema.useReplaceStringIgnoreCase fun useReplaceStringIgnoreCase sym=golden.sema.useReplaceStringIgnoreCase
   decl golden.sema.useReplaceCharIgnoreCase fun useReplaceCharIgnoreCase sym=golden.sema.useReplaceCharIgnoreCase

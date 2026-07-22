@@ -10,7 +10,7 @@ symbol fq=kotlin.text.removeSurrounding.delimiter kind=valueParameter vis=privat
 symbol fq=kotlin.text.removeSurrounding.prefix kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeSurrounding.suffix kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fremove_prefix_suffix_surrounding package=_
   decl main fun main sym=main
 expr e@3:13 string(HelloWorld) type=String
 expr e@3:39 string(Hello) type=String

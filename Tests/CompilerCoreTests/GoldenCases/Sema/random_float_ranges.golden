@@ -2,7 +2,7 @@ symbol fq=__local_0.a kind=local vis=private flags=_ type=Float
 symbol fq=__local_1.b kind=local vis=private flags=_ type=Float
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomFloatRanges kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_float_ranges package=_
   decl useRandomFloatRanges fun useRandomFloatRanges sym=useRandomFloatRanges
 expr e@4:13 name(Random) type=kotlin.random.Random.Default ref=kotlin.random.Random
 expr e@4:30 float(10.0) type=Float
