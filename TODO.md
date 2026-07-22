@@ -448,7 +448,7 @@
   - 副次発見（本 PR のスコープ外・別バグとして記録）: BUG-046（明示的ラムダ引数型注釈が構文解析時に破棄される）, BUG-047（if/else 等複数ブロックを持つ top-level/member プロパティ初期化子で最初のブロック以降が消失する）, BUG-048（callable reference の SAM 変換が KIR lowering で正しい wrapper object にならず実行時 vtable dispatch が失敗する）。
 - [ ] KSP-CAP-006: クラスと同名のトップレベル関数の共存を許可する（シグネチャが異なっても `KSWIFTK-SEMA-0001` Duplicate declaration）。ブロック対象: 本家構造準拠全般（KSP-466 の Random で構造回避を強いた実績 = 逸脱台帳の主要解消条件）
 - [ ] KSP-CAP-007: プリミティブ型を返す operator getValue/setValue delegate の unboxing を修正する（= BUG-014。`val x by Prop()` が Int でなく生ポインタを返す。参照型は正常）。ブロック対象: KSP-491/492 完全化・KSP-680
-- [ ] KSP-CAP-008: ジェネリックレシーバの関数リテラル `T.() -> Unit` を通す（`KSWIFTK-SEMA-0014` "Val cannot be reassigned" を誤検出。具象型レシーバは動作済み）。ブロック対象: KSP-602・KSP-622〜624
+- [x] KSP-CAP-008: ジェネリックレシーバの関数リテラル `T.() -> Unit` を通す（`KSWIFTK-SEMA-0014` "Val cannot be reassigned" を誤検出。具象型レシーバは動作済み）。ブロック対象: KSP-602・KSP-622〜624 — 修正済み（PR #4991）。`T.() -> Unit` での member lookup が具象型に置換され SEMA-0014 偽陽性が解消。`T.() -> R` の推論も対応し `run`/`with`/`apply`/`buildList`/`buildSet`/`buildMap`/`buildString` の Kotlin 化前提を充足。検証: `GenericReceiverLambdaTypeInferenceTests` 5件・`SmokeTests` 11件・`CompilerCoreTests` 4550件 green、`swift build` green。
 - [ ] KSP-CAP-009: supertype 位置の関数型リテラルをパースする（`class KProperty0<V> : () -> V` 相当。`BuildASTPhase+MemberCollection.swift` の supertype パーサ制約）。ブロック対象: KSP-682
 - [ ] KSP-CAP-010: `CoroutineLoweringPass+Flow.swift` の provenance+名前一致による無条件 `kk_flow_*` 書き換えを「合成スタブ由来と確認できる場合のみ」に限定する（`FlowLoweringNames`。着手前にダミー実装差し替えテストで検証 — `docs/stdlib-pipeline.md` §9 の手順）。ブロック対象: KSP-499・KSP-674〜676
 - [ ] KSP-CAP-011: vtable スロットが同アリティ兄弟オーバーロードで衝突する問題を修正する（= BUG-011。PR #4707 open が該当）。ブロック対象: KSP-466 残課題（shuffled(random) 等の決定性回復）・BUG-005
