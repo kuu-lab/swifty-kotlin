@@ -13,7 +13,7 @@ symbol fq=uncheckedCastLocal.$0.value kind=valueParameter vis=private flags=_
 symbol fq=uncheckedCastReturn kind=function vis=public flags=_ sig=recv=_ params=[Any?] ret=uncheckedCastReturn.$1.T
 symbol fq=uncheckedCastReturn.$1.T kind=typeParameter vis=private flags=_
 symbol fq=uncheckedCastReturn.$1.value kind=valueParameter vis=private flags=_
-file f0 package=_
+file flocal_statement_annotation package=_
   decl uncheckedCastReturn fun uncheckedCastReturn sym=uncheckedCastReturn
   decl uncheckedCastLocal fun uncheckedCastLocal sym=uncheckedCastLocal
   decl annotatedLocalFun fun annotatedLocalFun sym=annotatedLocalFun

@@ -5,7 +5,7 @@ symbol fq=kotlin.ranges.OpenEndRange.start kind=property vis=public flags=synthe
 symbol fq=useOpenEndRange kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
 symbol fq=useOpenEndRange.$0.range kind=valueParameter vis=private flags=_
 symbol fq=useOpenEndRange.$0.value kind=valueParameter vis=private flags=_
-file f0 package=_
+file fopen_end_range package=_
   decl useOpenEndRange fun useOpenEndRange sym=useOpenEndRange
 expr e@4:12 name(value) type=Int ref=useOpenEndRange.$0.value
 expr e@4:21 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range

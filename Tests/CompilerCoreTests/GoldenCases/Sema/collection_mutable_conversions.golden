@@ -43,7 +43,7 @@ symbol fq=kotlin.collections.mapOf.elements kind=valueParameter vis=private flag
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fcollection_mutable_conversions package=_
   decl main fun main sym=main
 expr e@3:39 int(1) type=Int
 expr e@3:42 int(2) type=Int
