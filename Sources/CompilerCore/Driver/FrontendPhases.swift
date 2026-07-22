@@ -92,7 +92,7 @@ final class LoadSourcesPhase: CompilerPhase {
         }
 
         if ctx.options.includeStdlib {
-            injectBundledStdlib(into: ctx.sourceManager)
+            try injectBundledStdlib(into: ctx)
         }
 
         for path in ctx.options.inputs {
@@ -118,11 +118,43 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/reflect/KClassAnnotationRegistration",
     ]
 
-    private func injectBundledStdlib(into sourceManager: SourceManager) {
-        guard let resourcePath = Bundle.module.resourcePath else { return }
+    internal func injectBundledStdlib(
+        into ctx: CompilationContext,
+        resourcePath: String? = Bundle.module.resourcePath
+    ) throws {
+        let sourceManager = ctx.sourceManager
+        let diagnostics = ctx.diagnostics
+
+        guard let resourcePath else {
+            diagnostics.error(
+                "KSWIFTK-SOURCE-0101",
+                "Bundled stdlib resources are missing: resource path is not available.",
+                range: nil
+            )
+            throw CompilerPipelineError.loadError
+        }
+
         let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
         let fm = FileManager.default
-        guard let enumerator = fm.enumerator(atPath: stdlibDir) else { return }
+
+        var isDirectory: ObjCBool = false
+        let dirExists = fm.fileExists(atPath: stdlibDir, isDirectory: &isDirectory) && isDirectory.boolValue
+        guard dirExists, let enumerator = fm.enumerator(atPath: stdlibDir) else {
+            if !dirExists {
+                diagnostics.error(
+                    "KSWIFTK-SOURCE-0101",
+                    "Bundled stdlib resource directory not found: \(stdlibDir)",
+                    range: nil
+                )
+            } else {
+                diagnostics.error(
+                    "KSWIFTK-SOURCE-0102",
+                    "Failed to enumerate bundled stdlib resources at \(stdlibDir).",
+                    range: nil
+                )
+            }
+            throw CompilerPipelineError.loadError
+        }
 
         var relativePaths: [String] = []
         while let path = enumerator.nextObject() as? String {
@@ -138,7 +170,14 @@ final class LoadSourcesPhase: CompilerPhase {
             let bundledPath = "__bundled_\(relativePath).kt"
             guard !sourceManager.containsFile(path: bundledPath) else { continue }
             let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
-            guard let data = fm.contents(atPath: fullPath) else { continue }
+            guard let data = fm.contents(atPath: fullPath) else {
+                diagnostics.error(
+                    "KSWIFTK-SOURCE-0102",
+                    "Failed to read bundled stdlib source: \(fullPath)",
+                    range: nil
+                )
+                throw CompilerPipelineError.loadError
+            }
             bundledSources.append((path: bundledPath, contents: data))
         }
 

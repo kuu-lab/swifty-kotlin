@@ -70,6 +70,47 @@ struct FrontendPhasesTests {
         }
     }
 
+    @Test
+    func testBundledStdlibMissingResourcePathEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: nil)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibMissingStdlibDirEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        let resourcePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        defer { try? FileManager.default.removeItem(atPath: resourcePath) }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: resourcePath)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibUnreadableSourceEmits0102AndThrows() throws {
+        let ctx = makeCompilationContext(inputs: [])
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let stdlibDir = tempDir.appendingPathComponent("Stdlib")
+        try FileManager.default.createDirectory(at: stdlibDir, withIntermediateDirectories: true)
+        let file = stdlibDir.appendingPathComponent("test.kt")
+        try "fun main() {}".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: tempDir.path)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0102", in: ctx)
+    }
+
     // MARK: - LexPhase
 
     @Test
