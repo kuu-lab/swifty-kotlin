@@ -209,6 +209,38 @@ final class ObjectLiteralLowerer {
             instructions: &instructions
         )
 
+        // KSP-CAP-001: materialize outer locals/parameters captured by this
+        // object literal's member functions into instance fields, while the
+        // *enclosing* function's implicit receiver and locals are still
+        // active (needed so `captureValueExpr` can resolve a captured outer
+        // `this` correctly) -- i.e. before `setImplicitReceiver` below
+        // switches the active receiver over to this object literal itself.
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol)
+        for capturedSymbol in capturedSymbols {
+            guard let fieldOffset = layout?.fieldOffsets[capturedSymbol],
+                  let captureValue = driver.lambdaLowerer.captureValueExpr(
+                      for: capturedSymbol,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+            else {
+                continue
+            }
+            let captureOffsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: captureOffsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [objectValue, captureOffsetExpr, captureValue],
+                result: captureSetResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
+
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
         driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
@@ -248,6 +280,72 @@ final class ObjectLiteralLowerer {
         }
 
         return objectValue
+    }
+
+    /// KSP-CAP-001: re-establishes an object literal's captured outer
+    /// locals/parameters inside one of its own member functions.
+    ///
+    /// Member functions are lowered as independent top-level KIR functions
+    /// (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
+    /// scope per function, the same way `LambdaLowerer` does per lambda), so
+    /// a captured symbol's KIR value from the enclosing function is not
+    /// visible here on its own -- it must be read back from the instance
+    /// field it was stored into at construction time (see the capture loop
+    /// in `lowerStoredObjectLiteralExpr` above), then re-registered with
+    /// `driver.ctx` so ordinary `nameRef` lowering finds it exactly as if it
+    /// were a plain local.
+    func restoreObjectLiteralCaptures(
+        forMemberFunction functionSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: functionSymbol) else {
+            return
+        }
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: ownerSymbol)
+        guard !capturedSymbols.isEmpty,
+              let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+              let layout = sema.symbols.nominalLayout(for: ownerSymbol)
+        else {
+            return
+        }
+
+        let intType = sema.types.intType
+        for capturedSymbol in capturedSymbols {
+            guard let fieldOffset = layout.fieldOffsets[capturedSymbol] else {
+                continue
+            }
+            let isMutableLocal = sema.symbols.symbol(capturedSymbol).map {
+                $0.kind == .local && $0.flags.contains(.mutable)
+            } ?? false
+            // A mutable capture's field holds the boxed cell itself (see
+            // `LambdaLowerer.captureValueExpr`), not the logical value, so
+            // the load must be typed generically; only the box's contents
+            // are typed `logicalType`, once unwrapped on actual reads/writes.
+            let logicalType = sema.bindings.capturedLocalType(for: capturedSymbol)
+                ?? driver.lambdaLowerer.typeForSymbolReference(capturedSymbol, sema: sema)
+            let loadedType = isMutableLocal ? sema.types.anyType : logicalType
+
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let loadedExpr = arena.appendTemporary(type: loadedType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExprID, offsetExpr],
+                result: loadedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if isMutableLocal {
+                driver.ctx.setMutableCaptureCell(loadedExpr, for: capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
+            }
+            driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+        }
     }
 
     private func registerObjectLiteralSupertypes(
