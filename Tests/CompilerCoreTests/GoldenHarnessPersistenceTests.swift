@@ -93,6 +93,31 @@ struct GoldenHarnessPersistenceTests {
     }
 
     @Test
+    func semaDumpIsByteIdenticalWithDummyBundledFile() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("sample.kt")
+        try """
+        package sample
+
+        fun main() {
+            val x = 1
+        }
+        """.write(to: sourceURL, atomically: false, encoding: .utf8)
+
+        let baseline = try GoldenHarnessDump.dumpSema(sourcePath: sourceURL.path)
+        let injected = try GoldenHarnessDump.dumpSema(
+            sourcePath: sourceURL.path,
+            preInjectedFiles: [("__bundled_dummy_invariant.kt", Data("package dummy\n".utf8))]
+        )
+
+        #expect(baseline == injected, Comment(rawValue: "Sema dump changed after injecting a dummy bundled file"))
+    }
+
+    @Test
     func batchSubprocessReturnsOneResultPerSourceInOrder() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
