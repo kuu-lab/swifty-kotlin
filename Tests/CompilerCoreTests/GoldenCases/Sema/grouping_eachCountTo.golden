@@ -8,7 +8,7 @@ symbol fq=kotlin.collections.mutableMapOf.K kind=typeParameter vis=private flags
 symbol fq=kotlin.collections.mutableMapOf.V kind=typeParameter vis=private flags=synthetic
 symbol fq=render kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=render.$0.values kind=valueParameter vis=private flags=_
-file f0 package=_
+file fgrouping_eachCountTo package=_
   decl render fun render sym=render
 expr e@2:16 call callee=e@2:16#1 args=[] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.mutableMapOf#0 targs=[Int,Int]
 expr e@2:5 localDecl dest mutable=0 type=_ init=e@2:16 type=Unit ref=__local_0.dest

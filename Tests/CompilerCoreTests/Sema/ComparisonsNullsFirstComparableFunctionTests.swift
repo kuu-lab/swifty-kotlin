@@ -1,7 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsNullsFirstComparableFunctionTests: XCTestCase {
+@Suite
+struct ComparisonsNullsFirstComparableFunctionTests {
+    @Test
     func testNullsFirstComparableResolvesWithNoArgument() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.nullsFirst
@@ -11,9 +14,10 @@ final class ComparisonsNullsFirstComparableFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
     func testNullsFirstComparableIsDistinctFromComparatorOverload() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.nullsFirst
@@ -26,6 +30,7 @@ final class ComparisonsNullsFirstComparableFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

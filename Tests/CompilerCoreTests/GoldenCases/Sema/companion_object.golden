@@ -7,7 +7,7 @@ symbol fq=golden.sema.Foo.Companion kind=object vis=public flags=_
 symbol fq=golden.sema.Foo.Companion.MAX_COUNT kind=property vis=public flags=constValue type=Int
 symbol fq=golden.sema.Foo.Companion.create kind=function vis=public flags=_ sig=recv=golden.sema.Foo.Companion params=[] ret=golden.sema.Foo
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=golden.sema
+file fcompanion_object package=golden.sema
   decl golden.sema.Foo class Foo sym=golden.sema.Foo
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@5:36 int(100) type=Int

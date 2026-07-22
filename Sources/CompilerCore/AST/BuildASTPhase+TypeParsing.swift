@@ -330,7 +330,8 @@ extension BuildASTPhase {
 
     func propertyHeadTokens(
         from nodeID: NodeID,
-        in arena: SyntaxArena
+        in arena: SyntaxArena,
+        includingTrailingLambdaTokens: Bool = false
     ) -> [Token] {
         var tokens: [Token] = []
         for child in arena.children(of: nodeID) {
@@ -351,8 +352,34 @@ extension BuildASTPhase {
                 }
             case let .node(childID):
                 let childKind = arena.node(childID).kind
-                if childKind == .block || childKind == .propertyAccessor {
+                if childKind == .propertyAccessor {
                     return tokens
+                }
+                if childKind == .block {
+                    // Genuine get()/set() and explicit-backing-field bodies are
+                    // always wrapped as `.propertyAccessor` (see
+                    // parsePropertyAccessor/parseExplicitBackingField), handled
+                    // above -- a bare `.block` sibling here can only be a
+                    // trailing-lambda call argument that `parseTail` split off
+                    // while still inside the initializer expression (e.g.
+                    // `= Comparator<Int> { a, b -> a - b }`).
+                    //
+                    // Only recurse for `declarationPropertyInitializer`, which
+                    // opts in via `includingTrailingLambdaTokens`. Delegate
+                    // expressions (`by lazy { ... }`, `by Delegates.observable(x) { ... }`)
+                    // deliberately keep the old truncating behavior here:
+                    // `declarationDelegateExpression` re-parses these same
+                    // tokens expecting the trailing lambda excluded (it's
+                    // captured separately as `PropertyDecl.delegateBody`), and
+                    // the synthetic `observable`/`vetoable` signatures only
+                    // accept the initial-value argument -- folding the lambda
+                    // back in as a second call argument would make that
+                    // resolution fail.
+                    guard includingTrailingLambdaTokens else {
+                        return tokens
+                    }
+                    tokens.append(contentsOf: collectTokens(from: childID, in: arena))
+                    continue
                 }
             }
         }

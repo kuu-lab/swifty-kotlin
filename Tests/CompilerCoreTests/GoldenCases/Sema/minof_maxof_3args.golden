@@ -24,7 +24,7 @@ symbol fq=golden.sema.threeArgMinLong.$5.b kind=valueParameter vis=private flags
 symbol fq=golden.sema.threeArgMinLong.$5.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.twoArgInt kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.twoArgMinInt kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f0 package=golden.sema
+file fminof_maxof_3args package=golden.sema
   decl golden.sema.twoArgInt fun twoArgInt sym=golden.sema.twoArgInt
   decl golden.sema.twoArgMinInt fun twoArgMinInt sym=golden.sema.twoArgMinInt
   decl golden.sema.threeArgMaxInt fun threeArgMaxInt sym=golden.sema.threeArgMaxInt

@@ -1,10 +1,11 @@
 /// Synthetic stubs for kotlin.time.Instant class (STDLIB-TIME-083).
 ///
 /// Registers the `Instant.now()` / `Instant.fromEpochMilliseconds(Long)`
-/// companion factories as direct native bridges: Kotlin source cannot declare
-/// an extension whose receiver is `Instant.Companion` (the parser/Sema only
-/// resolve single-identifier extension receiver types), so these factories
-/// cannot be re-expressed in Kotlin source (KSP-472).
+/// companion factories as direct native bridges. KSP-CAP-003 (the compiler
+/// gap blocking `ClassName.member()` shorthand calls against a Kotlin-source
+/// extension on `ClassName.Companion`) is now fixed, so these factories could
+/// be re-expressed in Kotlin source; doing so is tracked as the remaining
+/// KSP-472 wiring, not attempted here.
 ///
 /// Also registers `__kk_instant_*` bridge methods used by
 /// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,

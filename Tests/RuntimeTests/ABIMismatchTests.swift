@@ -672,9 +672,31 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKStringIndentSourceBridgeSignatures() throws {
+        let trimIndent = try requireSpec("__kk_string_trimIndent")
+        XCTAssertEqual(trimIndent.returnType, .intptr)
+        XCTAssertEqual(trimIndent.parameters.map(\.type), [.intptr])
+
         let trimMargin = try requireSpec("__kk_string_trimMargin")
         XCTAssertEqual(trimMargin.returnType, .intptr)
         XCTAssertEqual(trimMargin.parameters.map(\.type), [
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+        ])
+
+        for name in ["__kk_string_prependIndent", "__kk_string_replaceIndent"] {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .intptr)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .intptr,
+                .intptr,
+            ])
+        }
+
+        let replaceByMargin = try requireSpec("__kk_string_replaceIndentByMargin")
+        XCTAssertEqual(replaceByMargin.returnType, .intptr)
+        XCTAssertEqual(replaceByMargin.parameters.map(\.type), [
+            .intptr,
             .intptr,
             .intptr,
             .nullableIntptrPointer,

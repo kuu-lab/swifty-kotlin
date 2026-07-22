@@ -5,7 +5,7 @@ symbol fq=golden.sema.LazyHolder kind=class vis=public flags=_
 symbol fq=kotlin.Lazy kind=interface vis=public flags=synthetic
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> kotlin.lazy.T] ret=kotlin.Lazy<kotlin.lazy.T>
 symbol fq=kotlin.lazy.T kind=typeParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fproperty_delegation package=golden.sema
   decl golden.sema.LazyHolder class LazyHolder sym=golden.sema.LazyHolder
   decl golden.sema.CustomDelegate class CustomDelegate sym=golden.sema.CustomDelegate
   decl golden.sema.Holder class Holder sym=golden.sema.Holder

@@ -6,12 +6,16 @@ final class StableRenderContext {
     let interner: StringInterner
     let arena: ASTArena
 
+    private let sourceManager: SourceManager
     private let symbolFQ: [Int32: String]
     private let overloadSuffix: [Int32: String]
     /// Maps `ExprID.rawValue` to a stable, source-position-derived key so that
     /// inserting an expression elsewhere in the file does not renumber every
     /// later expression in the golden dump.
     private let exprKeys: [Int32: String]
+    /// Maps `FileID.rawValue` to a stable, path-derived key so that inserting
+    /// bundled source files before the test input does not renumber the file line.
+    private let fileKeys: [Int32: String]
     private(set) var requiredSymbols = Set<Int32>()
 
     // swiftlint:disable:next force_try
@@ -21,7 +25,9 @@ final class StableRenderContext {
         self.sema = sema
         self.interner = interner
         self.arena = ast.arena
+        self.sourceManager = sourceManager
         self.exprKeys = Self.buildExprKeys(arena: ast.arena, sourceManager: sourceManager)
+        self.fileKeys = Self.buildFileKeys(sourceManager: sourceManager)
 
         var fqMap: [Int32: String] = [:]
         var fqGroups: [String: [SemanticSymbol]] = [:]
@@ -55,6 +61,11 @@ final class StableRenderContext {
     /// Returns the stable, source-position-derived key for an expression.
     func exprKey(_ id: ExprID) -> String {
         exprKeys[id.rawValue] ?? "e?\(id.rawValue)"
+    }
+
+    /// Returns the stable, path-derived key for a file.
+    func fileKey(_ file: FileID) -> String {
+        fileKeys[file.rawValue] ?? "f?\(file.rawValue)"
     }
 
     /// Renders a syntactic type reference to a stable, arena-ID-free string.
@@ -190,6 +201,23 @@ final class StableRenderContext {
             }
         }
         return result
+    }
+
+    private static func buildFileKeys(sourceManager: SourceManager) -> [Int32: String] {
+        var keys: [Int32: String] = [:]
+        for file in sourceManager.fileIDs() {
+            let path = sourceManager.path(of: file)
+            let key: String
+            if path.isEmpty {
+                key = "f?\(file.rawValue)"
+            } else {
+                let basename = (path as NSString).lastPathComponent
+                let name = (basename as NSString).deletingPathExtension
+                key = name.isEmpty ? "f?\(file.rawValue)" : name
+            }
+            keys[file.rawValue] = key
+        }
+        return keys
     }
 
     private func stabilizeTypeRefs(in text: String) -> String {

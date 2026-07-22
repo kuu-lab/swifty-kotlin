@@ -124,6 +124,18 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesStdlibFlags() throws {
+        let noStdlib = try CLIParser.parse(args: ["--no-stdlib", "main.kt"])
+        #expect(noStdlib.includeStdlib == false)
+
+        let stdlib = try CLIParser.parse(args: ["--stdlib", "main.kt"])
+        #expect(stdlib.includeStdlib == true)
+
+        let defaultOptions = try CLIParser.parse(args: ["main.kt"])
+        #expect(defaultOptions.includeStdlib == true)
+    }
+
+    @Test
     func helpFlagRequestsUsage() {
         #expect(throws: CLIParseError.usageRequested) {
             try CLIParser.parse(args: ["--help"])

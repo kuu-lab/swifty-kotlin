@@ -11,7 +11,7 @@ symbol fq=kotlin.io.path.Path.pathString kind=valueParameter vis=private flags=s
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
-file f0 package=_
+file fio_path_use_lines package=_
   decl collectLines fun collectLines sym=collectLines
   decl countLines fun countLines sym=countLines
 expr e@5:18 name(path) type=String ref=collectLines.$0.path

@@ -60,8 +60,14 @@ enum GoldenHarnessDump {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    static func dumpSema(sourcePath: String) throws -> String {
+    static func dumpSema(
+        sourcePath: String,
+        preInjectedFiles: [(path: String, contents: Data)] = []
+    ) throws -> String {
         let ctx = makeCompilationContext(inputs: [sourcePath], moduleName: "GoldenSema", emit: .kirDump)
+        for (path, contents) in preInjectedFiles {
+            _ = ctx.sourceManager.addFile(path: path, contents: contents)
+        }
         try runFrontend(ctx)
         try SemaPhase().run(ctx)
 
@@ -168,7 +174,7 @@ enum GoldenHarnessDump {
     }
 
     private static func renderFile(_ file: ASTFile, ast: ASTModule, ctx: StableRenderContext) -> String {
-        var fileLine = "file f\(file.fileID.rawValue) package=\(GoldenHarnessSemaFormat.renderFQName(file.packageFQName, interner: ctx.interner))"
+        var fileLine = "file f\(ctx.fileKey(file.fileID)) package=\(GoldenHarnessSemaFormat.renderFQName(file.packageFQName, interner: ctx.interner))"
         if !file.annotations.isEmpty {
             let renderedAnnotations = file.annotations.map { annotation in
                 let targetPrefix = annotation.useSiteTarget.map { "@\($0):" } ?? "@"
