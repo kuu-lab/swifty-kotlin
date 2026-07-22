@@ -31,5 +31,5 @@ expr e@6:78 name(other) type=kotlin.CharSequence ref=stringZipTransform.$2.other
 expr e@6:97 name(a) type=Char ref=s-0
 expr e@6:99 name(b) type=Char ref=s-1
 expr e@6:95 stringTemplate[expr(e@6:97),expr(e@6:99)] type=String
-expr e@6:85 lambda params=[a,b] body=e@6:95 label=zip type=(Char, Char) -> kotlin.text.zip.R
+expr e@6:85 lambda params=[a,b] body=e@6:95 label=zip type=(Char, Char) -> String
 expr e@6:72#1 memberCall recv=e@6:72 callee=zip args=[_:e@6:78,_:e@6:85] type=kotlin.collections.List<out String> call=kotlin.text.zip#1 targs=[String]
