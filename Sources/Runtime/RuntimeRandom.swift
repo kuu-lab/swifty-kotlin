@@ -240,28 +240,21 @@ public func __kk_secure_random_set_seed(_ receiver: Int, _ seed: Int) -> Int {
 @_cdecl("__kk_secure_random_generate_seed")
 public func __kk_secure_random_generate_seed(_ receiver: Int, _ size: Int) -> Int {
     guard let box = secureRandomBox(from: receiver), size > 0 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    var bytes: [Int] = []
-    bytes.reserveCapacity(size)
-    for _ in 0 ..< size {
-        bytes.append(box.nextByte())
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: bytes))
+    let array = RuntimeArrayBox(length: size)
+    array.elements = (0 ..< size).map { _ in box.nextByte() }
+    return registerRuntimeObject(array)
 }
 
 @_cdecl("__kk_secure_random_next_bytes")
 public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let box = secureRandomBox(from: receiver),
-          let list = runtimeListBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+          let array = runtimeArrayBox(from: arrayRaw) else {
+        return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    var filled: [Int] = []
-    filled.reserveCapacity(list.elements.count)
-    for _ in list.elements {
-        filled.append(box.nextByte())
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: filled))
+    array.elements = array.elements.map { _ in box.nextByte() }
+    return arrayRaw
 }
 
 // MARK: - Random (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655)

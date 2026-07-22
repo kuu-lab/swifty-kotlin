@@ -145,12 +145,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // byteArrayType is needed for the nextBytes stubs and SecureRandom below.
-        let byteArrayType = makeListIntType(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // byteArrayType is needed for SecureRandom below (kotlin.random.Random's
+        // own nextBytes is now a real Kotlin-source member — see Random.kt —
+        // this is SecureRandom-only, KSP-467 scope).
+        // Must be the real ByteArray class (not a List<Int> stand-in): ByteArray's
+        // runtime representation (RuntimeArrayBox, see kk_array_new/
+        // kk_byteArray_size) is what callers actually construct via `ByteArray(size)`.
+        let byteArrayType = types.make(.classType(ClassType(
+            classSymbol: ensureClassSymbol(
+                named: "ByteArray",
+                in: [interner.intern("kotlin")],
+                symbols: symbols,
+                interner: interner
+            ),
+            args: [],
+            nullability: .nonNull
+        )))
 
         // SecureRandom basic support
         let secureRandomSymbol = ensureClassSymbol(
@@ -393,27 +403,6 @@ extension DataFlowSemaPhase {
         return types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Build a `List<Int>` type, which is the internal representation of ByteArray.
-    private func makeListIntType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(types.intType)],
             nullability: .nonNull
         )))
     }

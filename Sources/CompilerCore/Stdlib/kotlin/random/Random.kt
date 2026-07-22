@@ -97,7 +97,9 @@ public open class Random internal constructor(
         return result
     }
 
-    public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt()
+    // Keep both operands as Long to preserve Kotlin's sign extension of the
+    // low Int when composing the 64-bit result.
+    public open fun nextLong(): Long = nextInt().toLong().shl(32) + nextInt().toLong()
 
     public open fun nextLong(until: Long): Long = nextLong(0L, until)
 
@@ -241,10 +243,9 @@ public open class Random internal constructor(
             defaultRandom = Random(entropy)
         }
 
-        // NOTE: every open member is re-declared here, forwarding to
-        // defaultRandom, even though most bodies are identical to what
-        // Random's own skeleton implementation would already compute by
-        // calling nextBits() virtually. This compiler's "bare ClassName.member()"
+        // NOTE: every open member is re-declared here, even though most bodies
+        // are identical to what Random's own skeleton implementation would
+        // already compute by calling nextBits() virtually. This compiler's "bare ClassName.member()"
         // shorthand for named-companion access (used throughout existing
         // diff_cases/golden tests, e.g. `Random.nextInt(1, 10)`) only resolves
         // members the companion *directly declares*, not ones it merely

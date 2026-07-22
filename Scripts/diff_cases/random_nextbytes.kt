@@ -1,10 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-005): Random.nextBytes(ByteArray) is standard kotlin.random.Random API and
-// kotlinc compiles/runs it fine, but kswiftc currently fails Sema resolution on the returned
-// ByteArray ("Unresolved member function 'size'/'toList'"). Root cause appears to be the
-// ByteArray RuntimeArrayBox/RuntimeListBox representation mismatch tracked under KSP-466/KSP-467
-// (see Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift nextBytes stubs
-// vs. the Kotlin-sourced Stdlib/kotlin/random/Random.kt). Split out of random_extended.kt
-// (STDLIB-653) so the rest of the Random parity case can run; re-merge once the bug is fixed.
+// Regression coverage for KSP-466: nextBytes(ByteArray) must preserve ByteArray typing and runtime storage.
 import kotlin.random.Random
 
 fun main() {
