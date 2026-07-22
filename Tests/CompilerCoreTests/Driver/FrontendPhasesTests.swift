@@ -98,11 +98,12 @@ struct FrontendPhasesTests {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let stdlibDir = tempDir.appendingPathComponent("Stdlib")
         try FileManager.default.createDirectory(at: stdlibDir, withIntermediateDirectories: true)
-        let file = stdlibDir.appendingPathComponent("test.kt")
-        try "fun main() {}".write(to: file, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        // Use a directory named `.kt` instead of a real file; `FileManager.contents(atPath:)`
+        // returns nil for directories even when running as root, so this failure path is
+        // independent of the current user/permission bits.
+        let unreadablePath = stdlibDir.appendingPathComponent("test.kt")
+        try FileManager.default.createDirectory(at: unreadablePath, withIntermediateDirectories: true)
         defer {
-            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
             try? FileManager.default.removeItem(at: tempDir)
         }
         #expect(throws: (any Error).self) {
