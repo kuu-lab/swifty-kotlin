@@ -30,13 +30,11 @@ final class RuntimeABISpecVersionTests: XCTestCase {
         for url in fileURLs {
             let source = try String(contentsOf: url, encoding: .utf8)
             let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
-            for line in lines {
-                if line.trimmingCharacters(in: .whitespaces).hasPrefix("public static let specVersion =") {
-                    continue
-                }
-                canonicalBytes.append(contentsOf: line.utf8)
-                canonicalBytes.append(0x0A)
+            let filtered = lines.filter { line in
+                !line.trimmingCharacters(in: .whitespaces)
+                    .hasPrefix("public static let specVersion =")
             }
+            canonicalBytes.append(contentsOf: filtered.joined(separator: "\n").utf8)
         }
 
         let expected = SHA256.hex(canonicalBytes)
