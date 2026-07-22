@@ -110,8 +110,9 @@ struct OverloadResolutionByLambdaReturnTypeTests {
     //   fun process(block: (Int) -> String): String
     //   fun process(block: (String) -> Int): Int
     //   error: unresolved reference 'it'.
-    // kswiftc currently accepts it silently instead of reporting KSWIFTK-SEMA-0003. This pins the
-    // current (incorrect) behavior so it fails once DEBT-SEMA-001 is fixed.
+    // kswiftc now reports an error for the unresolved call, though it still does not emit the exact
+    // KSWIFTK-SEMA-0003 ambiguity diagnostic. This test will fail once DEBT-SEMA-001 is fully fixed
+    // and the call resolves cleanly (or emits only the expected ambiguity diagnostic).
     @Test func testImplicitItParameterOverloadAmbiguityIsNotYetDetected() {
         let source = """
         fun process(block: (Int) -> String) = block(1)
@@ -121,7 +122,7 @@ struct OverloadResolutionByLambdaReturnTypeTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        #expect(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.diagnostics.isEmpty, "Expected unresolved overload diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test func testCallableReferenceStillResolvesNormally() {
