@@ -28,14 +28,14 @@ public struct CallableValueCallBinding {
 }
 
 public struct LoopIterationBinding {
-    public let iteratorCall: CallBinding
+    public let iteratorCall: CallBinding?
     public let hasNextCall: CallBinding
     public let nextCall: CallBinding
     public let iteratorType: TypeID
     public let elementType: TypeID
 
     public init(
-        iteratorCall: CallBinding,
+        iteratorCall: CallBinding?,
         hasNextCall: CallBinding,
         nextCall: CallBinding,
         iteratorType: TypeID,

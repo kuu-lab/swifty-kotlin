@@ -269,6 +269,7 @@ extension DataFlowSemaPhase {
         ] {
             let type = types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
             symbols.setPropertyType(type, for: symbol)
+            symbols.insertFlags(.openType, for: symbol)
         }
 
         registerSyntheticExceptionConstructors(

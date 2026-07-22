@@ -173,6 +173,12 @@ extension DataFlowSemaPhase {
                     candidatePaths.append(importDecl.path)
                 }
             }
+            // Kotlin default imports (e.g. kotlin.collections.Iterator) are not
+            // present in file.imports, so expand the search to the standard
+            // default-import packages.
+            for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                candidatePaths.append(defaultPackage + path)
+            }
         }
 
         for candidatePath in candidatePaths {
@@ -261,7 +267,9 @@ extension DataFlowSemaPhase {
                     return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                 }
             }
-            // Resolve built-in/primitive type names that don't have symbol table entries
+            // Resolve built-in/primitive type names first so they take precedence
+            // over the default-import packages (e.g. `Int` is the primitive Int,
+            // not any class named `Int` that might exist under `kotlin`).
             if path.count == 1 {
                 if let builtinType = resolveBuiltinTypeNameForInheritance(
                     path[0],
@@ -270,6 +278,20 @@ extension DataFlowSemaPhase {
                     types: types
                 ) {
                     return builtinType
+                }
+            }
+            // Kotlin default imports also apply to type arguments (e.g.
+            // class X : Comparable<Int>), so search the standard default-import packages.
+            if path.count == 1 {
+                for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+                    let candidatePath = defaultPackage + path
+                    if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
+                        .compactMap({ symbols.symbol($0) })
+                        .first(where: { isNominalTypeSymbol($0.kind) })
+                    {
+                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner)
+                        return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
+                    }
                 }
             }
             return nil
