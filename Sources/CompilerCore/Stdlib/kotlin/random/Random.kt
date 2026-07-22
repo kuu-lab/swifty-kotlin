@@ -24,13 +24,15 @@ private external fun __kk_random_seed_entropy(): Long
 
 // Interfaces exposing the Random methods that native runtime helpers need to
 // call through itable dispatch. Single-method interfaces keep the itable
-// methodSlot at 0 and independent of source-ordering symbol IDs.
-internal interface RandomSource {
-    internal fun nextIntBelow(until: Int): Int
+// methodSlot at 0 and independent of source-ordering symbol IDs. They are
+// public so they can be exported in library metadata and resolved by downstream
+// modules that load the compiled Random class from a .kklib.
+public interface RandomSource {
+    public fun nextIntBelow(until: Int): Int
 }
 
-internal interface RandomLongSource {
-    internal fun nextLongBits(): Long
+public interface RandomLongSource {
+    public fun nextLongBits(): Long
 }
 
 public open class Random internal constructor(
@@ -150,9 +152,9 @@ public open class Random internal constructor(
 
     // Implementations of the runtime-dispatch interfaces used by native
     // collection/range helpers for deterministic seeded random values.
-    internal override fun nextIntBelow(until: Int): Int = nextInt(until)
+    public open override fun nextIntBelow(until: Int): Int = nextInt(until)
 
-    internal override fun nextLongBits(): Long = nextLong()
+    public open override fun nextLongBits(): Long = nextLong()
 
     public open fun nextBoolean(): Boolean = nextBits(1) != 0
 
