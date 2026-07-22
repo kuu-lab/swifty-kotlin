@@ -8,7 +8,6 @@ final class RuntimeABISpecVersionTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .deletingLastPathComponent()
         let runtimeABIDir = packageRoot.appendingPathComponent("Sources/RuntimeABI")
 
         let manager = FileManager.default
