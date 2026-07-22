@@ -37,6 +37,12 @@ extension MemberLowerer {
         let arena = shared.arena
         let interner = shared.interner
 
+        // See the matching note in MemberLowerer.lowerSingleMemberFunction
+        // (KSP-CAP-001): this can run nested inside an enclosing function's
+        // lowering (a delegated property on an object literal), so the reset
+        // below must not discard that caller's scope.
+        let scopeSnapshot = driver.ctx.saveScope()
+        defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
 
@@ -281,6 +287,12 @@ extension MemberLowerer {
         let arena = shared.arena
         let interner = shared.interner
 
+        // See the matching note in MemberLowerer.lowerSingleMemberFunction
+        // (KSP-CAP-001): this can run nested inside an enclosing function's
+        // lowering (a getter/setter body on an object literal property), so
+        // the reset below must not discard that caller's scope.
+        let scopeSnapshot = driver.ctx.saveScope()
+        defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
 

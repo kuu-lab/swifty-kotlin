@@ -63,6 +63,14 @@ extension ExprTypeChecker {
             return existing
         }
 
+        // KSP-CAP-001: snapshot the enclosing scope's local bindings before
+        // this object literal (or its member type-checking below) adds
+        // anything of its own, so member function bodies can be seeded with
+        // exactly what was visible at the point the object literal appears —
+        // mirroring how lambda bodies capture outer locals.
+        let outerLocalsSnapshot = locals
+        let outerSymbols = Set(outerLocalsSnapshot.values.map(\.symbol))
+
         let objectSymbol = sema.symbols.define(
             kind: .class,
             name: objectDecl.name,
@@ -249,6 +257,14 @@ extension ExprTypeChecker {
             sema.symbols.setPropertyType(finalType, for: propertySymbol)
         }
 
+        // KSP-CAP-001: member function bodies resolve outer locals the same
+        // way lambda bodies do — seeded via `locals`, which `inferNameRefExpr`
+        // always checks before the class member scope chain. Verified against
+        // kotlinc: an outer local shadows an object literal's own member of
+        // the same name (not the other way around) — a bare reference inside
+        // the member function binds to the captured outer local, and the
+        // object's own member is only reachable via explicit `this.member`.
+        var capturedSymbols: Set<SymbolID> = []
         for functionDeclID in objectDecl.memberFunctions {
             guard let functionSymbol = memberFunctionSymbolsByDecl[functionDeclID],
                   let decl = ast.arena.decl(functionDeclID),
@@ -261,7 +277,29 @@ extension ExprTypeChecker {
                 symbol: functionSymbol,
                 ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.semaCtx.diagnostics,
+                baseLocals: outerLocalsSnapshot
+            )
+            capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: functionDecl.body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: outerSymbols
+            ))
+        }
+        if !capturedSymbols.isEmpty {
+            var typesBySymbol: [SymbolID: TypeID] = [:]
+            for binding in outerLocalsSnapshot.values {
+                typesBySymbol[binding.symbol] = binding.type
+            }
+            for capturedSymbol in capturedSymbols {
+                if let type = typesBySymbol[capturedSymbol] {
+                    sema.bindings.bindCapturedLocalType(capturedSymbol, type: type)
+                }
+            }
+            sema.bindings.bindObjectLiteralCaptureSymbols(
+                objectSymbol,
+                symbols: capturedSymbols.sorted(by: { $0.rawValue < $1.rawValue })
             )
         }
 
@@ -284,9 +322,21 @@ extension ExprTypeChecker {
             fieldOffsets[propertySymbol] = nextFieldOffset
             nextFieldOffset += 1
         }
+        // KSP-CAP-001: give each captured outer local/parameter its own
+        // instance field so member functions (lowered as independent KIR
+        // functions, unlike inlined property initializers) can read the
+        // captured value back through `this` regardless of which method
+        // originally referenced it.
+        for capturedSymbol in capturedSymbols.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard fieldOffsets[capturedSymbol] == nil else {
+                continue
+            }
+            fieldOffsets[capturedSymbol] = nextFieldOffset
+            nextFieldOffset += 1
+        }
 
         let inheritedFieldCount = inheritedLayout?.instanceFieldCount ?? 0
-        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count
+        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count + capturedSymbols.count
         let inheritedInstanceSizeWords = inheritedLayout?.instanceSizeWords ?? 0
         let instanceSizeWords = max(objectHeaderWords + instanceFieldCount, inheritedInstanceSizeWords)
         let inheritedVtableSlots = inheritedLayout?.vtableSlots ?? [:]
