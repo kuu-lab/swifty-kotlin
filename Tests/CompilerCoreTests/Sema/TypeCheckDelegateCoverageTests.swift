@@ -623,7 +623,7 @@ private struct TypeCheckFixture {
             scope: scope,
             implicitReceiverType: nil,
             loopDepth: 0,
-            loopLabelStack: [], lambdaLabelStack: [],
+            loopLabelStack: [], loopStack: [], lambdaLabelStack: [],
             exportBlockLocalsForExpr: nil,
             flowState: DataFlowState(),
             currentFileID: FileID(rawValue: 0),

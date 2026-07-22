@@ -255,7 +255,7 @@ extension LocalDeclTypeChecker {
         )))
 
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
-        var bodyLocals = locals; let bodyCtx = ctx.copying(loopDepth: 0, loopLabelStack: [], lambdaLabelStack: [])
+        var bodyLocals = locals; let bodyCtx = ctx.copying(loopDepth: 0, loopLabelStack: [], loopStack: [], lambdaLabelStack: [])
         for (i, param) in valueParams.enumerated() {
             bodyLocals[param.name] = (parameterTypes[i], paramSymbols[i], false, true)
         }

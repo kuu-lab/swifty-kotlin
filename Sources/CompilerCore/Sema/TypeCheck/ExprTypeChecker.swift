@@ -107,6 +107,19 @@ final class ExprTypeChecker {
                     "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
                     range: range
                 )
+            } else {
+                // KSP-CAP-004: record which enclosing loop this break exits so
+                // that loop's own type inference (inferWhileExpr/inferDoWhileExpr)
+                // can tell whether it can complete normally. Unlabeled targets the
+                // innermost loop; labeled targets the frame with the matching label.
+                let targetLoopID: ExprID? = if let label {
+                    ctx.loopStack.last(where: { $0.label == label })?.id
+                } else {
+                    ctx.loopStack.last?.id
+                }
+                if let targetLoopID {
+                    sema.bindings.markLoopHasReachableBreak(targetLoopID)
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType

@@ -1198,6 +1198,12 @@ public final class BindingTable {
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
+    /// Loop (`while`/`do-while`) expressions with at least one `break` that
+    /// syntactically targets them (KSP-CAP-004). Populated while type-checking
+    /// the loop body; consulted once the body is fully checked to decide
+    /// whether the loop can complete normally (a `while(true)` with no
+    /// reachable `break` never does, and types as `Nothing`).
+    public private(set) var loopsWithReachableBreak: Set<ExprID> = []
 
     public init() {}
 
@@ -1303,6 +1309,18 @@ public final class BindingTable {
 
     public func isULongRangeExpr(_ expr: ExprID) -> Bool {
         ulongRangeExprIDs.contains(expr)
+    }
+
+    /// Records that `expr` (a `while`/`do-while` loop) has a `break` that
+    /// syntactically targets it.
+    public func markLoopHasReachableBreak(_ expr: ExprID) {
+        loopsWithReachableBreak.insert(expr)
+    }
+
+    /// Whether `expr` (a `while`/`do-while` loop) has a `break` that
+    /// syntactically targets it.
+    public func loopHasReachableBreak(_ expr: ExprID) -> Bool {
+        loopsWithReachableBreak.contains(expr)
     }
 
     public func markFloatingPointRangeExpr(_ expr: ExprID) {

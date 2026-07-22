@@ -194,7 +194,10 @@ extension ControlFlowTypeChecker {
 
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1),
+            ctx: ctx.copying(
+                loopDepth: ctx.loopDepth + 1,
+                loopStack: ctx.loopStack + [(id: id, label: nil)]
+            ),
             locals: &bodyLocals,
             expectedType: nil
         )

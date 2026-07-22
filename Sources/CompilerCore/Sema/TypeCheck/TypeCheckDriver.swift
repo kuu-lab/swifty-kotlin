@@ -95,6 +95,7 @@ final class TypeCheckDriver {
                 implicitReceiverType: nil,
                 loopDepth: 0,
                 loopLabelStack: [],
+                loopStack: [],
                 lambdaLabelStack: [],
                 exportBlockLocalsForExpr: nil,
                 flowState: DataFlowState(),

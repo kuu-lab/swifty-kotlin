@@ -247,12 +247,27 @@ final class ControlFlowTypeChecker {
         if let label { newLabelStack.append(label) }
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
+            ctx: ctx.copying(
+                loopDepth: ctx.loopDepth + 1,
+                loopLabelStack: newLabelStack,
+                loopStack: ctx.loopStack + [(id: id, label: label)]
+            ),
             locals: &bodyLocals,
             expectedType: nil
         )
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    /// Whether `exprID` is the literal boolean `true` (KSP-CAP-004).  Only a
+    /// syntactic literal is recognized — matching the scope of the `while(true)`
+    /// / `do...while(true)` CAS-loop pattern this unblocks; general compile-time
+    /// constant folding (e.g. a `const val` reference) is not attempted.
+    private func isConstantTrueCondition(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        if case let .boolLiteral(value, _) = ast.arena.expr(exprID) {
+            return value
+        }
+        return false
     }
 
     func inferWhileExpr(
@@ -286,15 +301,29 @@ final class ControlFlowTypeChecker {
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &bodyLocals, sema: sema)
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
-        let bodyCtx = ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack, flowState: branch.trueState)
+        let bodyCtx = ctx.copying(
+            loopDepth: ctx.loopDepth + 1,
+            loopLabelStack: newLabelStack,
+            loopStack: ctx.loopStack + [(id: id, label: label)],
+            flowState: branch.trueState
+        )
         _ = driver.inferExpr(
             bodyExpr,
             ctx: bodyCtx,
             locals: &bodyLocals,
             expectedType: nil
         )
-        sema.bindings.bindExprType(id, type: sema.types.unitType)
-        return sema.types.unitType
+        // KSP-CAP-004: a `while(true)` loop with no `break` that targets it
+        // never completes normally (matches Kotlin's Nothing-typed infinite
+        // loop rule), so it type-checks against any expected type — e.g. a
+        // CAS retry loop as a function's sole body statement satisfies a
+        // non-Unit return type without a trailing return/value after the loop.
+        let resultType = isConstantTrueCondition(conditionExpr, ast: ast)
+            && !sema.bindings.loopHasReachableBreak(id)
+            ? sema.types.nothingType
+            : sema.types.unitType
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     func inferDoWhileExpr(
@@ -315,6 +344,7 @@ final class ControlFlowTypeChecker {
         let bodyCtx = ctx.copying(
             loopDepth: ctx.loopDepth + 1,
             loopLabelStack: newLabelStack,
+            loopStack: ctx.loopStack + [(id: id, label: label)],
             exportBlockLocalsForExpr: bodyExpr
         )
         _ = driver.inferExpr(
@@ -340,8 +370,14 @@ final class ControlFlowTypeChecker {
                 locals[name] = (local.type, local.symbol, local.isMutable, true)
             }
         }
-        sema.bindings.bindExprType(id, type: sema.types.unitType)
-        return sema.types.unitType
+        // KSP-CAP-004: `do { ... } while(true)` with no reachable `break` is
+        // equally infinite (mirrors inferWhileExpr — see there for rationale).
+        let resultType = isConstantTrueCondition(conditionExpr, ast: ast)
+            && !sema.bindings.loopHasReachableBreak(id)
+            ? sema.types.nothingType
+            : sema.types.unitType
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     func inferIfExpr(

@@ -668,7 +668,7 @@ final class ControlFlowLowerer {
     }
 
     func lowerWhileExpr(
-        _: ExprID,
+        _ exprID: ExprID,
         conditionExpr: ExprID,
         bodyExpr: ExprID,
         label: InternedString? = nil,
@@ -711,13 +711,21 @@ final class ControlFlowLowerer {
         instructions.append(.jump(continueLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        // KSP-CAP-004: mirrors Sema's ControlFlowTypeChecker.inferWhileExpr —
+        // when the loop has no reachable `break`, Sema types it Nothing (not
+        // Unit) because `breakLabel:` above is unreachable. Reuse that verdict
+        // here instead of hardcoding Unit, so isTerminatedExpr() below sees a
+        // Nothing-typed value and lowerFunDeclBlockBody does not append a
+        // spurious implicit `returnUnit` after an infinite CAS-retry loop in a
+        // function declared to return a non-Unit type.
+        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
 
     func lowerDoWhileExpr(
-        _: ExprID,
+        _ exprID: ExprID,
         bodyExpr: ExprID,
         conditionExpr: ExprID,
         label: InternedString? = nil,
@@ -762,7 +770,9 @@ final class ControlFlowLowerer {
         instructions.append(.jump(bodyLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        // KSP-CAP-004: see the matching comment in lowerWhileExpr.
+        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }

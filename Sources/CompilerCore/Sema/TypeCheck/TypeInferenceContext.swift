@@ -10,6 +10,14 @@ struct TypeInferenceContext: CustomStringConvertible {
     var implicitReceiverType: TypeID?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
+    /// Stack of enclosing loop frames (for/while/do-while), innermost last.
+    /// Unlike `loopLabelStack` (which only grows when a loop carries a label,
+    /// and is used solely to validate that a `break@label` references *some*
+    /// enclosing loop), every loop pushes a frame here regardless of label.
+    /// This lets `break`/`continue` resolve their *exact* target loop
+    /// (innermost frame for unlabeled, label match for labeled) so KSP-CAP-004
+    /// can record which loop a `break` actually exits.
+    var loopStack: [(id: ExprID, label: InternedString?)]
     /// Stack of labels attached to enclosing lambda literals.
     /// Used by `return@label` to verify that the label references a valid lambda.
     var lambdaLabelStack: [InternedString]
@@ -86,6 +94,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         implicitReceiverType: TypeID?? = nil,
         loopDepth: Int? = nil,
         loopLabelStack: [InternedString]? = nil,
+        loopStack: [(id: ExprID, label: InternedString?)]? = nil,
         lambdaLabelStack: [InternedString]? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
@@ -107,6 +116,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
         if let loopDepth { copy.loopDepth = loopDepth }
         if let loopLabelStack { copy.loopLabelStack = loopLabelStack }
+        if let loopStack { copy.loopStack = loopStack }
         if let lambdaLabelStack { copy.lambdaLabelStack = lambdaLabelStack }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
         if let flowState { copy.flowState = flowState }
