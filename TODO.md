@@ -434,7 +434,7 @@
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
 - [ ] KSP-CAP-001: object 式のメンバ関数本体から外側ローカル変数をキャプチャできるようにする（現状 `KSWIFTK-SEMA-0022` Unresolved reference。プロパティ初期化子でのキャプチャは動作済み）。ブロック対象: KSP-441 全体・KSP-631・KSP-651 の sequence{}
-- [ ] KSP-CAP-002: for-in がユーザー実装 Iterator/Iterable で1回も回らず黙って終了する lowering 欠陥を修正する（= BUG-013。`hasNext()`/`next()` 手動呼び出しは動作する）。ブロック対象: KSP-441 以降の全 Sequence/Iterator 系
+- [x] KSP-CAP-002: for-in がユーザー実装 Iterator/Iterable で1回も回らず黙って終了する lowering 欠陥を修正する（= BUG-013。`hasNext()`/`next()` 手動呼び出しは動作する）。PR #4986。検証: `Counter(3)`/`CounterBag(3)` の for-in が期待通り `for=3` を出力、`swift test --filter BuildKIRRegressionTests`、`bash Scripts/swift_test.sh --filter SmokeTests`、`bash Scripts/validate_runtime_abi_links.sh` green。ブロック対象: KSP-441 以降の全 Sequence/Iterator 系
 - [ ] KSP-CAP-003: companion object をレシーバとする拡張関数の呼び出しを解決する（`fun Foo.Companion.make()` → `Foo.make()` が `KSWIFTK-SEMA-0024`。宣言自体は通る。ネストクラスレシーバは動作済み）。ブロック対象: KSP-472 の `kk_instant_now`/`kk_clock_system_now` 配線
 - [ ] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。該当する制御フロー解析は未実装であることをコード確認済み）。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除
 - [ ] KSP-CAP-005: 合成登録された組込み `Comparator` の SAM コンストラクタを解決する（`KSWIFTK-SEMA-0023`。ユーザー宣言 `fun interface` の SAM 変換は健全 — `.funInterface` フラグ付き合成シンボルのみ解決対象外）。ブロック対象: KSP-309/461
