@@ -321,6 +321,20 @@ final class MemberLowerer {
         if function.modifiers.contains(.external), function.body == .unit {
             return
         }
+        // BUG (found via KSP-CAP-001): member functions are usually lowered
+        // between top-level declarations, where resetting scope with no
+        // restore is harmless -- there is no enclosing function lowering in
+        // progress. But an object literal's member functions are lowered
+        // *from inside* whichever function's expression lowering constructs
+        // it (`ObjectLiteralLowerer.lowerObjectLiteralMemberFunctions`), so
+        // without save/restore here, this reset previously wiped that
+        // enclosing function's own locals (parameters, prior `val`/`var`
+        // declarations) for the remainder of its lowering. Save/restore
+        // (mirroring `LambdaLowerer`'s per-closure scope handling) makes
+        // this a no-op for the ordinary top-level case while fixing the
+        // nested case.
+        let scopeSnapshot = driver.ctx.saveScope()
+        defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)
@@ -372,6 +386,15 @@ final class MemberLowerer {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: [KIRInstruction] = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
+        // KSP-CAP-001: no-op for ordinary class members -- only object
+        // literals ever populate `objectLiteralCaptureSymbols`.
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
         switch function.body {
         case let .block(exprIDs, _):
             var terminatedByReturn = false
