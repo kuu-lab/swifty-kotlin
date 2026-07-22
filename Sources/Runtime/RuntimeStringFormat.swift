@@ -1,7 +1,102 @@
-// String formatting (String.format).
+// String formatting (String.format) and indentation operations
+// (trimIndent, trimMargin, prependIndent, replaceIndent).
 // Split out from `RuntimeStringStdlib.swift`.
 
 import Foundation
+
+// MARK: - Private indent helpers
+
+private func runtimeTrimBlankEdges(_ lines: [String]) -> ArraySlice<String> {
+    var start = lines.startIndex
+    var end = lines.endIndex
+    while start < end, lines[start].trimmingCharacters(in: .whitespaces).isEmpty {
+        start += 1
+    }
+    while end > start, lines[end - 1].trimmingCharacters(in: .whitespaces).isEmpty {
+        end -= 1
+    }
+    return lines[start ..< end]
+}
+
+private func runtimeLeadingIndentCount(_ line: String) -> Int {
+    line.prefix { $0 == " " || $0 == "\t" }.count
+}
+
+private func runtimeTrimIndent(_ source: String) -> String {
+    let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
+    guard !lines.isEmpty else {
+        return ""
+    }
+    let minimumIndent = lines
+        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        .map(runtimeLeadingIndentCount)
+        .min() ?? 0
+    return lines.map { line in
+        guard !line.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return ""
+        }
+        return String(line.dropFirst(minimumIndent))
+    }.joined(separator: "\n")
+}
+
+private func runtimeTrimMargin(_ source: String, marginPrefix: String) -> String {
+    let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
+    guard !lines.isEmpty else {
+        return ""
+    }
+    return lines.map { line in
+        let trimmedLeading = line.drop { $0 == " " || $0 == "\t" }
+        guard trimmedLeading.hasPrefix(marginPrefix) else {
+            return line
+        }
+        return String(trimmedLeading.dropFirst(marginPrefix.count))
+    }.joined(separator: "\n")
+}
+
+private func runtimePrependIndent(_ source: String, indent: String) -> String {
+    let lines = runtimeNormalizedMultilineString(source)
+    return lines.map { line in
+        if line.trimmingCharacters(in: .whitespaces).isEmpty {
+            return line.count < indent.count ? indent : line
+        }
+        return indent + line
+    }.joined(separator: "\n")
+}
+
+private func runtimeReplaceIndent(_ source: String, newIndent: String) -> String {
+    let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
+    guard !lines.isEmpty else {
+        return ""
+    }
+    let minimumIndent = lines
+        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        .map(runtimeLeadingIndentCount)
+        .min() ?? 0
+    return lines.map { line in
+        guard !line.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return ""
+        }
+        return newIndent + String(line.dropFirst(minimumIndent))
+    }.joined(separator: "\n")
+}
+
+private func runtimeReplaceIndentByMargin(
+    _ source: String,
+    newIndent: String,
+    marginPrefix: String
+) -> String {
+    let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
+    guard !lines.isEmpty else {
+        return ""
+    }
+    return lines.map { line in
+        let trimmedLeading = line.drop { $0 == " " || $0 == "\t" }
+        guard trimmedLeading.hasPrefix(marginPrefix) else {
+            return line
+        }
+        return newIndent + String(trimmedLeading.dropFirst(marginPrefix.count))
+    }.joined(separator: "\n")
+}
 
 // MARK: - Format parser internals
 
@@ -413,18 +508,17 @@ public func kk_string_format_locale_flat(
 
 // MARK: - Public @_cdecl functions: Indent operations
 
-@_cdecl("kk_string_trimIndent")
+@_cdecl("__kk_string_trimIndent")
 public func kk_string_trimIndent(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeTrimIndent(source))
 }
 
-@_cdecl("kk_string_trimMargin_default")
 public func kk_string_trimMargin_default(_ strRaw: Int) -> Int {
     kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw, nil)
 }
 
-@_cdecl("kk_string_trimMargin")
+@_cdecl("__kk_string_trimMargin")
 public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -443,31 +537,29 @@ public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThr
 private let runtimeDefaultPrependIndentRaw = runtimeMakeStringRaw(" ")
 private let runtimeDefaultReplaceIndentRaw = runtimeMakeStringRaw("")
 
-@_cdecl("kk_string_prependIndent_default")
 public func kk_string_prependIndent_default(_ strRaw: Int) -> Int {
     kk_string_prependIndent(strRaw, runtimeDefaultPrependIndentRaw)
 }
 
-@_cdecl("kk_string_replaceIndent_default")
 public func kk_string_replaceIndent_default(_ strRaw: Int) -> Int {
     kk_string_replaceIndent(strRaw, runtimeDefaultReplaceIndentRaw)
 }
 
-@_cdecl("kk_string_prependIndent")
+@_cdecl("__kk_string_prependIndent")
 public func kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let indent = runtimeStringFromRaw(indentRaw) ?? " "
     return runtimeMakeStringRaw(runtimePrependIndent(source, indent: indent))
 }
 
-@_cdecl("kk_string_replaceIndent")
+@_cdecl("__kk_string_replaceIndent")
 public func kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let newIndent = runtimeStringFromRawOrPanic(newIndentRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeReplaceIndent(source, newIndent: newIndent))
 }
 
-@_cdecl("kk_string_replaceIndentByMargin")
+@_cdecl("__kk_string_replaceIndentByMargin")
 public func kk_string_replaceIndentByMargin(
     _ strRaw: Int,
     _ newIndentRaw: Int,
@@ -591,36 +683,4 @@ public func kk_string_replaceIndentByMargin_flat(
     )
     guard let string = runtimeStringFromRaw(raw) else { return nil }
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-// MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
-
-@_cdecl("__kk_string_trimIndent")
-public func __kk_string_trimIndent(_ strRaw: Int) -> Int {
-    return kk_string_trimIndent(strRaw)
-}
-
-@_cdecl("__kk_string_trimMargin")
-public func __kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_trimMargin(strRaw, marginPrefixRaw, outThrown)
-}
-
-@_cdecl("__kk_string_prependIndent")
-public func __kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
-    return kk_string_prependIndent(strRaw, indentRaw)
-}
-
-@_cdecl("__kk_string_replaceIndent")
-public func __kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
-    return kk_string_replaceIndent(strRaw, newIndentRaw)
-}
-
-@_cdecl("__kk_string_replaceIndentByMargin")
-public func __kk_string_replaceIndentByMargin(
-    _ strRaw: Int,
-    _ newIndentRaw: Int,
-    _ marginPrefixRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw, outThrown)
 }

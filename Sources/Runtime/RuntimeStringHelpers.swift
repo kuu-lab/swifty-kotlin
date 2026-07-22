@@ -3,6 +3,8 @@
 
 import Foundation
 
+let runtimeDefaultTrimMarginPrefixRaw = runtimeMakeStringRaw("|")
+
 func runtimeNormalizedMultilineString(_ source: String) -> [String] {
     source
         .replacingOccurrences(of: "\r\n", with: "\n")
