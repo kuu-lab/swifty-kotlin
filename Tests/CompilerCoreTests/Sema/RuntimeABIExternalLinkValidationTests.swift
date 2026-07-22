@@ -474,10 +474,12 @@ struct RuntimeABIExternalLinkValidationTests {
         guard !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*") else {
             return nil
         }
-        let classPattern = #"^\s*(?:(?:public|private|internal|protected|sealed|abstract|data|value|inline|open|final|expect|actual)\s+)*class\b"#
-        let objectPattern = #"^\s*(?:(?:public|private|internal|protected|inline|companion)\s+)*(?:companion\s+)?object\b"#
+        // class / interface / enum class / annotation class / sealed interface / fun interface
+        let classLikePattern = #"^\s*(?:(?:public|private|internal|protected|sealed|abstract|data|value|inline|open|final|expect|actual|enum|annotation|fun)\s+)*(?:class|interface)\b"#
+        // object / companion object / data object
+        let objectPattern = #"^\s*(?:(?:public|private|internal|protected|inline|companion|data)\s+)*(?:companion\s+)?object\b"#
         let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
-        if let regex = try? NSRegularExpression(pattern: classPattern),
+        if let regex = try? NSRegularExpression(pattern: classLikePattern),
            regex.firstMatch(in: trimmed, range: range) != nil {
             return .classLike
         }
