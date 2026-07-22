@@ -16,7 +16,7 @@ symbol fq=stringZip.$1.s kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform kind=function vis=public flags=_ sig=recv=_ params=[String,kotlin.CharSequence] ret=kotlin.collections.List<String>
 symbol fq=stringZipTransform.$2.other kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform.$2.s kind=valueParameter vis=private flags=_
-file f0 package=_
+file fstring_zip package=_
   decl stringZip fun stringZip sym=stringZip
   decl charSequenceZip fun charSequenceZip sym=charSequenceZip
   decl stringZipTransform fun stringZipTransform sym=stringZipTransform

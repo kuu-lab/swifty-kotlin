@@ -17,6 +17,9 @@ bash Scripts/diff_kotlinc.sh \
 
 Cases:
 
+The list below is representative rather than exhaustive. The runner discovers
+all `*.kt` files under `Scripts/diff_cases` automatically.
+
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
@@ -50,7 +53,7 @@ Cases:
 - `interface_default_method.kt`: interface default method（body あり fun）の default 実装呼び出しと concrete override の共存 parity
 - `abstract_class.kt`: abstract class / abstract member の制約と override 強制（abstract fun, multi-level inheritance chain）
 - `tailrec_fun.kt`: `tailrec` 関数の再帰実行 parity
-- `builder_dsl.kt`: `buildString` DSL builder の正常系 parity
+- `collection_builders.kt`: `buildString` / `buildList` / `buildSet` / `buildMap` DSL builder の正常系 parity
 - `builder_dsl_invalid_arg.kt`: builder への不正引数（非 lambda）を compile error として扱う parity
 - `builder_dsl_shadowing.kt`: user-defined `buildString` / `buildList` / `buildMap` が DSL 特別扱いに奪われないことの parity
 - `value_classes.kt`: `@JvmInline` / `inline class` / `value class` の value class 基本動作 parity
@@ -79,5 +82,6 @@ Cases:
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
 - `array_for_loop.kt`: `for (x in array)` による ByteArray / IntArray / `Array<String>` の直接イテレーション（DEBT-KIR-005）、空配列での 0 回実行、`continue`/`break` との組み合わせの parity
 - `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）
+- `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
 
 The set intentionally includes both successful programs and compile-error cases.

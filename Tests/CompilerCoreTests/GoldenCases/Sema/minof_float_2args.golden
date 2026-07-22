@@ -1,7 +1,7 @@
 symbol fq=golden.sema.minOfFloatTwoArg kind=function vis=public flags=_ sig=recv=_ params=[Float,Float] ret=Float
 symbol fq=golden.sema.minOfFloatTwoArg.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfFloatTwoArg.$0.b kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fminof_float_2args package=golden.sema
   decl golden.sema.minOfFloatTwoArg fun minOfFloatTwoArg sym=golden.sema.minOfFloatTwoArg
 expr e@3:57 name(a) type=Float ref=golden.sema.minOfFloatTwoArg.$0.a
 expr e@3:60 name(b) type=Float ref=golden.sema.minOfFloatTwoArg.$0.b

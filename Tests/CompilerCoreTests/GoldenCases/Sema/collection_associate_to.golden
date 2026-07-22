@@ -23,7 +23,7 @@ symbol fq=testAssociateWithTo kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=testAssociateWithTo.$2.values kind=valueParameter vis=private flags=_
 symbol fq=testGroupByTo kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=testGroupByTo.$3.values kind=valueParameter vis=private flags=_
-file f0 package=_
+file fcollection_associate_to package=_
   decl testAssociateTo fun testAssociateTo sym=testAssociateTo
   decl testAssociateByTo fun testAssociateByTo sym=testAssociateByTo
   decl testAssociateWithTo fun testAssociateWithTo sym=testAssociateWithTo

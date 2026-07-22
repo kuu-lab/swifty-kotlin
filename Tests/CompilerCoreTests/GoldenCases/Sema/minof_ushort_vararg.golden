@@ -3,7 +3,7 @@ symbol fq=golden.sema.varargMinUShort.$0.a kind=valueParameter vis=private flags
 symbol fq=golden.sema.varargMinUShort.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinUShort.$0.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinUShort.$0.d kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fminof_ushort_vararg package=golden.sema
   decl golden.sema.varargMinUShort fun varargMinUShort sym=golden.sema.varargMinUShort
 expr e@3:81 name(a) type=UShort ref=golden.sema.varargMinUShort.$0.a
 expr e@3:84 name(b) type=UShort ref=golden.sema.varargMinUShort.$0.b

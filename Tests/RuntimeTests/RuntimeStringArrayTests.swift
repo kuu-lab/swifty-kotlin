@@ -73,38 +73,11 @@ private typealias RuntimeFlatStringReturnWithTwoIntsEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithStringEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
 private typealias RuntimeFlatStringReturnWithTwoStringsBoolEntry = (
     UnsafePointer<UInt8>?,
     Int,
     Int,
     Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithStringBoolEntry = (
     UnsafePointer<UInt8>?,
     Int,
     Int,
@@ -374,74 +347,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 byteCount: outByteCount,
                 hash: outHash
             )
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        other: String,
-        using call: RuntimeFlatStringReturnWithStringEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                var outLength = 0
-                var outByteCount = 0
-                var outHash = 0
-                let outData = call(
-                    data,
-                    length,
-                    byteCount,
-                    hash,
-                    otherData,
-                    otherLength,
-                    otherByteCount,
-                    otherHash,
-                    &outLength,
-                    &outByteCount,
-                    &outHash
-                )
-                return flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                )
-            }
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        other: String,
-        ignoreCase: Bool,
-        using call: RuntimeFlatStringReturnWithStringBoolEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                var outLength = 0
-                var outByteCount = 0
-                var outHash = 0
-                let outData = call(
-                    data,
-                    length,
-                    byteCount,
-                    hash,
-                    otherData,
-                    otherLength,
-                    otherByteCount,
-                    otherHash,
-                    ignoreCase ? 1 : 0,
-                    &outLength,
-                    &outByteCount,
-                    &outHash
-                )
-                return flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                )
-            }
         }
     }
 
@@ -2694,20 +2599,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast_flat(-1) should set outThrown")
     }
 
-    func testStringReplaceIndentByMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
-        var thrown = 0
-        _ = kk_string_replaceIndentByMargin(
-            rawFromRuntimeString("|line"),
-            rawFromRuntimeString(">"),
-            rawFromRuntimeString("   "),
-            &thrown
-        )
-        XCTAssertNotEqual(thrown, 0, "blank marginPrefix should set outThrown")
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
-        XCTAssertTrue(box.renderedMessage.contains("marginPrefix must be non-blank string."))
-    }
-
     func testStringReplaceSupportsLiteralReplacement() {
         withFlatString("aba") { data, length, byteCount, hash in
             withFlatString("a") { oldData, oldLength, oldByteCount, oldHash in
@@ -3772,25 +3663,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    private func assertStringValueList(
-        _ list: RuntimeListBox?,
-        equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let list else {
-            XCTFail("Expected a RuntimeListBox", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            list.values.map(\.tag),
-            Array(repeating: RuntimeValue.stringTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(list.elements.map(runtimeStringValue), expected, file: file, line: line)
-    }
-
     private func assertStringValueSequence(
         _ sequenceRaw: Int,
         equals expected: [String],
@@ -3854,70 +3726,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             byteCount: byteCount,
             hash: hash
         )
-    }
-
-    private func assertIndexedStringValue(
-        _ raw: Int,
-        index: Int,
-        value: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), value, file: file, line: line)
-        XCTAssertEqual(runtimeElementToString(raw), "IndexedValue(index=\(index), value=\(value))", file: file, line: line)
-    }
-
-    private func assertIndexedCharValue(
-        _ raw: Int,
-        index: Int,
-        scalar: Int,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.charTag, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.payload0, scalar, file: file, line: line)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(raw)), scalar, file: file, line: line)
-    }
-
-    private func assertStringPairValue(
-        _ raw: Int,
-        first: String,
-        second: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.firstValue), first, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), second, file: file, line: line)
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

@@ -3,7 +3,7 @@ symbol fq=golden.sema.writeThenReadUuid.$0.arr kind=valueParameter vis=private f
 symbol fq=golden.sema.writeThenReadUuid.$0.u kind=valueParameter vis=private flags=_
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.uuid.Uuid kind=class vis=public flags=_
-file f0 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
+file fuuid_put_uuid package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
   decl golden.sema.writeThenReadUuid fun writeThenReadUuid sym=golden.sema.writeThenReadUuid
 expr e@10:5 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
 expr e@10:17 int(0) type=Int

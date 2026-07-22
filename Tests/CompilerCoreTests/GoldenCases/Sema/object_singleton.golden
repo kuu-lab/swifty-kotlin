@@ -2,7 +2,7 @@ symbol fq=golden.sema.Counter kind=object vis=public flags=_
 symbol fq=golden.sema.Counter.increment kind=function vis=public flags=_ sig=recv=golden.sema.Counter params=[] ret=Unit
 symbol fq=golden.sema.Counter.n kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.useCounter kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=golden.sema
+file fobject_singleton package=golden.sema
   decl golden.sema.Counter object Counter sym=golden.sema.Counter
   decl golden.sema.useCounter fun useCounter sym=golden.sema.useCounter
 expr e@4:25 string(counter) type=String

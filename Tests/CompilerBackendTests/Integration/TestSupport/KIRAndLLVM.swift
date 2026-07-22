@@ -2,12 +2,6 @@
 @testable import CompilerBackend
 import XCTest
 
-/// Type token symbols use this negative offset to avoid collision with real symbol IDs.
-let typeTokenSymbolOffset: Int = -20000
-
-/// Coroutine state machine dispatch labels start at this offset.
-let coroutineDispatchLabelBase: Int32 = 1000
-
 func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
     module.arena.declarations.compactMap { decl -> KIRFunction? in
         guard case let .function(function) = decl else { return nil }
@@ -57,28 +51,4 @@ func extractThrowFlags(
         guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return }
         partial[interner.resolve(callee), default: []].append(canThrow)
     }
-}
-
-func firstExprID(
-    in ast: ASTModule,
-    where predicate: (ExprID, Expr) -> Bool
-) -> ExprID? {
-    for index in ast.arena.exprs.indices {
-        let exprID = ExprID(rawValue: Int32(index))
-        guard let expr = ast.arena.expr(exprID) else { continue }
-        if predicate(exprID, expr) { return exprID }
-    }
-    return nil
-}
-
-func lastExprID(
-    in ast: ASTModule,
-    where predicate: (ExprID, Expr) -> Bool
-) -> ExprID? {
-    for index in ast.arena.exprs.indices.reversed() {
-        let exprID = ExprID(rawValue: Int32(index))
-        guard let expr = ast.arena.expr(exprID) else { continue }
-        if predicate(exprID, expr) { return exprID }
-    }
-    return nil
 }

@@ -8,7 +8,7 @@ symbol fq=__local_6.g kind=local vis=private flags=_ type=Double
 symbol fq=__local_7.h kind=local vis=private flags=_ type=Double
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandom kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_basic package=_
   decl useRandom fun useRandom sym=useRandom
 expr e@4:13 name(Random) type=kotlin.random.Random.Default ref=kotlin.random.Random
 expr e@4:13#1 memberCall recv=e@4:13 callee=nextInt args=[] type=Int call=kotlin.random.Random.Default.nextInt#0

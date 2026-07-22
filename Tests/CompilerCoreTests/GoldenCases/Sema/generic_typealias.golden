@@ -7,7 +7,7 @@ symbol fq=golden.sema.useFunc kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.useFunc.$1.f kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.usePredicate kind=function vis=public flags=_ sig=recv=_ params=[(Int) -> Boolean] ret=Boolean
 symbol fq=golden.sema.usePredicate.$2.p kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fgeneric_typealias package=golden.sema
   decl golden.sema.Predicate typealias Predicate sym=golden.sema.Predicate
   decl golden.sema.Func typealias Func sym=golden.sema.Func
   decl golden.sema.StringAlias typealias StringAlias sym=golden.sema.StringAlias

@@ -362,5 +362,75 @@ struct IncrementalCompilationCacheTests {
         #expect(result == false)
         #expect(!FileManager.default.fileExists(atPath: options.outputPath))
     }
+
+    // MARK: - stdlib manifest hash
+
+    @Test
+    func testStdlibManifestHashIsStable() {
+        let hash1 = BundledKotlinStdlib.manifestHash()
+        let hash2 = BundledKotlinStdlib.manifestHash()
+        #expect(hash1 == hash2)
+        #expect(!hash1.isEmpty)
+    }
+
+    @Test
+    func testBuildConfigurationHashIncludesStdlibManifest() {
+        let optionsWithStdlib = CompilerOptions(
+            moduleName: "M",
+            inputs: [],
+            outputPath: tempDir + "/out",
+            emit: .executable,
+            target: TargetTriple.hostDefault(),
+            includeStdlib: true
+        )
+        let optionsWithoutStdlib = CompilerOptions(
+            moduleName: "M",
+            inputs: [],
+            outputPath: tempDir + "/out",
+            emit: .executable,
+            target: TargetTriple.hostDefault(),
+            includeStdlib: false
+        )
+
+        let cache = IncrementalCompilationCache(cachePath: tempDir)
+        #expect(cache.buildConfigurationHash(for: optionsWithStdlib) != cache.buildConfigurationHash(for: optionsWithoutStdlib))
+    }
+
+    @Test
+    func testRecompilationSetReturnsNilWhenStdlibManifestChanges() throws {
+        let sourceDir = tempDir + "/src"
+        try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
+        let sourceFile = sourceDir + "/a.kt"
+        try "fun main() {}".write(toFile: sourceFile, atomically: true, encoding: .utf8)
+
+        let optionsWithStdlib = CompilerOptions(
+            moduleName: "M",
+            inputs: [sourceFile],
+            outputPath: tempDir + "/out",
+            emit: .executable,
+            target: TargetTriple.hostDefault(),
+            includeStdlib: true
+        )
+        let optionsWithoutStdlib = CompilerOptions(
+            moduleName: "M",
+            inputs: [sourceFile],
+            outputPath: tempDir + "/out",
+            emit: .executable,
+            target: TargetTriple.hostDefault(),
+            includeStdlib: false
+        )
+
+        let cache1 = IncrementalCompilationCache(cachePath: tempDir)
+        cache1.computeCurrentFingerprints(for: [sourceFile])
+        let graph = DependencyGraph()
+        graph.recordProvided(filePath: sourceFile, symbols: ["main"])
+        cache1.saveState(dependencyGraph: graph, options: optionsWithStdlib)
+
+        let cache2 = IncrementalCompilationCache(cachePath: tempDir)
+        cache2.loadPreviousState()
+        cache2.computeCurrentFingerprints(for: [sourceFile])
+        let result = cache2.recompilationSet(allPaths: [sourceFile], options: optionsWithoutStdlib)
+        #expect(result == nil)
+    }
 }
 #endif
