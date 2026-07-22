@@ -37,38 +37,46 @@ final class ControlFlowTypeChecker {
             return signature.parameterTypes.isEmpty
         }
 
-        guard !iteratorCandidates.isEmpty else {
+        let iteratorCall: CallBinding?
+        let iteratorType: TypeID
+        if !iteratorCandidates.isEmpty {
+            let iteratorResolved = ctx.resolver.resolveCall(
+                candidates: iteratorCandidates,
+                call: CallExpr(range: range, calleeName: iteratorName, args: []),
+                expectedType: nil,
+                implicitReceiverType: nonNullIterableType,
+                ctx: ctx.semaCtx
+            )
+
+            guard let iteratorChosen = iteratorResolved.chosenCallee,
+                  let iteratorSignature = sema.symbols.functionSignature(for: iteratorChosen)
+            else {
+                return nil
+            }
+
+            iteratorCall = CallBinding(
+                chosenCallee: iteratorChosen,
+                substitutedTypeArguments: iteratorResolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map { _, value in value },
+                parameterMapping: iteratorResolved.parameterMapping
+            )
+
+            iteratorType = substituteResolvedType(
+                iteratorSignature.returnType,
+                signature: iteratorSignature,
+                substitutedTypeArguments: iteratorResolved.substitutedTypeArguments,
+                sema: sema
+            )
+        } else if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner) {
+            // Iterator<T> already is the iterator; the stdlib extension
+            // Iterator<T>.iterator() returns this, so skip the call and
+            // use hasNext()/next() directly on the iterable value.
+            iteratorCall = nil
+            iteratorType = nonNullIterableType
+        } else {
             return nil
         }
-
-        let iteratorResolved = ctx.resolver.resolveCall(
-            candidates: iteratorCandidates,
-            call: CallExpr(range: range, calleeName: iteratorName, args: []),
-            expectedType: nil,
-            implicitReceiverType: nonNullIterableType,
-            ctx: ctx.semaCtx
-        )
-
-        guard let iteratorChosen = iteratorResolved.chosenCallee,
-              let iteratorSignature = sema.symbols.functionSignature(for: iteratorChosen)
-        else {
-            return nil
-        }
-
-        let iteratorCall = CallBinding(
-            chosenCallee: iteratorChosen,
-            substitutedTypeArguments: iteratorResolved.substitutedTypeArguments
-                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
-            parameterMapping: iteratorResolved.parameterMapping
-        )
-
-        let iteratorType = substituteResolvedType(
-            iteratorSignature.returnType,
-            signature: iteratorSignature,
-            substitutedTypeArguments: iteratorResolved.substitutedTypeArguments,
-            sema: sema
-        )
 
         let hasNextName = interner.intern("hasNext")
         let hasNextCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -175,6 +183,29 @@ final class ControlFlowTypeChecker {
             substitution: substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
+    }
+
+    /// Returns true when `type` is a subtype of `kotlin.collections.Iterator<Any>`,
+    /// meaning a `for-in` loop can iterate it directly using `hasNext()`/`next()`.
+    private func isDirectIteratorType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let iteratorFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterator")
+        ]
+        guard let iteratorSymbol = sema.symbols.lookup(fqName: iteratorFQName) else {
+            return false
+        }
+        let iteratorType = sema.types.make(.classType(ClassType(
+            classSymbol: iteratorSymbol,
+            args: [.out(sema.types.anyType)],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(sema.types.makeNonNullable(type), iteratorType)
     }
 
     func inferForExpr(
