@@ -819,6 +819,35 @@ enum DiagnosticRegistry {
         ),
     ]
 
+    // MARK: - Source loading pass (SOURCE)
+
+    static let sourceDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0001",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "No input files were specified."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0002",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Cannot read input file."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0101",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Bundled stdlib resource directory is missing."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SOURCE-0102",
+            pass: "SOURCE",
+            defaultSeverity: .error,
+            summary: "Failed to read bundled stdlib source."
+        ),
+    ]
+
     // MARK: - Aggregate
 
     static let allDescriptors: [DiagnosticDescriptor] =
@@ -833,4 +862,5 @@ enum DiagnosticRegistry {
             + linkDescriptors
             + pipelineDescriptors
             + iceDescriptors
+            + sourceDescriptors
 }
