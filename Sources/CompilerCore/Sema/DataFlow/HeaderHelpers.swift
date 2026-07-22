@@ -1105,8 +1105,8 @@ extension DataFlowSemaPhase {
 
     /// Register synthetic stdlib symbols for property delegate functions so that
     /// sema can resolve `lazy { }`, `Delegates.observable(...)`, and `Delegates.vetoable(...)`.
-    /// Also registers `kotlin.properties.Lazy<T>` and `kotlin.properties.ReadWriteProperty<T, V>`
-    /// as interface stubs so that return types are structurally correct.
+    /// Also registers `kotlin.properties.ReadWriteProperty<T, V>`
+    /// as an interface stub so that return types are structurally correct.
     /// These are minimal stubs: just enough for name resolution and type checking to succeed.
     func registerSyntheticDelegateStubs(
         symbols: SymbolTable,

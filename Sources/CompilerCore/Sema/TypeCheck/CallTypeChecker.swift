@@ -2348,6 +2348,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
+            expectedType: expectedType,
             ctx: ctx,
             locals: &locals
         )

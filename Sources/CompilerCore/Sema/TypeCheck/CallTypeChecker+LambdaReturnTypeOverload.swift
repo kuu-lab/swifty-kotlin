@@ -8,6 +8,8 @@ extension CallTypeChecker {
     }
 
     private struct LambdaParameterCandidate {
+        let candidate: SymbolID
+        let signature: FunctionSignature
         let originalType: TypeID
         let functionType: FunctionType
     }
@@ -19,6 +21,7 @@ extension CallTypeChecker {
         expectedTypeOverrides: [Int: TypeID] = [:],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
+        expectedType: TypeID? = nil,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> PreparedCallArguments {
@@ -95,6 +98,7 @@ extension CallTypeChecker {
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: receiverType,
                     inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                    expectedReturnType: expectedType,
                     resolver: ctx.resolver,
                     sema: sema
                 )
@@ -550,6 +554,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        expectedReturnType: TypeID? = nil,
         resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
@@ -561,28 +566,6 @@ extension CallTypeChecker {
            candidates.allSatisfy({
                Self.inputOnlyExternalLinkNames.contains(sema.symbols.externalLinkName(for: $0) ?? "")
            }),
-           let signature = sema.symbols.functionSignature(for: candidates[0]),
-           index < signature.parameterTypes.count
-        {
-            let rawType = signature.parameterTypes[index]
-            let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawType,
-                signature: signature,
-                candidate: candidates[0],
-                explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-            let substituted = applyReceiverClassTypeArgs(
-                to: explicitSubstituted,
-                signature: signature,
-                candidate: candidates[0],
-                receiverType: receiverType,
-                sema: sema
-            )
-            return (substituted, true, false)
-        }
-
-        if candidates.count == 1,
            let signature = sema.symbols.functionSignature(for: candidates[0]),
            index < signature.parameterTypes.count
         {
@@ -608,6 +591,42 @@ extension CallTypeChecker {
                 resolver: resolver,
                 sema: sema
             )
+            return (substituted, true, false)
+        }
+
+        if candidates.count == 1,
+           let signature = sema.symbols.functionSignature(for: candidates[0]),
+           index < signature.parameterTypes.count
+        {
+            let rawType = signature.parameterTypes[index]
+            let explicitSubstituted = applyExplicitTypeArgs(
+                to: rawType,
+                signature: signature,
+                candidate: candidates[0],
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            let receiverSubstituted = applyReceiverClassTypeArgs(
+                to: explicitSubstituted,
+                signature: signature,
+                candidate: candidates[0],
+                receiverType: receiverType,
+                sema: sema
+            )
+            let inferredSubstituted = applyInferredArgumentTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                resolver: resolver,
+                sema: sema
+            )
+            let substituted = applyExpectedReturnTypeArgs(
+                to: inferredSubstituted,
+                signature: signature,
+                expectedReturnType: expectedReturnType,
+                resolver: resolver,
+                sema: sema
+            )
             return (substituted, false, false)
         }
 
@@ -623,7 +642,18 @@ extension CallTypeChecker {
         if let first = parameterCandidates.first,
            parameterCandidates.dropFirst().allSatisfy({ $0.originalType == first.originalType })
         {
-            return (first.originalType, false, false)
+            let substituted = substitutedLambdaParameterType(
+                candidate: first.candidate,
+                signature: first.signature,
+                parameterType: first.originalType,
+                explicitTypeArgs: explicitTypeArgs,
+                receiverType: receiverType,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                expectedReturnType: expectedReturnType,
+                resolver: resolver,
+                sema: sema
+            )
+            return (substituted, false, false)
         }
 
         guard let sharedType = sharedLambdaInputOnlyType(
@@ -651,6 +681,8 @@ extension CallTypeChecker {
                 return nil
             }
             return LambdaParameterCandidate(
+                candidate: candidate,
+                signature: signature,
                 originalType: parameterType,
                 functionType: functionType
             )
@@ -690,6 +722,93 @@ extension CallTypeChecker {
             return false
         }
         return zip(lhs.params, rhs.params).allSatisfy { $0 == $1 }
+    }
+
+    private func substitutedLambdaParameterType(
+        candidate: SymbolID,
+        signature: FunctionSignature,
+        parameterType: TypeID,
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID?,
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        expectedReturnType: TypeID?,
+        resolver: OverloadResolver?,
+        sema: SemaModule
+    ) -> TypeID {
+        let explicitSubstituted = applyExplicitTypeArgs(
+            to: parameterType,
+            signature: signature,
+            candidate: candidate,
+            explicitTypeArgs: explicitTypeArgs,
+            sema: sema
+        )
+        let receiverSubstituted = applyReceiverClassTypeArgs(
+            to: explicitSubstituted,
+            signature: signature,
+            candidate: candidate,
+            receiverType: receiverType,
+            sema: sema
+        )
+        let inferredSubstituted = applyInferredArgumentTypeArgs(
+            to: receiverSubstituted,
+            signature: signature,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            sema: sema
+        )
+        return applyExpectedReturnTypeArgs(
+            to: inferredSubstituted,
+            signature: signature,
+            expectedReturnType: expectedReturnType,
+            resolver: resolver,
+            sema: sema
+        )
+    }
+
+    /// Infers a partial substitution for the candidate's type parameters by matching
+    /// its declared return type against the expected type of the call, then applies
+    /// that substitution to a parameter type. This lets trailing lambdas be typed
+    /// with concrete expected return types (e.g. `lazy { 1 }` with expected `Lazy<Int>`
+    /// sees `() -> Int` instead of `() -> T`).
+    private func applyExpectedReturnTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        expectedReturnType: TypeID?,
+        resolver: OverloadResolver?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let expectedReturnType,
+              expectedReturnType != sema.types.errorType,
+              expectedReturnType != sema.types.unitType,
+              !signature.typeParameterSymbols.isEmpty,
+              let resolver
+        else {
+            return parameterType
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let constraints = resolver.decomposeSubtypeConstraint(
+            subtype: signature.returnType,
+            supertype: expectedReturnType,
+            typeVarBySymbol: typeVarBySymbol,
+            typeSystem: sema.types,
+            blameRange: nil
+        )
+        let vars = resolver.usedTypeVariables(from: constraints)
+        guard !vars.isEmpty else { return parameterType }
+
+        let solution = ConstraintSolver().solve(
+            vars: vars,
+            constraints: constraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else { return parameterType }
+
+        return sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: solution.substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     private func rebuildLambdaLiteralType(
