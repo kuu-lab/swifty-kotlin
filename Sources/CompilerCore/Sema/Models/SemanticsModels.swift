@@ -1036,23 +1036,6 @@ public final class SymbolTable {
         return expectActualLinks[expect]
     }
 
-    /// Check if two symbol kinds are compatible for expect/actual relationship
-    private func areKindsCompatibleForExpectActual(expect: SymbolKind, actual: SymbolKind) -> Bool {
-        switch (expect, actual) {
-        case (.annotationClass, .annotationClass), (.annotationClass, .typeAlias):
-            return true
-        case (.function, .function), (.constructor, .constructor):
-            return true
-        case (.property, .property), (.field, .field):
-            return true
-        case (.class, .class), (.interface, .interface), (.object, .object):
-            return true
-        case (.enumClass, .enumClass):
-            return true
-        default:
-            return expect == actual
-        }
-    }
 
     public func setContractNonNullEffect(_ effect: ContractNonNullEffect, for function: SymbolID) {
         contractNonNullEffects[function] = effect
