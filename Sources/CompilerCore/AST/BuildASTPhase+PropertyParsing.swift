@@ -68,7 +68,7 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        let exprTokens = tokens[start...].filter { $0.kind != .symbol(.semicolon) }
+        let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {
             return nil
         }
