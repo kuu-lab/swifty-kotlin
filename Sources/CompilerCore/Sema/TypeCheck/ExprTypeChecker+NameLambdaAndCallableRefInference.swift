@@ -926,19 +926,29 @@ extension ExprTypeChecker {
                 sema: sema
             )
 
-            // Apply subtype constraint only if needed.
-            // Skip when the expected return type is an unconstrained type parameter —
-            // that is an inference placeholder the call resolver fills in, so any body
-            // type is valid (e.g. transform lambdas for zip/zipWithNext).
+            // Skip the local subtype constraint when the expected return is Unit
+            // (Kotlin allows any body type) or when it is a generic type variable.
+            // For Unit there is nothing to constrain. For a type variable the
+            // local solver cannot bind it; the concrete inferred function type
+            // returned below lets the call resolver infer it instead.
+            let expectedReturnIsTypeParam: Bool = {
+                guard case .typeParam = sema.types.kind(of: expectedFunctionType.returnType) else {
+                    return false
+                }
+                return true
+            }()
             let expectedReturnIsUnconstrainedTypeParam: Bool = {
                 guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
                     return false
                 }
                 return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
             }()
-            if expectedFunctionType.returnType != sema.types.unitType,
-               !expectedReturnIsUnconstrainedTypeParam
-            {
+            let shouldSkipSubtypeConstraint =
+                expectedFunctionType.returnType == sema.types.unitType
+                || (expectedFunctionType.receiver != nil
+                    ? expectedReturnIsTypeParam
+                    : expectedReturnIsUnconstrainedTypeParam)
+            if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
                     right: expectedFunctionType.returnType,
@@ -948,8 +958,28 @@ extension ExprTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
             }
-            sema.bindings.bindExprType(id, type: expectedType)
-            return expectedType
+
+            // For extension-receiver function literals (`T.() -> R`), return the
+            // concrete inferred function type so the call resolver can infer the
+            // generic return type `R` from the lambda body. For non-receiver
+            // lambdas, preserve the contextual expected type to avoid changing
+            // existing Sema golden output and to keep input-only HOF behavior.
+            if expectedFunctionType.receiver != nil {
+                let resolvedFunctionType = sema.types.make(.functionType(FunctionType(
+                    contextReceivers: expectedFunctionType.contextReceivers,
+                    receiver: expectedFunctionType.receiver,
+                    params: parameterTypes,
+                    returnType: optimizedReturnType,
+                    isSuspend: expectedFunctionType.isSuspend,
+                    nullability: expectedFunctionType.nullability,
+                    throws: expectedFunctionType.throws
+                )))
+                sema.bindings.bindExprType(id, type: resolvedFunctionType)
+                return resolvedFunctionType
+            } else {
+                sema.bindings.bindExprType(id, type: expectedType)
+                return expectedType
+            }
         }
 
         let inferredFunctionType = sema.types.make(.functionType(FunctionType(
