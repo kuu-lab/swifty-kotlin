@@ -1,5 +1,40 @@
 
 struct CaptureAnalyzer {
+    /// Same traversal as `collectCapturedOuterSymbols(in:...)`, but rooted at a
+    /// function body (used for object-literal member functions, which have a
+    /// `FunctionBody` rather than a single root `ExprID`). Each top-level
+    /// statement is visited independently and the resulting capture sets are
+    /// unioned, which is equivalent to visiting the whole body in one pass
+    /// since the visitor carries no cross-statement state besides the
+    /// accumulated capture set itself.
+    func collectCapturedOuterSymbols(
+        inBody body: FunctionBody,
+        ast: ASTModule,
+        sema: SemaModule,
+        outerSymbols: Set<SymbolID>,
+        skipNestedClosures: Bool = true
+    ) -> [SymbolID] {
+        guard !outerSymbols.isEmpty else {
+            return []
+        }
+        let roots: [ExprID] = switch body {
+        case let .block(exprs, _): exprs
+        case let .expr(expr, _): [expr]
+        case .unit: []
+        }
+        var captured: Set<SymbolID> = []
+        for root in roots {
+            captured.formUnion(collectCapturedOuterSymbols(
+                in: root,
+                ast: ast,
+                sema: sema,
+                outerSymbols: outerSymbols,
+                skipNestedClosures: skipNestedClosures
+            ))
+        }
+        return captured.sorted(by: { $0.rawValue < $1.rawValue })
+    }
+
     func collectCapturedOuterSymbols(
         in exprID: ExprID,
         ast: ASTModule,

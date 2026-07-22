@@ -43,7 +43,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, includingTrailingLambdaTokens: true)
         guard !tokens.isEmpty else {
             return nil
         }

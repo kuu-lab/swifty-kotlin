@@ -11,7 +11,7 @@ symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fgenerate_sequence_noarg package=_
   decl main fun main sym=main
 expr e@3:17 int(0) type=Int
 expr e@3:5 localDecl count mutable=1 type=_ init=e@3:17 type=Unit ref=__local_0.count

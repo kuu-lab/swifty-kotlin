@@ -32,4 +32,22 @@ fun main() {
     println("42".padStart(5, '0'))
     println("42".padEnd(5, '0'))
     println("ab".repeat(3))
+
+    // Edge cases for the same APIs
+    println("".trim())
+    println("   ".trim())
+    println("hello world".startsWith("hello"))
+    println("hello world".endsWith("world"))
+    println("hello world".startsWith("world"))
+    println("hello world".endsWith("hello"))
+    println("hello world".contains("lo wo"))
+    println("hello world".contains("xyz"))
+    println("hello world".contains(""))
+    println("hello world".replace("world", "kotlin"))
+    println("aaa".replace("a", "bb"))
+    println("ababa".replace("aba", "x"))
+    println("-123".toInt())
+    println("0".toInt())
+    println("-0.5".toDouble())
+    println("42.0".toDouble())
 }

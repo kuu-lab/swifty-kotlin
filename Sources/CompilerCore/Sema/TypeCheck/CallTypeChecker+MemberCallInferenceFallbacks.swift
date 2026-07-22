@@ -383,20 +383,6 @@ extension CallTypeChecker {
         }
     }
 
-    func isKotlinDurationType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
-        }
-        return symbol.fqName == [
-            interner.intern("kotlin"),
-            interner.intern("time"),
-            interner.intern("Duration"),
-        ]
-    }
 
     /// Extract the inferred return type from a lambda argument.
     /// Checks the lambda body expression first, then falls back to the function

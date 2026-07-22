@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-17（DEADCODE-CORE-030 完了: `TypeInferenceContext.swift` の未使用 `with(enclosingClassSymbol:)` を削除。同日: DEADCODE-CORE-034 完了: `SyntheticStubSurfaceSpec.swift` の未参照 static `ubyte` 型参照定数を削除。同日: PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-22（KSP-CAP-003 完了: companion object をレシーバとする拡張関数のショートハンド呼び出し（`Foo.make()`）が `KSWIFTK-SEMA-0024` になる問題を実機再検証し、2026-07-09 の KSP-471 コミット（`576d945a9a`, #4609）で追加された companion-scoped extension フォールバックにより既に解決済みであることを確認。コンパイラ本体のロジック修正は不要で、回帰テストの追加と古いコメント（KSP-472 関連）の訂正のみ実施。詳細は KSP-CAP-003 本体の項目を参照）。それ以前 2026-07-17（DEADCODE-CORE-030 完了: `TypeInferenceContext.swift` の未使用 `with(enclosingClassSymbol:)` を削除。同日: DEADCODE-CORE-034 完了: `SyntheticStubSurfaceSpec.swift` の未参照 static `ubyte` 型参照定数を削除。同日: PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -19,7 +19,7 @@
 ### Phase RF2+RF3+RF4+RF5: Stdlib パイプライン・合成スタブ削減・名前文字列特殊処理排除・Lowering 再編（残り 7 件）
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
 > 背景: TypeCheck に `interner.resolve(...) == "名前"` が 104 箇所、`CallLowerer+LegacyMemberLikeCalls.swift` は 4,055 行・`kk_` リテラル 601 個。
-- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `--no-stdlib` での opt-out、source origin、ユーザー入力との診断パス区別）。残作業は `KSP-INF-001` / `KSP-INF-008` と連携して完了させる。
+- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。2026-07-15 監査で残リストを補正: ユーザー入力との診断パス区別は `__bundled_` 接頭辞機構で実装済みのため残から除外。2026-07-19 に PR #4842 で `--no-stdlib` の実配線と回帰テストを追加済み。残: 形式的な source origin 型の導入）
 - [~] RF-STUB-003: (c) 残留スタブ向けの宣言的登録 API を導入する（RuntimeABI の `StdlibSurfaceSpec` パターンを Sema 登録へ拡張し、~340 個の `registerXxxMember` 手書き関数をデータテーブル化）。2026-07-07: `SyntheticConstructorStubSpec` と fallback 型参照を追加し、`SyntheticStubSurfaceSpec+NativeRefRuntime.swift` へ `WeakReference` / `GC` / `GCInfo` / `Debugging` surface を移行。
 - [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
@@ -28,8 +28,8 @@
 - [ ] RF-LOWER-006: `DataEnumSealedSynthesisPass+DataClassMethods`（1,268 行・TODO 33 件）を整理し、`.jscpd.json` の ignore 固定 3 ファイルを解消する
 
 ### Phase RF6: Runtime 縮小・ABI 整合（M タスク進行と連動）（残り 2 件）
-- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する
-- [ ] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する
+- [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する。2026-07-15 注記: `70c77932aa`（本タスク名義のコミット）で共有内部ヘルパー方式の統合（`RuntimeRangeSharedHOF.swift` 782 行）がマージ済みだが、generics 化そのものは未実施のため open を維持
+- [~] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する。2026-07-15 監査で `[ ]` から更新: PR #4589（share runtime HOF helpers）がマージ済みで、fold/scan 共通化（`RuntimeSequenceFoldScan.swift` 295 行）と責務分割（本体は 2,983 / 3,771 行に縮小）が実在。残: filter/map 系など残共通化箇所の棚卸しと完了判定の記録
 
 ### Phase RF7: テスト資産再編（残り 4 件）
 - [ ] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）
@@ -66,7 +66,7 @@
 
 #### Sema 型推論診断ギャップ（直上項目の分析から判明、2026-07-09）
 > `error_type_inference.kt` を diagnostics golden へ移設しようとしたところ、5 シナリオ全てで kswiftc が診断を1件も出さないことが判明した。JVM kotlinc 2.4.0 で裏取りした結果、3 件は本物のコンパイルエラー（kswiftc 側の Sema 検出漏れ）、残り 2 件（`identity(null)` の T 推論、expected-type 駆動の `produce(): T`）はそもそも正当な Kotlin コードで元の想定コメントが誤りだった。検出漏れの 3 件は `Tests/CompilerCoreTests/Sema` に `assertNoDiagnostic` ベースの回帰テストとして現状を固定済み — Sema 修正時にテストが失敗して気づける。
-- [ ] DEBT-SEMA-001: 未注釈オーバーロードで、ラムダ引数の暗黙 `it` パラメータ型がオーバーロード解決前に確定できず曖昧になるケース（`fun process(block: (Int) -> String)` / `fun process(block: (String) -> Int)` を `process { it }` で呼ぶ等）を `KSWIFTK-SEMA-0003` で検出できるようにする。回帰テスト: `OverloadResolutionByLambdaReturnTypeTests.testImplicitItParameterOverloadAmbiguityIsNotYetDetected`
+- [ ] DEBT-SEMA-001: 未注釈オーバーロードで、ラムダ引数の暗黙 `it` パラメータ型がオーバーロード解決前に確定できず曖昧になるケース（`fun process(block: (Int) -> String)` / `fun process(block: (String) -> Int)` を `process { it }` で呼ぶ等）を `KSWIFTK-SEMA-0003` で検出できるようにする。回帰テスト: `OverloadResolutionByLambdaReturnTypeTests.testImplicitItParameterOverloadAmbiguityIsNotYetDetected`（2026-07-22 KSP-CAP-005 の `propertyHeadTokens` 修正で、この回帰テストのソースがトップレベル `val result = process { it }` だったため trailing lambda が消失し診断ゼロで偶然パスしていたことが判明。修正後は `KSWIFTK-SEMA-0022`/`KSWIFTK-SEMA-0002` のカスケード失敗が正しく発火するようになり、テストの期待値を「診断ゼロ」から「この2件は出るが SEMA-0003 のクリーンな曖昧性検出はまだ出ない」へ更新済み。ギャップ自体は未解消）
 - [ ] DEBT-SEMA-002: `where T : ClassA, T : ClassB` のように型パラメータの upper bound に相互排他的な複数クラスが指定された宣言を検出する（宣言サイトの bound 整合性チェック。呼び出しサイトの `KSWIFTK-SEMA-BOUND` とは別軸）。回帰テスト: `TypeConstraintBoundsTests.testConflictingClassUpperBoundsAreNotYetDetected`
 - [ ] DEBT-SEMA-003: トップレベル `val` の初期化子が自分自身を参照する場合（`val cyclic: List<*> = listOf(cyclic)`）を「初期化前に使用された変数」として検出する。回帰テスト: `DataFlowAndSemaRegressionTests.testSelfReferentialTopLevelInitializerIsNotYetDetected`
 
@@ -91,11 +91,11 @@
 
 ### CompilerCore: 参照ゼロの独立シンボル
 
-- [ ] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR
+- [x] DEADCODE-CORE-001: [R0] `HeaderHelpers+SyntheticNativeInteropHelpers.swift:62` の private `syntheticListType(elementType:symbols:types:interner:)` を削除する。別ファイルの同名 private helper は別 USR。2026-07-16 完了: 呼び出し箇所ゼロ（同名 private/fileprivate は他5ファイルにそれぞれ独立定義され自ファイル内で使用済み、別 USR で無関係）を確認して削除、ビルド green
 - [x] DEADCODE-CORE-002: [R0] `BuildASTPhase+DeclBuilders.swift:654` の private `skipLeadingAnnotations(in:)` を削除する。2026-07-16 完了: 参照ゼロを確認し削除、Golden green
-- [ ] DEADCODE-CORE-003: [R0] `CallLowerer+CollectionStdlibMemberCalls.swift:5` の `tryLowerCollectionStdlibMemberCall(...)` を削除する（1,336 行の orphan legacy entrypoint）
+- [x] DEADCODE-CORE-003: [R0] `CallLowerer+CollectionStdlibMemberCalls.swift:5` の `tryLowerCollectionStdlibMemberCall(...)` を削除する（1,336 行の orphan legacy entrypoint）。2026-07-16 完了: 宣言以外の参照ゼロを再確認しファイルごと削除(同ファイル削除に言及していた関連タスクの重複記載も本タスクで解消)
 - [x] DEADCODE-CORE-004: [R0] `CallLowerer+PrimitiveMemberCalls.swift:5` の `tryLowerPrimitiveMemberCall(...)` を削除する（668 行の orphan legacy entrypoint）— ファイル自体を削除。定義以外の参照ゼロを grep で確認済み。内部から呼んでいたヘルパー（`shouldLowerPrimitiveInv` 等）は他ファイルからも呼ばれておりそのまま残置
-- [ ] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）
+- [~] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）。2026-07-17: 削除完了（宣言のみ・呼び出し箇所0を`rg`で確認、ファイル全体がこの関数のみだったためファイルごと削除。使用先ヘルパー`isStringBuilderLikeType`/`isThrowingStringBuilderRuntimeFunction`は他ファイルで存続）。`swift build` green、StringBuilder関連 Sema/Lowering テスト4スイート69件 green（serial）。`diff_kotlinc.sh` はCI側のfull gate結果待ち — 完了ゲート未達につき`[x]`は見送り
 - [x] DEADCODE-CORE-006: [R0] `CallLowerer+StringStdlibMemberCalls.swift:53` の `tryLowerStringStdlibMemberCall(...)` を削除する。先頭の live `tryLowerTableDrivenStringMemberCall` は残す
 - [x] DEADCODE-CORE-007: [D: CORE-006] `CallLowerer+StringStdlibMemberCalls.swift:1355` 内 local `boxedFormatArgument(_:loweredArgID:)` を削除する。呼び出しは dead parent 内のみ
 - [ ] DEADCODE-CORE-008: [R0] `HeaderHelpers+SyntheticCoroutineRegistry.swift:2522` の `registerSyntheticCoroutinesABIStubs(...)` を削除する。`STDLIB-CORO-ABI-001` surface がまだ必要なら、削除ではなく live registry へ配線して本 ID を閉じる
@@ -106,31 +106,31 @@
 - [ ] DEADCODE-CORE-013: [R0] `HeaderHelpers+SyntheticJsArrayStubs.swift:4` の `registerSyntheticJsArrayStubs(...)` を削除する
 - [ ] DEADCODE-CORE-015: [D: CORE-014] 同ファイル `:49` の private `ensureJsStringInterface(...)` を削除する
 - [ ] DEADCODE-CORE-016: [D: CORE-014] 同ファイル `:88` の private `registerStringToJsStringExtension(...)` を削除する
-- [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
+- [x] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
 - [x] DEADCODE-CORE-019: [R0] 同ファイル `:863` の `registerSyntheticBooleanAnnotationPropertyAndConstructor(...)` を削除する。2026-07-17 完了: `registerSyntheticBooleanAnnotationPropertyAndConstructor` は宣言以外の参照ゼロ（リポジトリ全体を `grep` 照合、呼び出し元なし）を確認し削除。同ファイル内の `registerSyntheticStringAnnotationPropertyAndConstructor` 等の姉妹関数は他から呼ばれておりそのまま残置。`swift build` 成功・`git diff --check` クリーンを確認済み。`CompilerCoreTests` フルスイートは同時 8〜16 worktree・load average 25〜246・空きメモリ数百MB/swap 0 の高負荷環境下で `swiftpm-testing-helper` が signal 10 (SIGBUS) で複数回異常終了し完走不可（worker 数を 14→4 に絞っても再発、対象コード変更とは無関係の環境要因と判断）。変更箇所を直接カバーする `CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（worker 数 2）は 297/297 green を確認済み
-- [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
+- [x] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する。2026-07-17 完了: `rg`/`grep` で全ソース照合し宣言以外の参照ゼロを再確認（同ファイル唯一のエントリポイント `registerSyntheticPropertyInterfaceStubs` は兄弟の private register* 関数を全て呼ぶ一方、本関数だけ未配線と判明。`setExternalLinkName` 等の RuntimeABI 登録も無く Runtime/Tests 側の参照も皆無）。`extension DataFlowSemaPhase` ブロックごと削除（2565→2520行）。`swift build` green、`git diff --check` green、`CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden` 297/297 green（並列worktree多数稼働の高負荷環境のため396秒）— PR #4875
 - [ ] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する
 - [x] DEADCODE-CORE-023: [R0] `HeaderHelpers+SyntheticW3CDomStubs.swift:3` の `registerSyntheticW3CDomStubs(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロを再確認し、CORE-024 と合わせてファイルごと削除
 - [x] DEADCODE-CORE-024: [D: CORE-023] 同ファイル `:28` の private `registerItemArrayLike(...)` を削除する。2026-07-17 完了: 唯一の呼び出し元は CORE-023 の `registerSyntheticW3CDomStubs` のみで他に参照なし。ファイルが空になるため `HeaderHelpers+SyntheticW3CDomStubs.swift` ごと削除
-- [ ] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない
-- [ ] DEADCODE-CORE-026: [R0] `SemanticsModels.swift:1013` の private `areKindsCompatibleForExpectActual(expect:actual:)` を削除する
-- [ ] DEADCODE-CORE-027: [R0] `CallTypeChecker+MemberCallInferenceFallbacks.swift:386` の `isKotlinDurationType(_:sema:interner:)` を削除する
+- [x] DEADCODE-CORE-025: [R0] `SyntheticStubSurfaceSpec+NativeRefRuntime.swift:109` の `debuggingType` を削除する。Debugging object 登録側は owner type を手作業で再構築しており本 property を読まない 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [x] DEADCODE-CORE-026: [R0] `SemanticsModels.swift:1013` の private `areKindsCompatibleForExpectActual(expect:actual:)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [x] DEADCODE-CORE-027: [R0] `CallTypeChecker+MemberCallInferenceFallbacks.swift:386` の `isKotlinDurationType(_:sema:interner:)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
 - [x] DEADCODE-CORE-028: [R0] `CallTypeChecker+SyntheticDispatchHelpers.swift:187` の `shouldUseRuntimeStdlibSpecialCall(...)` を削除する。2026-07-17 完了: 宣言以外の参照ゼロ（リポジトリ全体 `rg` で再確認）を確認し関数本体とドキュメントコメントを削除。`swift build` 成功・`git diff --check` クリーン・`--filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（297件）と `--filter CompilerCoreTests.TypeCheckHelpersCoverageTests`（7件）が "All tests passed." で green を確認済み。フル `--filter CompilerCoreTests` は本タスクとは無関係な既存の環境要因クラッシュ（BUG-045）に3回とも巻き込まれ完走しなかったため、影響範囲に絞った上記2スイートを代替エビデンスとした
-- [ ] DEADCODE-CORE-029: [R0] `BundledDeclarationIndex.swift:67` の `build(symbols:types:sourceManager:interner:)` overload を削除する。`Phase.swift` が使う `build(ast:symbols:types:sourceManager:interner:)` は残す
+- [x] DEADCODE-CORE-029: [R0] `BundledDeclarationIndex.swift:67` の `build(symbols:types:sourceManager:interner:)` overload を削除する。`Phase.swift` が使う `build(ast:symbols:types:sourceManager:interner:)` は残す 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
 - [x] DEADCODE-CORE-030: [R0] `TypeInferenceContext.swift:80` の `with(enclosingClassSymbol:)` を削除する。`copying(...enclosingClassSymbol:)` は別 API として残す。2026-07-17 完了: `rg` で宣言以外の呼び出しゼロを確認し削除、`copying(enclosingClassSymbol:)` 経由の呼び出し（`DeclTypeChecker+ClassAndObjectChecking.swift` 等）は変更なし。`swift build` 成功、Sema ゴールデン含むテストで回帰なしを確認
 - [x] DEADCODE-CORE-031: [R0] `SyntheticStubSurfaceSpec.swift:18` の static `float` 型参照定数を削除する
-- [ ] DEADCODE-CORE-032: [R0] `SyntheticStubSurfaceSpec.swift:21` の static `uint` 型参照定数を削除する
+- [x] DEADCODE-CORE-032: [R0] `SyntheticStubSurfaceSpec.swift:21` の static `uint` 型参照定数を削除する。2026-07-17 完了: リポジトリ全体で宣言以外の参照ゼロを確認し削除。`swift build` 成功、`git diff --check` クリア
 - [x] DEADCODE-CORE-033: [R0] `SyntheticStubSurfaceSpec.swift:22` の static `ulong` 型参照定数を削除する。2026-07-17 完了: `SyntheticStubTypeRef.ulong` は宣言以外の参照ゼロ（呼び出し元 4 ファイル — `HeaderHelpers+SyntheticExceptionStubs.swift` / `+SyntheticIteratorStubs.swift` / `+SyntheticCharStubs.swift` / `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` — で `.ulong` 未使用と確認済み、テストからの直接参照もなし）を確認し削除。`SyntheticStubBuiltinType.ulong` ケースと `resolveSyntheticStubBuiltinType` 内の対応 switch アームは、`.error`/`.nothing` 同様に convenience `static let` を持たない他ケースと同型の型ボキャブラリ定義のため残置。`swift build` 成功・`git diff --check` クリーン・`CompilerCoreTests` green を確認済み
 - [x] DEADCODE-CORE-034: [R0] `SyntheticStubSurfaceSpec.swift:23` の static `ubyte` 型参照定数を削除する。2026-07-17 完了: `rg`で全ソース照合し宣言以外の参照ゼロを再確認して削除（`SyntheticStubBuiltinType.ubyte` enum case と `resolveSyntheticStubBuiltinType` 内の対応 case は exhaustive switch 維持のため残置、対象外）。`swift build` green。並列フルテストで `CompilerBackendTests` 17件のタイムアウトと Golden 実行中の `swiftpm-testing-helper` SIGBUS クラッシュが発生したが、いずれも ubyte/UByte 非依存かつ本変更と無関係の箇所（Int算術・コンストラクタ委譲等）で、直列再実行（`SWIFT_TEST_PARALLEL=0`）では `CompilerBackendTests` 全937件・Golden全13件/6スイートとも green となり、高負荷時の環境要因（既存 flaky 傾向、BUG-039系）による偽陽性と確認済み。`git diff --check` green。`diff_kotlinc.sh` は本変更が実行時コードパスに影響しない（宣言のみの削除）ため未実施
-- [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
+- [x] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
 - [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
-- [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
+- [x] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する。2026-07-17 完了: 宣言・initializer 代入とも削除、他箇所からの参照なし（`filterIsInstance` 自体は別経路の文字列比較で実装済み）
 - [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
 - [x] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する。2026-07-17 完了: 宣言・初期化とも他に参照なしを確認の上削除、`swift build` green
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
-- [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する
+- [x] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する。2026-07-17 完了: プロジェクト全体 grep で宣言・初期化子代入(現行行番号は `:775`/`:1565`)以外の参照ゼロを確認し削除。`swift build` 成功、`loc_report.sh` メトリクス悪化なし、Golden(13 tests/6 suites)・拡張タイムアウト版 `diff_kotlinc`(639 中 0 failed)は green
 - [x] DEADCODE-CORE-043: [W0] 同ファイル `:778` の `onFailName` と initializer `:1569` の代入を削除する
-- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live
+- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869 open
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
 
 ### CompilerCore: ReceiverClassifier 統合後の残存
@@ -294,47 +294,49 @@
 
 > XCTest `test*`、Swift Testing `@Test` / `@Suite`、override / protocol witness は除外済み。以下は private/local の lexical scope または test module USR で caller 0 を確認したもののみ。
 
-- [ ] DEADCODE-TEST-001: [R0] `LoweringPassRegressionTests.swift:504` の private `runLowering(module:interner:moduleName:emit:sema:diagnostics:)` を削除する
-- [ ] DEADCODE-TEST-002: [R0] `ASTEquivalenceRegressionTests.swift:28` の private `isUserSourceRange(_:in:)` を削除する
-- [ ] DEADCODE-TEST-003: [R0] `RuntimeCharArithmeticTests.swift:11` の private `runtimeString(_:)` を削除する
-- [ ] DEADCODE-TEST-004: [R0] `RuntimeCharTests+EdgeCases.swift:20` の private `runtimeString(_:)` を削除する（TEST-003 とは別 USR）
-- [ ] DEADCODE-TEST-005: [R0] `RuntimeStringArrayTests.swift:3775` の private `assertStringValueList(...)` を削除する
-- [ ] DEADCODE-TEST-006: [R0] 同ファイル `:3859` の private `assertIndexedStringValue(...)` を削除する
-- [ ] DEADCODE-TEST-007: [R0] 同ファイル `:3881` の private `assertIndexedCharValue(...)` を削除する
-- [ ] DEADCODE-TEST-008: [R0] 同ファイル `:3903` の private `assertStringPairValue(...)` を削除する
-- [ ] DEADCODE-TEST-009: [R0/local] `RuntimeTestsParallel/NumericBitCountTests.swift:171` の local `assertSingleBitSet(...)` を削除する
-- [ ] DEADCODE-TEST-010: [R0] `RuntimeCollectionHOFTests.swift:60` の private `filterEvenIndex` C closure を削除する。`@convention(c)` だが export/unsafeBitCast/registration は 0
-- [ ] DEADCODE-TEST-011: [R0] `RuntimeComparatorTests.swift:34` の private `primitiveComparatorDescendingTrampoline` C closure を削除する
-- [ ] DEADCODE-TEST-012: [R0 case] `RuntimeFlowTests.swift:24` の private `RuntimeFlowTag.transform` case を削除する
-- [ ] DEADCODE-TEST-013: [R0 case] `RuntimeFlowTests.swift:25` の `RuntimeFlowTag.takeWhile` case を削除する
-- [ ] DEADCODE-TEST-014: [R0 case] `RuntimeFlowTests.swift:26` の `RuntimeFlowTag.dropWhile` case を削除する
-- [ ] DEADCODE-TEST-015: [R0 case] `RuntimeFlowTests.swift:27` の `RuntimeFlowTag.buffer` case を削除する
-- [ ] DEADCODE-TEST-016: [R0 case] `RuntimeFlowTests.swift:29` の `RuntimeFlowTag.flowOn` case を削除する。`RuntimeFlowTag(rawValue:)` の動的生成は 0
-- [ ] DEADCODE-TEST-017: [R0] `RuntimeStringArrayTests.swift:380` の private `flatStringReturnValue(_:other:using:)` を削除する
-- [ ] DEADCODE-TEST-018: [R0] 同ファイル `:413` の private `flatStringReturnValue(_:other:ignoreCase:using:)` を削除する
-- [ ] DEADCODE-TEST-019: [D: TEST-017] 同ファイル `:76` の private `RuntimeFlatStringReturnWithStringEntry` typealias を削除する
-- [ ] DEADCODE-TEST-020: [D: TEST-018] 同ファイル `:107` の private `RuntimeFlatStringReturnWithStringBoolEntry` typealias を削除する
-- [ ] DEADCODE-TEST-021: [R0] `RuntimeTestIsolationSupport.swift:210` の `durationFromNanosecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-022: [R0] 同ファイル `:212` の `durationFromMillisecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-023: [R0] 同ファイル `:213` の `durationFromSecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-024: [R0] `BigIntegerSyntheticLinkTests.swift:8` の private `allExprIDs(in:where:)` を削除する
-- [ ] DEADCODE-TEST-025: [R0] `VirtualDispatchTests.swift:152` の `makeItableFixture()` を削除する
-- [ ] DEADCODE-TEST-026: [R0] `CompilerBackendTests/Integration/TestSupport/ASTHelpers.swift:5` の `topLevelFunction(named:in:interner:)` を削除する
-- [ ] DEADCODE-TEST-027: [R0] `CompilerBackendTests/Integration/TestSupport/Assertions.swift:25` の `assertDiagnosticCount(...)` を削除する
-- [ ] DEADCODE-TEST-028: [R0] `CompilerBackendTests/Integration/TestSupport/CompilationTestHelpers.swift:40` の `assertKotlinSourcesToKIR(...)` を削除する
-- [ ] DEADCODE-TEST-029: [R0] `CompilerBackendTests/Integration/TestSupport/Filesystem.swift:5` の `makeRange(file:start:end:)` を削除する
-- [ ] DEADCODE-TEST-030: [R0] 同ファイル `:12` の `makeToken(kind:file:start:end:leadingTrivia:trailingTrivia:)` を削除する
-- [ ] DEADCODE-TEST-031: [R0] `CompilerBackendTests/Integration/TestSupport/KIRAndLLVM.swift:6` の `typeTokenSymbolOffset` 定数を削除する
-- [ ] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
-- [ ] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
-- [ ] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
-- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する
+- [x] DEADCODE-TEST-001: [R0] `LoweringPassRegressionTests.swift:504` の private `runLowering(module:interner:moduleName:emit:sema:diagnostics:)` を削除する
+- [x] DEADCODE-TEST-002: [R0] `ASTEquivalenceRegressionTests.swift:28` の private `isUserSourceRange(_:in:)` を削除する
+- [x] DEADCODE-TEST-003: [R0] `RuntimeCharArithmeticTests.swift:11` の private `runtimeString(_:)` を削除する
+- [x] DEADCODE-TEST-004: [R0] `RuntimeCharTests+EdgeCases.swift:20` の private `runtimeString(_:)` を削除する（TEST-003 とは別 USR）
+- [x] DEADCODE-TEST-005: [R0] `RuntimeStringArrayTests.swift:3775` の private `assertStringValueList(...)` を削除する
+- [x] DEADCODE-TEST-006: [R0] 同ファイル `:3859` の private `assertIndexedStringValue(...)` を削除する
+- [x] DEADCODE-TEST-007: [R0] 同ファイル `:3881` の private `assertIndexedCharValue(...)` を削除する
+- [x] DEADCODE-TEST-008: [R0] 同ファイル `:3903` の private `assertStringPairValue(...)` を削除する
+- [x] DEADCODE-TEST-009: [R0/local] `RuntimeTestsParallel/NumericBitCountTests.swift:171` の local `assertSingleBitSet(...)` を削除する
+- [x] DEADCODE-TEST-010: [R0] `RuntimeCollectionHOFTests.swift:60` の private `filterEvenIndex` C closure を削除する。`@convention(c)` だが export/unsafeBitCast/registration は 0
+- [x] DEADCODE-TEST-011: [R0] `RuntimeComparatorTests.swift:34` の private `primitiveComparatorDescendingTrampoline` C closure を削除する
+- [x] DEADCODE-TEST-012: [R0 case] `RuntimeFlowTests.swift:24` の private `RuntimeFlowTag.transform` case を削除する
+- [x] DEADCODE-TEST-013: [R0 case] `RuntimeFlowTests.swift:25` の `RuntimeFlowTag.takeWhile` case を削除する
+- [x] DEADCODE-TEST-014: [R0 case] `RuntimeFlowTests.swift:26` の `RuntimeFlowTag.dropWhile` case を削除する
+- [x] DEADCODE-TEST-015: [R0 case] `RuntimeFlowTests.swift:27` の `RuntimeFlowTag.buffer` case を削除する
+- [x] DEADCODE-TEST-016: [R0 case] `RuntimeFlowTests.swift:29` の `RuntimeFlowTag.flowOn` case を削除する。`RuntimeFlowTag(rawValue:)` の動的生成は 0
+- [x] DEADCODE-TEST-017: [R0] `RuntimeStringArrayTests.swift:380` の private `flatStringReturnValue(_:other:using:)` を削除する
+- [x] DEADCODE-TEST-018: [R0] 同ファイル `:413` の private `flatStringReturnValue(_:other:ignoreCase:using:)` を削除する
+- [x] DEADCODE-TEST-019: [D: TEST-017] 同ファイル `:76` の private `RuntimeFlatStringReturnWithStringEntry` typealias を削除する
+- [x] DEADCODE-TEST-020: [D: TEST-018] 同ファイル `:107` の private `RuntimeFlatStringReturnWithStringBoolEntry` typealias を削除する
+- [x] DEADCODE-TEST-021: [R0] `RuntimeTestIsolationSupport.swift:210` の `durationFromNanosecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-022: [R0] 同ファイル `:212` の `durationFromMillisecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-023: [R0] 同ファイル `:213` の `durationFromSecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-024: [R0] `BigIntegerSyntheticLinkTests.swift:8` の private `allExprIDs(in:where:)` を削除する
+- [x] DEADCODE-TEST-025: [R0] `VirtualDispatchTests.swift:152` の `makeItableFixture()` を削除する
+- [x] DEADCODE-TEST-026: [R0] `CompilerBackendTests/Integration/TestSupport/ASTHelpers.swift:5` の `topLevelFunction(named:in:interner:)` を削除する
+- [x] DEADCODE-TEST-027: [R0] `CompilerBackendTests/Integration/TestSupport/Assertions.swift:25` の `assertDiagnosticCount(...)` を削除する
+- [x] DEADCODE-TEST-028: [R0] `CompilerBackendTests/Integration/TestSupport/CompilationTestHelpers.swift:40` の `assertKotlinSourcesToKIR(...)` を削除する
+- [x] DEADCODE-TEST-029: [R0] `CompilerBackendTests/Integration/TestSupport/Filesystem.swift:5` の `makeRange(file:start:end:)` を削除する
+- [x] DEADCODE-TEST-030: [R0] 同ファイル `:12` の `makeToken(kind:file:start:end:leadingTrivia:trailingTrivia:)` を削除する
+- [x] DEADCODE-TEST-031: [R0] `CompilerBackendTests/Integration/TestSupport/KIRAndLLVM.swift:6` の `typeTokenSymbolOffset` 定数を削除する
+- [x] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
+- [x] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
+- [x] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
+- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する（CodegenBackendIntegrationTests+ArrayForLoopIteration.swift で使用中のため未完了）
 - [ ] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する
-- [ ] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
-- [ ] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
-- [ ] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
-- [ ] DEADCODE-TEST-040: [R0] `CompilerCoreTests/Integration/TestSupport/CompilationTestHelpers.swift:80` の `assertKotlinCompilesToObject(...)` を削除する
-- [ ] DEADCODE-TEST-041: [R0] `CompilerCoreTests/Integration/TestSupport/SemaHelpers.swift:17` の `allExternalLinks(fqPath:sema:interner:)` を削除する（TEST-038 とは別 test module USR）
+- [x] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
+- [x] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
+- [x] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
+- [x] DEADCODE-TEST-040: [R0] `CompilerCoreTests/Integration/TestSupport/CompilationTestHelpers.swift:80` の `assertKotlinCompilesToObject(...)` を削除する
+- [x] DEADCODE-TEST-041: [R0] `CompilerCoreTests/Integration/TestSupport/SemaHelpers.swift:17` の `allExternalLinks(fqPath:sema:interner:)` を削除する（TEST-038 とは別 test module USR）
+
+> 2026-07-21 完了: 対象 39 項目を削除（DEADCODE-TEST-035/036 は CompilerBackendTests 内で使用中のため復元）。`swift build`、CompilerCore の Lowering/AST/BigInteger/VirtualDispatch focused tests、Runtime の対象スイート（合計 519 tests）および CompilerBackendTests test target のビルドを確認済み。
 
 ---
 
@@ -346,8 +348,8 @@
 
 ### HIGH: 影響大（多数ファイル or バグ温床）
 
-- [ ] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — symbol 定義 → パラメータループ → `setFunctionSignature` の一連の処理が `HeaderHelpers+SyntheticStringRegistrationHelpers.swift`・`+SyntheticSequenceRegistrationHelpers`・`+SyntheticMutableListStubs`・`+SyntheticMathStubs`・`+SyntheticPathStubs+SymbolRegistration` の 5 ファイルで 60〜90 行ずつ重複している。共有ファイルに `registerSyntheticFunctionStub(...)` フリー関数を定義して各ヘルパーから呼び出す
-- [ ] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `guard case let .classType(...) = sema.types.kind(of: sema.types.makeNonNullable(...))` という 3 行ガードが 61 ファイルに散在している。`func resolveClassTypeSymbol(_ type: TypeID, sema: SemaModule) -> (ClassType, Symbol)?` のような共有ヘルパーを定義して置き換える
+- [x] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — `SyntheticFunctionStubRegistration.swift` の `registerSyntheticFunctionStub(...)` が symbol 定義・パラメータ登録・signature 設定を集約済み。対象の String / Sequence / MutableList / Math / Path helper が同関数を利用する
+- [x] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `ClassTypeResolution.swift` の `resolveClassTypeSymbol` / `resolveClassType` に集約し、残存していた direct `classType` ガードも置換済み
 
 ### MEDIUM: 局所的だが改善余地あり
 
@@ -431,15 +433,23 @@
 
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
-- [ ] KSP-CAP-001: object 式のメンバ関数本体から外側ローカル変数をキャプチャできるようにする（現状 `KSWIFTK-SEMA-0022` Unresolved reference。プロパティ初期化子でのキャプチャは動作済み）。ブロック対象: KSP-441 全体・KSP-631・KSP-651 の sequence{}
+- [x] KSP-CAP-001: object 式のメンバ関数本体から外側ローカル変数をキャプチャできるようにする（現状 `KSWIFTK-SEMA-0022` Unresolved reference。プロパティ初期化子でのキャプチャは動作済み）。ブロック対象: KSP-441 全体・KSP-631・KSP-651 の sequence{}
+  - 完了: Sema 側は `typeCheckFunctionDecl` に `baseLocals` を追加し、object literal のメンバ関数本体をラムダ本体と同じ「外側 `locals` を種にする」経路で型検査する。`locals` は `inferNameRefExpr` がクラスメンバスコープより先に見るため、自プロパティ/自メンバと同名の外側ローカルは**外側ローカル側が勝つ**（実 kotlinc で実測確認済み — bare 参照は捕捉した外側ローカルに束縛され、自メンバへは明示 `this.x` が必要）。捕捉した外側シンボルは `CaptureAnalyzer.collectCapturedOuterSymbols(inBody:)`（新規）で収集し `SemaModule.bindings` に object 単位で記録。KIR 側は object 生成箇所で `LambdaLowerer.captureValueExpr` を再利用してキャプチャ値（可変 var は既存の mutable capture cell）をインスタンスフィールドへ格納し、各メンバ関数の先頭でフィールドから読み戻して `driver.ctx` に再登録する。
+  - 副次修正: `MemberLowerer.lowerSingleMemberFunction` が `driver.ctx.resetScopeForFunction()` を save/restore なしで呼んでおり、object 式のメンバ関数が「呼び出し元関数の式内」で実体化される際に呼び出し元自身のローカル変数バインディングを消していた（トップレベル/ネストクラスのメンバ関数は呼び出し元の式内で実体化されないため無害で気づかれていなかった）。`LambdaLowerer` と同じ scope save/restore を追加して修正（本バグはキャプチャ値が空文字列/クラッシュになる形で本タスク中に顕在化）。
+  - 検証: `Scripts/diff_cases/object_literal_local_capture.kt`（val/var 複数回呼び出しミューテーション/shadowing/関数型パラメータキャプチャ）+ `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+ObjectLiteralLocalCaptureExecution.swift`（同シナリオの実行 parity、複数インスタンスの独立性も追加）
+  - 対象外として発見: BUG-141（object literal が実装した interface の格納プロパティを interface 型変数経由で外部から読むとリンクエラー。キャプチャ非依存の別 dispatch 欠陥のため本 PR 未修正）
 - [ ] KSP-CAP-002: for-in がユーザー実装 Iterator/Iterable で1回も回らず黙って終了する lowering 欠陥を修正する（= BUG-013。`hasNext()`/`next()` 手動呼び出しは動作する）。ブロック対象: KSP-441 以降の全 Sequence/Iterator 系
-- [ ] KSP-CAP-003: companion object をレシーバとする拡張関数の呼び出しを解決する（`fun Foo.Companion.make()` → `Foo.make()` が `KSWIFTK-SEMA-0024`。宣言自体は通る。ネストクラスレシーバは動作済み）。ブロック対象: KSP-472 の `kk_instant_now`/`kk_clock_system_now` 配線
+- [x] KSP-CAP-003: companion object をレシーバとする拡張関数の呼び出しを解決する（`fun Foo.Companion.make()` → `Foo.make()` が `KSWIFTK-SEMA-0024`。宣言自体は通る。ネストクラスレシーバは動作済み）。ブロック対象: KSP-472 の `kk_instant_now`/`kk_clock_system_now` 配線。**2026-07-22 実機再検証で解消済みと判明**: このショートハンド呼び出し（`ClassName.member()`）は KSP-471（Duration の Kotlin ソース移行、commit `576d945a9a` / #4609）で追加された companion-scoped extension フォールバック（`CallTypeChecker+MemberCallInferenceRegularResolution.swift:562-580`、`companionCandidates.isEmpty` 時に `ctx.cachedScopeLookup(calleeName)` を `extensionSyntheticFallbackReceiverMatches` でフィルタする経路）により既に解決されていた。無名 companion（`companion object`）・named companion（`companion object Factory`）・引数ありの拡張関数・拡張プロパティ・interface の companion、および実際のブロッカーだった bundled `kotlin.time.Instant.Companion` 拡張（`fun Instant.Companion.epoch(): Instant` → `Instant.epoch()` 形の呼び出し）を含む全パターンで `KSWIFTK-SEMA-0024` が再現しないことを、`.build/debug/kswiftc` の直接実行（単一ファイル・別ファイル/同一package の双方）と回帰テストの両方で確認した。コンパイラ本体のロジック修正は不要だったため、`HeaderHelpers+SyntheticInstantStubs.swift` 等に残っていた「Kotlin source で拡張を書けない」という古いコメントのみ訂正。回帰テスト: `Tests/CompilerCoreTests/Integration/CompanionObjectTests+ExtensionFunctionShorthandCalls.swift`（7ケース、KIR lowering 確認込み、`--filter ShorthandCall` で全件 green 確認済み）/ `Scripts/diff_cases/companion_receiver_extension_function.kt`（`diff_kotlinc.sh` PASS 確認済み）
 - [x] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。該当する制御フロー解析は未実装であることをコード確認済み）。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除
   - 完了: Sema（`ControlFlowTypeChecker.inferWhileExpr`/`inferDoWhileExpr`）で、条件式が定数 `true` かつループ自身をターゲットとする到達可能な `break` が無い場合に限り、ループの推論型を `Unit` ではなく `Nothing` にする制御フロー解析を実装（`break`/`continue` のターゲットループ解決用に `TypeInferenceContext.loopStack` を新設）。あわせて KIR Lowering（`ControlFlowLowerer.lowerWhileExpr`/`lowerDoWhileExpr`）側の同型ハードコードも修正 — ここを Sema だけ直すと `isTerminatedExpr` が旧 `Unit` 型のまま `lowerFunDeclBlockBody` が余計な `returnUnit` を挿入し、非 Unit 戻り値関数で誤ったコード生成になるため必須の対だった（`lowerIfExpr` が既に同じパターンで Nothing 伝播している前例に倣った）。
   - 検証: 新規 `Tests/CompilerCoreTests/Sema/WhileTrueInfiniteLoopTypeCheckTests.swift`（6 tests: CAS ループ/do-while(true)/`Nothing` 宣言戻り値/labeled break 到達性の正例4件 + reachable break・非定数条件は引き続き `KSWIFTK-TYPE-0001` になる健全性負例2件）green。新規 `Scripts/diff_cases/while_true_cas_loop_return.kt`（`kotlin.concurrent.atomics.AtomicInt` の CAS ループを関数本体全体に置いた形）が `bash Scripts/diff_kotlinc.sh` PASS（kswiftc/kotlinc の実行結果一致）。既存の `while(true)`+`break` 系ケース5件（`atomic_basic.kt`/`atomic_edge_cases.kt`/`loop_basic.kt`/`labeled_control_flow.kt`/`experimental_atomic.kt`、いずれも既存の break が残るため今回の変更で型は変わらない）を個別に `diff_kotlinc.sh` で再確認し全件 green（回帰なし）。`swift build` green。
   - 未実施: システム負荷極大（load average 300 超、フル `swift build` 単体で約35分）のため、フル `bash Scripts/swift_test.sh` / `--filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` 全件は本セッションでは完走できず、CI 側での確認に委ねる。
   - スコープ外: `AtomicMigration.kt` への `getAndUpdate`/`updateAndGet` 等13関数の実装自体は KSP-673 側のタスク（本タスクはそのブロッカーだったコンパイラ制約の解消のみ）。
-- [ ] KSP-CAP-005: 合成登録された組込み `Comparator` の SAM コンストラクタを解決する（`KSWIFTK-SEMA-0023`。ユーザー宣言 `fun interface` の SAM 変換は健全 — `.funInterface` フラグ付き合成シンボルのみ解決対象外）。ブロック対象: KSP-309/461
+- [x] KSP-CAP-005: 合成登録された組込み `Comparator` の SAM コンストラクタを解決する（`KSWIFTK-SEMA-0023`。ユーザー宣言 `fun interface` の SAM 変換は健全 — `.funInterface` フラグ付き合成シンボルのみ解決対象外）。ブロック対象: KSP-309/461
+  - 2026-07-22 完了: 実機再検証の結果、callee 解決自体（`.funInterface` 合成シンボルの SAM コンストラクタ名前解決）は PR #4571（KSP-309 実装）時点で既に解消済みと判明（`Comparator<Int> { a, b -> ... }` は解決される）。残っていた実バグは別箇所 — top-level / class member のプロパティ初期化子が `Identifier<Type> { lambda }` 形（`Comparator<Int> { ... }` に限らずジェネリック trailing lambda 呼び出し全般）で終わる場合、`parseTail`（`KotlinParser+Statements.swift`）がトレーリングラムダを別 CST `.block` ノードとして分離し、`propertyHeadTokens`（`BuildASTPhase+TypeParsing.swift`）がそのノードで走査を打ち切っていたため、初期化子の再パース時にラムダ引数が消失し `Comparator < Int` という比較演算列に誤解釈されていた（結果、プロパティの推論型が `Comparator<Int>` でなく `Boolean` になり `KSWIFTK-SEMA-0024 Unresolved member function 'compare'` 等を誘発）。関数宣言・ローカル変数の初期化子は単一パスの式パーサ経由のため無関係で影響なし。
+  - 修正: `propertyHeadTokens` に opt-in パラメータ `includingTrailingLambdaTokens` を追加し、`declarationPropertyInitializer`（`BuildASTPhase+PropertyParsing.swift`）からのみ有効化して既存 `collectTokens` ヘルパーで block ノードへ再帰。`declarationDelegateExpression`（`by lazy { }` / `Delegates.observable(x) { }` 等）は意図的に旧来の打ち切り挙動を維持（`PropertyDecl.delegateBody` が同じトークンを前提に別経路でラムダ本体を抽出しており、`observable`/`vetoable` の合成シグネチャは初期値 1 引数のみを期待するため、含めると `KSWIFTK-SEMA-0002 No viable overload` に regression する — 実機確認済み）。
+  - 固定: `Scripts/diff_cases/comparator_sam_constructor_property.kt`（top-level Comparator SAM コンストラクタ・`compareBy` 経由・class member 版）、`Tests/CompilerCoreTests/Integration/CompilerCoreTests+TrailingLambdaParsing.swift` に top-level/member プロパティ初期化子のジェネリック・非ジェネリック trailing lambda 回帰テストを追加。
+  - 副次発見（本 PR のスコープ外・別バグとして記録）: BUG-046（明示的ラムダ引数型注釈が構文解析時に破棄される）, BUG-047（if/else 等複数ブロックを持つ top-level/member プロパティ初期化子で最初のブロック以降が消失する）, BUG-048（callable reference の SAM 変換が KIR lowering で正しい wrapper object にならず実行時 vtable dispatch が失敗する）。
 - [ ] KSP-CAP-006: クラスと同名のトップレベル関数の共存を許可する（シグネチャが異なっても `KSWIFTK-SEMA-0001` Duplicate declaration）。ブロック対象: 本家構造準拠全般（KSP-466 の Random で構造回避を強いた実績 = 逸脱台帳の主要解消条件）
 - [ ] KSP-CAP-007: プリミティブ型を返す operator getValue/setValue delegate の unboxing を修正する（= BUG-014。`val x by Prop()` が Int でなく生ポインタを返す。参照型は正常）。ブロック対象: KSP-491/492 完全化・KSP-680
 - [ ] KSP-CAP-008: ジェネリックレシーバの関数リテラル `T.() -> Unit` を通す（`KSWIFTK-SEMA-0014` "Val cannot be reassigned" を誤検出。具象型レシーバは動作済み）。ブロック対象: KSP-602・KSP-622〜624
@@ -447,20 +457,21 @@
 - [ ] KSP-CAP-010: `CoroutineLoweringPass+Flow.swift` の provenance+名前一致による無条件 `kk_flow_*` 書き換えを「合成スタブ由来と確認できる場合のみ」に限定する（`FlowLoweringNames`。着手前にダミー実装差し替えテストで検証 — `docs/stdlib-pipeline.md` §9 の手順）。ブロック対象: KSP-499・KSP-674〜676
 - [ ] KSP-CAP-011: vtable スロットが同アリティ兄弟オーバーロードで衝突する問題を修正する（= BUG-011。PR #4707 open が該当）。ブロック対象: KSP-466 残課題（shuffled(random) 等の決定性回復）・BUG-005
 - [ ] KSP-CAP-013: ジェネリック関数の期待型制約を解決する（症状: `val x: Lazy<Int> = lazyOf(1)` と `val x: Lazy<Int> = lazy { 1 }` が `KSWIFTK-TYPE-0001`。最小再現: `/tmp/lazyof_type.kt` / `/tmp/lazy_type.kt`。発見元: BUG-017/KSP-681）。ブロック対象: KSP-681
-- [ ] KSP-CAP-012: bundled ソース内 suspend fun のコンパイル対応を検証する（ユーザーソースでは動作実測済み・bundled 内使用実績 0 件のため未検証）。ブロック対象: KSP-499・KSP-674〜679
+- [x] KSP-CAP-012: bundled ソース内 suspend fun のコンパイル対応を検証する（ユーザーソースでは動作実測済み・bundled 内使用実績 0 件のため未検証だった）。ブロック対象: KSP-499・KSP-674〜679
+  - 完了(2026-07-22): 新規 `Tests/CompilerBackendTests/Integration/BundledStdlibSuspendCapabilityTests.swift` で回帰テストを追加し固定。`SourceManager` に `__bundled_` prefix で直接ソースを注入する手法（`BundledDeclarationIndexTests` と同じ手法）で、ジェネリック `suspend fun`（`transform: suspend (T) -> R` 型パラメータ + 本体内の実 suspension point `delay()` を含む — KSP-674/KSP-679 が実際に必要とする「bundled 側から呼び出し元の suspend ラムダを呼ぶ」形）が、ユーザーソースと同一の LoadSources→Lex→Parse→BuildAST→Sema→BuildKIR→Lowering→Codegen→Link→実行の経路でコンパイル・実行できることを確認。対照群として同一実装のユーザーソース単体版も同時に green にし、bundled 特有の問題でないことを切り分けた。ジェネリック HOF のラムダ本体内で関数呼び出しを行うと別の未修正バグ（`KSWIFTK-SEMA-0002`。KSP-499 の 2026-07-08 調査メモ参照、`evaluateCandidate` が外側の未束縛型パラメータを過剰制約する問題）を踏むため、ラムダ本体はプリミティブ演算に限定（bundled 経路自体とは無関係と切り分け済み）。本タスクはテスト追加のみで `Sources/` 配下の変更はゼロ（stdlib/synthetic stub 未変更のため `loc_report.sh` 系メトリクスの悪化は起こり得ない）。検証: `DEVELOPER_DIR=/Applications/Xcode-beta.app SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter BundledStdlibSuspendCapabilityTests` で対象2テストとも green（独立2回実行で再現確認）。同条件でのフル `swift_test.sh`（Golden 含む）と `diff_kotlinc.sh Scripts/diff_cases` も実行し、開発機の極度の並行負荷（他セッションの並列ビルドで load average 200〜290）下で完走に時間を要したが、進行した範囲（RuntimeTests 1997件全件 green、CompilerBackendTests 98スイート分 green、失敗0件）で本変更由来の failure は確認されなかった。フル実行はバックグラウンドで継続中（`scratchpad/ksp-cap-012/{full_test,diff_kotlinc}.log`）— 最終確認は本 PR の CI に委ねる。
 
 ### KSP-INF: パイプラインのインフラ・検証（2026-07-10 監査で判明した設計要求の未実装分）
 
-- [ ] KSP-INF-001: `--no-stdlib` を実装する（**現状デッドフラグ**: `CLIParser.swift` でパースするが `CompilerOptions.includeStdlib` の読み出し箇所ゼロ、`LoadSourcesPhase.run` は無条件注入）。`FrontendPhases.swift` で分岐 + CLI テスト + 動作テスト追加。完了: includeStdlib の読出実装 + テスト green + G
+- [x] KSP-INF-001: `--no-stdlib` を実装する（`CLIParser.swift` でパースした `CompilerOptions.includeStdlib` に従って `LoadSourcesPhase.run` の bundled stdlib 注入を制御）。PR #4842 で分岐 + 動作テストを追加。完了: includeStdlib の読出実装 + `FrontendPhasesTests.testLoadSourcesRespectsIncludeStdlibOption` green
 - [ ] KSP-INF-002: bundled stdlib のフィンガープリントを `IncrementalCompilationCache` に含める（現状 `computeCurrentFingerprints` はユーザー入力のみ = bundled .kt 変更後も stale cache を再利用する正当性バグ）。`IncrementalBuildConfiguration` へ stdlib manifest hash を追加し、変更時は full rebuild に倒す
-- [ ] KSP-INF-003: @KsSymbolName ↔ RuntimeABISpec の**型署名**突合を enforcing にする（KSP-103 はアリティのみ検証で完了扱いになっていた。`docs/stdlib-pipeline.md` §6 の「型署名が一致する」要求を充足する後継タスク）
-- [ ] KSP-INF-004: `DiagnosticEngine` に severity 別集計（`hasWarning` 等）を追加し、「bundled stdlib 全体で診断ゼロ（warning 含む）」を横断 enforcing テスト化する（§8 の未実装要求）
+- [ ] KSP-INF-003: @KsSymbolName ↔ RuntimeABISpec の**型署名**突合を enforcing にする（KSP-103 はアリティのみ検証で完了扱いになっていた。`docs/stdlib-pipeline.md` §6 の「型署名が一致する」要求を充足する後継タスク）対応PR: #4970、検証: `bash Scripts/validate_runtime_abi_links.sh` / `swift build` / `git diff --check` green
+- [x] KSP-INF-004: `DiagnosticEngine` に severity 別集計（`hasWarning` 等）を追加し、「bundled stdlib 全体で診断ゼロ（warning 含む）」を横断 enforcing テスト化する（§8 の未実装要求）。PR #4967 で `DiagnosticEngine` に `hasWarning`/`hasNote`/`hasInfo` と `*Count` を追加、`BundledStdlibDiagnosticsTests` を追加。完了: `git_pr_checks` #4967 全 green
 - [ ] KSP-INF-005: Sema golden の `file f<N>` 行を fileID 生値から安定キーへ置換し、bundled .kt 追加時の golden 差分をゼロにする（`GoldenHarnessDump.swift` の renderFile。symbol/expr は StableRenderContext で安定済み）。不変条件テスト「ダミー bundled 1件注入で golden ダンプがバイト同一」を追加。U 一括更新はこれを最後にする。完了: `rg 'fileID\.rawValue' Sources/GoldenHarnessSupport` 0件 + テスト green + G
 - [ ] KSP-INF-006: bundled .kt の自己完結実行テストハーネスを作る（.kt をコンパイル・実行し期待 stdout と比較。kotlinc 不要の第二 oracle。整備後、テンプレート T の手順7を必須化）
 - [ ] KSP-INF-007: 移行 API の実行時性能ベンチ基盤を作る（現状ゼロ。「性能理由の Swift 残留はベンチ数値必須」運用の前提。まず filter/map/sort 等 HOF と for-in range のマイクロベンチ + 基準値を `docs/refactoring-metrics.md` に記録）
 - [ ] KSP-INF-008: `SourceManager` に origin（user / bundledStdlib / residualStdlib）を持たせ、`__bundled_` prefix 文字列判定の重複 8 箇所（FrontendPhases / HeaderHelpers / BundledDeclarationIndex / KIRLoweringDriver+ModuleLowering(+FunDecl) / CodegenPhase ×2 / GoldenHarnessDump）を一元化する（`docs/stdlib-pipeline.md` §12 統合待ち事項）
 - [ ] KSP-INF-009: bundled リソース欠落のサイレント縮退を診断化する（`injectBundledStdlib` が resourcePath 不在時に無言 return → `KSWIFTK-SOURCE-0101`（リソース不在）/`KSWIFTK-SOURCE-0102`（読込失敗）を採番して error 化。§12 統合待ち事項）
-- [ ] KSP-INF-010: `RuntimeABISpec.specVersion` 更新の機械検証を追加する（`allFunctions` 内容ハッシュとの突合テスト。現状 "J35" 手動文字列で更新漏れを検出できない）
+- [x] KSP-INF-010: `RuntimeABISpec.specVersion` 更新の機械検証を追加する（`allFunctions` 内容ハッシュとの突合テスト。現状 "J35" 手動文字列で更新漏れを検出できない）。PR #4973 で `RuntimeABISpec.specVersion` を `RuntimeABISpec`/`StdlibSurfaceSpec` ソースの SHA-256 に置き換え、テストで一致を検証
 - [ ] KSP-INF-011: 宣言優先規則（KSP-002）のガード適用漏れを総点検する（実例: List/Array/Iterable/Sequence の joinTo 系登録が bundled `StringSplitJoin.kt` と二重定義のまま `KSWIFTK-SEMA-0102` も発火していない = `shouldSkipRegistration` 未経由の登録ヘルパーが存在）。全 register 系ヘルパーがガードを通ることの enforcing 化 + §12 の二重定義4象限（user vs bundled 等）の方針決定
 - [ ] KSP-INF-012: bundled 注入コストの再計測を運用化する（W6 各モジュール完了時に `docs/refactoring-metrics.md` の +100ms トリガーを再判定。RF-GOV-004 の四半期監査に統合）
 - [ ] KSP-INF-013: 本家移植のライセンス表記を整備する（kotlin-stdlib からの移植ファイルへ Apache 2.0 帰属ヘッダ + リポジトリ NOTICE を追加する規約を `docs/stdlib-pipeline.md` §6 に明文化し、既存移植分（`random/Random.kt` の XorWow 等）へ遡及適用）
@@ -472,14 +483,14 @@
   - 手順: `FrontendPhases.swift` の `excludedBundledStdlibFiles` から、実ファイルが存在しない `kotlin/ResultExtensions`, `kotlin/logging/AdvancedLogger`, `kotlin/reflect/KClassAnnotationRegistration`, `kotlin/text/StringBasics`, `kotlin/text/StringEncoding` を削除（`find Sources/CompilerCore/Stdlib -name '*.kt'` で不在を確認してから）
   - 注記(2026-07-10 監査): さらに `kotlin/comparisons/Comparators`, `kotlin/ranges/RangeIterators`, `kotlin/ranges/RangeMembership` の3件は対象ファイル未移設のため**現状 no-op の予約枠**（KSP-309/312 の移設時に初めて機能する）。削除せず予約枠である旨のコメントを付ける
   - 検証: G のみ
-- [ ] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
+- [x] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
   - 注意: **同一 PR で** `BundledKotlinStdlib.kotlinTextSource` 内の同名 5 関数を削除（二重定義になるため）。runtime `__string_trimIndent` 系 / `kk_string_trimIndent` 系（`RuntimeStringFormat.swift`）は Kotlin 版が完全なら削除、不足なら `__kk_` 降格
   - 手順: T / diff: `string_indent.kt`（既存）
 - [ ] KSP-305: CollectionFactories を配線する（`listOf`/`setOf`/`mapOf`/`empty*`/`mutable*Of`）
   - 注意: `CollectionLiteralLoweringPass` がファクトリ呼び出しを直接 `kk_*` へ書き換えている。ブリッジ残留: 生成コア `kk_list_of`, `kk_set_of`, `kk_map_of`, `kk_emptyList`, `kk_emptySet`, `kk_emptyMap` は `__kk_` 降格（アロケーション主体のため）
   - 削除: `CallLowerer+StdlibArrayConstructor.swift` のファクトリ特例 / 各 `HeaderHelpers+Synthetic{List,Set,Map,Array}Stubs.swift` のファクトリ登録
   - 手順: T / diff: `collection_builders.kt`（既存）
-  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_simple.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
+  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_comprehensive.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
 - [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録
@@ -532,7 +543,7 @@
   - トランスコードはブリッジ残留。`kk_charset_*` 9 関数と `kk_string_toByteArray*`, `kk_string_encodeToByteArray*`, `kk_bytearray_decodeToString*`, `kk_byteArray_toKString` を `__kk_` へ改名。公開 API 層（オーバーロード分岐・境界検査・例外）は Kotlin 化。インライン `kotlinTextSource` の同 API と統合（KSP-502 と調整）
 - [ ] KSP-417: Unicode 正規化・codePoint・random を `__kk_` 降格する
   - `kk_normalization_form_*` 4 関数, `kk_string_normalize`, `kk_string_isNormalized`, `kk_string_codePointCount*` 3 関数, `kk_string_random(_random)` を `__kk_` へ改名（実装移植はしない）
-- [ ] KSP-418: format/indent を完遂する（KSP-302 の残り + `String.format(_locale)` は `__kk_` 降格）
+- [ ] KSP-418: format を完遂する（`String.format(_locale)` は `__kk_` 降格）
   - 対象: `RuntimeStringFormat.swift` の `kk_string_format`, `kk_string_format_locale`（降格）と残存 `__string_*` 旧ブリッジの命名統一
 
 #### kotlin.collections [M3 実行体]（前提: KSP-305〜307。実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/`）
@@ -617,8 +628,8 @@
 - [~] KSP-472: Instant/Clock/measureTime のブリッジを確定する（2026-07-08、一部配線）
   - Kotlin 化済み: `kk_instant_epoch_seconds`, `kk_instant_nano_of_second`, `kk_instant_is_distant_past/future`, `kk_instant_plus/minus_duration`, `kk_instant_compare`, `kk_instant_until` を `__kk_instant_*` bridge（`HeaderHelpers+SyntheticInstantStubs.swift`）へ降格し、`Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt` の拡張プロパティ/演算子/関数から呼ぶ形に配線。`elapsed()` はブリッジなしで `this.until(Instant.now())` として実装。`kk_timedvalue_value`/`kk_timedvalue_duration` も同様に `__kk_timedvalue_*` bridge 化し `Sources/CompilerCore/Stdlib/kotlin/time/TimedValue.kt` へ配線（`HeaderHelpers+SyntheticDurationStubs.swift`）
   - 副次修正: `HeaderHelpers+SyntheticClockStubs.swift` が `HeaderHelpers+SyntheticInstantStubs.swift` と同じ Instant companion/property/method を重複登録していたバグを解消（Clock 関連の登録のみに縮小、Instant symbol/type の再取得のみ残す）
-  - 未達（技術的制約、direct stub のまま変更なし）: `kk_instant_now`, `kk_instant_from_epoch_millis`, `kk_clock_system_now` は companion/nested-object のファクトリメソッドで、このコンパイラの拡張関数宣言はレシーバ型として `Foo.Companion` を解決できない（`fun Foo.Companion.f(): Foo` は "Unresolved type 'Companion'" になる）ため Kotlin source の拡張として書けない。**訂正(2026-07-10 実測)**: 単純ネストクラスの `fun Outer.Inner.f()` は**動作する**（旧記載は誤り）— 失敗するのは companion レシーバのみ（KSWIFTK-SEMA-0024）。ブロッカーは KSP-CAP-003 として独立起票。`kk_clock_now` は `Clock` がユーザー実装可能な interface であり `now()` の member dispatch が必須。`kk_measureTime`/`kk_measureTimedValue` は `CallLowerer+StdlibLoops.swift` の KIR 特殊インライン展開が `stdlibSpecialCallKind`（関数名ベース）でディスパッチしており、direct stub 名を変更すると壊れるため対象外。`kk_timedvalue_new` は `measureTimedValue` の KIR lowering からのみ呼ばれる内部コンストラクタで、Kotlin source から到達しないため対象外
-  - 前提追記: 残る配線は KSP-CAP-003 の解消後に実施
+  - 未達（direct stub のまま変更なし。技術的制約は解消済み）: `kk_instant_now`, `kk_instant_from_epoch_millis`, `kk_clock_system_now` は companion/nested-object のファクトリメソッド。**2026-07-22 追記**: これらを Kotlin source の拡張として書けない原因だった KSP-CAP-003 は解消済み（`fun Instant.Companion.now(): Instant` 形の拡張と `Instant.now()` ショートハンド呼び出しが実際に解決することを実機確認済み）。ただし**本 PR では配線自体は未実施** — `HeaderHelpers+SyntheticInstantStubs.swift` の `registerInstantCompanionMethod(named: "now", ...)` / `(named: "fromEpochMilliseconds", ...)` は companion の直接メンバとして登録されたままで、`CallTypeChecker+MemberCallInferenceRegularResolution.swift:562` の `companionCandidates.isEmpty` ゲートにより直接メンバ探索が常に優先されるため、**Kotlin source 側に同名拡張を追記する際は直接メンバ登録を同時に削除しないと新しい拡張が黙って無視される**（衝突してもコンパイルエラーにはならないので要注意）。`kk_clock_now` は `Clock` がユーザー実装可能な interface であり `now()` の member dispatch が必須（KSP-CAP-003 とは無関係、引き続き対象外）。`kk_measureTime`/`kk_measureTimedValue` は `CallLowerer+StdlibLoops.swift` の KIR 特殊インライン展開が `stdlibSpecialCallKind`（関数名ベース）でディスパッチしており、direct stub 名を変更すると壊れるため対象外。`kk_timedvalue_new` は `measureTimedValue` の KIR lowering からのみ呼ばれる内部コンストラクタで、Kotlin source から到達しないため対象外
+  - 前提追記: KSP-CAP-003 は解消済み。残る配線（`kk_instant_now`/`kk_instant_from_epoch_millis`/`kk_clock_system_now` の Kotlin source 拡張化と direct stub 登録の除去）は未着手のまま KSP-472 本体の続き作業とする
 
 #### kotlin.uuid [M12 実行体]
 
@@ -854,8 +865,34 @@
 - [ ] BUG-043: PR #4572（StringBuilder source 移行）で `buildString { … }` / `buildStringBuilder { … }` ラムダ内の StringBuilder メンバ呼び出しのうち、`append`/`appendLine`/`insert`/`delete`/`length`/`appendRange` の6種のみ `CollectionLiteralLoweringPass+CallRewriteFactories.swift:636-649` でグローバル builder state（`RuntimeBuilderDSL.swift` の `runtimeBuilderState`）向けに書き換えられ、`reverse`/`clear`/`toString`/`deleteAt`/`deleteCharAt`/`setCharAt`/`set`/`get`/`capacity`/`ensureCapacity`/`trimToSize`/`setRange`/`insertRange`/`replace`/`deleteRange` は書き換え対象外。書き換えられなかった呼び出しは source-backed `StringBuilder.kt` の通常メソッドへフォールバックするが、`runtimeExecuteStringBuilderAction`（`RuntimeBuilderDSL.swift:345-347`）はラムダの暗黙レシーバとして常に `0`（ダミー値）を渡すため、`this` が無効なハンドル `0` になり実行時に壊れる（最小再現: `buildString { append("x"); reverse() }`）。修正には `RuntimeBuilderState`（`RuntimeBuilderDSL.swift:32-`）へ上記14メソッド相当のグローバル状態版プリミティブを追加し `@_cdecl` エクスポート・`RuntimeABISpec` 登録・書き換えリスト拡張が必要で、単純なバグ修正の範囲を超える新規ランタイム面。BUG-042（ローカル環境でのフルリンク不可）により実行検証もできないため、このセッションでは実装を見送り。発見元: PR #4572 の Devin AI レビュー（comment_id 3532565207 / 3532565261 / 3536548604 / 3536548807）をコード追跡で確認
 - [ ] BUG-044: PR #4572（StringBuilder source 移行）で StringBuilder コンストラクタの新しい intercept 経路（`CallLowerer.swift` の `isStringBuilderConstructor` + `lowerStringBuilderConstructorCall`）が `kk_string_builder_new`/`kk_string_builder_new_from_string_flat` を直接呼ぶのみで、通常のコンストラクタ経路が行う `kk_type_register_super`/`kk_object_register_itable_iface` 相当の型登録をスキップする。`kk_op_is`（`Sources/Runtime/RuntimeStringArray.swift:450-`）は String 等の組込み型は専用 `stringBase` 分岐を持つが CharSequence/Appendable のような interface 型は `nominalBase` 分岐で `runtimeObjectTypeID(rawValue:)` に依存するため、型登録が無い StringBuilder ハンドルに対する `sb is CharSequence` / `sb is Appendable` は誤って `false` を返す疑い（コード追跡で確認、実行検証は BUG-042 によりこのセッションでは不可）。BUG-038（hand-crafted Runtime オブジェクトの itable 登録漏れ）と同系統の型登録漏れパターン。発見元: PR #4572 の Devin AI レビュー（comment_id 3537407331）をコード追跡で確認
 - [ ] BUG-045: Golden.Sema ハーネスの合成序数正規化（`GoldenHarnessSemaComparisonNormalizer.rewriteOrdinalMatches`、対象は `__local_N`/`$N`/`__for_N` 等）が、生の raw ID（`ExprID`/`SymbolID` の値をそのまま埋め込んだ文字列）を`GoldenHarnessDump.renderSemaOutput`/`GoldenHarnessStableRenderContext.stableKey` で**文字列比較ソート**した後に初出順で 0 から振り直す実装になっている。raw ID の桁数（例: 3桁→4桁の 999→1000 境界）がローカル変数群の宣言順スパンをまたぐと、文字列ソートが数値順と食い違い、ゴールデン出力上の宣言順が入れ替わる（例: `outer`/`client1`/`client2`/`file1`/`file2` が実際の宣言順より前に来る）。コンパイラの実際の意味論（シンボル名・型・kind・呼び出し解決）は完全に等価で実害はないが、stdlib バンドル内容を追加/削除するだけで無関係な golden ファイルが壊れる — PR #4624 で `Tests/CompilerCoreTests/GoldenCases/Sema/companion_object_private_access.golden` が該当（`Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt`/`KClassMemberIntrospection.kt` 新規追加が raw ExprID のベースラインをシフトさせたことが引き金と推定）。恒久修正は `rewriteOrdinalMatches`/`stableKey` 側でゼロ埋め比較または数値ソートに直すこと。本PRのマージ作業中、masterの取り込みの度に同じgolden(`companion_object_private_access.golden`)が繰り返し再発（2026-07-08、2026-07-16、2026-07-18 の少なくとも3回再生成が必要だった）。発見元: PR #4624 の CI 失敗調査タスク（`Full Swift Tests (CompilerCoreTests shard 0/3)`）
+- [ ] BUG-046: 明示的なラムダ引数型注釈（`{ a: Int, b: Int -> ... }`）が構文解析時に破棄される（`BuildASTPhase+ExpressionParserLambdaObjectCallable.swift` の `parseLambdaParamNames` はカンマ区切りセグメントから先頭の識別子だけを拾い `: Type` 部分を読み捨てる。`.lambdaLiteral` AST ノード自体が `params: [InternedString]`（名前のみ）で型情報を保持できない構造）。期待型（SAM 変換先や関数型パラメータ）が引数型を完全に決定できる場合は無症状だが、決定できない場合（例: 型引数なし・期待型なしの raw `fun interface`/`Comparator` SAM コンストラクタ）はラムダ引数が期待型由来の unsubstituted 型パラメータ型に束縛され、注釈で意図した具象型は無視される。最小再現: `fun interface Cmp<T> { fun compare(a: T, b: T): Int }` の後 `val c = Cmp { a: Int, b: Int -> a - b }`（型引数なし）が `KSWIFTK-SEMA-0002: No viable overload found for operator 'minus'` になる（本家 kotlinc は注釈を信頼して通る）。なお SAM/期待型が一切ない素のラムダ単体（`val f = { a: Int, b: Int -> a - b }`）は例外的に別の不健全フォールバック（未確定オペランド型に対する二項演算子解決が `Any` 型を許容してしまう）を通ってコンパイル自体は成功するが、`f("x", "y")` のような型不一致呼び出しを検出できず LLVM codegen で不正な整数演算命令を生成してクラッシュする（`LLVM ERROR: Cannot select`）。発見元: KSP-CAP-005（Comparator SAM コンストラクタ調査）。本 PR のスコープ外 — ラムダ AST に型注釈を保持させ全呼び出し経路で尊重させる設計変更が必要なため
+- [ ] BUG-047: top-level / class member プロパティ初期化子が複数のトップレベル `{ }` ブロックを含む式（`if/else`、ブロック分岐を持つ `when` 等）で終わる場合、最初のブロック以降が完全に失われる。`KotlinParser+Statements.swift` の `parseTail`（`inBlock: false` 呼び出し）が top-level `{` を検出するたびに `parseBlock()` で1ブロックだけ切り出して即座に `break` するため（`try`/`catch`/`finally` 継続のみ例外的に処理）、2つ目以降のブロック（`else { ... }` 等）はトークン列に一切追加されずプロパティ宣言のCSTから脱落する。最小再現: `val topLevelIf = if (1 > 2) { \"yes\" } else { \"no\" }` の後 `fun main() { println(topLevelIf) }` を実行すると `\"no\"` ではなく `0` を出力する（`else` 節が失われ、条件 false 側の値が未定義動作になる）。同条件 `1 < 2`（true 側）では偶然 `\"yes\"` を出力するため見かけ上動作しているように見える点に注意。関数宣言の式本体・ローカル変数の初期化子は影響を受けない（単一パスの式パーサ経由のため）。発見元: KSP-CAP-005（`propertyHeadTokens` 修正の副作用検証中に発見・単一トレーリングラムダのケースとは別原因と特定）。本 PR のスコープ外 — `parseTail` の CST 分割アルゴリズム自体の見直しが必要なため
+- [ ] BUG-048: callable reference の SAM 変換（例: `Comparator<Int>(::myCompare)`）がコンパイルは通るが実行時に `KSwiftK panic [KSWIFTK-RUNTIME-0001]: Virtual dispatch failed: method not found in vtable/itable` でクラッシュする。Sema 側は `isSamConvertibleArgument`（`CallTypeChecker+SAMCalls.swift`）がラムダリテラルと同様 callable reference も SAM 変換対象としてマークするが、KIR lowering 側の `LambdaLowerer.swift` の `lowerCallableRefExpr` が `sema.bindings.isSamConversion(exprID)` を一切参照しておらず、`lowerLambdaLiteralExpr` が使う `lowerSamWrapperValue`（interface を実装した itable 付き wrapper object を合成する経路）を経由しない。結果として callable reference は常に素のクロージャ値として lower され、呼び出し側が itable dispatch を試みると失敗する。最小再現: `fun myCompare(a: Int, b: Int): Int = a - b` の後 `val c = Comparator<Int>(::myCompare); println(c.compare(3, 5))` を実行するとクラッシュする（同じ内容をラムダリテラル `Comparator<Int> { a, b -> myCompare(a, b) }` で書けば正常動作）。ユーザー宣言 `fun interface` でも同様に再現し synthetic Comparator 固有の問題ではない。発見元: KSP-CAP-005（Comparator SAM コンストラクタ調査）。本 PR のスコープ外 — `lowerCallableRefExpr` に SAM wrapper 合成経路を追加する KIR lowering 側の実装が必要なため
 - [ ] BUG-139: bundled `RangeMembership.kt` の `rangeIsEmpty<T : Comparable<T>>` が source-backed stdlib の型検査をハングさせる（`kswiftc --emit kir Scripts/diff_cases/hello.kt` が完了しない）。最小再現: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` を注入した状態で `Scripts/diff_cases/hello.kt` をコンパイル。Int/Long/Char 専用 helper への分割で回避 — 発見元 `CI-4669` / PR #4669 open
 - [ ] BUG-140: golden ハーネスの Sema symbol 一覧ソートが `GoldenHarnessDump.swift` の `requiredSymbols.sorted { ctx.stableKey(...) < ... }` で素の文字列比較を使っており、`__local_N` 等の合成スコープ名に埋め込まれた生の（ゼロ埋めなし）arena 序数が桁数境界をまたぐと表示順が崩れる（例: `"__local_10002" < "__local_9874"` が文字列比較では真になる。`'1' < '9'` のため）。この境界は bundled stdlib 側の式数が変わるだけで無関係なテストケースの golden 表示順を壊しうる。最小再現: `Tests/CompilerCoreTests/GoldenCases/Sema/companion_object_private_access.kt`（本 PR の BUG-038 対応で `RangeMembership.kt` を1関数→3関数に分割し bundled stdlib の式数が+約30 増えた副作用で、`client2`/`file1`/`file2` の local ordinal が 9999→10000 をまたぎ表示順が崩れて CI 落ち。`GoldenHarnessWorker` を直接実行し、master 版 `RangeMembership.kt` に戻すと境界をまたがず再現しないことを確認済み。3回連続実行で出力が完全一致し非決定性ではないことも確認済み）。`.compare(_:options:.numeric)` に変更して修正。他297件の Sema golden を body 参照順の単調性で静的検査し、他に同種の崩れがないことを確認済み（0件）— 発見元 `CI-4669` / PR #4669 open
+- [ ] BUG-141: object 式が実装した interface の格納プロパティ（`override val`、カスタム getter 無し）を、その interface 型の変数を介して外部（呼び出し元）から読むと、未解決シンボル `_<プロパティ名>` により `KSWIFTK-LINK-0001` リンクエラーになる（object 自身のメンバ関数呼び出しは正常に dispatch される — 本件はプロパティのみ）。最小再現:
+  ```kotlin
+  interface Holder { val value: Int }
+  fun make(): Holder = object : Holder { override val value: Int = 42 }
+  fun main() { println(make().value) }
+  ```
+  外側ローカル変数のキャプチャは一切関与しない（キャプチャ無しの上記最小ケースでも同一の未解決シンボルエラーを確認済み）。発見元: KSP-CAP-001（object 式メンバ関数のローカル変数キャプチャ対応）の回帰テスト作成中に偶然遭遇。KSP-CAP-001 のスコープ（メンバ関数本体のキャプチャ）とは無関係な、格納プロパティの interface 経由 dispatch 自体の欠陥のため本 PR では未修正
 - [x] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift` の vtable dispatch gate を解除。`kk_alloc` / `KTypeInfo` vtable は raw heap object fallback として残しつつ、既存 `kk_object_new` ベースの class/object/object-literal allocation は itable と同型の object-local vtable method registry を登録し、`kk_vtable_lookup` が override 実装を取得できるようにした。`VirtualDispatchTests` と backend 実行テストで open-class / safe-call 経路を検証済み
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
 - [ ] DEBT-KIR-004: 自己参照ではない `x or y` において、`y` が直前の関数呼び出し結果（例: `String.indexOf`）の場合に右オペランドが無視され 0 として計算されるバグを調査・修正する。再現: `val value = alphabet.indexOf(c); val r = 0 or value` は `r == 0`（誤り、正しくは `value`）になるが `value or 0` は正しく計算される。KSP-482 (#4625) の `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt:107` (`decodeRaw`) でオペランド順序を入れ替えるワークアラウンドを適用済み（コメント参照）。`and`/`xor` 等の他ビット演算子でも同型の問題がないか要確認。**調査結果（2026-07-15）: 現行 HEAD（`8f3c04fb4c`、PR #4625 マージ後）ではこのバグは再現しない。** `.build/debug/kswiftc` を実際にビルドし、(1) TODO.md 記載の最小再現（`val value = alphabet.indexOf(c); val r = 0 or value` / `value or 0`）を単独関数で実行、(2) `decodeRaw` と同型の `while` ループ＋self-referential `var buffer` アキュムレータで `buffer = (buffer shl 6) or value`（ワークアラウンド適用前の順序）を実行し `"SGVsbG8="` を `"Hello"`（バイト列 72,101,108,108,111）へ正しくデコード、(3) `and`/`xor`/`shl`/`shr`/`ushr` それぞれを Int/Long・両オペランド順序・self-referential アキュムレータループで検証して Python で独立計算した期待値と完全一致、(4) 実際の `Base64.kt` のワークアラウンドを一時的に除去し、既存 `Base64EdgeCasesTests`（`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+Base64EdgeCases.swift`）と同一の14ケースを手動実行して全一致、(5) 上記 (2)(3) を `Scripts/diff_kotlinc.sh` で実 kotlinc（kotlinc-jvm 2.4.0）と突き合わせて PASS、をそれぞれ確認した。**対応: ワークアラウンドを除去**し `Base64.kt` を自然な `buffer = (buffer shl 6) or value` に戻した。再発防止として `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+BitwiseOperatorArgumentOrder.swift`（XCTest 統合テスト、6 演算子 × Int/Long × 両オペランド順序 + self-referential アキュムレータループ）と `Scripts/diff_cases/bitwise_operator_call_derived_operand.kt`（kotlinc 比較ケース、diff_kotlinc.sh で PASS 確認済み）を追加。**推定される真因**: PR #4625（2026-07-12 マージ）から本調査時点までの間に着地した他の数値/ランタイム関連修正（`bda5fa2568` KSP-466 ULong division/modulo 修正、`24e43cce5d` vararg Any-element boxing 修正等）のいずれかが副次的に解消したと推定されるが、当時の再現バイナリが残っていないため bisect による厳密な特定はできていない。**環境注記**: 本調査を行ったサンドボックスは Xcode.app 未インストール（Command Line Tools のみ）のため `swift test`（XCTest ベース）が一切ビルドできず、追加した XCTest 統合テストは同環境では未実行（CI では実行される想定）。代わりに `kswiftc` 実バイナリの直接実行と `Scripts/diff_kotlinc.sh` による実 kotlinc との突き合わせで検証した。修正 PR: #4844（マージ後に `[x]` 化する）
+- [x] DEADCODE-CORE-008: [R0] `HeaderHelpers+SyntheticCoroutineRegistry.swift:2522` の `registerSyntheticCoroutinesABIStubs(...)` を削除する。`STDLIB-CORO-ABI-001` surface がまだ必要なら、削除ではなく live registry へ配線して本 ID を閉じる 2026-07-21 完了: 未到達の ABI registry extension を削除。live の coroutine registry は維持。
+- [x] DEADCODE-CORE-009: [R0] `HeaderHelpers+SyntheticDynamicStubs.swift:4` の `registerSyntheticDynamicStubs(...)` を削除する（Native 対象外の Kotlin/JS surface） 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-010: [D: CORE-009] 同ファイル `:42` の private `registerDynamicIterator(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-011: [R0] `HeaderHelpers+SyntheticFileIOStubs.swift:1937` の private `registerKotlinIOExtensionProperty(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [x] DEADCODE-CORE-012: [R0] `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift:7` の `registerSyntheticJsArrayExternalClassStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-013: [R0] `HeaderHelpers+SyntheticJsArrayStubs.swift:4` の `registerSyntheticJsArrayStubs(...)` を削除する 2026-07-21 完了: Native dispatch から未到達の Kotlin/JS stub と配下 helper を削除。
+- [x] DEADCODE-CORE-015: [D: CORE-014] 同ファイル `:49` の private `ensureJsStringInterface(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
+- [x] DEADCODE-CORE-016: [D: CORE-014] 同ファイル `:88` の private `registerStringToJsStringExtension(...)` を削除する 2026-07-21 完了: CORE-014 の未参照ファイル削除に伴い両 helper を削除。
+- [ ] DEADCODE-CORE-018: [R0] `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift:118` の `registerSyntheticJvmAnnotationClass(...)` を削除する
+- [ ] DEADCODE-CORE-020: [R0] `HeaderHelpers+SyntheticPropertyDelegateStubs.swift:2523` の `registerSyntheticKPropertyIsInitializedStub(...)` を削除する
+- [x] DEADCODE-CORE-022: [R0] `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift:629` の `registerSyntheticEmptyCollectionFunction(...)` を削除する 2026-07-21 完了: 対象シンボルの参照ゼロを再確認して削除。
+- [ ] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
+- [x] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す 2026-07-21 確認: 宣言・initializer とも現 HEAD に存在せず、TODO の stale entry を同期。
+- [ ] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する
+- [x] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
+- [ ] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する

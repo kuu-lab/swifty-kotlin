@@ -65,12 +65,15 @@ struct DiagnosticEngineTests {
         #expect(engine.diagnostics[0].primaryRange == range)
     }
 
-    // MARK: - hasError
+    // MARK: - Severity Aggregates
 
     @Test
-    func testHasErrorReturnsFalseWhenEmpty() {
+    func testSeverityFlagsAreFalseWhenEmpty() {
         let engine = DiagnosticEngine()
         #expect(!(engine.hasError))
+        #expect(!(engine.hasWarning))
+        #expect(!(engine.hasNote))
+        #expect(!(engine.hasInfo))
     }
 
     @Test
@@ -78,27 +81,49 @@ struct DiagnosticEngineTests {
         let engine = DiagnosticEngine()
         engine.error("E", "err", range: nil)
         #expect(engine.hasError)
+        #expect(!(engine.hasWarning))
+        #expect(!(engine.hasNote))
+        #expect(!(engine.hasInfo))
     }
 
     @Test
-    func testHasErrorReturnsFalseForWarningOnly() {
+    func testHasWarningReturnsTrueAfterWarning() {
         let engine = DiagnosticEngine()
         engine.warning("W", "warn", range: nil)
+        #expect(engine.hasWarning)
         #expect(!(engine.hasError))
     }
 
     @Test
-    func testHasErrorReturnsFalseForNoteOnly() {
+    func testHasNoteReturnsTrueAfterNote() {
         let engine = DiagnosticEngine()
         engine.note("N", "note", range: nil)
+        #expect(engine.hasNote)
         #expect(!(engine.hasError))
     }
 
     @Test
-    func testHasErrorReturnsFalseForInfoOnly() {
+    func testHasInfoReturnsTrueAfterInfo() {
         let engine = DiagnosticEngine()
         engine.info("I", "info", range: nil)
+        #expect(engine.hasInfo)
         #expect(!(engine.hasError))
+    }
+
+    @Test
+    func testSeverityCountsAggregateBySeverity() {
+        let engine = DiagnosticEngine()
+        engine.error("E1", "err1", range: nil)
+        engine.error("E2", "err2", range: nil)
+        engine.warning("W", "warn", range: nil)
+        engine.note("N", "note", range: nil)
+        engine.info("I", "info", range: nil)
+
+        #expect(engine.errorCount == 2)
+        #expect(engine.warningCount == 1)
+        #expect(engine.noteCount == 1)
+        #expect(engine.infoCount == 1)
+        #expect(engine.count == 5)
     }
 
     // MARK: - Render

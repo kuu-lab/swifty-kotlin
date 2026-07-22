@@ -473,10 +473,10 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendStringIndentCompilesViaPureKotlin() throws {
-        // KSP-418: trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are now
-        // compiled via pure Kotlin source (StringIndentFormat.kt). The old kk_string_*_flat and
-        // legacy pointer-ABI kk_string_* C-bridge calls should NOT appear in the IR.
+    func testLLVMBackendUsesSourceBackedIndentCallsForStringOverloads() throws {
+        // trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are compiled
+        // through StringIndentFormat.kt. The old public kk_string_* and flat C-bridge calls
+        // should not appear in user IR.
         let source = """
         fun main() {
             val value = "  alpha\\n  beta"
@@ -507,7 +507,6 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            // Legacy pointer-ABI bridges must NOT appear.
             let forbiddenNames = [
                 "kk_string_trimIndent",
                 "kk_string_trimMargin_default",
@@ -517,7 +516,6 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default",
                 "kk_string_replaceIndent",
                 "kk_string_replaceIndentByMargin",
-                // Old flat C-bridge calls – now replaced by pure Kotlin
                 "kk_string_trimIndent_flat",
                 "kk_string_trimMargin_default_flat",
                 "kk_string_trimMargin_flat",

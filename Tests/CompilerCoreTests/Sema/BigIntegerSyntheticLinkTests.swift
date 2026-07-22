@@ -5,17 +5,7 @@ import Testing
 
 @Suite
 struct BigIntegerSyntheticLinkTests {
-    private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else {
-                return nil
-            }
-            return exprID
-        }
-    }
-
-    // Like allExprIDs but skips expressions from bundled stdlib files so that
+    // Collect user expressions while skipping bundled stdlib files so that
     // bitwise ops inside Random.nextLong / nextDouble don't pollute counts.
     private func userExprIDs(
         in ast: ASTModule,

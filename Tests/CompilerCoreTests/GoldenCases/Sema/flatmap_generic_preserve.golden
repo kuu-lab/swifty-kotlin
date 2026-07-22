@@ -9,7 +9,7 @@ symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synth
 symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=_
+file fflatmap_generic_preserve package=_
   decl flatMapGeneric fun flatMapGeneric sym=flatMapGeneric
 expr e@2:30 name(names) type=kotlin.collections.List<String> ref=flatMapGeneric.$0.names
 expr e@2:53 name(it) type=String ref=s-0

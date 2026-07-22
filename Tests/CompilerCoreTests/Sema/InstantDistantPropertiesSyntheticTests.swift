@@ -147,9 +147,12 @@ struct InstantDistantPropertiesSyntheticTests {
         #expect(sema.symbols.externalLinkName(for: elapsedSymbol) == nil)
     }
 
-    // KSP-472: now() / fromEpochMilliseconds() stay as direct companion factory
-    // stubs — Kotlin source cannot declare an extension whose receiver is
-    // Instant.Companion.
+    // KSP-472: now() / fromEpochMilliseconds() currently stay as direct
+    // companion factory stubs. KSP-CAP-003 (the compiler gap blocking
+    // ClassName.member() shorthand calls against a Kotlin-source extension on
+    // ClassName.Companion) is fixed, so re-expressing these two factories in
+    // Kotlin source is possible; migrating them remains unstarted KSP-472
+    // follow-up work, not a compiler limitation.
     @Test func testInstantCompanionFactoriesRemainDirectStubs() throws {
         let (sema, interner) = try makeSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }

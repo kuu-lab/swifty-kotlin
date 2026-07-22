@@ -106,7 +106,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
     ]
     static let memoryUsageConstructor = constructor(from: memoryUsageProperties)
 
-    static let debuggingType = nativeRuntimeClass("Debugging")
     static let debuggingProperties: [SyntheticPropertyStubSpec] = [
         SyntheticPropertyStubSpec(
             name: "isThreadStateRunnable",

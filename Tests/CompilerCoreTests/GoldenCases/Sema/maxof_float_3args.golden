@@ -2,7 +2,7 @@ symbol fq=golden.sema.threeArgMaxFloat kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.threeArgMaxFloat.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxFloat.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxFloat.$0.c kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fmaxof_float_3args package=golden.sema
   decl golden.sema.threeArgMaxFloat fun threeArgMaxFloat sym=golden.sema.threeArgMaxFloat
 expr e@3:67 name(a) type=Float ref=golden.sema.threeArgMaxFloat.$0.a
 expr e@3:70 name(b) type=Float ref=golden.sema.threeArgMaxFloat.$0.b
