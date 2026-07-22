@@ -333,6 +333,151 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
+    // MARK: - HeaderCollection: KSP-CAP-006 (class + same-named top-level function)
+
+    // Real kotlin-stdlib idiom (e.g. `class Random` + `fun Random(seed: Long): Random`):
+    // a class and a same-named top-level function must coexist regardless of which
+    // one is declared first in source order.
+
+    @Test func testClassThenSameNamedFunctionDoesNotConflict() throws {
+        let source = """
+        class Box(val value: Int)
+        fun Box(seed: Long): Box = Box(seed.toInt())
+        fun main(): Int = Box(1L).value
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+        }
+    }
+
+    @Test func testFunctionThenSameNamedClassDoesNotConflict() throws {
+        // The return type is deliberately not `Box` here: a same-file
+        // function-signature forward reference to a later-declared type is a
+        // separate, pre-existing limitation (BUG-141) unrelated to the
+        // declaration-conflict check this test targets.
+        let source = """
+        fun Box(seed: Long): Int = seed.toInt()
+        class Box(val value: Int)
+        fun main(): Int = 0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+        }
+    }
+
+    @Test func testDuplicateClassDeclarationStillConflicts() throws {
+        // Guards against over-loosening: two nominal types of the same name
+        // (as opposed to a nominal type + a callable) must still conflict.
+        let source = """
+        class Box(val value: Int)
+        class Box(val other: Int)
+        fun main(): Int = 0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+        }
+    }
+
+    @Test func testCallResolutionMergesConstructorAndSameNamedFunctionCandidates() throws {
+        // Before the KSP-CAP-006 fix, the class's constructors were only
+        // considered as call candidates when no top-level function of the
+        // same name existed at all -- so once `fun Box(seed: Long)` was
+        // found, `Box(Int)` constructor calls (including this one, made from
+        // inside the function's own body) failed with
+        // "No viable overload found for call" even though the argument type
+        // unambiguously matched the constructor.
+        let source = """
+        class Box(val value: Int)
+        fun Box(seed: Long): Box = Box(seed.toInt() + 1000)
+        fun main(): Int {
+            val viaFunction = Box(5L)
+            val viaConstructor = Box(7)
+            return viaFunction.value + viaConstructor.value
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        }
+    }
+
+    @Test func testAbstractClassInstantiationStillErrorsWithoutCoexistingFunction() throws {
+        // Guards against over-loosening the P5-112 abstract-instantiation
+        // check: when no coexisting top-level function offers a viable
+        // candidate, calling an abstract class's own name must still error.
+        let source = """
+        abstract class Shape {
+            abstract fun area(): Double
+        }
+        fun main() {
+            val s = Shape()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        }
+    }
+
+    @Test func testAbstractClassYieldsToCoexistingFactoryFunction() throws {
+        // Mirrors the real kotlin.random.Random shape: an abstract class
+        // whose only usable "constructor-like" call target is a coexisting
+        // top-level factory function. The abstract-instantiation diagnostic
+        // must not fire when the factory function is a viable candidate.
+        let source = """
+        abstract class Shape {
+            abstract fun area(): Double
+        }
+        class Circle(val radius: Double) : Shape() {
+            override fun area(): Double = radius * radius * 3.14159
+        }
+        fun Shape(radius: Double): Shape = Circle(radius)
+        fun main(): Double = Shape(2.0).area()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        }
+    }
+
+    @Test func testSyntheticClassConstructorMatchingFactoryFunctionSignatureIsNotAmbiguous() throws {
+        // Regression test for a bug the KSP-CAP-006 merge fix itself
+        // introduced and then had to correct: `kotlin.io.path.Path` is
+        // registered as a synthetic class whose own (synthetic) constructor
+        // has the exact same signature, `(String) -> Path`, as the
+        // coexisting top-level factory function `fun Path(pathString:
+        // String): Path`. Naively merging the constructor into the call
+        // candidate set produced two indistinguishable overloads, so every
+        // `Path(...)` call resolved to `<error>` instead of picking the
+        // (equally valid) function. The fix de-duplicates by parameter
+        // signature before merging; this pins that behavior using the real
+        // bundled stub rather than a hand-rolled reproduction.
+        let source = """
+        import kotlin.io.path.Path
+
+        fun makePath(raw: String): Path = Path(raw)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
+        }
+    }
+
     // MARK: - BodyAnalysis: structural recursion depth guard
 
     @Test func testDeeplyNestedGenericTypeRefEmitsDepthDiagnostic() throws {
