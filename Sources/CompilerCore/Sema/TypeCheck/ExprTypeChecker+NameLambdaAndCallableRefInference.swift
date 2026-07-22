@@ -958,14 +958,20 @@ extension ExprTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
             }
-
-            // For extension-receiver function literals (`T.() -> R`), return the
-            // concrete inferred function type so the call resolver can infer the
-            // generic return type `R` from the lambda body. For non-receiver
-            // lambdas, preserve the contextual expected type to avoid changing
-            // existing Sema golden output and to keep input-only HOF behavior.
-            if expectedFunctionType.receiver != nil {
-                let resolvedFunctionType = sema.types.make(.functionType(FunctionType(
+            // When the expected return type is an unresolved type parameter,
+            // returning `expectedType` verbatim leaks that type variable back
+            // out as the lambda's own type. The overload resolver then
+            // decomposes it against the same signature's parameter type and
+            // produces a self-referential `T <: T` bound instead of a real
+            // constraint derived from the body's actual type (e.g. `lazy { 1 }`
+            // or `box.run2 { myValue }` fails to infer `R`). Substitute the
+            // concrete, inferred return type in those cases so the caller can
+            // solve the type parameter from it.
+            let shouldReturnResolvedFunctionType =
+                expectedReturnIsUnconstrainedTypeParam
+                || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
+            let resultType: TypeID = if shouldReturnResolvedFunctionType {
+                sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,
                     receiver: expectedFunctionType.receiver,
                     params: parameterTypes,
@@ -974,12 +980,11 @@ extension ExprTypeChecker {
                     nullability: expectedFunctionType.nullability,
                     throws: expectedFunctionType.throws
                 )))
-                sema.bindings.bindExprType(id, type: resolvedFunctionType)
-                return resolvedFunctionType
             } else {
-                sema.bindings.bindExprType(id, type: expectedType)
-                return expectedType
+                expectedType
             }
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
         }
 
         let inferredFunctionType = sema.types.make(.functionType(FunctionType(

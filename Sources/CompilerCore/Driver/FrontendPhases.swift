@@ -92,7 +92,7 @@ final class LoadSourcesPhase: CompilerPhase {
         }
 
         if ctx.options.includeStdlib {
-            injectBundledStdlib(into: ctx.sourceManager)
+            try injectBundledStdlib(into: ctx)
         }
 
         for path in ctx.options.inputs {
@@ -110,10 +110,32 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
-    private func injectBundledStdlib(into sourceManager: SourceManager) {
-        for source in BundledKotlinStdlib.bundledStdlibSources() {
-            guard !sourceManager.containsFile(path: source.path) else { continue }
-            _ = sourceManager.addFile(path: source.path, contents: source.contents)
+    internal func injectBundledStdlib(
+        into ctx: CompilationContext,
+        resourcePath: String? = Bundle.module.resourcePath
+    ) throws {
+        do {
+            let sources = try BundledKotlinStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            for source in sources {
+                guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents)
+            }
+        } catch let error as BundledKotlinStdlib.LoadError {
+            switch error {
+            case .resourcePathMissing, .resourceDirectoryMissing:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0101",
+                    error.description,
+                    range: nil
+                )
+            case .enumerationFailed, .readFailed:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0102",
+                    error.description,
+                    range: nil
+                )
+            }
+            throw CompilerPipelineError.loadError
         }
     }
 

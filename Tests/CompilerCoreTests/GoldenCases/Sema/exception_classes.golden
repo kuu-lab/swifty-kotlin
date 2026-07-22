@@ -17,32 +17,32 @@ symbol fq=golden.sema.catchIndexOutOfBounds kind=function vis=public flags=_ sig
 symbol fq=golden.sema.catchNoSuchElement kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.catchUnsupportedOperation kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.throwableProperties kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.ArithmeticException kind=class vis=public flags=synthetic type=kotlin.ArithmeticException
+symbol fq=kotlin.ArithmeticException kind=class vis=public flags=synthetic|openType type=kotlin.ArithmeticException
 symbol fq=kotlin.ArithmeticException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.ArithmeticException
 symbol fq=kotlin.ArithmeticException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.ClassCastException kind=class vis=public flags=synthetic type=kotlin.ClassCastException
+symbol fq=kotlin.ClassCastException kind=class vis=public flags=synthetic|openType type=kotlin.ClassCastException
 symbol fq=kotlin.ClassCastException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.ClassCastException
 symbol fq=kotlin.ClassCastException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
+symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.IllegalStateException kind=class vis=public flags=synthetic type=kotlin.IllegalStateException
+symbol fq=kotlin.IllegalStateException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalStateException
 symbol fq=kotlin.IllegalStateException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.IllegalStateException
 symbol fq=kotlin.IllegalStateException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.IndexOutOfBoundsException kind=class vis=public flags=synthetic type=kotlin.IndexOutOfBoundsException
+symbol fq=kotlin.IndexOutOfBoundsException kind=class vis=public flags=synthetic|openType type=kotlin.IndexOutOfBoundsException
 symbol fq=kotlin.IndexOutOfBoundsException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.IndexOutOfBoundsException
 symbol fq=kotlin.IndexOutOfBoundsException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.NoSuchElementException kind=class vis=public flags=synthetic type=kotlin.NoSuchElementException
+symbol fq=kotlin.NoSuchElementException kind=class vis=public flags=synthetic|openType type=kotlin.NoSuchElementException
 symbol fq=kotlin.NoSuchElementException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.NoSuchElementException
 symbol fq=kotlin.NoSuchElementException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic type=kotlin.RuntimeException
+symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic|openType type=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.Throwable kind=class vis=public flags=synthetic type=kotlin.Throwable
+symbol fq=kotlin.Throwable kind=class vis=public flags=synthetic|openType type=kotlin.Throwable
 symbol fq=kotlin.Throwable.cause kind=property vis=public flags=synthetic type=kotlin.Throwable?
 symbol fq=kotlin.Throwable.message kind=property vis=public flags=synthetic type=String?
 symbol fq=kotlin.Throwable.stackTraceToString kind=function vis=public flags=synthetic sig=recv=kotlin.Throwable params=[] ret=String
-symbol fq=kotlin.UnsupportedOperationException kind=class vis=public flags=synthetic type=kotlin.UnsupportedOperationException
+symbol fq=kotlin.UnsupportedOperationException kind=class vis=public flags=synthetic|openType type=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>.message kind=valueParameter vis=private flags=synthetic
 file fexception_classes package=golden.sema
