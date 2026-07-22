@@ -185,7 +185,7 @@ final class ControlFlowTypeChecker {
         )
     }
 
-    /// Returns true when `type` is a subtype of `kotlin.collections.Iterator<Any>`,
+    /// Returns true when `type` is a subtype of `kotlin.collections.Iterator<*>`,
     /// meaning a `for-in` loop can iterate it directly using `hasNext()`/`next()`.
     private func isDirectIteratorType(
         _ type: TypeID,
@@ -202,7 +202,7 @@ final class ControlFlowTypeChecker {
         }
         let iteratorType = sema.types.make(.classType(ClassType(
             classSymbol: iteratorSymbol,
-            args: [.out(sema.types.anyType)],
+            args: [.star],
             nullability: .nonNull
         )))
         return sema.types.isSubtype(sema.types.makeNonNullable(type), iteratorType)

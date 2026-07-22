@@ -118,6 +118,43 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testBuildKIRUsesUserNullableIteratorSubtypeDirectly() throws {
+        let source = """
+        class NullableCounter(private val limit: Int) : Iterator<String?> {
+            private var count = 0
+            override operator fun hasNext(): Boolean = count < limit
+            override operator fun next(): String? {
+                val r = count
+                count++
+                return if (r % 2 == 0) "v$r" else null
+            }
+        }
+
+        fun sumAll(): Int {
+            var sum = 0
+            for (i in NullableCounter(3)) {
+                if (i != null) { sum += i.length }
+            }
+            return sum
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
+            #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
+            #expect(!(callees.contains("kk_range_iterator")), "User nullable Iterator loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!(callees.contains("kk_range_hasNext")), "User nullable Iterator loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!(callees.contains("kk_range_next")), "User nullable Iterator loop should not use kk_range_next, got: \(callees)")
+        }
+    }
+
     @Test func testBuildKIRUsesUserIterableSubtypeIterator() throws {
         let source = """
         class Counter(private val limit: Int) : Iterator<Int> {
