@@ -10,7 +10,7 @@ symbol fq=kotlin.collections.listOf#0 kind=function vis=public flags=synthetic s
 symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
 symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fstring_slice_iterable package=golden.sema
   decl golden.sema.useListSliceEmptyExplicitType fun useListSliceEmptyExplicitType sym=golden.sema.useListSliceEmptyExplicitType
   decl golden.sema.useListSliceListOf fun useListSliceListOf sym=golden.sema.useListSliceListOf
   decl golden.sema.useListSliceRange fun useListSliceRange sym=golden.sema.useListSliceRange

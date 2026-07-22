@@ -110,48 +110,9 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
-    private static let excludedBundledStdlibFiles: Set<String> = [
-        // KSP-305: the source file exists but collection-factory lowering is not wired yet.
-        "kotlin/collections/CollectionFactories",
-        // KSP-312: the source file exists but range iterator lowering is not wired yet.
-        "kotlin/ranges/RangeIterators",
-    ]
-
     private func injectBundledStdlib(into sourceManager: SourceManager) {
-        guard let resourcePath = Bundle.module.resourcePath else { return }
-        let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(atPath: stdlibDir) else { return }
-
-        var relativePaths: [String] = []
-        while let path = enumerator.nextObject() as? String {
-            if path.hasSuffix(".kt") {
-                relativePaths.append(String(path.dropLast(3)))
-            }
-        }
-        relativePaths.sort()
-
-        var bundledSources: [(path: String, contents: Data)] = []
-        for relativePath in relativePaths {
-            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
-            let bundledPath = "__bundled_\(relativePath).kt"
-            guard !sourceManager.containsFile(path: bundledPath) else { continue }
-            let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
-            guard let data = fm.contents(atPath: fullPath) else { continue }
-            bundledSources.append((path: bundledPath, contents: data))
-        }
-
-        let residualSources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
-            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
-            ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
-        ]
-        for (path, source) in residualSources {
-            guard !sourceManager.containsFile(path: path) else { continue }
-            bundledSources.append((path: path, contents: Data(source.utf8)))
-        }
-
-        for source in bundledSources.sorted(by: { $0.path < $1.path }) {
+        for source in BundledKotlinStdlib.bundledStdlibSources() {
+            guard !sourceManager.containsFile(path: source.path) else { continue }
             _ = sourceManager.addFile(path: source.path, contents: source.contents)
         }
     }

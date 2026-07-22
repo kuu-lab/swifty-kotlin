@@ -8,7 +8,7 @@ symbol fq=golden.sema.useAppendVarargStrings kind=function vis=public flags=_ si
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
 symbol fq=kotlin.arrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.arrayOf.T] ret=kotlin.Array<kotlin.arrayOf.T> vararg=[1]
 symbol fq=kotlin.arrayOf.T kind=typeParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fstring_builder_append_vararg package=golden.sema
   decl golden.sema.useAppendVarargStrings fun useAppendVarargStrings sym=golden.sema.useAppendVarargStrings
   decl golden.sema.useAppendVarargAny fun useAppendVarargAny sym=golden.sema.useAppendVarargAny
   decl golden.sema.useAppendVarargSpread fun useAppendVarargSpread sym=golden.sema.useAppendVarargSpread

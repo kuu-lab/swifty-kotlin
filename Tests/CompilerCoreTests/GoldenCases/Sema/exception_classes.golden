@@ -45,7 +45,7 @@ symbol fq=kotlin.Throwable.stackTraceToString kind=function vis=public flags=syn
 symbol fq=kotlin.UnsupportedOperationException kind=class vis=public flags=synthetic type=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fexception_classes package=golden.sema
   decl golden.sema.catchIllegalArgument fun catchIllegalArgument sym=golden.sema.catchIllegalArgument
   decl golden.sema.catchIllegalState fun catchIllegalState sym=golden.sema.catchIllegalState
   decl golden.sema.catchIndexOutOfBounds fun catchIndexOutOfBounds sym=golden.sema.catchIndexOutOfBounds

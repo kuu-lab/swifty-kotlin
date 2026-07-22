@@ -22,7 +22,7 @@ symbol fq=stringCompareLe.$6.b kind=valueParameter vis=private flags=_
 symbol fq=stringCompareLt kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=Boolean
 symbol fq=stringCompareLt.$7.a kind=valueParameter vis=private flags=_
 symbol fq=stringCompareLt.$7.b kind=valueParameter vis=private flags=_
-file f0 package=_
+file fcompareto_desugaring package=_
   decl Temperature class Temperature sym=Temperature
   decl stringCompareLt fun stringCompareLt sym=stringCompareLt
   decl stringCompareGe fun stringCompareGe sym=stringCompareGe

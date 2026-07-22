@@ -6,7 +6,7 @@ symbol fq=__local_4.e kind=local vis=private flags=_ type=ULong
 symbol fq=__local_5.f kind=local vis=private flags=_ type=ULong
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomUnsigned kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_unsigned package=_
   decl useRandomUnsigned fun useRandomUnsigned sym=useRandomUnsigned
 expr e@4:13 name(Random) type=kotlin.random.Random.Default ref=kotlin.random.Random
 expr e@4:13#1 memberCall recv=e@4:13 callee=nextUInt args=[] type=UInt call=kotlin.random.Random.Default.nextUInt#0

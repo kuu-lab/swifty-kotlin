@@ -2,7 +2,7 @@ symbol fq=golden.sema.suppressedCast kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.suppressedCast.$0.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.unsuppressedCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=golden.sema.unsuppressedCast.$1.x kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fsuppress_annotation package=golden.sema
   decl golden.sema.suppressedCast fun suppressedCast sym=golden.sema.suppressedCast
   decl golden.sema.unsuppressedCast fun unsuppressedCast sym=golden.sema.unsuppressedCast
 expr e@4:38 name(x) type=Any ref=golden.sema.suppressedCast.$0.x

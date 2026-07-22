@@ -7,7 +7,7 @@ symbol fq=golden.sema.useWith kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.useWithThis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fscope_functions package=golden.sema
   decl golden.sema.useLet fun useLet sym=golden.sema.useLet
   decl golden.sema.useRun fun useRun sym=golden.sema.useRun
   decl golden.sema.useRunWithThis fun useRunWithThis sym=golden.sema.useRunWithThis

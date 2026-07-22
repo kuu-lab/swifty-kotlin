@@ -324,12 +324,19 @@ extension DeclTypeChecker {
 
     // MARK: - Function Declaration Type Checking
 
+    /// - Parameter baseLocals: Seeds the function body's local-name resolution
+    ///   with bindings from an enclosing scope. Empty for ordinary member
+    ///   functions (a named class has no enclosing local scope to capture).
+    ///   Object-literal member functions pass the enclosing function's
+    ///   `locals` here so the body can resolve captured outer variables the
+    ///   same way lambda bodies do (KSP-CAP-001).
     func typeCheckFunctionDecl(
         _ function: FunDecl,
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
         guard let signature = sema.symbols.functionSignature(for: symbol) else {
@@ -344,7 +351,7 @@ extension DeclTypeChecker {
             return
         }
 
-        var locals: LocalBindings = [:]
+        var locals: LocalBindings = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             guard let param = sema.symbols.symbol(paramSymbol) else {
                 continue

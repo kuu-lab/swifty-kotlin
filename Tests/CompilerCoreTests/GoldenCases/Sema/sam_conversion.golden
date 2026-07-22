@@ -5,7 +5,7 @@ symbol fq=golden.sema.execute.$0.action kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.useSam kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fsam_conversion package=golden.sema
   decl golden.sema.Action interface Action sym=golden.sema.Action
   decl golden.sema.execute fun execute sym=golden.sema.execute
   decl golden.sema.useSam fun useSam sym=golden.sema.useSam

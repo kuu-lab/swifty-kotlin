@@ -14,18 +14,6 @@ func makeSema(
     return try XCTUnwrap(result)
 }
 
-func allExternalLinks(
-    fqPath: [String],
-    sema: SemaModule,
-    interner: StringInterner
-) -> Set<String> {
-    let interned = fqPath.map { interner.intern($0) }
-    return Set(
-        sema.symbols.lookupAll(fqName: interned)
-            .compactMap { sema.symbols.externalLinkName(for: $0) }
-    )
-}
-
 func memberCallExprIDs(
     named name: String,
     in ast: ASTModule,

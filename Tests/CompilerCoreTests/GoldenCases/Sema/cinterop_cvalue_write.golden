@@ -7,7 +7,7 @@ symbol fq=kotlinx.cinterop.CValue.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.CValue.write kind=function vis=public flags=synthetic|abstractType sig=recv=kotlinx.cinterop.CValue<kotlinx.cinterop.CValue.T> params=[kotlinx.cinterop.CValue.T] ret=Unit bounds=[kotlinx.cinterop.CVariable]
 symbol fq=kotlinx.cinterop.CValue.write.location kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.CValue.T
 symbol fq=kotlinx.cinterop.CVariable kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CVariable
-file f0 package=golden.sema
+file fcinterop_cvalue_write package=golden.sema
   decl golden.sema.applyValue fun applyValue sym=golden.sema.applyValue
 expr e@9:5 name(value) type=kotlinx.cinterop.CValue<golden.sema.applyValue.$0.T> ref=golden.sema.applyValue.$0.value
 expr e@9:17 name(location) type=golden.sema.applyValue.$0.T ref=golden.sema.applyValue.$0.location

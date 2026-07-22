@@ -18,7 +18,7 @@ symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic 
 symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file foverride_generic_covariant_return package=golden.sema
   decl golden.sema.ListProvider class ListProvider sym=golden.sema.ListProvider
   decl golden.sema.IntListProvider class IntListProvider sym=golden.sema.IntListProvider
   decl golden.sema.NumberHolder class NumberHolder sym=golden.sema.NumberHolder

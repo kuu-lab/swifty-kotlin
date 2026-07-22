@@ -37,16 +37,6 @@ func assertKotlinCompilesToKIR(
     }
 }
 
-/// Compile multiple Kotlin sources through the KIR dump phase and assert success.
-func assertKotlinSourcesToKIR(
-    _ sources: [String],
-    moduleName: String = "TestMod"
-) throws {
-    try withTemporaryFiles(contents: sources) { paths in
-        try assertKotlinInputsToKIR(inputs: paths, moduleName: moduleName)
-    }
-}
-
 private func assertKotlinInputsToKIR(
     inputs: [String],
     moduleName: String

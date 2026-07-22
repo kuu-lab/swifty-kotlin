@@ -1,6 +1,6 @@
 symbol fq=__local_0.x kind=local vis=private flags=_ type=Int
 symbol fq=useMeasureNanoTime kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
-file f0 package=_
+file fmeasure_nano_time package=_
   decl useMeasureNanoTime fun useMeasureNanoTime sym=useMeasureNanoTime
 expr e@4:13 int(1) type=Int
 expr e@4:17 int(2) type=Int

@@ -226,6 +226,13 @@ public final class DiagnosticEngine: @unchecked Sendable {
     public func note(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
     public func info(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
     public var hasError: Bool { get }
+    public var hasWarning: Bool { get }
+    public var hasNote: Bool { get }
+    public var hasInfo: Bool { get }
+    public var errorCount: Int { get }
+    public var warningCount: Int { get }
+    public var noteCount: Int { get }
+    public var infoCount: Int { get }
     public var count: Int { get }
 
     public func addSuppression(code: String, range: SourceRange)
