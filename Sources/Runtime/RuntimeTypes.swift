@@ -2111,15 +2111,11 @@ final class RuntimeInputStreamBox {
     private let data: Data
     private var offset: Int
     private var closed: Bool
-    private var markOffset: Int
-    private var markLimit: Int
 
     init(data: Data) {
         self.data = data
         self.offset = 0
         self.closed = false
-        self.markOffset = 0
-        self.markLimit = 0
     }
 
     func readByte() -> Int {
@@ -2328,11 +2324,6 @@ final class RuntimeOutputStreamBox {
     func close() {
         sink.close()
     }
-
-    /// Returns true if the underlying stream has been closed.
-    /// Note: after close() the sink handles the closed state internally;
-    /// writes on a closed sink are no-ops.
-    var isClosed: Bool { false }
 
     var underlyingFileHandle: FileHandle? {
         (sink as? RuntimeFileHandleOutputStreamSink)?.underlyingFileHandle
