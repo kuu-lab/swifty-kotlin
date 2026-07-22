@@ -328,15 +328,15 @@
 - [x] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
 - [x] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
 - [x] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
-- [x] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する
-- [x] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する
+- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する（CodegenBackendIntegrationTests+ArrayForLoopIteration.swift で使用中のため未完了）
+- [ ] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する
 - [x] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
 - [x] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
 - [x] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
 - [x] DEADCODE-TEST-040: [R0] `CompilerCoreTests/Integration/TestSupport/CompilationTestHelpers.swift:80` の `assertKotlinCompilesToObject(...)` を削除する
 - [x] DEADCODE-TEST-041: [R0] `CompilerCoreTests/Integration/TestSupport/SemaHelpers.swift:17` の `allExternalLinks(fqPath:sema:interner:)` を削除する（TEST-038 とは別 test module USR）
 
-> 2026-07-21 完了: 対象 41 項目を削除。`swift build`、CompilerCore の Lowering/AST/BigInteger/VirtualDispatch focused tests、Runtime の対象スイート（合計 519 tests）および CompilerBackendTests test target のビルドを確認済み。
+> 2026-07-21 完了: 対象 39 項目を削除（DEADCODE-TEST-035/036 は CompilerBackendTests 内で使用中のため復元）。`swift build`、CompilerCore の Lowering/AST/BigInteger/VirtualDispatch focused tests、Runtime の対象スイート（合計 519 tests）および CompilerBackendTests test target のビルドを確認済み。
 
 ---
 

@@ -74,3 +74,27 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try runToKIR(ctx)
     try LoweringPhase().run(ctx)
 }
+
+func makeContextFromSource(
+    _ source: String,
+    frontendFlags: [String] = []
+) -> CompilationContext {
+    let fakePath = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString + ".kt").path
+    let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
+    _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
+    return ctx
+}
+
+func makeContextFromSources(_ sources: [String]) -> CompilationContext {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+    let fakePaths = sources.indices.map { index in
+        tempDir.appendingPathComponent("input\(index).kt").path
+    }
+    let ctx = makeCompilationContext(inputs: fakePaths)
+    for (path, source) in zip(fakePaths, sources) {
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+    }
+    return ctx
+}
