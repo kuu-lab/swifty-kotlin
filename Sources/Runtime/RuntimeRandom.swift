@@ -73,18 +73,38 @@ final class SeededRandomBox {
 
 }
 
-// Compatibility helpers for native collection/range callers that still pass a
-// Random receiver as an opaque handle while the Kotlin Random implementation is
-// being migrated. These intentionally use system entropy for now.
+private let randomSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomSource")
+private let randomLongSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomLongSource")
+
+private typealias RandomNextIntFn = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RandomNextLongFn = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
 func runtimeRandomNextIntBelow(_ receiver: Int, _ until: Int) -> Int {
-    _ = receiver
-    return Int.random(in: 0 ..< until)
+    guard receiver != 0 else {
+        return Int.random(in: 0 ..< until)
+    }
+    let fnPtr = kk_itable_lookup_dynamic(receiver, Int(randomSourceInterfaceTypeID), 0)
+    guard fnPtr != 0 else {
+        return Int.random(in: 0 ..< until)
+    }
+    let fn = unsafeBitCast(fnPtr, to: RandomNextIntFn.self)
+    return fn(receiver, until, nil)
 }
 
 func runtimeRandomNextBits64(_ receiver: Int) -> UInt64 {
-    _ = receiver
-    var rng = SystemRandomNumberGenerator()
-    return rng.next()
+    guard receiver != 0 else {
+        var rng = SystemRandomNumberGenerator()
+        return rng.next()
+    }
+    let fnPtr = kk_itable_lookup_dynamic(receiver, Int(randomLongSourceInterfaceTypeID), 0)
+    guard fnPtr != 0 else {
+        var rng = SystemRandomNumberGenerator()
+        return rng.next()
+    }
+    let fn = unsafeBitCast(fnPtr, to: RandomNextLongFn.self)
+    let longHandle = fn(receiver, nil)
+    let longValue = kk_unbox_long(longHandle)
+    return UInt64(bitPattern: Int64(longValue))
 }
 
 @_cdecl("__kk_random_seed_entropy")
