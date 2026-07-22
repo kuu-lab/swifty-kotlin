@@ -293,8 +293,13 @@ final class ControlFlowTypeChecker {
             locals: &bodyLocals,
             expectedType: nil
         )
-        sema.bindings.bindExprType(id, type: sema.types.unitType)
-        return sema.types.unitType
+        let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast) {
+            sema.types.nothingType
+        } else {
+            sema.types.unitType
+        }
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     func inferDoWhileExpr(
@@ -340,8 +345,192 @@ final class ControlFlowTypeChecker {
                 locals[name] = (local.type, local.symbol, local.isMutable, true)
             }
         }
-        sema.bindings.bindExprType(id, type: sema.types.unitType)
-        return sema.types.unitType
+        let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast) {
+            sema.types.nothingType
+        } else {
+            sema.types.unitType
+        }
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    // MARK: - Infinite-loop helpers
+
+    /// Returns true if the condition expression is the boolean literal `true`.
+    private func isConstantTrueCondition(_ conditionExpr: ExprID, ast: ASTModule) -> Bool {
+        guard let expr = ast.arena.expr(conditionExpr) else { return false }
+        if case .boolLiteral(true, _) = expr { return true }
+        return false
+    }
+
+    /// Returns true if `exprID` contains a `break` whose target is the loop at
+    /// the bottom of `loopLabelStack` (index 0). The stack is ordered from the
+    /// loop being checked outwards, so nested loops are appended.
+    private func containsBreakTargetingCurrentLoop(
+        _ exprID: ExprID,
+        loopLabelStack: [InternedString?],
+        ast: ASTModule
+    ) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else { return false }
+        switch expr {
+        case .breakExpr(let label, _):
+            let targetIndex: Int
+            if let label {
+                if let idx = loopLabelStack.lastIndex(where: { $0 == label }) {
+                    targetIndex = idx
+                } else {
+                    return false
+                }
+            } else {
+                targetIndex = loopLabelStack.count - 1
+            }
+            return targetIndex == 0
+        case .continueExpr:
+            return false
+        case .forExpr(_, let iterable, let body, let label, _):
+            if containsBreakTargetingCurrentLoop(iterable, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            var nestedStack = loopLabelStack
+            nestedStack.append(label)
+            if containsBreakTargetingCurrentLoop(body, loopLabelStack: nestedStack, ast: ast) { return true }
+            return false
+        case .whileExpr(let condition, let body, let label, _):
+            var nestedStack = loopLabelStack
+            nestedStack.append(label)
+            if containsBreakTargetingCurrentLoop(condition, loopLabelStack: nestedStack, ast: ast) { return true }
+            if containsBreakTargetingCurrentLoop(body, loopLabelStack: nestedStack, ast: ast) { return true }
+            return false
+        case .doWhileExpr(let body, let condition, let label, _):
+            var nestedStack = loopLabelStack
+            nestedStack.append(label)
+            if containsBreakTargetingCurrentLoop(body, loopLabelStack: nestedStack, ast: ast) { return true }
+            if containsBreakTargetingCurrentLoop(condition, loopLabelStack: nestedStack, ast: ast) { return true }
+            return false
+        case .forDestructuringExpr(_, let iterable, let body, _):
+            if containsBreakTargetingCurrentLoop(iterable, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            var nestedStack = loopLabelStack
+            nestedStack.append(nil)
+            if containsBreakTargetingCurrentLoop(body, loopLabelStack: nestedStack, ast: ast) { return true }
+            return false
+        case .ifExpr(let condition, let thenExpr, let elseExpr, _):
+            if containsBreakTargetingCurrentLoop(condition, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            if containsBreakTargetingCurrentLoop(thenExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            if let elseExpr, containsBreakTargetingCurrentLoop(elseExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .whenExpr(let subject, let branches, let elseExpr, _):
+            if let subject, containsBreakTargetingCurrentLoop(subject, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for branch in branches {
+                for condition in branch.conditions {
+                    if containsBreakTargetingCurrentLoop(condition, loopLabelStack: loopLabelStack, ast: ast) { return true }
+                }
+                if let guardExpr = branch.guard_, containsBreakTargetingCurrentLoop(guardExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+                if containsBreakTargetingCurrentLoop(branch.body, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            if let elseExpr, containsBreakTargetingCurrentLoop(elseExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .tryExpr(let body, let catchClauses, let finallyExpr, _):
+            if containsBreakTargetingCurrentLoop(body, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for clause in catchClauses {
+                if containsBreakTargetingCurrentLoop(clause.body, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            if let finallyExpr, containsBreakTargetingCurrentLoop(finallyExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .blockExpr(let statements, let trailingExpr, _):
+            for statement in statements {
+                if containsBreakTargetingCurrentLoop(statement, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            if let trailingExpr, containsBreakTargetingCurrentLoop(trailingExpr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .returnExpr(let value, _, _):
+            if let value, containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .throwExpr(let value, _):
+            return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
+        case .localDecl(_, _, _, let initializer, _, _):
+            if let initializer, containsBreakTargetingCurrentLoop(initializer, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .localAssign(_, let value, _):
+            return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
+        case .memberAssign(let receiver, _, let value, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            if containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .indexedAssign(let receiver, let indices, let value, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for index in indices {
+                if containsBreakTargetingCurrentLoop(index, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            if containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .call(let callee, _, let args, _):
+            if containsBreakTargetingCurrentLoop(callee, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for arg in args {
+                if containsBreakTargetingCurrentLoop(arg.expr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            return false
+        case .memberCall(let receiver, _, _, let args, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for arg in args {
+                if containsBreakTargetingCurrentLoop(arg.expr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            return false
+        case .safeMemberCall(let receiver, _, _, let args, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for arg in args {
+                if containsBreakTargetingCurrentLoop(arg.expr, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            return false
+        case .indexedAccess(let receiver, let indices, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for index in indices {
+                if containsBreakTargetingCurrentLoop(index, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            return false
+        case .binary(_, let lhs, let rhs, _):
+            if containsBreakTargetingCurrentLoop(lhs, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            if containsBreakTargetingCurrentLoop(rhs, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return false
+        case .unaryExpr(_, let operand, _):
+            return containsBreakTargetingCurrentLoop(operand, loopLabelStack: loopLabelStack, ast: ast)
+        case .isCheck(let e, _, _, _):
+            return containsBreakTargetingCurrentLoop(e, loopLabelStack: loopLabelStack, ast: ast)
+        case .asCast(let e, _, _, _):
+            return containsBreakTargetingCurrentLoop(e, loopLabelStack: loopLabelStack, ast: ast)
+        case .nullAssert(let e, _):
+            return containsBreakTargetingCurrentLoop(e, loopLabelStack: loopLabelStack, ast: ast)
+        case .compoundAssign(_, _, let value, _):
+            return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
+        case .indexedCompoundAssign(_, let receiver, let indices, let value, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            for index in indices {
+                if containsBreakTargetingCurrentLoop(index, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            }
+            return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
+        case .memberCompoundAssign(_, let receiver, _, let value, _):
+            if containsBreakTargetingCurrentLoop(receiver, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
+        case .inExpr(let lhs, let rhs, _):
+            if containsBreakTargetingCurrentLoop(lhs, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return containsBreakTargetingCurrentLoop(rhs, loopLabelStack: loopLabelStack, ast: ast)
+        case .notInExpr(let lhs, let rhs, _):
+            if containsBreakTargetingCurrentLoop(lhs, loopLabelStack: loopLabelStack, ast: ast) { return true }
+            return containsBreakTargetingCurrentLoop(rhs, loopLabelStack: loopLabelStack, ast: ast)
+        case .destructuringDecl(_, _, let initializer, _):
+            return containsBreakTargetingCurrentLoop(initializer, loopLabelStack: loopLabelStack, ast: ast)
+        case .stringTemplate(let parts, _):
+            for part in parts {
+                if case .expression(let e) = part,
+                   containsBreakTargetingCurrentLoop(e, loopLabelStack: loopLabelStack, ast: ast) {
+                    return true
+                }
+            }
+            return false
+        case .lambdaLiteral, .localFunDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
+            return false
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
+            return false
+        @unknown default:
+            return false
+        }
     }
 
     func inferIfExpr(

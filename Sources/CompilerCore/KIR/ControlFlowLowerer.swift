@@ -668,7 +668,7 @@ final class ControlFlowLowerer {
     }
 
     func lowerWhileExpr(
-        _: ExprID,
+        _ id: ExprID,
         conditionExpr: ExprID,
         bodyExpr: ExprID,
         label: InternedString? = nil,
@@ -711,13 +711,14 @@ final class ControlFlowLowerer {
         instructions.append(.jump(continueLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        let resultType = sema.bindings.exprTypes[id] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
 
     func lowerDoWhileExpr(
-        _: ExprID,
+        _ id: ExprID,
         bodyExpr: ExprID,
         conditionExpr: ExprID,
         label: InternedString? = nil,
@@ -762,7 +763,8 @@ final class ControlFlowLowerer {
         instructions.append(.jump(bodyLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        let resultType = sema.bindings.exprTypes[id] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
