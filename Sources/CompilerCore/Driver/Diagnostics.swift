@@ -128,11 +128,15 @@ public final class DiagnosticEngine: @unchecked Sendable {
         ))
     }
 
-    public var hasError: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _diagnostics.contains(where: { $0.severity == .error })
-    }
+    public var hasError: Bool { hasDiagnostic { $0.severity == .error } }
+    public var hasWarning: Bool { hasDiagnostic { $0.severity == .warning } }
+    public var hasNote: Bool { hasDiagnostic { $0.severity == .note } }
+    public var hasInfo: Bool { hasDiagnostic { $0.severity == .info } }
+
+    public var errorCount: Int { countDiagnostics { $0.severity == .error } }
+    public var warningCount: Int { countDiagnostics { $0.severity == .warning } }
+    public var noteCount: Int { countDiagnostics { $0.severity == .note } }
+    public var infoCount: Int { countDiagnostics { $0.severity == .info } }
 
     /// Snapshot index for rolling back speculatively emitted diagnostics.
     public var count: Int {
@@ -197,6 +201,18 @@ public final class DiagnosticEngine: @unchecked Sendable {
             return "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
         }
         return "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+    }
+
+    private func hasDiagnostic(where predicate: (Diagnostic) -> Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.contains(where: predicate)
+    }
+
+    private func countDiagnostics(where predicate: (Diagnostic) -> Bool) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.filter(predicate).count
     }
 
     private func label(for severity: DiagnosticSeverity) -> String {

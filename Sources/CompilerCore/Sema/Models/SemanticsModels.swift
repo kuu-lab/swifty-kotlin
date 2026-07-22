@@ -1181,6 +1181,17 @@ public final class BindingTable {
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
+    /// KSP-CAP-001: outer local variables/parameters captured by an object
+    /// literal's member function bodies, keyed by the object literal's
+    /// synthesized class symbol. Populated during Sema so KIR lowering can
+    /// materialize each captured symbol as an instance field.
+    public private(set) var objectLiteralCaptureSymbolsByOwner: [SymbolID: [SymbolID]] = [:]
+    /// Static type of a captured local/parameter symbol at the point it was
+    /// captured, keyed by the captured symbol itself. `LocalBindings` (where
+    /// this type normally lives) is a Sema-only, transient structure, so KIR
+    /// lowering needs this durable side-channel to know what type to load a
+    /// captured field back as.
+    public private(set) var capturedLocalTypesBySymbol: [SymbolID: TypeID] = [:]
 
     public init() {}
 
@@ -1319,6 +1330,22 @@ public final class BindingTable {
 
     public func isObjectLiteralPropertySymbol(_ symbol: SymbolID) -> Bool {
         objectLiteralPropertySymbolIDs.contains(symbol)
+    }
+
+    public func bindObjectLiteralCaptureSymbols(_ owner: SymbolID, symbols: [SymbolID]) {
+        objectLiteralCaptureSymbolsByOwner[owner] = symbols
+    }
+
+    public func objectLiteralCaptureSymbols(for owner: SymbolID) -> [SymbolID] {
+        objectLiteralCaptureSymbolsByOwner[owner] ?? []
+    }
+
+    public func bindCapturedLocalType(_ symbol: SymbolID, type: TypeID) {
+        capturedLocalTypesBySymbol[symbol] = type
+    }
+
+    public func capturedLocalType(for symbol: SymbolID) -> TypeID? {
+        capturedLocalTypesBySymbol[symbol]
     }
 
     public func markCollectionSymbol(_ symbol: SymbolID) {

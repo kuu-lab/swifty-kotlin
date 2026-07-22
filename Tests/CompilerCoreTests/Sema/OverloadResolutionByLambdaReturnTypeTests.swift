@@ -105,14 +105,19 @@ struct OverloadResolutionByLambdaReturnTypeTests {
     // KNOWN GAP (DEBT-SEMA-001, migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
     // Neither candidate is annotated with @OverloadResolutionByLambdaReturnType, and the lambda body
     // only reads the implicit `it` parameter, so its shape can't be fixed before an overload is picked.
-    // kotlinc 2.4.0 rejects this:
+    // kotlinc 2.4.0 rejects this with a single, clean diagnostic:
     //   error: overload resolution ambiguity between candidates:
     //   fun process(block: (Int) -> String): String
     //   fun process(block: (String) -> Int): Int
     //   error: unresolved reference 'it'.
-    // kswiftc now reports an error for the unresolved call, though it still does not emit the exact
-    // KSWIFTK-SEMA-0003 ambiguity diagnostic. This test will fail once DEBT-SEMA-001 is fully fixed
-    // and the call resolves cleanly (or emits only the expected ambiguity diagnostic).
+    // kswiftc does not yet detect this as KSWIFTK-SEMA-0003 ambiguity (DEBT-SEMA-001). Before
+    // KSP-CAP-005 fixed a `propertyHeadTokens` bug that truncated top-level/member property
+    // initializers at their first trailing-lambda block, this top-level `val` initializer lost its
+    // `{ it }` argument during parsing, so `process` never actually got called and no diagnostics
+    // fired at all. Now that the call is parsed correctly, the ambiguity surfaces as an unresolved
+    // `it` reference plus a cascading "no viable overload" rather than kotlinc's single clean
+    // message — this pins that (still incorrect) current behavior so it fails once DEBT-SEMA-001
+    // teaches the checker to recognize the ambiguity directly instead of cascading.
     @Test func testImplicitItParameterOverloadAmbiguityIsNotYetDetected() {
         let source = """
         fun process(block: (Int) -> String) = block(1)
@@ -122,7 +127,18 @@ struct OverloadResolutionByLambdaReturnTypeTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        #expect(!ctx.diagnostics.diagnostics.isEmpty, "Expected unresolved overload diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).isEmpty,
+            "Expected no clean ambiguity diagnostic yet (DEBT-SEMA-001), got: \(ctx.diagnostics.diagnostics)"
+        )
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0022", in: ctx).count == 1,
+            "Expected the unresolved 'it' reference cascade, got: \(ctx.diagnostics.diagnostics)"
+        )
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0002", in: ctx).count == 1,
+            "Expected the no-viable-overload cascade, got: \(ctx.diagnostics.diagnostics)"
+        )
     }
 
     @Test func testCallableReferenceStillResolvesNormally() {
