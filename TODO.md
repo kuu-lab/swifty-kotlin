@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-22（KSP-CAP-003 完了: companion object をレシーバとする拡張関数のショートハンド呼び出し（`Foo.make()`）が `KSWIFTK-SEMA-0024` になる問題を実機再検証し、2026-07-09 の KSP-471 コミット（`576d945a9a`, #4609）で追加された companion-scoped extension フォールバックにより既に解決済みであることを確認。コンパイラ本体のロジック修正は不要で、回帰テストの追加と古いコメント（KSP-472 関連）の訂正のみ実施。詳細は KSP-CAP-003 本体の項目を参照）。それ以前 2026-07-17（DEADCODE-CORE-030 完了: `TypeInferenceContext.swift` の未使用 `with(enclosingClassSymbol:)` を削除。同日: DEADCODE-CORE-034 完了: `SyntheticStubSurfaceSpec.swift` の未参照 static `ubyte` 型参照定数を削除。同日: PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
+最終更新: 2026-07-22（DEADCODE-RUNTIME-020〜042 完了: Runtime の未参照 helper/property/typealias 群を削除。RUNTIME-024〜028 は監査記載どおりの単独削除ではビルドが壊れることが判明し、実際には既に呼び出し元だった `kk_random_nextInt_until` 等 11 個の死んだ native ラッパー関数（KSP-466 で ABI 表面から漏れていた）を洗い出して同時削除。RUNTIME-043〜045（`RuntimeRangeHOFKind.count(_:)` とその witness）は `kk_long_range_count`/`kk_range_count`/`kk_ulong_range_count`/`kk_uint_range_count` から直接呼ばれる live コードと判明したため未実施のまま据え置き — 2026-07-11〜12 監査の誤検出。同日 2026-07-22（KSP-CAP-003 完了: companion object をレシーバとする拡張関数のショートハンド呼び出し（`Foo.make()`）が `KSWIFTK-SEMA-0024` になる問題を実機再検証し、2026-07-09 の KSP-471 コミット（`576d945a9a`, #4609）で追加された companion-scoped extension フォールバックにより既に解決済みであることを確認。コンパイラ本体のロジック修正は不要で、回帰テストの追加と古いコメント（KSP-472 関連）の訂正のみ実施。詳細は KSP-CAP-003 本体の項目を参照）。それ以前 2026-07-17（DEADCODE-CORE-030 完了: `TypeInferenceContext.swift` の未使用 `with(enclosingClassSymbol:)` を削除。同日: DEADCODE-CORE-034 完了: `SyntheticStubSurfaceSpec.swift` の未参照 static `ubyte` 型参照定数を削除。同日: PR #4578 の CI 失敗調査で `launch{}` cancel-before-start レース（`kk_kxmini_launch`, `Sources/Runtime/RuntimeCoroutine.swift`）を確認、BUG-041 を追補。master 側の BUG-039/040（RuntimeTests CI の cross-suite GC race / exec引数長制限）とは無関係の別問題。それ以前: master CI 失敗調査で BUG-039 の暫定緩和(PR #4846, `SWIFT_TEST_PARALLEL=0`)が Linux exec() 引数長制限に抵触し `Full Swift Tests (RuntimeTests)` を落とし続けていたことを確認、BUG-040 を追補し CI 側を修正。それ以前 2026-07-16: master CI 失敗調査で BUG-023/024/028 が実際に master 上で発火していることを確認し、BUG-039 を追補。それ以前: 2026-07-13 dead-code 再監査と、オープンPR一括レビューで判明した Swift Testing 移行の変換不備を追補。BUG-020〜035 は canImport ガード不備、tearDown 消失系、`.serialized` 欠落系などを扱う）
 
 ---
 
@@ -258,32 +258,32 @@
 
 ### Runtime / RuntimeABI: Swift helper・property・typealias
 
-- [ ] DEADCODE-RUNTIME-020: [R0] `RuntimeCollectionHelpers.swift:676` の `runtimeInvokeCollectionLambda5(...)` を削除する
-- [ ] DEADCODE-RUNTIME-021: [D: RUNTIME-020] `RuntimeCollectionHelpers.swift:601` の `RuntimeCollectionLambda5` typealias を削除する
-- [ ] DEADCODE-RUNTIME-022: [R0] `RuntimeCoroutineContext.swift:569` の `dispatchQueue(for:)` を削除する。live dispatch は `runtimeResolveDispatcher(from:)` + `RuntimeDispatcher.queue`
-- [ ] DEADCODE-RUNTIME-023: [R0] `RuntimeReflection.swift:26` の private `runtimeReflectionStringRaw(_:)` を削除する
-- [ ] DEADCODE-RUNTIME-024: [R0] `RuntimeRandom.swift:46` の `SeededRandomBox.nextInt(bound:)` を削除する
-- [ ] DEADCODE-RUNTIME-025: [R0] `RuntimeRandom.swift:53` の `SeededRandomBox.nextIntRange(from:until:)` を削除する
-- [ ] DEADCODE-RUNTIME-026: [R0] `RuntimeRandom.swift:65` の `SeededRandomBox.nextDouble()` を削除する
-- [ ] DEADCODE-RUNTIME-027: [R0] `RuntimeRandom.swift:72` の `SeededRandomBox.nextFloat()` を削除する
-- [ ] DEADCODE-RUNTIME-028: [R0] `RuntimeRandom.swift:78` の `SeededRandomBox.nextBoolean()` を削除する。`SecureRandomBox` が使う `nextBits()` と test-only `nextFullInt()` は残す
-- [ ] DEADCODE-RUNTIME-029: [W0/effectless] `RuntimeCoroutine.swift:914` の `RuntimeJobHandle.setParent(_:)` と製品 5 + test 2 の call site を削除する。唯一の効果は unread `parentJob` への代入で、子キャンセルは `registerChild` が担う
-- [ ] DEADCODE-RUNTIME-030: [W0; 前提 RUNTIME-029] `RuntimeCoroutine.swift:865` の weak `RuntimeJobHandle.parentJob` を削除する
-- [ ] DEADCODE-RUNTIME-031: [R0] `RuntimeCoroutine.swift:1239` の `RuntimeCoroutineScope.setParent(_:)` を削除する。live パスは `scope.parent = ...` の直接代入
-- [ ] DEADCODE-RUNTIME-032: [R0] `RuntimeNativeAPI.swift:527` の `RuntimeCValuesBox.rawAddress` を削除する
-- [ ] DEADCODE-RUNTIME-033: [R0] `RuntimePath.swift:1867` の `RuntimeFileVisitorBox.onVisitFileFailedRaw` を削除する。setter/reader/stub/test は全て 0
-- [ ] DEADCODE-RUNTIME-034: [W0] `RuntimeTypes.swift:2102` の `RuntimeInputStreamBox.markOffset` と initializer 代入を削除する
-- [ ] DEADCODE-RUNTIME-035: [W0] `RuntimeTypes.swift:2103` の `RuntimeInputStreamBox.markLimit` と initializer 代入を削除する。`mark` は明示的 no-op、`reset` は常に false
-- [ ] DEADCODE-RUNTIME-036: [W0] `RuntimeMemory.swift:13` の `RuntimeMemorySnapshot.usedBytes` を削除する。同名 local は `totalBytes` 計算に必要なため残す
-- [ ] DEADCODE-RUNTIME-037: [W0] `RuntimeMemory.swift:17` の `RuntimeMemorySnapshot.heapObjectCount` を削除し、snapshot 作成時の GC-lock/count 計算も消す
-- [ ] DEADCODE-RUNTIME-038: [W0] `RuntimeMemory.swift:18` の `RuntimeMemorySnapshot.uptimeNanos` を削除し、`runtimeCaptureMemorySnapshot(nowNanos:)` の不要引数/default も整理する
-- [ ] DEADCODE-RUNTIME-039: [R0/public property] `RuntimeABISpec+Char.swift:3` の `RuntimeABISpec.charClassificationFunctions` を削除し、空になるファイルも削除する。内包 25 spec は全て `charFunctions` 等に重複登録済みで `allFunctions`/C header は不変
-- [ ] DEADCODE-RUNTIME-040: [R0] `RuntimeTypes.swift:2323` の `RuntimeOutputStreamBox.isClosed` を削除する。常に `false` を返す未参照 property
-- [ ] DEADCODE-RUNTIME-041: [R0] `RuntimeCoroutine.swift:788` の `RuntimeTaskHandle.awaitResultThrowing(outThrown:)` を削除する。suspend-aware/live な `awaitResult` 経路は残す
-- [ ] DEADCODE-RUNTIME-042: [R0 overload] `RuntimeStringFormat.swift:151` の private `runtimeFormatString(_:arguments: [Int], locale:)` を削除する。`[RuntimeValue]` overload は live
-- [ ] DEADCODE-RUNTIME-043: [R0 requirement] `RuntimeRangeSharedHOF.swift:12` の `RuntimeRangeHOFKind.count(_:)` protocol requirement を削除する
-- [ ] DEADCODE-RUNTIME-044: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:42` の `RuntimeSignedRangeHOFKind.count(_:)` witness を削除する
-- [ ] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する
+- [x] DEADCODE-RUNTIME-020: [R0] `RuntimeCollectionHelpers.swift:676` の `runtimeInvokeCollectionLambda5(...)` を削除する。2026-07-22 完了: 宣言以外の参照ゼロを再確認して削除
+- [x] DEADCODE-RUNTIME-021: [D: RUNTIME-020] `RuntimeCollectionHelpers.swift:601` の `RuntimeCollectionLambda5` typealias を削除する。2026-07-22 完了: RUNTIME-020 削除後に参照ゼロを確認して削除
+- [x] DEADCODE-RUNTIME-022: [R0] `RuntimeCoroutineContext.swift:569` の `dispatchQueue(for:)` を削除する。live dispatch は `runtimeResolveDispatcher(from:)` + `RuntimeDispatcher.queue`。2026-07-22 完了: 参照ゼロを確認して削除
+- [x] DEADCODE-RUNTIME-023: [R0] `RuntimeReflection.swift:26` の private `runtimeReflectionStringRaw(_:)` を削除する。2026-07-22 完了: 参照ゼロを確認して削除
+- [x] DEADCODE-RUNTIME-024: [R0] `RuntimeRandom.swift:46` の `SeededRandomBox.nextInt(bound:)` を削除する。2026-07-22 完了（要修正版で実施）: 監査記載と異なり `kk_random_nextInt_until`/`kk_random_nextLong_until` から実際に呼ばれていたため単独削除はビルドを破壊する状態だった。調査の結果、これらの呼び出し元自体が KSP-466（`RuntimeABISpec+Random.swift` のコメント参照）で ABI 表面から既に外れ、`@_cdecl` も無く外部参照ゼロの死んだラッパーだったと判明。RUNTIME-025〜028 分含め呼び出し元 11 関数（`kk_random_nextInt_until`/`_range`, `kk_random_nextLong_until`/`_range`, `kk_random_nextFloat`/`_until`/`_range`, `kk_random_nextDouble`/`_until`/`_range`, `kk_random_nextBoolean`）を同時に削除して整合。`nextFullInt()`/`nextBits()` は指示通り残置
+- [x] DEADCODE-RUNTIME-025: [R0] `RuntimeRandom.swift:53` の `SeededRandomBox.nextIntRange(from:until:)` を削除する。2026-07-22 完了: RUNTIME-024 と同じ理由で呼び出し元 `kk_random_nextInt_range`/`kk_random_nextLong_range` も同時削除
+- [x] DEADCODE-RUNTIME-026: [R0] `RuntimeRandom.swift:65` の `SeededRandomBox.nextDouble()` を削除する。2026-07-22 完了: 呼び出し元 `kk_random_nextDouble`/`_until`/`_range`（いずれも `@_cdecl` なし・外部参照ゼロの死んだラッパー）も同時削除
+- [x] DEADCODE-RUNTIME-027: [R0] `RuntimeRandom.swift:72` の `SeededRandomBox.nextFloat()` を削除する。2026-07-22 完了: 呼び出し元 `kk_random_nextFloat`/`_until`/`_range` も同時削除
+- [x] DEADCODE-RUNTIME-028: [R0] `RuntimeRandom.swift:78` の `SeededRandomBox.nextBoolean()` を削除する。`SecureRandomBox` が使う `nextBits()` と test-only `nextFullInt()` は残す。2026-07-22 完了: 呼び出し元 `kk_random_nextBoolean` も同時削除
+- [x] DEADCODE-RUNTIME-029: [W0/effectless] `RuntimeCoroutine.swift:914` の `RuntimeJobHandle.setParent(_:)` と製品 5 + test 2 の call site を削除する。唯一の効果は unread `parentJob` への代入で、子キャンセルは `registerChild` が担う。2026-07-22 完了: 記載通り製品5+test2箇所を削除
+- [x] DEADCODE-RUNTIME-030: [W0; 前提 RUNTIME-029] `RuntimeCoroutine.swift:865` の weak `RuntimeJobHandle.parentJob` を削除する。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-031: [R0] `RuntimeCoroutine.swift:1239` の `RuntimeCoroutineScope.setParent(_:)` を削除する。live パスは `scope.parent = ...` の直接代入。2026-07-22 完了: 参照ゼロを確認して削除
+- [x] DEADCODE-RUNTIME-032: [R0] `RuntimeNativeAPI.swift:527` の `RuntimeCValuesBox.rawAddress` を削除する。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-033: [R0] `RuntimePath.swift:1867` の `RuntimeFileVisitorBox.onVisitFileFailedRaw` を削除する。setter/reader/stub/test は全て 0。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-034: [W0] `RuntimeTypes.swift:2102` の `RuntimeInputStreamBox.markOffset` と initializer 代入を削除する。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-035: [W0] `RuntimeTypes.swift:2103` の `RuntimeInputStreamBox.markLimit` と initializer 代入を削除する。`mark` は明示的 no-op、`reset` は常に false。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-036: [W0] `RuntimeMemory.swift:13` の `RuntimeMemorySnapshot.usedBytes` を削除する。同名 local は `totalBytes` 計算に必要なため残す。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-037: [W0] `RuntimeMemory.swift:17` の `RuntimeMemorySnapshot.heapObjectCount` を削除し、snapshot 作成時の GC-lock/count 計算も消す。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-038: [W0] `RuntimeMemory.swift:18` の `RuntimeMemorySnapshot.uptimeNanos` を削除し、`runtimeCaptureMemorySnapshot(nowNanos:)` の不要引数/default も整理する。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-039: [R0/public property] `RuntimeABISpec+Char.swift:3` の `RuntimeABISpec.charClassificationFunctions` を削除し、空になるファイルも削除する。内包 25 spec は全て `charFunctions` 等に重複登録済みで `allFunctions`/C header は不変。2026-07-22 完了: 25 spec全件が `RuntimeABISpec+String.swift` の `stringFunctions`（`allFunctions` 登録済み）に重複していることを確認しファイルごと削除
+- [x] DEADCODE-RUNTIME-040: [R0] `RuntimeTypes.swift:2323` の `RuntimeOutputStreamBox.isClosed` を削除する。常に `false` を返す未参照 property。2026-07-22 完了
+- [x] DEADCODE-RUNTIME-041: [R0] `RuntimeCoroutine.swift:788` の `RuntimeTaskHandle.awaitResultThrowing(outThrown:)` を削除する。suspend-aware/live な `awaitResult` 経路は残す。2026-07-22 完了: 記載の型名 `RuntimeTaskHandle` は現行コードに存在せず、実体は `RuntimeAsyncTask`（行番号・シグネチャ・周辺コメントが完全一致のため同一対象と判断）。参照ゼロを確認して削除
+- [x] DEADCODE-RUNTIME-042: [R0 overload] `RuntimeStringFormat.swift:151` の private `runtimeFormatString(_:arguments: [Int], locale:)` を削除する。`[RuntimeValue]` overload は live。2026-07-22 完了
+- [ ] DEADCODE-RUNTIME-043: [R0 requirement] `RuntimeRangeSharedHOF.swift:12` の `RuntimeRangeHOFKind.count(_:)` protocol requirement を削除する。**2026-07-22 監査結果を否定・未実施**: `RuntimeSignedRangeHOFKind.count(_:)`/`RuntimeUnsignedRangeHOFKind.count(_:)` は `kk_long_range_count`/`kk_range_count`/`kk_ulong_range_count`/`kk_uint_range_count`（いずれも `@_cdecl` export 済み）から直接呼ばれている live コードであることを確認。削除すると該当 `@_cdecl` 関数がビルド不能になるため見送り。RUNTIME-044/045 も同様に見送り。元監査（2026-07-11〜12）がこの witness 呼び出しを見落としたと考えられる。要 `Scripts/dead_code_audit.sh` 側の再監査（DEADCODE-AUDIT-001 関連）
+- [ ] DEADCODE-RUNTIME-044: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:42` の `RuntimeSignedRangeHOFKind.count(_:)` witness を削除する。**2026-07-22 未実施**: `kk_long_range_count`/`kk_range_count` から直接呼ばれる live コード。RUNTIME-043 の注記参照
+- [ ] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する。**2026-07-22 未実施**: `kk_ulong_range_count`/`kk_uint_range_count` から直接呼ばれる live コード。RUNTIME-043 の注記参照
 
 ### LSPServer
 

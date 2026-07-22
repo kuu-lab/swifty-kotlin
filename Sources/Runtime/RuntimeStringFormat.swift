@@ -145,10 +145,6 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "c", "C",
 ]
 
-private func runtimeFormatString(_ template: String, arguments: [Int], locale: Locale? = nil) -> String {
-    runtimeFormatString(template, values: arguments.map { RuntimeValue(raw: $0) }, locale: locale)
-}
-
 private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
     let characters = Array(template)
     var cursor = 0
