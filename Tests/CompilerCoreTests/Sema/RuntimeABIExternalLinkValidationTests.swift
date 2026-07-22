@@ -73,6 +73,48 @@ struct RuntimeABIExternalLinkValidationTests {
         )
     }
 
+    @Test func testBundledKsSymbolNameDeclarationsMatchRuntimeABISignature() throws {
+        let annotatedDeclarations = try collectBundledKsSymbolNameDeclarations()
+        let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
+        var failures: [String] = []
+
+        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
+            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+                continue
+            }
+            let expectedParameterTypes = expectedRuntimeABIParameterTypes(for: declaration)
+            let expectedReturnType = expectedRuntimeABIReturnType(for: declaration)
+            for spec in specs {
+                let actualParameterTypes = spec.parameterTypeStrings
+                let coreActual: [String]
+                if spec.isThrowing,
+                   actualParameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue {
+                    coreActual = Array(actualParameterTypes.dropLast())
+                } else {
+                    coreActual = actualParameterTypes
+                }
+
+                if coreActual != expectedParameterTypes {
+                    failures.append(
+                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI parameter types [\(expectedParameterTypes.joined(separator: ", "))], but RuntimeABI spec has [\(actualParameterTypes.joined(separator: ", "))]"
+                    )
+                }
+                if let expectedReturnType, expectedReturnType != spec.returnTypeString {
+                    failures.append(
+                        "\(declaration.linkName) in \(declaration.relativePath) has expected ABI return type \(expectedReturnType), but RuntimeABI spec has \(spec.returnTypeString)"
+                    )
+                }
+            }
+        }
+
+        #expect(!annotatedDeclarations.isEmpty, "@KsSymbolName coverage should not be empty")
+        #expect(
+            failures.isEmpty,
+            Comment(rawValue: "Bundled @KsSymbolName declarations disagree with RuntimeABISpec: \(failures.joined(separator: "; "))")
+        )
+    }
+
     private var allowedCompilerExternalLinks: Set<String> {
         [
             "kk_for_lowered",
@@ -180,33 +222,50 @@ struct RuntimeABIExternalLinkValidationTests {
         return declarations
     }
 
+    private enum ScopeKind { case classLike, objectLike }
+
+    private struct ScopeEntry {
+        let depth: Int
+        let kind: ScopeKind
+    }
+
     private func bundledKsSymbolNameDeclarations(
         in source: String,
         relativePath: String
     ) -> [BundledKsSymbolNameDeclaration] {
         var declarations: [BundledKsSymbolNameDeclaration] = []
         var pendingLinkNames: [String] = []
-        var pendingDepth: Int?
+        var pendingScope: ScopeEntry?
         var braceDepth = 0
+        var scopeStack: [ScopeEntry] = []
         let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
         for (index, line) in lines.enumerated() {
+            let kind = scopeKind(for: line)
+            let delta = braceDelta(in: line)
+            if delta < 0, let top = scopeStack.last, top.depth == braceDepth {
+                scopeStack.removeLast()
+            }
+            braceDepth += delta
+            if let kind, delta > 0 {
+                scopeStack.append(ScopeEntry(depth: braceDepth, kind: kind))
+            }
+
             if let linkName = ksSymbolNameArgument(in: line) {
                 if pendingLinkNames.isEmpty {
-                    pendingDepth = braceDepth
+                    pendingScope = scopeStack.last
                 }
                 pendingLinkNames.append(linkName)
-                braceDepth += braceDelta(in: line)
                 continue
             }
+
             guard !pendingLinkNames.isEmpty,
                   let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
-                braceDepth += braceDelta(in: line)
                 continue
             }
-            let hasReceiver = (pendingDepth ?? 0) > 0 || functionHeaderHasExtensionReceiver(functionHeader)
+            let hasReceiver = (pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader)
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
@@ -222,8 +281,7 @@ struct RuntimeABIExternalLinkValidationTests {
                 )
             }
             pendingLinkNames.removeAll()
-            pendingDepth = nil
-            braceDepth += braceDelta(in: line)
+            pendingScope = nil
         }
 
         return declarations
@@ -409,6 +467,77 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         return delta
+    }
+
+    private func scopeKind(for line: String) -> ScopeKind? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*") else {
+            return nil
+        }
+        // class / interface / enum class / annotation class / sealed interface / fun interface
+        let classLikePattern = #"^\s*(?:(?:public|private|internal|protected|sealed|abstract|data|value|inline|open|final|expect|actual|enum|annotation|fun)\s+)*(?:class|interface)\b"#
+        // object / companion object / data object
+        let objectPattern = #"^\s*(?:(?:public|private|internal|protected|inline|companion|data)\s+)*(?:companion\s+)?object\b"#
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        if let regex = try? NSRegularExpression(pattern: classLikePattern),
+           regex.firstMatch(in: trimmed, range: range) != nil {
+            return .classLike
+        }
+        if let regex = try? NSRegularExpression(pattern: objectPattern),
+           regex.firstMatch(in: trimmed, range: range) != nil {
+            return .objectLike
+        }
+        return nil
+    }
+
+    private let flatStringParameterTypes: [String] = [
+        RuntimeABICType.nullableConstUInt8Pointer.rawValue,
+        RuntimeABICType.intptr.rawValue,
+        RuntimeABICType.intptr.rawValue,
+        RuntimeABICType.intptr.rawValue,
+    ]
+
+    private func expectedRuntimeABIParameterTypes(for declaration: BundledKsSymbolNameDeclaration) -> [String] {
+        let isFlat = declaration.linkName.hasSuffix("_flat")
+        var types: [String] = []
+        if declaration.hasReceiver {
+            if let receiverType = declaration.receiverType,
+               normalizedKotlinType(receiverType) == "String",
+               isFlat {
+                types.append(contentsOf: flatStringParameterTypes)
+            } else {
+                types.append(RuntimeABICType.intptr.rawValue)
+            }
+        }
+        for parameterType in declaration.valueParameterTypes {
+            types.append(contentsOf: expectedRuntimeABIParameterTypes(for: parameterType, isFlat: isFlat))
+        }
+        return types
+    }
+
+    private func expectedRuntimeABIParameterTypes(for kotlinType: String, isFlat: Bool) -> [String] {
+        let normalized = normalizedKotlinType(kotlinType)
+        if isFunctionType(normalized) {
+            return [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue]
+        }
+        if isFlat && normalized == "String" {
+            return flatStringParameterTypes
+        }
+        return [RuntimeABICType.intptr.rawValue]
+    }
+
+    private func expectedRuntimeABIReturnType(for declaration: BundledKsSymbolNameDeclaration) -> String? {
+        guard let returnType = declaration.returnType else { return nil }
+        let isFlat = declaration.linkName.hasSuffix("_flat")
+        let normalized = normalizedKotlinType(returnType)
+        if isFlat && normalized == "String" {
+            return RuntimeABICType.nullableUInt8Pointer.rawValue
+        }
+        return RuntimeABICType.intptr.rawValue
+    }
+
+    private func isFunctionType(_ type: String) -> Bool {
+        type.contains("->")
     }
 
     private func runtimeLinkNameLiterals(in source: String) -> Set<String> {

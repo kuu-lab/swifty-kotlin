@@ -449,7 +449,7 @@
 
 - [x] KSP-INF-001: `--no-stdlib` を実装する（`CLIParser.swift` でパースした `CompilerOptions.includeStdlib` に従って `LoadSourcesPhase.run` の bundled stdlib 注入を制御）。PR #4842 で分岐 + 動作テストを追加。完了: includeStdlib の読出実装 + `FrontendPhasesTests.testLoadSourcesRespectsIncludeStdlibOption` green
 - [ ] KSP-INF-002: bundled stdlib のフィンガープリントを `IncrementalCompilationCache` に含める（現状 `computeCurrentFingerprints` はユーザー入力のみ = bundled .kt 変更後も stale cache を再利用する正当性バグ）。`IncrementalBuildConfiguration` へ stdlib manifest hash を追加し、変更時は full rebuild に倒す
-- [ ] KSP-INF-003: @KsSymbolName ↔ RuntimeABISpec の**型署名**突合を enforcing にする（KSP-103 はアリティのみ検証で完了扱いになっていた。`docs/stdlib-pipeline.md` §6 の「型署名が一致する」要求を充足する後継タスク）
+- [ ] KSP-INF-003: @KsSymbolName ↔ RuntimeABISpec の**型署名**突合を enforcing にする（KSP-103 はアリティのみ検証で完了扱いになっていた。`docs/stdlib-pipeline.md` §6 の「型署名が一致する」要求を充足する後継タスク）対応PR: #4970、検証: `bash Scripts/validate_runtime_abi_links.sh` / `swift build` / `git diff --check` green
 - [ ] KSP-INF-004: `DiagnosticEngine` に severity 別集計（`hasWarning` 等）を追加し、「bundled stdlib 全体で診断ゼロ（warning 含む）」を横断 enforcing テスト化する（§8 の未実装要求）
 - [ ] KSP-INF-005: Sema golden の `file f<N>` 行を fileID 生値から安定キーへ置換し、bundled .kt 追加時の golden 差分をゼロにする（`GoldenHarnessDump.swift` の renderFile。symbol/expr は StableRenderContext で安定済み）。不変条件テスト「ダミー bundled 1件注入で golden ダンプがバイト同一」を追加。U 一括更新はこれを最後にする。完了: `rg 'fileID\.rawValue' Sources/GoldenHarnessSupport` 0件 + テスト green + G
 - [ ] KSP-INF-006: bundled .kt の自己完結実行テストハーネスを作る（.kt をコンパイル・実行し期待 stdout と比較。kotlinc 不要の第二 oracle。整備後、テンプレート T の手順7を必須化）
