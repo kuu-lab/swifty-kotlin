@@ -4,9 +4,9 @@ package kotlin.concurrent
 // AtomicInt / AtomicLong / AtomicReference API migrated to Kotlin source.
 // get/set/getAndSet delegate to load/store/exchange bridge members;
 // incrementAndGet/decrementAndGet/addAndGet delegate to the
-// incrementAndFetch/decrementAndFetch/addAndFetch bridge members
-// (while(true) CAS loops are deferred until the type-checker handles
-// Nothing-typed infinite loops in bundled source).
+// incrementAndFetch/decrementAndFetch/addAndFetch bridge members.
+// while(true) CAS loops are now supported by the type checker and can be
+// added here (KSP-CAP-004 / KSP-673).
 // Migration source: Sources/Runtime/RuntimeAtomic.swift
 //   kk_atomic_int_*/kk_atomic_long_*/kk_atomic_ref_*
 

@@ -81,6 +81,120 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    // BUG-013 / KSP-CAP-002: user-defined Iterator/Iterable should drive for-in
+    // lowering without silently falling back to range intrinsics.
+    @Test func testBuildKIRUsesUserIteratorSubtypeDirectly() throws {
+        let source = """
+        class Counter(private val limit: Int) : Iterator<Int> {
+            private var count = 0
+            override operator fun hasNext(): Boolean = count < limit
+            override operator fun next(): Int {
+                val r = count
+                count++
+                return r
+            }
+        }
+
+        fun sumAll(): Int {
+            var sum = 0
+            for (i in Counter(3)) { sum += i }
+            return sum
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
+            #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
+            #expect(!(callees.contains("kk_range_iterator")), "User Iterator loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!(callees.contains("kk_range_hasNext")), "User Iterator loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!(callees.contains("kk_range_next")), "User Iterator loop should not use kk_range_next, got: \(callees)")
+        }
+    }
+
+    @Test func testBuildKIRUsesUserNullableIteratorSubtypeDirectly() throws {
+        let source = """
+        class NullableCounter(private val limit: Int) : Iterator<String?> {
+            private var count = 0
+            override operator fun hasNext(): Boolean = count < limit
+            override operator fun next(): String? {
+                val r = count
+                count++
+                return if (r % 2 == 0) "v$r" else null
+            }
+        }
+
+        fun sumAll(): Int {
+            var sum = 0
+            for (i in NullableCounter(3)) {
+                if (i != null) { sum += i.length }
+            }
+            return sum
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
+            #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
+            #expect(!(callees.contains("kk_range_iterator")), "User nullable Iterator loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!(callees.contains("kk_range_hasNext")), "User nullable Iterator loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!(callees.contains("kk_range_next")), "User nullable Iterator loop should not use kk_range_next, got: \(callees)")
+        }
+    }
+
+    @Test func testBuildKIRUsesUserIterableSubtypeIterator() throws {
+        let source = """
+        class Counter(private val limit: Int) : Iterator<Int> {
+            private var count = 0
+            override operator fun hasNext(): Boolean = count < limit
+            override operator fun next(): Int {
+                val r = count
+                count++
+                return r
+            }
+        }
+
+        class CounterBag(private val limit: Int) : Iterable<Int> {
+            override operator fun iterator(): Iterator<Int> = Counter(limit)
+        }
+
+        fun sumAll(): Int {
+            var sum = 0
+            for (i in CounterBag(3)) { sum += i }
+            return sum
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("iterator"), "Expected custom iterator() call, got: \(callees)")
+            #expect(callees.contains("kk_iterator_hasNext"), "Expected generic kk_iterator_hasNext dispatch, got: \(callees)")
+            #expect(callees.contains("kk_iterator_next"), "Expected generic kk_iterator_next dispatch, got: \(callees)")
+            #expect(!(callees.contains("kk_range_iterator")), "User Iterable loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!(callees.contains("kk_range_hasNext")), "User Iterable loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!(callees.contains("kk_range_next")), "User Iterable loop should not use kk_range_next, got: \(callees)")
+        }
+    }
+
     @Test func testBuildKIRKeepsRangeMembershipOnRuntimePath() throws {
         let source = """
         fun usesIn(): Boolean = 5 in (1..10).step(2)
