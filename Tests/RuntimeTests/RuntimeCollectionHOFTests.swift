@@ -58,10 +58,6 @@ private let filterGreaterThanOne: @convention(c) (Int, Int, UnsafeMutablePointer
     value > 1 ? 1 : 0
 }
 
-private let filterEvenIndex: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, _, _ in
-    index.isMultiple(of: 2) ? 1 : 0
-}
-
 private let mapIndexedEvenIndexToValuePlusIndex: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
     index.isMultiple(of: 2) ? value + index : runtimeNullSentinelInt
 }

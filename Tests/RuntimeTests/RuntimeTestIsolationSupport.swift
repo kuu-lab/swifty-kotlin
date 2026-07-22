@@ -374,10 +374,7 @@ func durationFromMinutes(_ value: Int) -> Int { kk_duration_toDuration_int(value
 func durationFromHours(_ value: Int) -> Int { kk_duration_toDuration_int(value, 5) }
 func durationFromDays(_ value: Int) -> Int { kk_duration_toDuration_int(value, 6) }
 
-func durationFromNanosecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 0) }
 func durationFromMicrosecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 1) }
-func durationFromMillisecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 2) }
-func durationFromSecondsLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 3) }
 func durationFromMinutesLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 4) }
 func durationFromHoursLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 5) }
 func durationFromDaysLong(_ value: Int) -> Int { kk_duration_toDuration_long(value, 6) }

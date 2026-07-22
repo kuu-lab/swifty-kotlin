@@ -3,7 +3,7 @@ symbol fq=golden.sema.usePlatformType kind=function vis=public flags=_ sig=recv=
 symbol fq=golden.sema.usePlatformType.$0.v kind=valueParameter vis=private flags=_
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fplatform_type package=golden.sema
   decl golden.sema.usePlatformType fun usePlatformType sym=golden.sema.usePlatformType
 expr e@7:20 name(v) type=String ref=golden.sema.usePlatformType.$0.v
 expr e@7:20#1 memberCall recv=e@7:20 callee=length args=[] type=Int call=kotlin.length.$get

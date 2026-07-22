@@ -1236,38 +1236,56 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testReplaceIndentByMarginResolvesInCallExpressions() throws {
-        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
-        // Verify it resolves to a valid callee without checking a C ABI link name.
+    @Test func testStringIndentFormatMembersResolveAsSourceBackedCalls() throws {
+        // KSP-302: indent-format APIs are bundled Kotlin functions, not C ABI calls.
         let source = """
-        fun replaceIndentByMarginDefault(value: String): String {
-            return value.replaceIndentByMargin()
-        }
-
-        fun replaceIndentByMarginNewIndent(value: String): String {
-            return value.replaceIndentByMargin(">")
-        }
-
-        fun replaceIndentByMarginFull(value: String): String {
-            return value.replaceIndentByMargin(">", "|")
+        fun formatIndent(value: String): String {
+            val a = value.trimIndent()
+            val b = value.trimMargin()
+            val c = value.trimMargin("|")
+            val d = value.prependIndent()
+            val e = value.prependIndent(">")
+            val f = value.replaceIndent()
+            val g = value.replaceIndent(">")
+            val h = value.replaceIndentByMargin()
+            val i = value.replaceIndentByMargin(">")
+            val j = value.replaceIndentByMargin(">", "|")
+            return a + b + c + d + e + f + g + h + i + j
         }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError), "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
+            #expect(!(ctx.diagnostics.hasError), "indent-format members should resolve: \(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "replaceIndentByMargin"
-            }
-            #expect(callExprs.count == 3)
-            for callExpr in callExprs {
-                #expect(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee != nil,
-                    "Expected call binding for replaceIndentByMargin"
-                )
+            let expectedCounts = [
+                "trimIndent": 1,
+                "trimMargin": 2,
+                "prependIndent": 2,
+                "replaceIndent": 2,
+                "replaceIndentByMargin": 3,
+            ]
+            for (memberName, expectedCount) in expectedCounts {
+                let callExprs = allExprIDs(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName
+                }
+                #expect(callExprs.count == expectedCount)
+                for callExpr in callExprs {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                        "Expected call binding for \(memberName)"
+                    )
+                    #expect(
+                        sema.symbols.symbol(chosenCallee)?.declSite != nil,
+                        "Expected String.\(memberName) to be backed by bundled Kotlin source"
+                    )
+                    #expect(
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected String.\(memberName) to have no C external link"
+                    )
+                }
             }
         }
     }

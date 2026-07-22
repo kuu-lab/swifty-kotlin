@@ -27,7 +27,7 @@ symbol fq=golden.sema.tryPartialCatchRethrow kind=function vis=public flags=_ si
 symbol fq=golden.sema.tryPartialCatchRethrow.$2.flag kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
 symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
-file f0 package=golden.sema
+file ftry_expression package=golden.sema
   decl golden.sema.Handled class Handled sym=golden.sema.Handled
   decl golden.sema.Unhandled class Unhandled sym=golden.sema.Unhandled
   decl golden.sema.tryCatchExpr fun tryCatchExpr sym=golden.sema.tryCatchExpr

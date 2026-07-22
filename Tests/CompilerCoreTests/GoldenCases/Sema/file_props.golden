@@ -9,7 +9,7 @@ symbol fq=java.io.File.path kind=property vis=public flags=synthetic type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file ffile_props package=_
   decl main fun main sym=main
 expr e@4:18 string(/tmp/golden_test.txt) type=String
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0

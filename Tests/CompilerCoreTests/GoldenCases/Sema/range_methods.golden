@@ -11,7 +11,7 @@ symbol fq=rangeFirst kind=function vis=public flags=_ sig=recv=_ params=[] ret=I
 symbol fq=rangeLast kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=rangeReversed kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
 symbol fq=rangeToList kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
-file f0 package=_
+file frange_methods package=_
   decl rangeFirst fun rangeFirst sym=rangeFirst
   decl rangeLast fun rangeLast sym=rangeLast
   decl rangeCount fun rangeCount sym=rangeCount

@@ -5,7 +5,7 @@ symbol fq=__local_3.c kind=local vis=private flags=_ type=Int
 symbol fq=__local_4.d kind=local vis=private flags=_ type=Int
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomNextBits kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_nextbits package=_
   decl useRandomNextBits fun useRandomNextBits sym=useRandomNextBits
 expr e@4:20 int(42) type=Int
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#0
