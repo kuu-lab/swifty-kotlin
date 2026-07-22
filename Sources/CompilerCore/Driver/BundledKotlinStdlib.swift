@@ -137,10 +137,23 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
 
 """
 
+    private static let _bundledStdlibSources: [(path: String, contents: Data)] = Self.collectBundledStdlibSources()
+
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
     /// and is used to compute the stdlib manifest hash for incremental builds.
     static func bundledStdlibSources() -> [(path: String, contents: Data)] {
+        _bundledStdlibSources
+    }
+
+    private static let _manifestHash: String = Self.stableFNV1a64Hex(for: _bundledStdlibSources)
+
+    /// Returns a stable hash of the bundled stdlib manifest.
+    static func manifestHash() -> String {
+        _manifestHash
+    }
+
+    private static func collectBundledStdlibSources() -> [(path: String, contents: Data)] {
         var bundledSources: [(path: String, contents: Data)] = []
 
         if let resourcePath = Bundle.module.resourcePath {
@@ -175,12 +188,6 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
         }
 
         return bundledSources.sorted(by: { $0.path < $1.path })
-    }
-
-    /// Returns a stable hash of the bundled stdlib manifest.
-    static func manifestHash() -> String {
-        let sources = bundledStdlibSources()
-        return Self.stableFNV1a64Hex(for: sources)
     }
 
     private static func stableFNV1a64Hex(for sources: [(path: String, contents: Data)]) -> String {
