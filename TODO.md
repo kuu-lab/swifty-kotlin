@@ -294,47 +294,49 @@
 
 > XCTest `test*`、Swift Testing `@Test` / `@Suite`、override / protocol witness は除外済み。以下は private/local の lexical scope または test module USR で caller 0 を確認したもののみ。
 
-- [ ] DEADCODE-TEST-001: [R0] `LoweringPassRegressionTests.swift:504` の private `runLowering(module:interner:moduleName:emit:sema:diagnostics:)` を削除する
-- [ ] DEADCODE-TEST-002: [R0] `ASTEquivalenceRegressionTests.swift:28` の private `isUserSourceRange(_:in:)` を削除する
-- [ ] DEADCODE-TEST-003: [R0] `RuntimeCharArithmeticTests.swift:11` の private `runtimeString(_:)` を削除する
-- [ ] DEADCODE-TEST-004: [R0] `RuntimeCharTests+EdgeCases.swift:20` の private `runtimeString(_:)` を削除する（TEST-003 とは別 USR）
-- [ ] DEADCODE-TEST-005: [R0] `RuntimeStringArrayTests.swift:3775` の private `assertStringValueList(...)` を削除する
-- [ ] DEADCODE-TEST-006: [R0] 同ファイル `:3859` の private `assertIndexedStringValue(...)` を削除する
-- [ ] DEADCODE-TEST-007: [R0] 同ファイル `:3881` の private `assertIndexedCharValue(...)` を削除する
-- [ ] DEADCODE-TEST-008: [R0] 同ファイル `:3903` の private `assertStringPairValue(...)` を削除する
-- [ ] DEADCODE-TEST-009: [R0/local] `RuntimeTestsParallel/NumericBitCountTests.swift:171` の local `assertSingleBitSet(...)` を削除する
-- [ ] DEADCODE-TEST-010: [R0] `RuntimeCollectionHOFTests.swift:60` の private `filterEvenIndex` C closure を削除する。`@convention(c)` だが export/unsafeBitCast/registration は 0
-- [ ] DEADCODE-TEST-011: [R0] `RuntimeComparatorTests.swift:34` の private `primitiveComparatorDescendingTrampoline` C closure を削除する
-- [ ] DEADCODE-TEST-012: [R0 case] `RuntimeFlowTests.swift:24` の private `RuntimeFlowTag.transform` case を削除する
-- [ ] DEADCODE-TEST-013: [R0 case] `RuntimeFlowTests.swift:25` の `RuntimeFlowTag.takeWhile` case を削除する
-- [ ] DEADCODE-TEST-014: [R0 case] `RuntimeFlowTests.swift:26` の `RuntimeFlowTag.dropWhile` case を削除する
-- [ ] DEADCODE-TEST-015: [R0 case] `RuntimeFlowTests.swift:27` の `RuntimeFlowTag.buffer` case を削除する
-- [ ] DEADCODE-TEST-016: [R0 case] `RuntimeFlowTests.swift:29` の `RuntimeFlowTag.flowOn` case を削除する。`RuntimeFlowTag(rawValue:)` の動的生成は 0
-- [ ] DEADCODE-TEST-017: [R0] `RuntimeStringArrayTests.swift:380` の private `flatStringReturnValue(_:other:using:)` を削除する
-- [ ] DEADCODE-TEST-018: [R0] 同ファイル `:413` の private `flatStringReturnValue(_:other:ignoreCase:using:)` を削除する
-- [ ] DEADCODE-TEST-019: [D: TEST-017] 同ファイル `:76` の private `RuntimeFlatStringReturnWithStringEntry` typealias を削除する
-- [ ] DEADCODE-TEST-020: [D: TEST-018] 同ファイル `:107` の private `RuntimeFlatStringReturnWithStringBoolEntry` typealias を削除する
-- [ ] DEADCODE-TEST-021: [R0] `RuntimeTestIsolationSupport.swift:210` の `durationFromNanosecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-022: [R0] 同ファイル `:212` の `durationFromMillisecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-023: [R0] 同ファイル `:213` の `durationFromSecondsLong(_:)` を削除する
-- [ ] DEADCODE-TEST-024: [R0] `BigIntegerSyntheticLinkTests.swift:8` の private `allExprIDs(in:where:)` を削除する
-- [ ] DEADCODE-TEST-025: [R0] `VirtualDispatchTests.swift:152` の `makeItableFixture()` を削除する
-- [ ] DEADCODE-TEST-026: [R0] `CompilerBackendTests/Integration/TestSupport/ASTHelpers.swift:5` の `topLevelFunction(named:in:interner:)` を削除する
-- [ ] DEADCODE-TEST-027: [R0] `CompilerBackendTests/Integration/TestSupport/Assertions.swift:25` の `assertDiagnosticCount(...)` を削除する
-- [ ] DEADCODE-TEST-028: [R0] `CompilerBackendTests/Integration/TestSupport/CompilationTestHelpers.swift:40` の `assertKotlinSourcesToKIR(...)` を削除する
-- [ ] DEADCODE-TEST-029: [R0] `CompilerBackendTests/Integration/TestSupport/Filesystem.swift:5` の `makeRange(file:start:end:)` を削除する
-- [ ] DEADCODE-TEST-030: [R0] 同ファイル `:12` の `makeToken(kind:file:start:end:leadingTrivia:trailingTrivia:)` を削除する
-- [ ] DEADCODE-TEST-031: [R0] `CompilerBackendTests/Integration/TestSupport/KIRAndLLVM.swift:6` の `typeTokenSymbolOffset` 定数を削除する
-- [ ] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
-- [ ] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
-- [ ] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
-- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する
+- [x] DEADCODE-TEST-001: [R0] `LoweringPassRegressionTests.swift:504` の private `runLowering(module:interner:moduleName:emit:sema:diagnostics:)` を削除する
+- [x] DEADCODE-TEST-002: [R0] `ASTEquivalenceRegressionTests.swift:28` の private `isUserSourceRange(_:in:)` を削除する
+- [x] DEADCODE-TEST-003: [R0] `RuntimeCharArithmeticTests.swift:11` の private `runtimeString(_:)` を削除する
+- [x] DEADCODE-TEST-004: [R0] `RuntimeCharTests+EdgeCases.swift:20` の private `runtimeString(_:)` を削除する（TEST-003 とは別 USR）
+- [x] DEADCODE-TEST-005: [R0] `RuntimeStringArrayTests.swift:3775` の private `assertStringValueList(...)` を削除する
+- [x] DEADCODE-TEST-006: [R0] 同ファイル `:3859` の private `assertIndexedStringValue(...)` を削除する
+- [x] DEADCODE-TEST-007: [R0] 同ファイル `:3881` の private `assertIndexedCharValue(...)` を削除する
+- [x] DEADCODE-TEST-008: [R0] 同ファイル `:3903` の private `assertStringPairValue(...)` を削除する
+- [x] DEADCODE-TEST-009: [R0/local] `RuntimeTestsParallel/NumericBitCountTests.swift:171` の local `assertSingleBitSet(...)` を削除する
+- [x] DEADCODE-TEST-010: [R0] `RuntimeCollectionHOFTests.swift:60` の private `filterEvenIndex` C closure を削除する。`@convention(c)` だが export/unsafeBitCast/registration は 0
+- [x] DEADCODE-TEST-011: [R0] `RuntimeComparatorTests.swift:34` の private `primitiveComparatorDescendingTrampoline` C closure を削除する
+- [x] DEADCODE-TEST-012: [R0 case] `RuntimeFlowTests.swift:24` の private `RuntimeFlowTag.transform` case を削除する
+- [x] DEADCODE-TEST-013: [R0 case] `RuntimeFlowTests.swift:25` の `RuntimeFlowTag.takeWhile` case を削除する
+- [x] DEADCODE-TEST-014: [R0 case] `RuntimeFlowTests.swift:26` の `RuntimeFlowTag.dropWhile` case を削除する
+- [x] DEADCODE-TEST-015: [R0 case] `RuntimeFlowTests.swift:27` の `RuntimeFlowTag.buffer` case を削除する
+- [x] DEADCODE-TEST-016: [R0 case] `RuntimeFlowTests.swift:29` の `RuntimeFlowTag.flowOn` case を削除する。`RuntimeFlowTag(rawValue:)` の動的生成は 0
+- [x] DEADCODE-TEST-017: [R0] `RuntimeStringArrayTests.swift:380` の private `flatStringReturnValue(_:other:using:)` を削除する
+- [x] DEADCODE-TEST-018: [R0] 同ファイル `:413` の private `flatStringReturnValue(_:other:ignoreCase:using:)` を削除する
+- [x] DEADCODE-TEST-019: [D: TEST-017] 同ファイル `:76` の private `RuntimeFlatStringReturnWithStringEntry` typealias を削除する
+- [x] DEADCODE-TEST-020: [D: TEST-018] 同ファイル `:107` の private `RuntimeFlatStringReturnWithStringBoolEntry` typealias を削除する
+- [x] DEADCODE-TEST-021: [R0] `RuntimeTestIsolationSupport.swift:210` の `durationFromNanosecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-022: [R0] 同ファイル `:212` の `durationFromMillisecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-023: [R0] 同ファイル `:213` の `durationFromSecondsLong(_:)` を削除する
+- [x] DEADCODE-TEST-024: [R0] `BigIntegerSyntheticLinkTests.swift:8` の private `allExprIDs(in:where:)` を削除する
+- [x] DEADCODE-TEST-025: [R0] `VirtualDispatchTests.swift:152` の `makeItableFixture()` を削除する
+- [x] DEADCODE-TEST-026: [R0] `CompilerBackendTests/Integration/TestSupport/ASTHelpers.swift:5` の `topLevelFunction(named:in:interner:)` を削除する
+- [x] DEADCODE-TEST-027: [R0] `CompilerBackendTests/Integration/TestSupport/Assertions.swift:25` の `assertDiagnosticCount(...)` を削除する
+- [x] DEADCODE-TEST-028: [R0] `CompilerBackendTests/Integration/TestSupport/CompilationTestHelpers.swift:40` の `assertKotlinSourcesToKIR(...)` を削除する
+- [x] DEADCODE-TEST-029: [R0] `CompilerBackendTests/Integration/TestSupport/Filesystem.swift:5` の `makeRange(file:start:end:)` を削除する
+- [x] DEADCODE-TEST-030: [R0] 同ファイル `:12` の `makeToken(kind:file:start:end:leadingTrivia:trailingTrivia:)` を削除する
+- [x] DEADCODE-TEST-031: [R0] `CompilerBackendTests/Integration/TestSupport/KIRAndLLVM.swift:6` の `typeTokenSymbolOffset` 定数を削除する
+- [x] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
+- [x] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
+- [x] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
+- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する（CodegenBackendIntegrationTests+ArrayForLoopIteration.swift で使用中のため未完了）
 - [ ] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する
-- [ ] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
-- [ ] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
-- [ ] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
-- [ ] DEADCODE-TEST-040: [R0] `CompilerCoreTests/Integration/TestSupport/CompilationTestHelpers.swift:80` の `assertKotlinCompilesToObject(...)` を削除する
-- [ ] DEADCODE-TEST-041: [R0] `CompilerCoreTests/Integration/TestSupport/SemaHelpers.swift:17` の `allExternalLinks(fqPath:sema:interner:)` を削除する（TEST-038 とは別 test module USR）
+- [x] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
+- [x] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
+- [x] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
+- [x] DEADCODE-TEST-040: [R0] `CompilerCoreTests/Integration/TestSupport/CompilationTestHelpers.swift:80` の `assertKotlinCompilesToObject(...)` を削除する
+- [x] DEADCODE-TEST-041: [R0] `CompilerCoreTests/Integration/TestSupport/SemaHelpers.swift:17` の `allExternalLinks(fqPath:sema:interner:)` を削除する（TEST-038 とは別 test module USR）
+
+> 2026-07-21 完了: 対象 39 項目を削除（DEADCODE-TEST-035/036 は CompilerBackendTests 内で使用中のため復元）。`swift build`、CompilerCore の Lowering/AST/BigInteger/VirtualDispatch focused tests、Runtime の対象スイート（合計 519 tests）および CompilerBackendTests test target のビルドを確認済み。
 
 ---
 
