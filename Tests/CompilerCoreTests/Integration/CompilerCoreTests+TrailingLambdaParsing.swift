@@ -304,5 +304,35 @@ extension CompilerCoreTests {
             return
         }
     }
+
+    // Regression for the Devin Review follow-up: semicolons inside the trailing
+    // lambda body must survive the top-level-semicolon stripping in
+    // declarationPropertyInitializer, otherwise multi-statement single-line
+    // lambda bodies collapse into one malformed statement.
+    @Test func testTopLevelPropertyTrailingLambdaPreservesInnerSemicolons() throws {
+        let source = """
+        fun apply(block: () -> Int): Int = block()
+        val topLevelValue = apply { val x = 42; x }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try #require(ctx.ast)
+        let property = try #require(topLevelProperty(named: "topLevelValue", in: ast, interner: ctx.interner))
+        let initializerID = try #require(property.initializer)
+        guard let initializerExpr = ast.arena.expr(initializerID),
+              case let .call(_, _, args, _) = initializerExpr
+        else {
+            Issue.record("Expected property initializer to parse as a call expression.")
+            return
+        }
+        #expect(args.count == 1)
+        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+              case .lambdaLiteral = lambdaExpr
+        else {
+            Issue.record("Expected trailing lambda argument.")
+            return
+        }
+    }
 }
 #endif

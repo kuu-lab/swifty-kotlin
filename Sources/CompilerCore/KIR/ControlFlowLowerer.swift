@@ -394,15 +394,22 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let iteratorID = arena.appendTemporary(type: loopBinding.iteratorType)
-        instructions.append(.call(
-            symbol: loopBinding.iteratorCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
-            arguments: [iterableID],
-            result: iteratorID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let iteratorID: KIRExprID
+        if let iteratorCall = loopBinding.iteratorCall {
+            let iteratorTemp = arena.appendTemporary(type: loopBinding.iteratorType)
+            instructions.append(.call(
+                symbol: iteratorCall.chosenCallee,
+                callee: resolvedLoopCallee(for: iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
+                arguments: [iterableID],
+                result: iteratorTemp,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            iteratorID = iteratorTemp
+        } else {
+            // The iterable value is itself an Iterator; no iterator() call is needed.
+            iteratorID = iterableID
+        }
 
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()
@@ -668,7 +675,7 @@ final class ControlFlowLowerer {
     }
 
     func lowerWhileExpr(
-        _: ExprID,
+        _ id: ExprID,
         conditionExpr: ExprID,
         bodyExpr: ExprID,
         label: InternedString? = nil,
@@ -711,13 +718,14 @@ final class ControlFlowLowerer {
         instructions.append(.jump(continueLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        let resultType = sema.bindings.exprTypes[id] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
 
     func lowerDoWhileExpr(
-        _: ExprID,
+        _ id: ExprID,
         bodyExpr: ExprID,
         conditionExpr: ExprID,
         label: InternedString? = nil,
@@ -762,7 +770,8 @@ final class ControlFlowLowerer {
         instructions.append(.jump(bodyLabel))
         instructions.append(.label(breakLabel))
 
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        let resultType = sema.bindings.exprTypes[id] ?? sema.types.unitType
+        let unit = arena.appendExpr(.unit, type: resultType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
     }
@@ -1740,15 +1749,22 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let iteratorID = arena.appendTemporary(type: loopBinding.iteratorType)
-        instructions.append(.call(
-            symbol: loopBinding.iteratorCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
-            arguments: [iterableID],
-            result: iteratorID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let iteratorID: KIRExprID
+        if let iteratorCall = loopBinding.iteratorCall {
+            let iteratorTemp = arena.appendTemporary(type: loopBinding.iteratorType)
+            instructions.append(.call(
+                symbol: iteratorCall.chosenCallee,
+                callee: resolvedLoopCallee(for: iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
+                arguments: [iterableID],
+                result: iteratorTemp,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            iteratorID = iteratorTemp
+        } else {
+            // The iterable value is itself an Iterator; no iterator() call is needed.
+            iteratorID = iterableID
+        }
 
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()

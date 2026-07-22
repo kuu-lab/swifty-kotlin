@@ -10,7 +10,7 @@ symbol fq=golden.sema.ListProvider kind=class vis=public flags=openType
 symbol fq=golden.sema.ListProvider.$class0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.NumberHolder kind=class vis=public flags=openType
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic type=kotlin.RuntimeException
+symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic|openType type=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.RuntimeException
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic

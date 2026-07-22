@@ -137,7 +137,89 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
 
 """
 
-    private static let _bundledStdlibSources: [(path: String, contents: Data)] = Self.collectBundledStdlibSources()
+    /// Errors that can occur while loading bundled stdlib sources from the
+    /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
+    /// diagnostics by `LoadSourcesPhase.injectBundledStdlib`.
+    internal enum LoadError: Error, CustomStringConvertible {
+        case resourcePathMissing
+        case resourceDirectoryMissing(path: String)
+        case enumerationFailed(path: String)
+        case readFailed(path: String)
+
+        var description: String {
+            switch self {
+            case .resourcePathMissing:
+                return "Bundled stdlib resources are missing: resource path is not available."
+            case .resourceDirectoryMissing(let path):
+                return "Bundled stdlib resource directory not found: \(path)"
+            case .enumerationFailed(let path):
+                return "Failed to enumerate bundled stdlib resources at \(path)."
+            case .readFailed(let path):
+                return "Failed to read bundled stdlib source: \(path)"
+            }
+        }
+    }
+
+    private static func residualBundledStdlibSources() -> [(path: String, contents: Data)] {
+        let residualSources: [(path: String, source: String)] = [
+            ("__bundled_kotlin_collections_stdlib.kt", Self.kotlinCollectionsSource),
+            ("__bundled_kotlin_text_stdlib.kt", Self.kotlinTextSource),
+            ("__bundled_kotlin_sequences_stdlib.kt", Self.kotlinSequencesSource),
+        ]
+        return residualSources.map { (path, source) in
+            (path: path, contents: Data(source.utf8))
+        }
+    }
+
+    /// Collects bundled stdlib `.kt` sources from `resourcePath/Stdlib`, plus
+    /// the residual inline sources. Throws `LoadError` when the resource path
+    /// is missing, the `Stdlib` directory cannot be enumerated, or a `.kt` file
+    /// cannot be read.
+    internal static func collectBundledStdlibSources(
+        resourcePath: String? = Bundle.module.resourcePath
+    ) throws -> [(path: String, contents: Data)] {
+        guard let resourcePath else {
+            throw LoadError.resourcePathMissing
+        }
+
+        let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
+        let fm = FileManager.default
+
+        var isDirectory: ObjCBool = false
+        let dirExists = fm.fileExists(atPath: stdlibDir, isDirectory: &isDirectory) && isDirectory.boolValue
+        guard dirExists else {
+            throw LoadError.resourceDirectoryMissing(path: stdlibDir)
+        }
+
+        guard let enumerator = fm.enumerator(atPath: stdlibDir) else {
+            throw LoadError.enumerationFailed(path: stdlibDir)
+        }
+
+        var relativePaths: [String] = []
+        while let path = enumerator.nextObject() as? String {
+            if path.hasSuffix(".kt") {
+                relativePaths.append(String(path.dropLast(3)))
+            }
+        }
+        relativePaths.sort()
+
+        var bundledSources: [(path: String, contents: Data)] = []
+        for relativePath in relativePaths {
+            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
+            let bundledPath = "__bundled_\(relativePath).kt"
+            let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
+            guard let data = fm.contents(atPath: fullPath) else {
+                throw LoadError.readFailed(path: fullPath)
+            }
+            bundledSources.append((path: bundledPath, contents: data))
+        }
+
+        bundledSources.append(contentsOf: Self.residualBundledStdlibSources())
+        return bundledSources.sorted(by: { $0.path < $1.path })
+    }
+
+    private static let _bundledStdlibSources: [(path: String, contents: Data)] =
+        (try? Self.collectBundledStdlibSources()) ?? Self.residualBundledStdlibSources()
 
     /// Returns all bundled stdlib sources as (virtualPath, contents) pairs in a
     /// deterministic order. This matches the sources injected by `LoadSourcesPhase`
@@ -151,43 +233,6 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
     /// Returns a stable hash of the bundled stdlib manifest.
     static func manifestHash() -> String {
         _manifestHash
-    }
-
-    private static func collectBundledStdlibSources() -> [(path: String, contents: Data)] {
-        var bundledSources: [(path: String, contents: Data)] = []
-
-        if let resourcePath = Bundle.module.resourcePath {
-            let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
-            let fm = FileManager.default
-            if let enumerator = fm.enumerator(atPath: stdlibDir) {
-                var relativePaths: [String] = []
-                while let path = enumerator.nextObject() as? String {
-                    if path.hasSuffix(".kt") {
-                        relativePaths.append(String(path.dropLast(3)))
-                    }
-                }
-                relativePaths.sort()
-
-                for relativePath in relativePaths {
-                    guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
-                    let bundledPath = "__bundled_\(relativePath).kt"
-                    let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
-                    guard let data = fm.contents(atPath: fullPath) else { continue }
-                    bundledSources.append((path: bundledPath, contents: data))
-                }
-            }
-        }
-
-        let residualSources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_collections_stdlib.kt", Self.kotlinCollectionsSource),
-            ("__bundled_kotlin_text_stdlib.kt", Self.kotlinTextSource),
-            ("__bundled_kotlin_sequences_stdlib.kt", Self.kotlinSequencesSource),
-        ]
-        for (path, source) in residualSources {
-            bundledSources.append((path: path, contents: Data(source.utf8)))
-        }
-
-        return bundledSources.sorted(by: { $0.path < $1.path })
     }
 
     private static func stableFNV1a64Hex(for sources: [(path: String, contents: Data)]) -> String {
