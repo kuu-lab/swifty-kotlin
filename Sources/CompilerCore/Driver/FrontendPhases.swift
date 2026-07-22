@@ -111,11 +111,10 @@ final class LoadSourcesPhase: CompilerPhase {
     }
 
     private static let excludedBundledStdlibFiles: Set<String> = [
-        "kotlin/ResultExtensions",
+        // KSP-305: the source file exists but collection-factory lowering is not wired yet.
         "kotlin/collections/CollectionFactories",
-        "kotlin/logging/AdvancedLogger",
+        // KSP-312: the source file exists but range iterator lowering is not wired yet.
         "kotlin/ranges/RangeIterators",
-        "kotlin/reflect/KClassAnnotationRegistration",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {
