@@ -448,12 +448,6 @@ enum MemberRuntimeDispatch {
                 canThrow: true,
                 argumentMode: .normalized
             )
-        case ("takeWhile", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeWhile_flat", argumentMode: .normalized)
-        case ("takeLastWhile", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeLastWhile_flat", argumentMode: .normalized)
-        case ("dropWhile", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_dropWhile_flat", argumentMode: .normalized)
         case ("find", 1):
             return MemberRuntimeCallSpec(
                 runtimeLinkName: "kk_string_find_flat",
@@ -481,14 +475,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
-        case ("take", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_take_flat", canThrow: true)
-        case ("drop", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_drop_flat", canThrow: true)
-        case ("takeLast", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_takeLast_flat", canThrow: true)
-        case ("dropLast", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_dropLast_flat", canThrow: true)
         case ("removeRange", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_range_flat", canThrow: true)
         case ("toCollection", 1):

@@ -1867,12 +1867,6 @@ extension CallLowerer {
                     ("kk_string_indexOfFirst_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
                     ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "takeWhile":
-                    ("kk_string_takeWhile_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "takeLastWhile":
-                    ("kk_string_takeLastWhile_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "dropWhile":
-                    ("kk_string_dropWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
                     ("kk_string_find_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
@@ -1884,14 +1878,6 @@ extension CallLowerer {
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
 
-                case "take":
-                    ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "drop":
-                    ("kk_string_drop_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "takeLast":
-                    ("kk_string_takeLast_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "dropLast":
-                    ("kk_string_dropLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
@@ -1904,10 +1890,6 @@ extension CallLowerer {
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                        || calleeStr == "take"
-                        || calleeStr == "drop"
-                        || calleeStr == "takeLast"
-                        || calleeStr == "dropLast"
                     // Only `partition` captures the thrown result into a register so the
                     // caller can inspect it.  All other HOFs propagate exceptions through
                     // the standard thrown-channel codegen path (thrownResult == nil),

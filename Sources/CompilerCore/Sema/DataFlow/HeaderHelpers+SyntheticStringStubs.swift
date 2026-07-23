@@ -1029,57 +1029,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "drop",
-            externalLinkName: "kk_string_drop_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "take",
-            externalLinkName: "kk_string_take_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "dropLast",
-            externalLinkName: "kk_string_dropLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "takeLast",
-            externalLinkName: "kk_string_takeLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+        // (StringTakeDrop.kt).
 
         // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin
         // source (StringPrefixSuffix.kt).
@@ -2201,37 +2152,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "takeWhile",
-            externalLinkName: "kk_string_takeWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-TEXT-FN-081: CharSequence.takeLastWhile(predicate: (Char) -> Boolean): String ---
-        registerSyntheticStringExtensionFunction(
-            named: "takeLastWhile",
-            externalLinkName: "kk_string_takeLastWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "dropWhile",
-            externalLinkName: "kk_string_dropWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
+        // (StringTakeDrop.kt).
         // --- STDLIB-TEXT-FN-039: String.onEach(action: (Char) -> Unit): String ---
         let charToUnitType = types.make(.functionType(FunctionType(
             params: [charType],

@@ -427,70 +427,8 @@ public extension RuntimeABISpec {
             delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
             trailingStringPrefixes: ["replacement", "missing"]
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_take_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "nRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_takeLast_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "nRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_drop_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "nRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_dropLast_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "nRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
+        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+        // (StringTakeDrop.kt); their flat ABI entries were removed.
         RuntimeABIFunctionSpec(
             name: "kk_string_compareTo_flat",
             parameters: [
@@ -2697,9 +2635,8 @@ public extension RuntimeABISpec {
         ),
         flatStringHOFReturnSpec(name: "kk_string_filterIndexed_flat"),
         flatStringHOFReturnSpec(name: "kk_string_filterNot_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_takeWhile_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_takeLastWhile_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_dropWhile_flat"),
+        // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
+        // (StringTakeDrop.kt); their flat ABI entries were removed.
         RuntimeABIFunctionSpec(
             name: "__kk_string_splitToSequence",
             parameters: [

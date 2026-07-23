@@ -730,75 +730,11 @@ public func kk_string_replaceFirstChar(
     return runtimeMakeStringRaw(String(rebuilt))
 }
 
-@_cdecl("kk_string_take")
-public func kk_string_take(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw("")
-    }
-    guard nRaw < scalars.count else {
-        return runtimeMakeStringRaw(source)
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< nRaw]))
-}
+// KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+// (StringTakeDrop.kt); their runtime bridges were removed.
 
 // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source
 // (StringPrefixSuffix.kt); their runtime bridges were removed.
-
-@_cdecl("kk_string_takeLast")
-public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw("")
-    }
-    let start = max(0, scalars.count - nRaw)
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[start ..< scalars.count]))
-}
-
-@_cdecl("kk_string_drop")
-public func kk_string_drop(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw(source)
-    }
-    if nRaw >= scalars.count {
-        return runtimeMakeStringRaw("")
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[nRaw ..< scalars.count]))
-}
-
-@_cdecl("kk_string_dropLast")
-public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Requested element count \(nRaw) is less than zero."))
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw(source)
-    }
-    let end = max(0, scalars.count - nRaw)
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< end]))
-}
 
 // KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt);
 // their runtime bridges were removed.
