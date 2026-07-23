@@ -787,22 +787,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         }
     }
 
-    /// Await the result and propagate any exception (CORO-071: exception-aware await).
-    /// Writes the thrown exception (if any) to `outThrown` and returns 0 if an
-    /// exception occurred, otherwise returns the normal result.
-    func awaitResultThrowing(outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        switch awaitResult(callerState: nil) {
-        case .completed(let result, let thrown):
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return 0
-            }
-            return result
-        case .suspended:
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: blocking awaitResultThrowing cannot suspend")
-        }
-    }
-
 }
 
 // MARK: - Structured Concurrency (P5-89)
@@ -952,7 +936,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
     weak var continuationState: RuntimeContinuationState?
-    private weak var parentJob: RuntimeJobHandle?
     private var childJobHandles: [Int] = []
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
     /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
@@ -1022,12 +1005,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         if state == .new {
             state = .active
         }
-        lock.unlock()
-    }
-
-    func setParent(_ parent: RuntimeJobHandle) {
-        lock.lock()
-        parentJob = parent
         lock.unlock()
     }
 
@@ -1357,13 +1334,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 
     init(isSupervisor: Bool = false) {
         self.isSupervisor = isSupervisor
-    }
-
-    /// Sets the parent scope link.
-    func setParent(_ newParent: RuntimeCoroutineScope) {
-        lock.lock()
-        parent = newParent
-        lock.unlock()
     }
 
     func registerChild(_ handle: Int) {
@@ -1996,7 +1966,6 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     }
     let callerJob = RuntimeJobHandle.current
     if let callerJob {
-        job.setParent(callerJob)
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
     // Propagate caller's scope to child continuation context
@@ -2153,7 +2122,6 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
     }
     let callerJob = RuntimeJobHandle.current
     if let callerJob {
-        job.setParent(callerJob)
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
     // Propagate caller's scope to child continuation context
@@ -2298,7 +2266,6 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
     }
     let callerJob = RuntimeJobHandle.current
     if let callerJob {
-        job.setParent(callerJob)
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {
@@ -2361,7 +2328,6 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
     }
     let callerJob = RuntimeJobHandle.current
     if let callerJob {
-        job.setParent(callerJob)
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {
@@ -2460,7 +2426,6 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
     }
     let callerJob = RuntimeJobHandle.current
     if let callerJob {
-        job.setParent(callerJob)
         callerJob.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {

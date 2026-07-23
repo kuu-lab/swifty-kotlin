@@ -1864,7 +1864,6 @@ public func kk_path_useDirectoryEntries_default(
 final class RuntimeFileVisitorBox {
     var onPreVisitDirectoryRaw: Int = 0
     var onVisitFileRaw: Int = 0
-    var onVisitFileFailedRaw: Int = 0
     var onPostVisitDirectoryRaw: Int = 0
 }
 

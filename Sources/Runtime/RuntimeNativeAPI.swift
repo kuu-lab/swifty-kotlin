@@ -523,11 +523,6 @@ final class RuntimeCValuesBox: @unchecked Sendable {
     deinit {
         storage.deallocate()
     }
-
-    var rawAddress: UInt {
-        guard let base = storage.baseAddress else { return 0 }
-        return UInt(bitPattern: base)
-    }
 }
 
 @_cdecl("kk_byteArray_toCValues")
