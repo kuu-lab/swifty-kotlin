@@ -10,13 +10,6 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let legacyLazyInterfaceSymbol = ensureInterfaceSymbol(
-            named: "Lazy", in: kotlinPropertiesPkg, symbols: symbols, interner: interner
-        )
-        let legacyLazyInterfaceType = types.make(.classType(ClassType(
-            classSymbol: legacyLazyInterfaceSymbol, args: [], nullability: .nonNull
-        )))
-
         let rootLazyInterfaceSymbol = ensureInterfaceSymbol(
             named: "Lazy", in: kotlinPkg, symbols: symbols, interner: interner
         )
