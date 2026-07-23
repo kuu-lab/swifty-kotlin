@@ -866,37 +866,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceRange_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: true
-                ),
-                "kk_string_removeRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_removeRange_range_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_substring_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substring_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
-                    canThrow: true
-                ),
-                "kk_string_subSequence_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_subSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
+                // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
                 "kk_string_padStart_default_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_padStart_default_flat",
                     stringArgumentCount: 1,

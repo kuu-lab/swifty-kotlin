@@ -476,39 +476,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    private func flatStringSubstringValue(
-        _ value: String,
-        start: Int,
-        end: Int,
-        hasEnd: Int = 1,
-        outThrown: UnsafeMutablePointer<Int>? = nil
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = kk_string_substring_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                start,
-                end,
-                hasEnd,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                outThrown
-            )
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
     private func doubleFromRuntimeBits(_ raw: Int) -> Double {
         Double(bitPattern: UInt64(bitPattern: Int64(raw)))
     }
@@ -736,98 +703,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     hash: endHash
                 ),
                 "  hello"
-            )
-        }
-    }
-
-    func testFlatStringSubstringReportsThrownSlot() {
-        withFlatString("abc") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            var thrown = 0
-            let outData = kk_string_substring_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                4,
-                1,
-                1,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                &thrown
-            )
-            XCTAssertNotEqual(thrown, 0)
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                ""
-            )
-        }
-    }
-
-    func testFlatStringSubSequenceReturnsFlattenedStringFields() {
-        withFlatString("aé🐻z") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = kk_string_subSequence_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                1,
-                3,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                nil
-            )
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                "é🐻"
-            )
-        }
-    }
-
-    func testFlatStringSubSequenceReportsThrownSlot() {
-        withFlatString("abc") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            var thrown = 0
-            let outData = kk_string_subSequence_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                3,
-                1,
-                &outLength,
-                &outByteCount,
-                &outHash,
-                &thrown
-            )
-            XCTAssertNotEqual(thrown, 0)
-            XCTAssertEqual(
-                flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ),
-                ""
             )
         }
     }
@@ -2392,7 +2267,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringScalarIndexedOperationsWithNonASCII() {
-        XCTAssertEqual(flatStringSubstringValue("aé🐻", start: 1, end: 3), "é🐻")
         XCTAssertEqual(
             withFlatString("aé🐻") { data, length, byteCount, hash in
                 withFlatString("é🐻") { otherData, otherLength, otherByteCount, otherHash in

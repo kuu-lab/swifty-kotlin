@@ -469,21 +469,13 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
-        case ("removeRange", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_range_flat", canThrow: true)
         case ("toCollection", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCollection_flat")
 
-        case ("subSequence", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_subSequence_flat", canThrow: true)
         case ("windowed", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
         case ("compareTo", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareToIgnoreCase_flat")
-        case ("removeRange", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_flat", canThrow: true)
-        case ("replaceRange", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_replaceRange_flat", canThrow: true)
 
         case ("windowed", 3):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_partial_flat")
