@@ -1,3 +1,4 @@
+import Foundation
 
 // All hand-built comparator objects below (selector-based, primitive, then-by
 // chains, CASE_INSENSITIVE_ORDER, ...) implement `Comparator<T>` at a fixed
@@ -248,6 +249,20 @@ public func kk_comparator_nulls_first_comparable() -> Int {
 
 private final class RuntimeCaseInsensitiveStringComparatorBox {}
 
+// BUG-036: `CASE_INSENSITIVE_ORDER` is a top-level `val` in real Kotlin, so
+// every read must observe the same instance. The synthetic property has no
+// backing field to cache into (see `registerSyntheticStringTopLevelProperty`),
+// so cache the singleton handle here instead -- cleared by `kk_runtime_reset_gc`
+// since a runtime reset drops GC tracking for the handle it points at.
+private let caseInsensitiveOrderCacheLock = NSLock()
+nonisolated(unsafe) private var cachedCaseInsensitiveOrderHandle = 0
+
+func resetCaseInsensitiveOrderCache() {
+    caseInsensitiveOrderCacheLock.lock()
+    cachedCaseInsensitiveOrderHandle = 0
+    caseInsensitiveOrderCacheLock.unlock()
+}
+
 @_cdecl("kk_string_case_insensitive_order_trampoline")
 public func kk_string_case_insensitive_order_trampoline(
     _ closureRaw: Int,
@@ -271,8 +286,14 @@ public func kk_string_case_insensitive_order_trampoline(
 
 @_cdecl("kk_string_case_insensitive_order")
 public func kk_string_case_insensitive_order() -> Int {
+    caseInsensitiveOrderCacheLock.lock()
+    defer { caseInsensitiveOrderCacheLock.unlock() }
+    if cachedCaseInsensitiveOrderHandle != 0 {
+        return cachedCaseInsensitiveOrderHandle
+    }
     let raw = registerRuntimeObject(RuntimeCaseInsensitiveStringComparatorBox())
     runtimeRegisterComparatorCompareMethod(raw, kk_string_case_insensitive_order_trampoline)
+    cachedCaseInsensitiveOrderHandle = raw
     return raw
 }
 
