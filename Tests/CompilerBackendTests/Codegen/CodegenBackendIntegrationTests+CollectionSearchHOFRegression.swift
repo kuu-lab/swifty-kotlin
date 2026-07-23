@@ -42,4 +42,24 @@ extension CodegenBackendIntegrationTests {
             expected: "true\nfalse\n1\n1\n"
         )
     }
+
+    func testCodegenListAnyNoneCountUseSourceImplementation() throws {
+        let source = """
+        fun main() {
+            val nums = listOf(1, 2, 3)
+            println(nums.any())
+            println(nums.none())
+            println(nums.count())
+            val empty = listOf<Int>()
+            println(empty.any())
+            println(empty.none())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListAnyNoneCountSource",
+            expected: "true\nfalse\n3\nfalse\ntrue\n"
+        )
+    }
 }

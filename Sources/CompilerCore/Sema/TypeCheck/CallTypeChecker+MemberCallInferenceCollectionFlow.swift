@@ -1254,9 +1254,11 @@ extension CallTypeChecker {
                     case "count": resultType = sema.types.intType
                     case "first", "last":
                         resultType = collectionElementType
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
                     default: resultType = sema.types.anyType
+                    }
+                    if ["any", "none", "first", "last"].contains(calleeStr) {
+                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {
