@@ -86,7 +86,7 @@ The CI observation step is report-only. Set a Tests-specific threshold after eno
 
 ## Bundled Stdlib Injection Cost
 
-Captured on 2026-07-06 for RF-STDLIB-006 / KSP-007 with a debug `kswiftc` build on macOS.
+Captured on 2026-07-23 with a debug `kswiftc` build on Linux (x86_64).
 
 Display path:
 - `Driver.finalizeRun` calls `PhaseTimer.printSummary()` when `-Xfrontend time-phases` is present.
@@ -95,20 +95,22 @@ Display path:
 Command:
 
 ```bash
-.build/debug/kswiftc --emit kir Scripts/diff_cases/hello.kt -o /tmp/ksp_out -Xfrontend time-phases
+bash Scripts/measure_bundled_stdlib_injection.sh 5
 ```
 
 Bundled stdlib injection cost is defined here as `Lex bundled-stdlib + Parse bundled-stdlib`.
 
 | Run | Lex bundled-stdlib (ms) | Parse bundled-stdlib (ms) | Total (ms) |
 |---:|---:|---:|---:|
-| 1 | 31.97 | 5.32 | 37.29 |
-| 2 | 27.38 | 4.36 | 31.74 |
-| 3 | 35.63 | 4.91 | 40.54 |
+| 1 | 29.00 | 6.94 | 35.94 |
+| 2 | 28.27 | 7.58 | 35.85 |
+| 3 | 28.83 | 7.97 | 36.80 |
+| 4 | 28.22 | 9.39 | 37.61 |
+| 5 | 28.06 | 7.78 | 35.84 |
 
-Median bundled stdlib injection cost: **37.29 ms**.
+Median bundled stdlib injection cost: **36.05 ms**.
 
-Cache work trigger: start bundled stdlib caching when the same local/debug measurement regresses by **+100 ms** or more from this baseline, i.e. median total `>= 137.29 ms`. RF-STDLIB-006 did not add the `IncrementalCompilationCache` pre-parse path because the measured overhead is below the trigger.
+Cache work trigger: start bundled stdlib caching when the same local/debug measurement regresses by **+100 ms** or more from this baseline, i.e. median total `>= 136.05 ms`. RF-STDLIB-006 did not add the `IncrementalCompilationCache` pre-parse path because the measured overhead is below the trigger.
 
 ## Migration API Runtime Benchmark
 
