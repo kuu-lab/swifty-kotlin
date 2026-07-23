@@ -829,7 +829,7 @@
 
 - [ ] KSP-680: delegate インターフェース群を .kt 化する（ReadOnlyProperty/ReadWriteProperty/PropertyDelegateProvider。前提: KSP-CAP-007）
 - [ ] KSP-681: ObservableProperty/Delegates 残余を Kotlin 化する（KSP-491 の範囲を超える残り約20系統。前提: KSP-491, KSP-680）。BUG-017はKSP-CAP-013のPR #4976で独立に修正済みのため本タスクの前提から外れた
-- [ ] KSP-682: KProperty0/1/2・KMutableProperty0/1 の殻を .kt 化する（前提: **KSP-CAP-009**（supertype 位置の関数型リテラル）。c-soft 解除。**併せて BUG-018（`kotlin.reflect.full.createInstance` が宣言のみでリンクエラー確定）の削除 or 実装を判断**）
+- [ ] KSP-682: KProperty0/1/2・KMutableProperty0/1 の殻を .kt 化する（前提: **KSP-CAP-009**（supertype 位置の関数型リテラル）→ #4987 対応済み。c-soft 解除。**併せて BUG-018（`kotlin.reflect.full.createInstance` が宣言のみでリンクエラー確定）の削除 or 実装を判断**）
 
 ### CLEANUP-STUB 追補（(a) 削除。2026-07-10 監査。採番は履歴最終 095 の続き。手順は RF-STUB-002 レシピ）
 
