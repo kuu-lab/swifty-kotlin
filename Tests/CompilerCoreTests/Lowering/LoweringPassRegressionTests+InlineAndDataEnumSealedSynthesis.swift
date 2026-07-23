@@ -859,9 +859,9 @@ extension LoweringPassRegressionTests {
         // Verify toString body uses StringBuilder + kk_any_to_string
         let toStringFn = try findKIRFunction(named: "toString", in: module, interner: interner)
         let toStringCallees = extractCallees(from: toStringFn.body, interner: interner)
-        #expect(toStringCallees.contains("kk_string_builder_new_from_string_flat"), "toString should create a StringBuilder from the class prefix")
-        #expect(toStringCallees.contains("kk_string_builder_append_obj"), "toString should append labels and values via StringBuilder")
-        #expect(toStringCallees.contains("kk_string_builder_toString"), "toString should convert the StringBuilder back to String")
+        #expect(toStringCallees.contains("__kk_string_builder_new_from_string_flat"), "toString should create a StringBuilder from the class prefix")
+        #expect(toStringCallees.contains("__kk_string_builder_append_obj"), "toString should append labels and values via StringBuilder")
+        #expect(toStringCallees.contains("__kk_string_builder_toString"), "toString should convert the StringBuilder back to String")
         #expect(toStringCallees.contains("kk_any_to_string"), "toString should use kk_any_to_string")
         #expect(!toStringCallees.contains("x$get"), "toString should read constructor-backed fields directly")
         #expect(!toStringCallees.contains("y$get"), "toString should read constructor-backed fields directly")
