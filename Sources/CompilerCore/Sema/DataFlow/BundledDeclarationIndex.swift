@@ -221,10 +221,10 @@ struct BundledDeclarationIndex: Sendable {
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
+        // KSP-423 source-backed search/predicate HOFs (find, indexOf, contains,
+        // any, all, none, count) are also source-bound.
         case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
             return key.arity == 0 || key.arity == 1
-        case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
-            return key.arity == 1
         case "reversed", "sorted":
             return key.arity == 0
         case "shuffled":

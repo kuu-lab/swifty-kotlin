@@ -977,7 +977,18 @@ extension DataFlowSemaPhase {
 
         let containsName = interner.intern("contains")
         let containsFQName = listFQName + [containsName]
-        if symbols.lookup(fqName: containsFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: listReceiverType,
+               name: containsName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: containsFQName) == nil
+        {
             let containsSymbol = symbols.define(
                 kind: .function,
                 name: containsName,
@@ -1002,7 +1013,18 @@ extension DataFlowSemaPhase {
 
         let containsAllName = interner.intern("containsAll")
         let containsAllFQName = listFQName + [containsAllName]
-        if symbols.lookup(fqName: containsAllFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: listReceiverType,
+               name: containsAllName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: containsAllFQName) == nil
+        {
             let containsAllSymbol = symbols.define(
                 kind: .function,
                 name: containsAllName,

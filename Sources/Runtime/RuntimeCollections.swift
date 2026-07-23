@@ -183,13 +183,6 @@ public func kk_list_component5(_ listRaw: Int) -> Int {
     runtimeListComponent(listRaw, component: 5)
 }
 
-@_cdecl("kk_list_contains")
-public func kk_list_contains(_ listRaw: Int, _ element: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
-}
 
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
@@ -775,27 +768,6 @@ public func kk_list_subList(_ listRaw: Int, _ fromIndex: Int, _ toIndex: Int) ->
     return registerRuntimeObject(RuntimeListBox(elements: subElements))
 }
 
-@_cdecl("kk_list_containsAll")
-public func kk_list_containsAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    let otherElements: [Int]
-    if let otherList = runtimeListBox(from: collectionRaw) {
-        otherElements = otherList.elements
-    } else if let otherSet = runtimeSetBox(from: collectionRaw) {
-        otherElements = otherSet.elements
-    } else {
-        return kk_box_bool(0)
-    }
-    for element in otherElements {
-        // swiftlint:disable:next for_where
-        if !list.elements.contains(where: { runtimeValuesEqual($0, element) }) {
-            return kk_box_bool(0)
-        }
-    }
-    return kk_box_bool(1)
-}
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
     if !currentValues.isEmpty,

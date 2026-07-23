@@ -609,7 +609,18 @@ extension DataFlowSemaPhase {
 
         let lastIndexOfName = interner.intern("lastIndexOf")
         let lastIndexOfFQName = listFQName + [lastIndexOfName]
-        if symbols.lookup(fqName: lastIndexOfFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: lastIndexOfName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: lastIndexOfFQName) == nil
+        {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: lastIndexOfName,

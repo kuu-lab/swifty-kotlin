@@ -971,7 +971,7 @@ extension ListSyntheticMemberLinkTests {
                 let binding = sema.bindings.callBinding(for: callID)
                 #expect(binding?.chosenCallee != nil, "contains should resolve")
                 if let chosen = binding?.chosenCallee {
-                    #expect(sema.symbols.externalLinkName(for: chosen) == "kk_list_contains", "contains should resolve to kk_list_contains")
+                    #expect(sema.symbols.externalLinkName(for: chosen) == nil, "List.contains is source-backed and should have no external link")
                 }
             }
         }
@@ -1076,20 +1076,30 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listContainsAll = try #require(sema.symbols.lookup(fqName: [
+            let collectionsPkg = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("containsAll"),
-            ]))
-            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("containsAll"),
-            ]))
+            ]
+            let listSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")]))
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
-            #expect(sema.symbols.externalLinkName(for: listContainsAll) == "kk_list_containsAll")
+            func containsAllSymbol(owner: SymbolID) -> SymbolID? {
+                sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern("containsAll")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          case let .classType(classType) = sema.types.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return classType.classSymbol == owner
+                }
+            }
+
+            let listContainsAll = try #require(containsAllSymbol(owner: listSymbol), "Expected List.containsAll source extension")
+            let setContainsAll = try #require(containsAllSymbol(owner: setSymbol), "Expected Set.containsAll")
+
+            // List.containsAll is source-backed (KSP-423); Set.containsAll still uses the runtime bridge.
+            #expect(sema.symbols.externalLinkName(for: listContainsAll) == nil)
             #expect(sema.symbols.externalLinkName(for: setContainsAll) == "kk_set_containsAll")
         }
     }
@@ -1134,26 +1144,35 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listContains = try #require(sema.symbols.lookup(fqName: [
+            let collectionsPkg = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("contains"),
-            ]))
-            let setContains = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("contains"),
-            ]))
+            ]
+            let listSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")]))
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
+
+            func containsSymbol(owner: SymbolID, packageFQName: [InternedString]) -> SymbolID? {
+                sema.symbols.lookupAll(fqName: packageFQName + [ctx.interner.intern("contains")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          case let .classType(classType) = sema.types.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return classType.classSymbol == owner
+                }
+            }
+
+            let listContains = try #require(containsSymbol(owner: listSymbol, packageFQName: collectionsPkg))
+            let setContains = try #require(containsSymbol(owner: setSymbol, packageFQName: collectionsPkg))
+            #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
+            #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
+
             let stringContains = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("text"),
                 ctx.interner.intern("contains"),
             ]))
-
-            #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
-            #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
             #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
         }
     }
