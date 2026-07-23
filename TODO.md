@@ -125,7 +125,7 @@
 - [x] DEADCODE-CORE-035: [R0] `SyntheticStubSurfaceSpec.swift:24` の static `ushort` 型参照定数を削除する
 - [ ] DEADCODE-CORE-036: [W0] `CompilerKnownNames.swift:393` の `kotlinRunCatchingFQName` を削除し、initializer `:597` の代入も消す
 - [x] DEADCODE-CORE-037: [W0] `CollectionLiteralLoweringPass+LookupTables.swift:487` の `filterIsInstanceName` と initializer `:1288` の代入を削除する。2026-07-17 完了: 宣言・initializer 代入とも削除、他箇所からの参照なし（`filterIsInstance` 自体は別経路の文字列比較で実装済み）
-- [ ] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する
+- [x] DEADCODE-CORE-039: [W0] 同ファイル `:750` の `kkPathGetName` と initializer `:1541` の代入を削除する。2026-07-22 完了: 宣言・初期化代入を削除。`kk_path_get` 自体は `HeaderHelpers+SyntheticPathStubs.swift` の文字列リテラル経由で解決されており本 lookup table エントリとは無関係、削除後も Path.get 関連ゴールデン/リグレッションは green
 - [x] DEADCODE-CORE-040: [W0] 同ファイル `:771` の `maxDepthName` と initializer `:1562` の代入を削除する。2026-07-17 完了: 宣言・初期化とも他に参照なしを確認の上削除、`swift build` green
 - [ ] DEADCODE-CORE-041: [W0] 同ファイル `:774` の `onEnterName` と initializer `:1565` の代入を削除する
 - [x] DEADCODE-CORE-042: [W0] 同ファイル `:776` の `onLeaveName` と initializer `:1567` の代入を削除する。2026-07-17 完了: プロジェクト全体 grep で宣言・初期化子代入(現行行番号は `:775`/`:1565`)以外の参照ゼロを確認し削除。`swift build` 成功、`loc_report.sh` メトリクス悪化なし、Golden(13 tests/6 suites)・拡張タイムアウト版 `diff_kotlinc`(639 中 0 failed)は green
