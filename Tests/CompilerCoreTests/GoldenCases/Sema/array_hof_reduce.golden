@@ -25,5 +25,5 @@ expr e@4:31 name(it) type=Int ref=s-3
 expr e@4:36 int(0) type=Int
 expr e@4:31#1 binary(lessThan) lhs=e@4:31 rhs=e@4:36 type=Boolean
 expr e@4:29 lambda params=[] body=e@4:31#1 label=none type=(Int) -> Boolean
-expr e@4:16#1 memberCall recv=e@4:16 callee=none args=[_:e@4:29] type=Boolean
+expr e@4:16#1 memberCall recv=e@4:16 callee=none args=[_:e@4:29] type=Boolean call=kotlin.collections.none#1 targs=[Int]
 expr e@4:5 localDecl none mutable=0 type=_ init=e@4:16#1 type=Unit ref=__local_2.none
