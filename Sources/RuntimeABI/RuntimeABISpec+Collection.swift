@@ -94,16 +94,6 @@ public extension RuntimeABISpec {
     + listComponentFunctions
     + [
         RuntimeABIFunctionSpec(
-            name: "kk_list_contains",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_list_is_empty",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),

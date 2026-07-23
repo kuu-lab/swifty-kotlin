@@ -119,7 +119,7 @@ struct BundledDeclarationIndexTests {
         let listOwner = intern(["kotlin", "collections", "List"], ctx.interner)
         let iterableOwner = intern(["kotlin", "collections", "Iterable"], ctx.interner)
         let collectionsPackage = intern(["kotlin", "collections"], ctx.interner)
-        let bundledPath = "__bundled_kotlin_collections_stdlib.kt"
+        let bundledPath = "__bundled_kotlin/collections/ListSearchHOF.kt"
 
         for member in ["count", "any", "all"] {
             let name = ctx.interner.intern(member)

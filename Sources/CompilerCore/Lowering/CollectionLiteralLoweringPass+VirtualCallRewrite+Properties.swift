@@ -62,17 +62,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         if callee == lookup.containsName, arguments.count == 1 {
-            if listExprIDs.contains(receiver.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListContainsName,
-                    arguments: [receiver] + arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
             if setExprIDs.contains(receiver.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,
@@ -84,30 +73,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ))
                 return true
             }
-        }
-
-        if callee == lookup.indexOfName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListIndexOfName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
-        }
-
-        if callee == lookup.lastIndexOfName, arguments.count == 1, listExprIDs.contains(receiver.rawValue) {
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListLastIndexOfName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return true
         }
 
         if callee == lookup.isEmptyName, arguments.isEmpty {

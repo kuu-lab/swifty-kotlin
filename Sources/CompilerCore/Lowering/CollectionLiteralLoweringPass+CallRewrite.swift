@@ -66,7 +66,9 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.countName
             || callee == lookup.anyName
             || callee == lookup.allName
-            || callee == lookup.noneName,
+            || callee == lookup.noneName
+            || callee == lookup.firstOrNullName
+            || callee == lookup.lastOrNullName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),

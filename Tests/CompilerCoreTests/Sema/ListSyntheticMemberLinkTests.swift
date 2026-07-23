@@ -1098,7 +1098,7 @@ struct ListSyntheticMemberLinkTests {
                     Issue.record("Expected \(memberName)(predicate) call to keep its lambda argument")
                     continue
                 }
-                #expect(sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be marked for HOF lowering")
+                #expect(!sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be unmarked for source-backed lowering")
                 #expect(sema.bindings.exprTypes[predicateCall] == nullableIntType, "Expected \(memberName)(predicate) to return nullable element type")
                 #expect(!(sema.bindings.isCollectionExpr(predicateCall)), "Expected \(memberName)(predicate) result to avoid collection-expression marking")
             }
