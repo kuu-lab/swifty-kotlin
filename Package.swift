@@ -89,7 +89,10 @@ let package = Package(
         .testTarget(
             name: "CompilerBackendTests",
             dependencies: ["CompilerBackend", "CompilerCore"],
-            path: "Tests/CompilerBackendTests"
+            path: "Tests/CompilerBackendTests",
+            exclude: [
+                "Fixtures",
+            ]
         ),
         .testTarget(
             name: "RuntimeTests",
