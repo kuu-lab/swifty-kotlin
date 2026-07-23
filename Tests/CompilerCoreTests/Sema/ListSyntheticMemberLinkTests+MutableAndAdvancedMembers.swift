@@ -1089,7 +1089,8 @@ extension ListSyntheticMemberLinkTests {
             let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
             func containsAllSymbol(owner: SymbolID) -> SymbolID? {
-                sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern("containsAll")]).first { symbolID in
+                let name = ctx.interner.intern("containsAll")
+                func matches(_ symbolID: SymbolID) -> Bool {
                     guard let signature = sema.symbols.functionSignature(for: symbolID),
                           let receiverType = signature.receiverType,
                           case let .classType(classType) = sema.types.kind(of: receiverType)
@@ -1098,6 +1099,11 @@ extension ListSyntheticMemberLinkTests {
                     }
                     return classType.classSymbol == owner
                 }
+                if let sourceBacked = sema.symbols.lookupAll(fqName: collectionsPkg + [name]).first(where: matches) {
+                    return sourceBacked
+                }
+                guard let ownerSymbol = sema.symbols.symbol(owner) else { return nil }
+                return sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]).first(where: matches)
             }
 
             let listContainsAll = try #require(containsAllSymbol(owner: listSymbol), "Expected List.containsAll source extension")
@@ -1157,7 +1163,8 @@ extension ListSyntheticMemberLinkTests {
             let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
             func containsSymbol(owner: SymbolID, packageFQName: [InternedString]) -> SymbolID? {
-                sema.symbols.lookupAll(fqName: packageFQName + [ctx.interner.intern("contains")]).first { symbolID in
+                let name = ctx.interner.intern("contains")
+                func matches(_ symbolID: SymbolID) -> Bool {
                     guard let signature = sema.symbols.functionSignature(for: symbolID),
                           let receiverType = signature.receiverType,
                           case let .classType(classType) = sema.types.kind(of: receiverType)
@@ -1166,6 +1173,11 @@ extension ListSyntheticMemberLinkTests {
                     }
                     return classType.classSymbol == owner
                 }
+                if let sourceBacked = sema.symbols.lookupAll(fqName: packageFQName + [name]).first(where: matches) {
+                    return sourceBacked
+                }
+                guard let ownerSymbol = sema.symbols.symbol(owner) else { return nil }
+                return sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]).first(where: matches)
             }
 
             let listContains = try #require(containsSymbol(owner: listSymbol, packageFQName: collectionsPkg))
