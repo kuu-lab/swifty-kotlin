@@ -9,9 +9,7 @@ let connection = JSONRPCConnection(
     output: StandardOutputStream()
 )
 
-let server = Server(connection: connection) { message in
-    FileHandle.standardError.write(Data("[kswift-lsp] \(message)\n".utf8))
-}
+let server = Server(connection: connection)
 
 let exitCode = server.run()
 exit(exitCode)

@@ -341,7 +341,8 @@ extension LibMetadataImportIntegrationTests {
                 inputs: [path],
                 moduleName: "MultiStdlibApp",
                 emit: .kirDump,
-                searchPaths: [libDir.path]
+                searchPaths: [libDir.path],
+                includeStdlib: false
             )
             try runToKIR(ctx)
 

@@ -186,7 +186,26 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "random", "Random"] {
             return isRuntimeBackedRandomSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "comparisons"] {
+            return isRuntimeBackedComparatorSyntheticRetainedOverlap(key, interner: interner)
+        }
         return false
+    }
+
+    private static func isRuntimeBackedComparatorSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // KSP-309 bundles compareBy(selector) and compareBy(comparator, selector) in
+        // Kotlin source, while the multi-selector vararg/2/3-selector overloads are
+        // still synthetic. The arity-1/2 collisions are intentional overload pairs
+        // (different parameter types), not accidental duplicates.
+        switch interner.resolve(key.name) {
+        case "compareBy":
+            return key.arity == 1 || key.arity == 2
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedRandomSyntheticRetainedOverlap(
@@ -567,18 +586,23 @@ struct BundledDeclarationIndex: Sendable {
 
         switch decl {
         case let .funDecl(funDecl):
-            guard let receiverTypeID = funDecl.receiverType,
-                  let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(
-                    for: receiverType,
-                    relativeTo: packageFQName,
-                    topLevelNominalNames: topLevelNominalNames,
-                    defaultImportedNameToPackage: defaultImportedNameToPackage,
-                    ast: ast,
-                    builtinNames: builtinNames,
-                    interner: interner
-                  )
-            else {
+            let ownerFQName: [InternedString]
+            if let receiverTypeID = funDecl.receiverType,
+               let receiverType = ast.arena.typeRef(receiverTypeID),
+               let resolvedOwner = fqName(
+                   for: receiverType,
+                   relativeTo: packageFQName,
+                   topLevelNominalNames: topLevelNominalNames,
+                   defaultImportedNameToPackage: defaultImportedNameToPackage,
+                   ast: ast,
+                   builtinNames: builtinNames,
+                   interner: interner
+               )
+            {
+                ownerFQName = resolvedOwner
+            } else if funDecl.receiverType == nil {
+                ownerFQName = packageFQName
+            } else {
                 return
             }
             keys.insert(
@@ -590,18 +614,23 @@ struct BundledDeclarationIndex: Sendable {
             )
 
         case let .propertyDecl(propertyDecl):
-            guard let receiverTypeID = propertyDecl.receiverType,
-                  let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(
-                    for: receiverType,
-                    relativeTo: packageFQName,
-                    topLevelNominalNames: topLevelNominalNames,
-                    defaultImportedNameToPackage: defaultImportedNameToPackage,
-                    ast: ast,
-                    builtinNames: builtinNames,
-                    interner: interner
-                  )
-            else {
+            let ownerFQName: [InternedString]
+            if let receiverTypeID = propertyDecl.receiverType,
+               let receiverType = ast.arena.typeRef(receiverTypeID),
+               let resolvedOwner = fqName(
+                   for: receiverType,
+                   relativeTo: packageFQName,
+                   topLevelNominalNames: topLevelNominalNames,
+                   defaultImportedNameToPackage: defaultImportedNameToPackage,
+                   ast: ast,
+                   builtinNames: builtinNames,
+                   interner: interner
+               )
+            {
+                ownerFQName = resolvedOwner
+            } else if propertyDecl.receiverType == nil {
+                ownerFQName = packageFQName
+            } else {
                 return
             }
             keys.insert(

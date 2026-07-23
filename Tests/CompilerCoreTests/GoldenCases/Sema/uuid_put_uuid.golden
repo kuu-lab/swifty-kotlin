@@ -1,15 +1,14 @@
-symbol fq=golden.sema.writeThenReadUuid kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ByteArray,kotlin.uuid.Uuid] ret=kotlin.uuid.Uuid
-symbol fq=golden.sema.writeThenReadUuid.$0.arr kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.writeThenReadUuid kind=function vis=public flags=_ sig=recv=_ params=[java.nio.ByteBuffer,kotlin.uuid.Uuid] ret=kotlin.uuid.Uuid
+symbol fq=golden.sema.writeThenReadUuid.$0.buf kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.writeThenReadUuid.$0.u kind=valueParameter vis=private flags=_
-symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.uuid.Uuid kind=class vis=public flags=_
 file fuuid_put_uuid package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
   decl golden.sema.writeThenReadUuid fun writeThenReadUuid sym=golden.sema.writeThenReadUuid
-expr e@10:5 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
-expr e@10:17 int(0) type=Int
-expr e@10:20 name(u) type=kotlin.uuid.Uuid ref=golden.sema.writeThenReadUuid.$0.u
-expr e@10:5#1 memberCall recv=e@10:5 callee=putUuid args=[_:e@10:17,_:e@10:20] type=Unit call=kotlin.uuid.putUuid
-expr e@11:12 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
-expr e@11:21 int(0) type=Int
-expr e@11:12#1 memberCall recv=e@11:12 callee=uuid args=[_:e@11:21] type=kotlin.uuid.Uuid call=kotlin.uuid.uuid
-expr e@11:5 return value=e@11:12#1 type=Nothing
+expr e@11:5 name(buf) type=java.nio.ByteBuffer ref=golden.sema.writeThenReadUuid.$0.buf
+expr e@11:17 int(0) type=Int
+expr e@11:20 name(u) type=kotlin.uuid.Uuid ref=golden.sema.writeThenReadUuid.$0.u
+expr e@11:5#1 memberCall recv=e@11:5 callee=putUuid args=[_:e@11:17,_:e@11:20] type=java.nio.ByteBuffer call=kotlin.uuid.putUuid#0
+expr e@12:12 name(buf) type=java.nio.ByteBuffer ref=golden.sema.writeThenReadUuid.$0.buf
+expr e@12:24 int(0) type=Int
+expr e@12:12#1 memberCall recv=e@12:12 callee=getUuid args=[_:e@12:24] type=kotlin.uuid.Uuid call=kotlin.uuid.getUuid#1
+expr e@12:5 return value=e@12:12#1 type=Nothing

@@ -35,10 +35,6 @@ symbol fq=kotlin.collections.MutableMap.putAll kind=function vis=public flags=sy
 symbol fq=kotlin.collections.MutableMap.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableMap<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V> params=[kotlin.collections.MutableMap.K] ret=kotlin.collections.MutableMap.V?
 symbol fq=kotlin.collections.MutableMap.set kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableMap<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V> params=[kotlin.collections.MutableMap.K,kotlin.collections.MutableMap.V] ret=Unit
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.mapOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.mapOf.K kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.mapOf.V kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.mapOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
