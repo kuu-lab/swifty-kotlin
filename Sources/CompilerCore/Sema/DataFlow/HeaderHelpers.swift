@@ -1216,7 +1216,13 @@ extension DataFlowSemaPhase {
         registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTODOAndIOStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)

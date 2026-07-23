@@ -115,4 +115,32 @@ struct BundledStdlibExecutionTests {
             expectedOutput: "1,1,3,4,5\n"
         )
     }
+
+    // KSP-INF-011 regression: List<Int>.joinToString must render integers, not
+    // fall back to the string-only runtime fast path and produce empty output.
+    @Test
+    func testListIntJoinToStringWithTransformPrintsExpectedOutput() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(listOf(1, 2, 3).joinToString("-", "[", "]") { it.toString() })
+            }
+            """,
+            expectedOutput: "[1-2-3]\n"
+        )
+    }
+
+    // KSP-INF-011 regression: Array<Int>.joinToString must also render generic
+    // element types through the guarded default overload.
+    @Test
+    func testArrayIntJoinToStringPrintsExpectedOutput() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(arrayOf(7, 8, 9).joinToString("-"))
+            }
+            """,
+            expectedOutput: "7-8-9\n"
+        )
+    }
 }

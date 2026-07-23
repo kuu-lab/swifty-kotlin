@@ -503,10 +503,12 @@ add/add コンフリクト）。本文（§1–11、§9 の棚卸し表を除く
 - **専用診断コード**: bundled stdlib の読み込み失敗を、ユーザー入力の `KSWIFTK-SOURCE-0002` とは別に
   `KSWIFTK-SOURCE-0101`（リソースディレクトリ不在）/ `KSWIFTK-SOURCE-0102`（読み込み失敗）として
   切り出す具体案。
-- **二重定義の扱いの 4 象限**: 本文 §5 は「Kotlin ソース vs 合成スタブ」の 1 象限のみを扱うが、
-  並行メモは (1) stdlib source vs synthetic stub、(2) bundled stdlib source vs residual stdlib source、
-  (3) user source vs bundled stdlib source、(4) user source vs synthetic stub の 4 組み合わせを
-  個別にハンドリング方針化していた。
+- **二重定義の扱いの 4 象限（決着）**: `BundledDeclarationIndex` + `BundledSyntheticStubRegistration.shouldSkipRegistration` で一元化。
+  1. **bundled stdlib source vs synthetic stub**: bundled source が存在する `(owner, name, arity)` に対する合成スタブは登録をスキップする（KSP-002 宣言優先規則）。ガード漏れは `KSWIFTK-SEMA-0102` で検出・警告する。
+  2. **bundled stdlib source vs residual stdlib source**: 両方とも `SourceOrigin.isBundledStdlib` で収集される `BundledDeclarationIndex` の対象。同 key が衝突した場合は bundled source（`__bundled_*.kt`）を優先し、residual source は宣言面のフォールバックとする。
+  3. **user source vs bundled stdlib source**: ユーザー入力が bundled source と同名・同 arity・同 receiver owner の拡張を定義した場合、ユーザー定義を優先する。合成スタブ登録前の `symbols.lookup(fqName:)` と `shouldSkipRegistration` の `receiverOwnerFQName` 解決により実現する。
+  4. **user source vs synthetic stub**: ユーザー入力が synthetic stub と同じ member を定義した場合、ユーザー定義を優先する。各 `registerSyntheticXxx` は `symbols.lookup(fqName:)` が `nil` の場合のみ登録する。
+  - **runtime-backed 互換ブリッジの例外**: `List`/`Iterable`/`Sequence` 等の一部 HOF・検索・sort・端末変換は、Kotlin 化 source があっても `kk_*` ABI 経由で呼ばれる移行期橋渡しとして合成スタブを残す。これらは `BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap` にホワイトリスト化し、`warnSyntheticOverlaps` では警告しない。`joinTo`/`joinToString` の transform overload も、arity では default overload と区別できないため function-typed パラメータ検出で false-positive を抑制する。
 - **インクリメンタルキャッシュへの影響**: `IncrementalCompilationCache.computeCurrentFingerprints` に
   bundled/residual stdlib の virtual path + content hash を含める案、`IncrementalBuildConfiguration` へ
   stdlib source manifest hash・opt-out フラグを追加する案、stdlib fingerprint 変更時は当面

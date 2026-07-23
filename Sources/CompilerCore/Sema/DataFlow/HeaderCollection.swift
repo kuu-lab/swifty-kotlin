@@ -754,6 +754,19 @@ extension DataFlowSemaPhase {
                 ),
                 for: symbol
             )
+
+            // KSP-INF-011: Attach public/internal top-level extension functions to their
+            // receiver nominal type so member-call fallback resolution can find
+            // source-backed stdlib replacements (e.g. List<T>.joinToString in
+            // StringSplitJoin.kt) even when the declaring package differs from the
+            // receiver owner package. Skip private extensions so they retain
+            // file-private visibility rather than being gated by the receiver class.
+            if declaration.visibility != .private,
+               let receiverType,
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)) {
+                symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol)
+            }
+
             checkAndReportJVMErasedCallableConflict(
                 for: symbol,
                 fqName: fqName,
