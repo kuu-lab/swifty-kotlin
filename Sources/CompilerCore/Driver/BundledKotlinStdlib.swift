@@ -9,8 +9,6 @@ enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     static let excludedBundledStdlibFiles: Set<String> = [
-        // KSP-305: the source file exists but collection-factory lowering is not wired yet.
-        "kotlin/collections/CollectionFactories",
     ]
 
     // sumOf / maxByOrNull / minByOrNull are not yet in standalone .kt files.
@@ -20,19 +18,6 @@ enum BundledKotlinStdlib {
     // ListSortingHOF.kt, and SetHOF.kt respectively.
     static let kotlinCollectionsSource = """
 package kotlin.collections
-
-import kotlin.internal.KsSymbolName
-
-@KsSymbolName("kk_list_of")
-private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
-
-public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
-    val result: MutableList<T> = __kk_list_of(null, 0)
-    for (element in elements) {
-        if (element != null) result.add(element)
-    }
-    return result
-}
 
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var sum = 0

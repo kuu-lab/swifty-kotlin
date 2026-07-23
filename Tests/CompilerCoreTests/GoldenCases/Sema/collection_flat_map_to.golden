@@ -6,11 +6,6 @@ symbol fq=kotlin.collections.Collection kind=interface vis=public flags=syntheti
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableCollection kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.mutableListOf#0 kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=Any
-symbol fq=kotlin.collections.mutableListOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=testFlatMapIndexedTo kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=testFlatMapIndexedTo.$0.values kind=valueParameter vis=private flags=_
 symbol fq=testFlatMapTo kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit

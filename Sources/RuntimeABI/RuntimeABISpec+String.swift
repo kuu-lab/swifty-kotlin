@@ -1150,22 +1150,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        flatStringReturnSpec(
-            name: "kk_string_trimIndent_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_trimMargin_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_trimMargin_flat",
-            trailingStringPrefixes: ["marginPrefix"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndentByMargin_flat",
-            trailingStringPrefixes: ["newIndent", "marginPrefix"]
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_format_flat",
             parameters: [
@@ -2488,43 +2472,7 @@ public extension RuntimeABISpec {
             name: "kk_string_removeSurrounding_pair_flat",
             trailingStringPrefixes: ["prefix", "suffix"]
         ),
-        // STDLIB-TEXT-FN-019
-        RuntimeABIFunctionSpec(
-            name: "kk_string_indent_default",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_indent",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "n", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         // STDLIB-191
-        flatStringReturnSpec(
-            name: "kk_string_prependIndent_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_prependIndent_flat",
-            trailingStringPrefixes: ["indent"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndent_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndent_flat",
-            trailingStringPrefixes: ["newIndent"]
-        ),
         // STDLIB-192
         // STDLIB-190
         // STDLIB-187

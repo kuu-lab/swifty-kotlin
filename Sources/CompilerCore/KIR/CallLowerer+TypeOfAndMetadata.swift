@@ -168,7 +168,7 @@ extension CallLowerer {
                 argsListExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_list_of"),
+                    callee: interner.intern("__kk_list_of"),
                     arguments: [arrayExpr, countExpr],
                     result: argsListExpr,
                     canThrow: false,

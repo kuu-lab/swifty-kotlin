@@ -20,8 +20,13 @@ extension BuildKIRRegressionTests {
             val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
             val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
             val longsSum = uuid.toLongs { msb, lsb -> msb + lsb }
-            val fromLongs = Uuid.fromLongs(uuid.mostSignificantBits, uuid.leastSignificantBits)
+            val fromLongs = Uuid.fromLongs(0x550e8400e29b41d4L, 0xa716446655440000uL.toLong())
             val fromBytes = Uuid.fromByteArray(uuid.toByteArray())
+            val uBytes = uuid.toUByteArray()
+            val fromUBytes = Uuid.fromUByteArray(uBytes)
+            val fromULongs = Uuid.fromULongs(0x550e8400e29b41d4uL, 0xa716446655440000uL)
+            val v4 = Uuid.generateV4()
+            val uLongsSum = uuid.toULongs { msb, lsb -> msb + lsb }
             nil.toString()
             random.toString()
             uuid.toString()
@@ -33,6 +38,12 @@ extension BuildKIRRegressionTests {
             longsSum.toString()
             fromLongs.toString()
             fromBytes.toByteArray()
+            uBytes.size
+            fromUBytes.toString()
+            fromULongs.toString()
+            v4.toString()
+            uLongsSum.toString()
+            uuid.toHexDashString()
             uuid.compareTo(nil)
         }
         """
@@ -48,9 +59,15 @@ extension BuildKIRRegressionTests {
             for callee in [
                 "random",
                 "fromLongs",
+                "fromULongs",
                 "fromByteArray",
+                "fromUByteArray",
                 "toByteArray",
+                "toUByteArray",
                 "toLongs",
+                "toULongs",
+                "toHexDashString",
+                "generateV4",
                 "compareTo",
             ] {
                 #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
@@ -91,28 +108,27 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// KSP-476: java.util.UUID.toKotlinUuid() and the ByteArray.getUuid/uuid/putUuid
+    /// KSP-508: java.util.UUID.toKotlinUuid() and the java.nio.ByteBuffer.getUuid/putUuid
     /// extensions are the last pieces of the kotlin.uuid surface. toKotlinUuid still
-    /// needs a native bridge (java.util.UUID interop); the ByteArray extensions are
+    /// needs a native bridge (java.util.UUID interop); the ByteBuffer extensions are
     /// pure Kotlin now, built on Uuid.fromLongs and the real
     /// mostSignificantBits/leastSignificantBits stored properties.
-    @Test func testUuidByteArrayExtensionsAndJavaInteropLowerThroughKotlinSource() throws {
+    @Test func testUuidByteBufferExtensionsAndJavaInteropLowerThroughKotlinSource() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
         import kotlin.uuid.Uuid
         import kotlin.uuid.getUuid
         import kotlin.uuid.putUuid
-        import kotlin.uuid.uuid
+        import java.nio.ByteBuffer
 
-        fun main(bytes: ByteArray, javaUuid: java.util.UUID) {
+        fun main(buf: ByteBuffer, javaUuid: java.util.UUID) {
             val fromJava = javaUuid.toKotlinUuid()
-            val viaGetUuid = bytes.getUuid(0)
-            val viaUuid = bytes.uuid(0)
-            bytes.putUuid(0, fromJava)
+            val viaGetUuid = buf.getUuid(0)
+            val viaPut = buf.putUuid(0, fromJava)
             fromJava.toString()
             viaGetUuid.toString()
-            viaUuid.toString()
+            viaPut.toString()
         }
         """
 
@@ -124,13 +140,11 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            for callee in ["toKotlinUuid", "getUuid", "uuid", "putUuid"] {
+            for callee in ["toKotlinUuid", "getUuid", "putUuid"] {
                 #expect(callees.contains(callee), "kotlin.uuid.\(callee) should remain Kotlin source-backed")
             }
 
             #expect(callees.isDisjoint(with: [
-                "kk_byteArray_putUuid",
-                "kk_byteArray_uuid",
                 "kk_uuid_getUuid",
                 "kk_uuid_toKotlinUuid",
                 "__kk_uuid_toKotlinUuid",

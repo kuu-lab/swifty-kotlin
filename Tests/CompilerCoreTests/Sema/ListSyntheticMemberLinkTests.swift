@@ -271,7 +271,7 @@ struct ListSyntheticMemberLinkTests {
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .public)
-            #expect(sema.symbols.externalLinkName(for: constructorSymbol) == "kk_emptySet")
+            #expect(sema.symbols.externalLinkName(for: constructorSymbol) == "__kk_emptySet")
             let signature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
             #expect(signature.parameterTypes.isEmpty)
             #expect(signature.typeParameterSymbols.count == 1)

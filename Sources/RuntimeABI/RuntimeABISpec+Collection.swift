@@ -39,7 +39,7 @@ public extension RuntimeABISpec {
         ),
         // List
         RuntimeABIFunctionSpec(
-            name: "kk_list_of",
+            name: "__kk_list_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
@@ -50,7 +50,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptyList
         RuntimeABIFunctionSpec(
-            name: "kk_emptyList",
+            name: "__kk_emptyList",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
@@ -313,7 +313,7 @@ public extension RuntimeABISpec {
         ),
         // Set
         RuntimeABIFunctionSpec(
-            name: "kk_set_of",
+            name: "__kk_set_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
@@ -324,7 +324,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptySet
         RuntimeABIFunctionSpec(
-            name: "kk_emptySet",
+            name: "__kk_emptySet",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
@@ -636,7 +636,7 @@ public extension RuntimeABISpec {
     ] + Self.collectionHOFFunctions + [
         // Map
         RuntimeABIFunctionSpec(
-            name: "kk_map_of",
+            name: "__kk_map_of",
             parameters: [
                 RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
@@ -648,7 +648,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptyMap
         RuntimeABIFunctionSpec(
-            name: "kk_emptyMap",
+            name: "__kk_emptyMap",
             parameters: [],
             returnType: .intptr,
             section: "Collection"

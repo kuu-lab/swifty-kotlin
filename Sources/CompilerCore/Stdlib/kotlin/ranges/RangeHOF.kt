@@ -48,7 +48,21 @@ public fun IntRange.filter(predicate: (Int) -> Boolean): List<Int> {
 
 public fun IntRange.toList(): List<Int> {
     val result = mutableListOf<Int>()
-    for (element in this) { result.add(element) }
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 
@@ -82,7 +96,21 @@ public fun IntProgression.filter(predicate: (Int) -> Boolean): List<Int> {
 
 public fun IntProgression.toList(): List<Int> {
     val result = mutableListOf<Int>()
-    for (element in this) { result.add(element) }
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 
@@ -116,7 +144,21 @@ public fun LongRange.filter(predicate: (Long) -> Boolean): List<Long> {
 
 public fun LongRange.toList(): List<Long> {
     val result = mutableListOf<Long>()
-    for (element in this) { result.add(element) }
+    if (step > 0L) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0L) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 
@@ -154,7 +196,21 @@ public fun LongProgression.filter(predicate: (Long) -> Boolean): List<Long> {
 
 public fun LongProgression.toList(): List<Long> {
     val result = mutableListOf<Long>()
-    for (element in this) { result.add(element) }
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 
@@ -192,7 +248,21 @@ public fun CharRange.filter(predicate: (Char) -> Boolean): List<Char> {
 
 public fun CharRange.toList(): List<Char> {
     val result = mutableListOf<Char>()
-    for (element in this) { result.add(element) }
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 
@@ -226,7 +296,21 @@ public fun CharProgression.filter(predicate: (Char) -> Boolean): List<Char> {
 
 public fun CharProgression.toList(): List<Char> {
     val result = mutableListOf<Char>()
-    for (element in this) { result.add(element) }
+    if (step > 0) {
+        var current = first
+        while (current <= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    } else if (step < 0) {
+        var current = first
+        while (current >= last) {
+            result.add(current)
+            if (current == last) break
+            current += step
+        }
+    }
     return result
 }
 

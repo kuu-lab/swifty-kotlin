@@ -9,6 +9,7 @@ cd "$ROOT_DIR"
 OUTPUT_DIR=""
 KEEP_TMP=0
 VERBOSE=0
+SELFTEST=0
 
 usage() {
   cat <<USAGE
@@ -16,13 +17,15 @@ Usage: $(basename "$0") [options]
 
 Dead-code audit for @_cdecl kk_* runtime symbols.
 
-Detects kk_* functions declared in Sources/Runtime that cannot be reached
-by compiled Kotlin programs. Uses identifier-frequency analysis across
-Sources/, Tests/, and *.kt files.
+Detects kk_*/__kk_* functions declared in Sources/Runtime that cannot be
+reached by compiled Kotlin programs. Uses identifier-frequency analysis
+across Sources/, Tests/, and *.kt files.
 
 Exclusion pipeline (reproduces docs/dead-code-audit.md):
-  1. Static emit      — CompilerCore kk_* identifier references
-  2. Dynamic emit     — string-interpolation prefixes ("kk_xxx_\(...)")
+  1. Static emit      — kk_* identifier references in CompilerCore,
+                        CompilerBackend, and bundled *.kt stdlib sources
+  2. Dynamic emit     — inline string-interpolation prefixes ("kk_xxx_\(...)")
+                        and two-stage `prefix: "kk_xxx"` + "\(prefix)_suffix"
   3. Table-driven     — StdlibSurfaceSpec collectionHOFRuntimeLinkName entries
                         (list / set / map / sequence HOF; array is separate)
   4. Test references  — Tests/ direct calls (word-boundary match)
@@ -36,6 +39,8 @@ Options:
   --output-dir <dir>   Write intermediate .txt files here (default: auto temp dir)
   --keep-tmp           Keep temp dir after exit (implied by --output-dir)
   --verbose, -v        Print step-by-step counts to stderr
+  --self-test          Assert known regression fixtures classify correctly
+                       (exit non-zero on regression); implies --verbose
   -h, --help           Show this help
 
 Examples:
@@ -59,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       KEEP_TMP=1
       ;;
     --verbose|-v)
+      VERBOSE=1
+      ;;
+    --self-test)
+      SELFTEST=1
       VERBOSE=1
       ;;
     -h|--help)
@@ -90,22 +99,34 @@ log() {
   [[ $VERBOSE -eq 1 ]] && printf '%s\n' "$*" >&2 || true
 }
 
-# ── Step 1: Runtime の @_cdecl kk_* 宣言一覧 ──────────────────────────────
-grep -rhoE '@_cdecl\("kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift" \
+# ── Step 1: Runtime の @_cdecl kk_*/__kk_* 宣言一覧 ───────────────────────
+# 先頭アンダースコア付き (__kk_*) も export 対象として拾う。
+grep -rhoE '@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift" \
     | sed 's/@_cdecl("//;s/")//' \
     | LC_ALL=C sort -u > "$WORK/runtime_cdecl.txt"
 log "[1] Runtime @_cdecl declarations: $(wc -l < "$WORK/runtime_cdecl.txt" | tr -d ' ')"
 
-# ── Step 2: CompilerCore の静的 kk_* 参照 ────────────────────────────────
-grep -rhoE 'kk_[a-zA-Z0-9_]+' Sources/CompilerCore --include="*.swift" \
-    | LC_ALL=C sort -u > "$WORK/kk_compilercore.txt"
-log "[2] CompilerCore static refs: $(wc -l < "$WORK/kk_compilercore.txt" | tr -d ' ')"
+# ── Step 2: 静的 kk_* 参照（CompilerCore + CompilerBackend + bundled .kt） ─
+# kk_print_string_flat のように CompilerBackend でのみ emit される名前や、
+# bundled stdlib (*.kt) が外部リンクする名前を取りこぼさないよう拡張する。
+{
+    grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources/CompilerCore Sources/CompilerBackend --include="*.swift"
+    grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources --include="*.kt"
+} | LC_ALL=C sort -u > "$WORK/kk_compilercore.txt"
+log "[2] Static refs (CompilerCore+Backend+kt): $(wc -l < "$WORK/kk_compilercore.txt" | tr -d ' ')"
 
 # ── Step 3: 動的補間プレフィックス（前方一致除外用） ──────────────────────
-grep -rhoE '"kk_[a-zA-Z0-9_]*\\\(' Sources/CompilerCore --include="*.swift" \
-    | sed 's/^"//;s/\\($//' \
-    | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
-log "[3] Dynamic interpolation prefixes: $(wc -l < "$WORK/kk_dyn_prefixes.txt" | tr -d ' ')"
+# (a) インライン補間 "kk_xxx_\(...)" のリテラル前半。
+# (b) 2 段階生成: `prefix: "kk_xxx"` / `externalLinkPrefix: "kk_xxx"` 等で
+#     変数へ束縛したのち "\(prefix)_suffix" で組み立てるケースの prefix リテラル。
+{
+    grep -rhoE '"_*kk_[a-zA-Z0-9_]*\\\(' Sources/CompilerCore Sources/CompilerBackend --include="*.swift" \
+        | sed 's/^"//;s/\\($//'
+    grep -rhoE '[Pp]refix[^"]*"_*kk_[a-zA-Z0-9_]+"' Sources/CompilerCore Sources/CompilerBackend --include="*.swift" \
+        | grep -oE '"_*kk_[a-zA-Z0-9_]+"' \
+        | tr -d '"'
+} | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
+log "[3] Dynamic prefixes (inline + two-stage): $(wc -l < "$WORK/kk_dyn_prefixes.txt" | tr -d ' ')"
 
 # ── Step 4: StdlibSurfaceSpec 表駆動 HOF リンク名 ─────────────────────────
 # list / set / map / sequence の HOF（array は RuntimeOnlyBridge で別管理のため対象外）
@@ -117,16 +138,16 @@ log "[4] StdlibSurfaceSpec link names: $(wc -l < "$WORK/kk_stdlib_surface.txt" |
 
 # ── Step 5: Tests からの参照（語境界一致） ────────────────────────────────
 # superstring 誤検知に注意: kk_http_client_post と kk_http_client_post_async は別物
-(grep -rhoE '\bkk_[a-zA-Z0-9_]+\b' Tests --include="*.swift" || true) \
+(grep -rhoE '\b_*kk_[a-zA-Z0-9_]+\b' Tests --include="*.swift" || true) \
     | LC_ALL=C sort -u > "$WORK/kk_tests.txt"
 log "[5] Test references: $(wc -l < "$WORK/kk_tests.txt" | tr -d ' ')"
 
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
 # @_cdecl 行と func 定義行を除外することで、他の Runtime 関数からの実際の呼び出しを取得する
-(grep -rh 'kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
+(grep -rh '_*kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
     | grep -v '@_cdecl' \
-    | grep -v '\bfunc kk_' \
-    | grep -oE 'kk_[a-zA-Z0-9_]+' \
+    | grep -vE '\bfunc _*kk_' \
+    | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
 log "[6] Runtime-internal refs: $(wc -l < "$WORK/kk_runtime_internal.txt" | tr -d ' ')"
 
@@ -180,4 +201,34 @@ cat "$WORK/dead_B.txt"
 if [[ -n "$OUTPUT_DIR" ]]; then
   echo ""
   echo "Intermediate files written to: $WORK"
+fi
+
+# ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
+# 過去に本スクリプトが取りこぼしていた 2 経路を固定する。回帰すると exit 1。
+#   fixture 1: kk_print_string_flat  — CompilerBackend でのみ emit。A に入れば誤り。
+#   fixture 2: kk_atomic_int_array_loadAt — 2 段階 prefix 生成で到達。B に入れば誤り。
+if [[ $SELFTEST -eq 1 ]]; then
+  echo ""
+  echo "=== Self-test (regression fixtures) ==="
+  selftest_failed=0
+
+  if grep -qx "kk_print_string_flat" "$WORK/dead_A.txt"; then
+    echo "FAIL: kk_print_string_flat misclassified as A (CompilerBackend emit not detected)" >&2
+    selftest_failed=1
+  else
+    echo "PASS: kk_print_string_flat not in A (CompilerBackend static emit detected)"
+  fi
+
+  if grep -qx "kk_atomic_int_array_loadAt" "$WORK/dead_B.txt"; then
+    echo "FAIL: kk_atomic_int_array_loadAt misclassified as B (two-stage prefix emit not detected)" >&2
+    selftest_failed=1
+  else
+    echo "PASS: kk_atomic_int_array_loadAt not in B (two-stage prefix emit detected)"
+  fi
+
+  if [[ $selftest_failed -ne 0 ]]; then
+    echo "Self-test FAILED" >&2
+    exit 1
+  fi
+  echo "Self-test PASSED"
 fi
