@@ -6,6 +6,24 @@ final class RuntimeStringBuilderBox {
     init(_ initial: String = "") { self.value = initial }
 }
 
+// BUG-044: StringBuilder instances bypass normal kk_object_new-based class
+// construction (see CallLowerer.lowerStringBuilderConstructorCall), so they
+// never go through the compiler-emitted kk_type_register_super/
+// kk_object_register_itable_iface calls a regular class gets. Without an
+// object type ID and supertype edges, `sb is CharSequence`/`sb is Appendable`
+// fell through kk_op_is's nominalBase case to the RuntimeThrowableBox
+// fallback and incorrectly returned false. Register both explicitly here.
+private let stringBuilderTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.StringBuilder")
+private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
+
+private func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
+    runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
+    runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
+    return raw
+}
+
 private func runtimeStringBuilderBox(from raw: Int) -> RuntimeStringBuilderBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     let isObject = runtimeStorage.withGCLock { state in
@@ -29,7 +47,7 @@ private func sbMakeStringRaw(_ value: String) -> Int {
 
 @_cdecl("kk_string_builder_new")
 public func kk_string_builder_new() -> Int {
-    registerRuntimeObject(RuntimeStringBuilderBox())
+    runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox()))
 }
 
 @_cdecl("kk_string_builder_new_from_string_flat")
@@ -45,7 +63,7 @@ public func kk_string_builder_new_from_string_flat(
 }
 
 private func runtimeStringBuilderNew(initial: String) -> Int {
-    registerRuntimeObject(RuntimeStringBuilderBox(initial))
+    runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(initial)))
 }
 
 private func runtimeStringBuilderObjectStringFromFlat(
