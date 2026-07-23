@@ -2005,6 +2005,35 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // BUG-036: `CASE_INSENSITIVE_ORDER` is a top-level `val` in real Kotlin,
+    // so repeated reads must observe the same instance. The synthetic
+    // property had no backing global to cache into and called
+    // `kk_string_case_insensitive_order()` directly on every read, minting a
+    // fresh comparator object each time. Fixed by caching the singleton
+    // handle in the runtime, cleared on `kk_runtime_force_reset` for test
+    // isolation.
+    func testKotlinTextCaseInsensitiveOrderIsReferentiallyStable() throws {
+        let source = """
+        import kotlin.text.CASE_INSENSITIVE_ORDER
+
+        fun main() {
+            val a = CASE_INSENSITIVE_ORDER
+            val b = CASE_INSENSITIVE_ORDER
+            println(a === b)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCaseInsensitiveOrderIsReferentiallyStable",
+            expected:
+                """
+                true
+                """
+                + "\n"
+        )
+    }
+
     func testKotlinTextCharSequenceZipEdgeCases() throws {
         let source = """
         fun merge(a: String, b: CharSequence): List<String> {
