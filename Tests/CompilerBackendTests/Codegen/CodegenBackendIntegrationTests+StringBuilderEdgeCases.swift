@@ -329,4 +329,59 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // BUG-044: StringBuilder instances are constructed via a dedicated
+    // runtime entry point (kk_string_builder_new/_from_string_flat) that
+    // bypasses the normal kk_object_new class-construction path, so they
+    // never received the kk_type_register_super/kk_object_register_itable_iface
+    // registrations that make `is`/`as` work for a hand-rolled runtime
+    // object. `sb is CharSequence`/`sb is Appendable` fell through to
+    // kk_op_is's exception-hierarchy fallback and always returned false.
+    func testCodegenStringBuilderIsCharSequenceAndAppendable() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder("hello")
+            println(sb is CharSequence)
+            println(sb is Appendable)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBuilderIsCharSequenceAndAppendable",
+            expected:
+                """
+                true
+                true
+                """
+                + "\n"
+        )
+    }
+
+    // BUG-044 follow-up: `buildStringBuilder { ... }` (unlike `buildString { ... }`,
+    // which converts to a String via `.toString()` before returning) hands back
+    // the StringBuilder itself, constructed via the separate `kk_build_string_builder`
+    // DSL entry point (RuntimeBuilderDSL.swift), not the `kk_string_builder_new*`
+    // constructors the above test exercises. It needs the same
+    // runtimeRegisterStringBuilderType registration independently.
+    func testCodegenBuildStringBuilderResultIsCharSequenceAndAppendable() throws {
+        let source = """
+        fun main() {
+            val sb = buildStringBuilder { append("hello") }
+            println(sb is CharSequence)
+            println(sb is Appendable)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BuildStringBuilderResultIsCharSequenceAndAppendable",
+            expected:
+                """
+                true
+                true
+                """
+                + "\n"
+        )
+    }
 }
