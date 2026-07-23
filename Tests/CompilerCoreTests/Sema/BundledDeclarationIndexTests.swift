@@ -51,7 +51,7 @@ struct BundledDeclarationIndexTests {
     @Test
     func symbolTableBuildUsesInterfaceReceiverFQName() throws {
         let sourceManager = SourceManager()
-        let fileID = sourceManager.addFile(path: "__bundled_interface.kt", contents: Data("".utf8))
+        let fileID = sourceManager.addFile(path: "__bundled_interface.kt", contents: Data("".utf8), origin: .bundledStdlib)
         let range = SourceRange(
             start: SourceLocation(file: fileID, offset: 0),
             end: SourceLocation(file: fileID, offset: 0)
@@ -259,7 +259,7 @@ struct BundledDeclarationIndexTests {
     private func buildBundledAST(_ source: String) throws -> (ASTModule, CompilationContext) {
         let path = "__bundled_test.kt"
         let ctx = makeCompilationContext(inputs: [path])
-        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .bundledStdlib)
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
         try BuildASTPhase().run(ctx)

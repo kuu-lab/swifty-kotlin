@@ -162,7 +162,7 @@ extension DataFlowSemaPhase {
         guard let fileID, let sourceManager else {
             return false
         }
-        return sourceManager.path(of: fileID).hasPrefix("__bundled_")
+        return sourceManager.origin(of: fileID)?.isBundledStdlib == true
     }
 
     private func annotationStringArgumentValue(_ raw: String) -> String {

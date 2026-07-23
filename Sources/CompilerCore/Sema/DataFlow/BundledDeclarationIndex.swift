@@ -481,7 +481,7 @@ struct BundledDeclarationIndex: Sendable {
     }
 
     private static func bundledFileIDs(in sourceManager: SourceManager) -> Set<FileID> {
-        Set(sourceManager.fileIDs().filter { sourceManager.path(of: $0).hasPrefix("__bundled_") })
+        Set(sourceManager.fileIDs().filter { sourceManager.origin(of: $0)?.isBundledStdlib == true })
     }
 
     private static func addListIterableAliases(to keys: inout Set<BundledMemberKey>, interner: StringInterner) {
