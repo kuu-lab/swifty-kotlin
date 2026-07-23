@@ -419,6 +419,11 @@ extension CallTypeChecker {
     /// lets trailing-lambda expected types be computed with the receiver's
     /// generic substitutions already applied, so `it` in `xs.map { it * 10 }`
     /// is seen as `Int` rather than `T`.
+    ///
+    /// For member functions whose declared receiver type is not available in the
+    /// signature, the leading `classTypeParameterCount` type parameters are taken
+    /// to be the class type parameters and are substituted from the call-site
+    /// receiver's concrete class arguments.
     private func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -428,20 +433,30 @@ extension CallTypeChecker {
     ) -> TypeID {
         guard sema.symbols.symbol(candidate)?.kind != .constructor,
               !signature.typeParameterSymbols.isEmpty,
-              let signatureReceiverType = signature.receiverType,
               let callSiteReceiverType = receiverType,
-              let declaredClass = resolveClassType(signatureReceiverType, sema: sema),
-              let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema),
-              declaredClass.classSymbol == callSiteClass.classSymbol,
-              declaredClass.args.count == callSiteClass.args.count
+              let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
         else {
             return parameterType
         }
+
+        let declaredClassArgs: [TypeArg]
+        if let signatureReceiverType = signature.receiverType,
+           let declaredClass = resolveClassType(signatureReceiverType, sema: sema),
+           declaredClass.classSymbol == callSiteClass.classSymbol,
+           declaredClass.args.count == callSiteClass.args.count {
+            declaredClassArgs = declaredClass.args
+        } else if signature.classTypeParameterCount > 0,
+                  callSiteClass.args.count >= signature.classTypeParameterCount {
+            declaredClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+        } else {
+            return parameterType
+        }
+
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
-        for index in 0 ..< declaredClass.args.count {
+        for index in 0 ..< declaredClassArgs.count {
             let declaredArg: TypeID
-            switch declaredClass.args[index] {
+            switch declaredClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 declaredArg = type
             case .star:

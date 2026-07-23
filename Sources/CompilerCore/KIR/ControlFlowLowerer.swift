@@ -41,6 +41,25 @@ final class ControlFlowLowerer {
         // whose static type can be used to resolve an itable/vtable slot.
         // hasNext()/next() on the stdlib Iterator use runtime itable lookup,
         // so they continue to use a direct .call when there is no receiver expr.
+        //
+        // Member functions (class/interface/object) receive their `this` through
+        // the virtual call receiver; extension functions receive it as the first
+        // explicit argument, so tryEmitVirtualDispatch strips it. Pass the
+        // argument list that matches this contract to avoid double receivers.
+        let isClassMember: Bool
+        let chosenCallee = callBinding.chosenCallee
+        if let parentSymbolID = sema.symbols.parentSymbol(for: chosenCallee),
+           let parentSymbol = sema.symbols.symbol(parentSymbolID) {
+            switch parentSymbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                isClassMember = true
+            default:
+                isClassMember = false
+            }
+        } else {
+            isClassMember = false
+        }
+        let virtualArguments: [KIRExprID] = isClassMember ? [] : [receiverID]
         if let receiverExpr,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                chosenCallee: callBinding.chosenCallee,
@@ -48,7 +67,7 @@ final class ControlFlowLowerer {
                receiverExpr: receiverExpr,
                loweredReceiverID: receiverID,
                isSuperCall: false,
-               finalArguments: [receiverID],
+               finalArguments: virtualArguments,
                result: result,
                sema: sema,
                interner: interner
