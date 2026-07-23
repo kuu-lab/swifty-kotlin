@@ -66,7 +66,7 @@ expr e@15:27 int(20) type=Int
 expr e@15:31 int(30) type=Int
 expr e@15:35 int(40) type=Int
 expr e@15:39 int(50) type=Int
-expr e@15:16 call callee=e@15:16#1 args=[_:e@15:23,_:e@15:27,_:e@15:31,_:e@15:35,_:e@15:39] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#3 targs=[Int]
+expr e@15:16 call callee=e@15:16#1 args=[_:e@15:23,_:e@15:27,_:e@15:31,_:e@15:35,_:e@15:39] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@15:5 localDecl list mutable=0 type=_ init=e@15:16 type=Unit ref=__local_2.list
 expr e@16:24 name(list) type=kotlin.collections.List<out Int> ref=__local_2.list
 expr e@16:24#1 memberCall recv=e@16:24 callee=asSequence args=[] type=Any call=kotlin.collections.List.asSequence

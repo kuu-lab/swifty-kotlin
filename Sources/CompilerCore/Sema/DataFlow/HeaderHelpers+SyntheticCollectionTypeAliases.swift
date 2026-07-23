@@ -9,14 +9,16 @@ extension DataFlowSemaPhase {
 
     /// Register bootstrap symbols for collection factory functions while the
     /// bundled CollectionFactories.kt source is being type-checked. The
-    /// source declarations replace these synthetic symbols in the normal
-    /// post-bundled pass; during the bootstrap pass they are still required so
-    /// calls from other bundled files (for example ListHOF.kt) can resolve.
+    /// bundled declaration index is used to skip functions that are already
+    /// provided by Kotlin source so they do not duplicate source declarations
+    /// in the symbol table.
     func registerSyntheticCollectionFactoryStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let packageSymbol = symbols.lookup(fqName: kotlinCollectionsPkg)
 
@@ -52,6 +54,8 @@ extension DataFlowSemaPhase {
                 returnType: types.anyType,
                 externalLinkName: externalLinkName,
                 typeParameterSymbols: typeParameterSymbols,
+                bundledIndex: bundledIndex,
+                skipStats: skipStats,
                 symbols: symbols,
                 interner: interner
             )

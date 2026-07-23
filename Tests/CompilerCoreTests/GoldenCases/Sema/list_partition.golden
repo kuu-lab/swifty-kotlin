@@ -13,7 +13,7 @@ expr e@2:26 int(2) type=Int
 expr e@2:29 int(3) type=Int
 expr e@2:32 int(4) type=Int
 expr e@2:35 int(5) type=Int
-expr e@2:16 call callee=e@2:16#1 args=[_:e@2:23,_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#3 targs=[Int]
+expr e@2:16 call callee=e@2:16#1 args=[_:e@2:23,_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@2:5 localDecl list mutable=0 type=_ init=e@2:16 type=Unit ref=__local_0.list
 expr e@3:25 name(list) type=kotlin.collections.List<out Int> ref=__local_0.list
 expr e@3:42 name(it) type=Int ref=s-0

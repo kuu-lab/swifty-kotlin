@@ -26,4 +26,4 @@ expr e@25:36 string(woof) type=String
 expr e@26:38 string(dog) type=String
 expr e@27:36 string(canine) type=String
 expr e@28:34 string(human) type=String
-expr e@36:40 call callee=e@36:40#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList#1 targs=[String]
+expr e@36:40 call callee=e@36:40#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList targs=[String]

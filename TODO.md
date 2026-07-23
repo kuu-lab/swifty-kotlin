@@ -480,7 +480,7 @@
   - 手順: `BundledKotlinStdlib.excludedBundledStdlibFiles` から、実ファイルが存在しない `kotlin/ResultExtensions`, `kotlin/logging/AdvancedLogger`, `kotlin/reflect/KClassAnnotationRegistration`, `kotlin/text/StringBasics`, `kotlin/text/StringEncoding` を削除（`find Sources/CompilerCore/Stdlib -name '*.kt'` で不在を確認済み）
   - 注記: `kotlin/comparisons/Comparators` は KSP-309 で配線済み。`kotlin/ranges/RangeIterators` のみを KSP-312 予約枠として残す（`RangeMembership` は既にソース配線済みのため除外リストに追加しない）
   - 検証: G のみ
-- [x] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
+- [x] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`） (PR #5002)
   - 注意: **同一 PR で** `BundledKotlinStdlib.kotlinTextSource` 内の同名 5 関数を削除（二重定義になるため）。runtime `__string_trimIndent` 系 / `kk_string_trimIndent` 系（`RuntimeStringFormat.swift`）は Kotlin 版が完全なら削除、不足なら `__kk_` 降格
   - 手順: T / diff: `string_indent.kt`（既存）
 - [x] KSP-305: CollectionFactories を配線する（`listOf`/`setOf`/`mapOf`/`empty*`/`mutable*Of`） (PR #5002)

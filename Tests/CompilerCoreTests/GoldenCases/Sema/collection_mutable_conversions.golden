@@ -42,7 +42,7 @@ file fcollection_mutable_conversions package=_
 expr e@3:39 int(1) type=Int
 expr e@3:42 int(2) type=Int
 expr e@3:45 int(3) type=Int
-expr e@3:32 call callee=e@3:32#1 args=[_:e@3:39,_:e@3:42,_:e@3:45] type=kotlin.collections.Iterable<Int> call=kotlin.collections.listOf#3 targs=[Int]
+expr e@3:32 call callee=e@3:32#1 args=[_:e@3:39,_:e@3:42,_:e@3:45] type=kotlin.collections.Iterable<Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@3:5 localDecl items mutable=0 type=Iterable<Int> init=e@3:32 type=Unit ref=__local_0.items
 expr e@4:33 name(items) type=kotlin.collections.Iterable<Int> ref=__local_0.items
 expr e@4:33#1 memberCall recv=e@4:33 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.collections.Iterable.toMutableList
@@ -75,7 +75,7 @@ expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.pri
 expr e@19:42 string(a) type=String
 expr e@19:47 string(b) type=String
 expr e@19:52 string(c) type=String
-expr e@19:35 call callee=e@19:35#1 args=[_:e@19:42,_:e@19:47,_:e@19:52] type=kotlin.collections.Collection<String> call=kotlin.collections.listOf#3 targs=[String]
+expr e@19:35 call callee=e@19:35#1 args=[_:e@19:42,_:e@19:47,_:e@19:52] type=kotlin.collections.Collection<String> call=kotlin.collections.listOf#1 targs=[String]
 expr e@19:5 localDecl col mutable=0 type=Collection<String> init=e@19:35 type=Unit ref=__local_4.col
 expr e@20:36 name(col) type=kotlin.collections.Collection<String> ref=__local_4.col
 expr e@20:36#1 memberCall recv=e@20:36 callee=toMutableList args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.Collection.toMutableList
@@ -91,7 +91,7 @@ expr e@25:21#1 memberCall recv=e@25:21 callee=to args=[_:e@25:28] type=kotlin.Pa
 expr e@25:31 string(y) type=String
 expr e@25:38 int(2) type=Int
 expr e@25:31#1 memberCall recv=e@25:31 callee=to args=[_:e@25:38] type=kotlin.Pair<String, Int>
-expr e@25:15 call callee=e@25:15#1 args=[_:e@25:21#1,_:e@25:31#1] type=kotlin.collections.Map<String, out Int> call=kotlin.collections.mapOf#3 targs=[String,Int]
+expr e@25:15 call callee=e@25:15#1 args=[_:e@25:21#1,_:e@25:31#1] type=kotlin.collections.Map<String, out Int> call=kotlin.collections.mapOf#1 targs=[String,Int]
 expr e@25:5 localDecl map mutable=0 type=_ init=e@25:15 type=Unit ref=__local_6.map
 expr e@26:39 name(map) type=kotlin.collections.Map<String, out Int> ref=__local_6.map
 expr e@26:39#1 memberCall recv=e@26:39 callee=toMutableMap args=[] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.Map.toMutableMap targs=[String,Int]

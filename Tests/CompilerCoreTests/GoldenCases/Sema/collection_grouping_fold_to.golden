@@ -14,7 +14,7 @@ symbol fq=testGroupingFoldToWithSelector.$1.values kind=valueParameter vis=priva
 file fcollection_grouping_fold_to package=_
   decl testGroupingFoldTo fun testGroupingFoldTo sym=testGroupingFoldTo
   decl testGroupingFoldToWithSelector fun testGroupingFoldToWithSelector sym=testGroupingFoldToWithSelector
-expr e@2:16 call callee=e@2:16#1 args=[] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.mutableMapOf#1 targs=[Int,Int]
+expr e@2:16 call callee=e@2:16#1 args=[] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.mutableMapOf#0 targs=[Int,Int]
 expr e@2:5 localDecl dest mutable=0 type=_ init=e@2:16 type=Unit ref=__local_0.dest
 expr e@3:18 name(values) type=kotlin.collections.List<String> ref=testGroupingFoldTo.$0.values
 expr e@3:38 name(it) type=String ref=s-0
@@ -32,7 +32,7 @@ expr e@3:18#2 memberCall recv=e@3:18#1 callee=foldTo args=[_:e@4:9,initialValue:
 expr e@3:5 localDecl result mutable=0 type=_ init=e@3:18#2 type=Unit ref=__local_1.result
 expr e@10:13 name(result) type=kotlin.collections.MutableMap<Int, Int> ref=__local_1.result
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
-expr e@14:16 call callee=e@14:16#1 args=[] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.mutableMapOf#1 targs=[Int,Int]
+expr e@14:16 call callee=e@14:16#1 args=[] type=kotlin.collections.MutableMap<Int, Int> call=kotlin.collections.mutableMapOf#0 targs=[Int,Int]
 expr e@14:5 localDecl dest mutable=0 type=_ init=e@14:16 type=Unit ref=__local_2.dest
 expr e@15:18 name(values) type=kotlin.collections.List<String> ref=testGroupingFoldToWithSelector.$1.values
 expr e@15:38 name(it) type=String ref=s-3

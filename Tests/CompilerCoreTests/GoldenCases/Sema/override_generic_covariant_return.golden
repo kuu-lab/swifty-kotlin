@@ -22,8 +22,8 @@ file foverride_generic_covariant_return package=golden.sema
   decl golden.sema.NumberHolder class NumberHolder sym=golden.sema.NumberHolder
   decl golden.sema.IntHolder class IntHolder sym=golden.sema.IntHolder
   decl golden.sema.main fun main sym=golden.sema.main
-expr e@4:33 call callee=e@4:33#1 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T> call=kotlin.collections.emptyList#1 targs=[golden.sema.ListProvider.$class0.T]
-expr e@9:39 call callee=e@9:39#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.emptyList#1 targs=[Int]
+expr e@4:33 call callee=e@4:33#1 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T> call=kotlin.collections.emptyList targs=[golden.sema.ListProvider.$class0.T]
+expr e@9:39 call callee=e@9:39#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.emptyList targs=[Int]
 expr e@13:33 call callee=e@13:33#1 args=[] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#0
 expr e@13:27 throw value=e@13:33 type=Nothing
 expr e@18:33 int(42) type=Int
