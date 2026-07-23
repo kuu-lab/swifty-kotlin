@@ -82,7 +82,8 @@ extension DataFlowSemaPhase {
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            skipStats: skipStats
         )
         registerListContentEqualsMember(
             symbols: symbols, types: types, interner: interner,
@@ -1134,7 +1135,8 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let memberName = interner.intern("joinToString")
         let memberFQName = listFQName + [memberName]
@@ -1145,6 +1147,21 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
+
+        // KSP-INF-011: skip the default (non-transform) overload when bundled
+        // source already provides it. Transform overloads are registered below.
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 3,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: listFQName, name: memberName, arity: 3, interner: interner)
+        } else {
+
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
@@ -1193,6 +1210,7 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+        }
 
         // Register `List<E>.joinToString(separator?, prefix?, postfix?, transform)` HOF
         // overloads. See the matching comment in

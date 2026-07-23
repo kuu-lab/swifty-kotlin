@@ -38,7 +38,9 @@ struct BundledDeclarationIndex: Sendable {
     /// AST scanning preserves the current phase order while supplying
     /// `(owner, name, arity)` keys to synthetic stub registration.
     static func build(ast: ASTModule, sourceManager: SourceManager, interner: StringInterner) -> BundledDeclarationIndex {
-        BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager, interner: interner))
+        var keys = buildKeys(ast: ast, sourceManager: sourceManager, interner: interner)
+        addListIterableAliases(to: &keys, interner: interner)
+        return BundledDeclarationIndex(keys: keys)
     }
 
     static func build(
@@ -117,6 +119,14 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
                 continue
             }
+            // joinTo/joinToString transform overloads intentionally share arity
+            // with the non-transform default. The bundled-index key only tracks
+            // arity, so suppress the warning when the synthetic stub carries a
+            // function-typed parameter (it is a transform overload, not the
+            // missed default overload).
+            if Self.isSyntheticJoinToTransformOverload(symbol.id, key: key, symbols: symbols, types: types, interner: interner) {
+                continue
+            }
             guard contains(key), reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
@@ -126,6 +136,33 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    /// Returns true when `symbolID` is a synthetic `joinTo` / `joinToString`
+    /// transform overload. These overloads intentionally share arity with the
+    /// non-transform default, so the arity-only bundled index would otherwise
+    /// emit a false-positive KSWIFTK-SEMA-0102 warning when the default is
+    /// correctly suppressed and the transform overload is retained.
+    private static func isSyntheticJoinToTransformOverload(
+        _ symbolID: SymbolID,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let name = interner.resolve(key.name)
+        guard name == "joinTo" || name == "joinToString" else {
+            return false
+        }
+        guard let signature = symbols.functionSignature(for: symbolID) else {
+            return false
+        }
+        return signature.parameterTypes.contains { paramType in
+            if case .functionType = types.kind(of: types.makeNonNullable(paramType)) {
+                return true
+            }
+            return false
         }
     }
 
@@ -287,6 +324,13 @@ struct BundledDeclarationIndex: Sendable {
             return key.arity == 1
         case "filterNotNull", "filterIsInstance", "requireNoNulls", "withIndex":
             return key.arity == 0
+        case "associate", "associateBy", "associateWith",
+             "groupBy":
+            // MIGRATION-SEQ-004: Sequence aggregate HOFs are partially migrated to
+            // Kotlin source, but the runtime-backed ABI stubs are still the
+            // member-call resolution path. Retain them until source-backed
+            // lowering takes over.
+            return key.arity == 1
         case "toList", "toSet", "toMutableList":
             // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
             // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
@@ -317,6 +361,10 @@ struct BundledDeclarationIndex: Sendable {
             files: bundledFiles,
             ast: ast
         )
+        let defaultImportedNameToPackage = defaultImportMap(
+            topLevelNominalNamesByPackage: topLevelNominalNamesByPackage,
+            interner: interner
+        )
         let builtinNames = BuiltinTypeNames(interner: interner)
 
         var keys: Set<BundledMemberKey> = []
@@ -327,6 +375,7 @@ struct BundledDeclarationIndex: Sendable {
                     declID: declID,
                     packageFQName: file.packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
+                    defaultImportedNameToPackage: defaultImportedNameToPackage,
                     ast: ast,
                     builtinNames: builtinNames,
                     interner: interner,
@@ -500,7 +549,7 @@ struct BundledDeclarationIndex: Sendable {
     }
 
     private static func bundledFileIDs(in sourceManager: SourceManager) -> Set<FileID> {
-        Set(sourceManager.fileIDs().filter { sourceManager.path(of: $0).hasPrefix("__bundled_") })
+        Set(sourceManager.fileIDs().filter { sourceManager.origin(of: $0)?.isBundledStdlib == true })
     }
 
     private static func addListIterableAliases(to keys: inout Set<BundledMemberKey>, interner: StringInterner) {
@@ -525,6 +574,7 @@ struct BundledDeclarationIndex: Sendable {
         declID: DeclID,
         packageFQName: [InternedString],
         topLevelNominalNames: Set<InternedString>,
+        defaultImportedNameToPackage: [InternedString: [InternedString]],
         ast: ASTModule,
         builtinNames: BuiltinTypeNames,
         interner: StringInterner,
@@ -543,6 +593,7 @@ struct BundledDeclarationIndex: Sendable {
                    for: receiverType,
                    relativeTo: packageFQName,
                    topLevelNominalNames: topLevelNominalNames,
+                   defaultImportedNameToPackage: defaultImportedNameToPackage,
                    ast: ast,
                    builtinNames: builtinNames,
                    interner: interner
@@ -570,6 +621,7 @@ struct BundledDeclarationIndex: Sendable {
                    for: receiverType,
                    relativeTo: packageFQName,
                    topLevelNominalNames: topLevelNominalNames,
+                   defaultImportedNameToPackage: defaultImportedNameToPackage,
                    ast: ast,
                    builtinNames: builtinNames,
                    interner: interner
@@ -745,6 +797,7 @@ struct BundledDeclarationIndex: Sendable {
         for typeRef: TypeRef,
         relativeTo packageFQName: [InternedString],
         topLevelNominalNames: Set<InternedString>,
+        defaultImportedNameToPackage: [InternedString: [InternedString]],
         ast: ASTModule,
         builtinNames: BuiltinTypeNames,
         interner: StringInterner
@@ -759,14 +812,16 @@ struct BundledDeclarationIndex: Sendable {
             }
             // Single-segment names normally resolve relative to the current
             // bundled package (e.g. `Duration.foo()` inside kotlin.time), but
-            // built-in root types (Int, String, ...) live under `kotlin`
-            // regardless of which subpackage references them. Without this
-            // check, e.g. `Int.seconds` declared in kotlin.time was keyed as
-            // kotlin.time.Int instead of kotlin.Int, so the KSP-002 skip guard
-            // never matched and a conflicting synthetic stub was registered
-            // alongside the bundled source declaration.
+            // built-in root types (Int, Long, ...) and Kotlin's default-imported
+            // top-level declarations (List, Sequence, ...) live under specific
+            // packages regardless of which subpackage references them. Without
+            // these checks, bundled extension declarations are keyed under the
+            // wrong owner and the KSP-002 skip guard misses them.
             if path.count == 1, isBuiltinRootTypeName(first, builtinNames: builtinNames) {
                 return [interner.intern("kotlin"), first]
+            }
+            if path.count == 1, let defaultPackage = defaultImportedNameToPackage[first] {
+                return defaultPackage + path
             }
             if path.count == 1 || topLevelNominalNames.contains(first) {
                 return packageFQName + path
@@ -780,6 +835,7 @@ struct BundledDeclarationIndex: Sendable {
                 for: baseRef,
                 relativeTo: packageFQName,
                 topLevelNominalNames: topLevelNominalNames,
+                defaultImportedNameToPackage: defaultImportedNameToPackage,
                 ast: ast,
                 builtinNames: builtinNames,
                 interner: interner
@@ -837,6 +893,102 @@ struct BundledDeclarationIndex: Sendable {
         default:
             return nil
         }
+    }
+
+    /// Builds a map from single-segment type names to the default-import package
+    /// that owns them. This lets extension declarations in one package (e.g.
+    /// `kotlin.text.StringSplitJoin.kt` declaring `List<T>.joinToString`) be keyed
+    /// by the receiver's real owner package (`kotlin.collections`) instead of the
+    /// declaring package. The map merges names discovered from bundled source files
+    /// with a seed of compiler-provided synthetic stdlib types (which do not appear
+    /// in bundled sources but are default-imported, such as `List`, `Sequence`,
+    /// `Array`, and `Comparator`). Source-defined names take precedence.
+    private static func defaultImportMap(
+        topLevelNominalNamesByPackage: [[InternedString]: Set<InternedString>],
+        interner: StringInterner
+    ) -> [InternedString: [InternedString]] {
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let sequences = interner.intern("sequences")
+        let ranges = interner.intern("ranges")
+        let text = interner.intern("text")
+        let io = interner.intern("io")
+        let reflect = interner.intern("reflect")
+
+        let defaultImportPackages: [[InternedString]] = [
+            [kotlin, collections],
+            [kotlin, sequences],
+            [kotlin, ranges],
+            [kotlin, text],
+            [kotlin, io],
+            [kotlin],
+            [kotlin, reflect],
+        ]
+
+        // Compiler-provided synthetic types that are default-imported but not
+        // declared in bundled .kt files. These must resolve to the same FQ name
+        // as the symbol created later by HeaderHelpers so the KSP-002 skip guard
+        // matches. Source-defined names take precedence below.
+        let synthesizedNamesByPackage: [[InternedString]: [String]] = [
+            [kotlin, collections]: [
+                "Iterable", "MutableIterable",
+                "Collection", "MutableCollection",
+                "List", "MutableList",
+                "Set", "MutableSet",
+                "Map", "MutableMap",
+                "Iterator", "MutableIterator",
+                "ListIterator", "MutableListIterator",
+                "RandomAccess",
+            ],
+            [kotlin, sequences]: ["Sequence"],
+            [kotlin, ranges]: [
+                "ClosedRange", "OpenEndRange",
+                "IntRange", "LongRange", "CharRange", "UIntRange", "ULongRange",
+                "IntProgression", "LongProgression", "CharProgression",
+                "UIntProgression", "ULongProgression",
+            ],
+            [kotlin, text]: [
+                "Regex", "MatchResult", "MatchGroup",
+                "StringBuilder", "Appendable", "CharSequence",
+            ],
+            [kotlin, io]: [
+                "FileTreeWalk", "File", "InputStream", "OutputStream",
+            ],
+            [kotlin]: [
+                "Array",
+                "ByteArray", "ShortArray", "IntArray", "LongArray",
+                "FloatArray", "DoubleArray", "CharArray", "BooleanArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray",
+                "Pair", "Triple", "Result",
+                "Throwable", "Exception", "Error", "RuntimeException",
+                "Comparator",
+            ],
+            [kotlin, reflect]: [
+                "KClass", "KClassifier", "KType", "KTypeParameter",
+                "KTypeProjection", "KCallable", "KFunction", "KProperty",
+            ],
+        ]
+
+        var map: [InternedString: [InternedString]] = [:]
+
+        // Seed compiler-provided synthetic types first.
+        for (pkg, names) in synthesizedNamesByPackage {
+            for name in names {
+                let interned = interner.intern(name)
+                if map[interned] == nil {
+                    map[interned] = pkg
+                }
+            }
+        }
+
+        // Source-defined top-level nominal names take precedence over the seed.
+        for pkg in defaultImportPackages {
+            for name in topLevelNominalNamesByPackage[pkg] ?? [] {
+                map[name] = pkg
+            }
+        }
+
+        return map
     }
 
     private static func pathStarts(with path: [InternedString], prefix: [InternedString]) -> Bool {

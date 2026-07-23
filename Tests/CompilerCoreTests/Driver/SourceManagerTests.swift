@@ -196,6 +196,37 @@ struct SourceManagerTests {
     }
 
     @Test
+    func testOriginDefaultsToUser() {
+        let manager = SourceManager()
+        let id = manager.addFile(path: "user.kt", contents: Data("fun main() {}".utf8))
+        #expect(manager.origin(of: id) == .user)
+    }
+
+    @Test
+    func testOriginCanBeSetToBundledStdlib() {
+        let manager = SourceManager()
+        let id = manager.addFile(
+            path: "__bundled_test.kt",
+            contents: Data("package kotlin".utf8),
+            origin: .bundledStdlib
+        )
+        #expect(manager.origin(of: id) == .bundledStdlib)
+        #expect(manager.origin(of: id)?.isBundledStdlib == true)
+    }
+
+    @Test
+    func testOriginCanBeSetToResidualStdlib() {
+        let manager = SourceManager()
+        let id = manager.addFile(
+            path: "__bundled_kotlin_collections_stdlib.kt",
+            contents: Data("".utf8),
+            origin: .residualStdlib
+        )
+        #expect(manager.origin(of: id) == .residualStdlib)
+        #expect(manager.origin(of: id)?.isBundledStdlib == true)
+    }
+
+    @Test
     func testLineColumnWithUnicodeAcrossMultipleLines() {
         let manager = SourceManager()
         // Line 1: "café\n"  (UTF-8: c=1, a=1, f=1, é=2, \n=1 → 6 bytes)

@@ -147,6 +147,12 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
         }
     }
 
+    private static let residualBundledStdlibFileNames: Set<String> = [
+        "__bundled_kotlin_collections_stdlib.kt",
+        "__bundled_kotlin_text_stdlib.kt",
+        "__bundled_kotlin_sequences_stdlib.kt",
+    ]
+
     private static func residualBundledStdlibSources() -> [(path: String, contents: Data)] {
         let residualSources: [(path: String, source: String)] = [
             ("__bundled_kotlin_collections_stdlib.kt", Self.kotlinCollectionsSource),
@@ -156,6 +162,10 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
         return residualSources.map { (path, source) in
             (path: path, contents: Data(source.utf8))
         }
+    }
+
+    internal static func isResidualBundledStdlibSource(_ path: String) -> Bool {
+        residualBundledStdlibFileNames.contains(path)
     }
 
     /// Collects bundled stdlib `.kt` sources from `resourcePath/Stdlib`, plus

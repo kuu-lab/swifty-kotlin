@@ -134,7 +134,8 @@ extension DataFlowSemaPhase {
         )
         registerIterableJoinToMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            skipStats: skipStats
         )
         registerIterableFirstNotNullOfMember(
             symbols: symbols, types: types, interner: interner,
@@ -168,7 +169,8 @@ extension DataFlowSemaPhase {
         )
         registerIterableJoinToStringMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            skipStats: skipStats
         )
         registerIterableReduceMember(
             symbols: symbols, types: types, interner: interner,
@@ -455,7 +457,8 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticArrayStubs(
-            symbols: symbols, types: types, interner: interner
+            symbols: symbols, types: types, interner: interner,
+            skipStats: skipStats
         )
         registerCollectionToTypedArrayMember(
             symbols: symbols, types: types, interner: interner,

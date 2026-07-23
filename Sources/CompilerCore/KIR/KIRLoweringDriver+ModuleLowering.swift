@@ -81,7 +81,7 @@ extension KIRLoweringDriver {
         _ file: ASTFile,
         compilationCtx: CompilationContext
     ) -> Bool {
-        guard compilationCtx.sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else {
+        guard compilationCtx.sourceManager.origin(of: file.fileID)?.isBundledStdlib == true else {
             return false
         }
 
