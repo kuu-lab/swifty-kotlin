@@ -10,12 +10,9 @@ import Foundation
 // MARK: - Memory management runtime support (STDLIB-PERF-154)
 
 struct RuntimeMemorySnapshot: Equatable, Sendable {
-    let usedBytes: Int64
     let totalBytes: Int64
     let freeBytes: Int64
     let maxBytes: Int64
-    let heapObjectCount: Int
-    let uptimeNanos: UInt64
 }
 
 final class RuntimeMemoryHandle: @unchecked Sendable {
@@ -25,21 +22,15 @@ final class RuntimeMemoryHandle: @unchecked Sendable {
 
 private let runtimeMemoryHandleRaw: Int = registerRuntimeObject(RuntimeMemoryHandle.shared)
 
-func runtimeCaptureMemorySnapshot(nowNanos: UInt64 = DispatchTime.now().uptimeNanoseconds) -> RuntimeMemorySnapshot {
+func runtimeCaptureMemorySnapshot() -> RuntimeMemorySnapshot {
     let usedBytes = runtimeCurrentMemoryUsageBytes()
     let maxBytes = runtimeMaximumMemoryBytes()
     let totalBytes = min(max(usedBytes, 0), maxBytes)
     let freeBytes = max(maxBytes - totalBytes, 0)
-    let heapObjectCount = runtimeStorage.withGCLock { state in
-        state.heapObjects.count
-    }
     return RuntimeMemorySnapshot(
-        usedBytes: usedBytes,
         totalBytes: totalBytes,
         freeBytes: freeBytes,
-        maxBytes: maxBytes,
-        heapObjectCount: heapObjectCount,
-        uptimeNanos: nowNanos
+        maxBytes: maxBytes
     )
 }
 
