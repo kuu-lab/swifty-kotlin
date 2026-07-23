@@ -14,6 +14,12 @@ final class KIRLoweringContext {
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
     var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
     var mutableCaptureCellsBySymbol: [SymbolID: KIRExprID] = [:]
+    /// Register holding the delegate instance for a local `by`-delegated
+    /// declaration (`val x by Prop()`), keyed by the local's own symbol.
+    /// Needed so a later assignment to a `var` local delegate can re-invoke
+    /// `setValue` on the same instance instead of overwriting the local's
+    /// value register directly.
+    var localDelegateStorageBySymbol: [SymbolID: KIRExprID] = [:]
     /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
     /// (e.g. collection HOF lambdas inferred via fallback).
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
@@ -58,6 +64,7 @@ final class KIRLoweringContext {
         let localValuesBySymbol: [SymbolID: KIRExprID]
         let localDeclaredTypesBySymbol: [SymbolID: TypeID]
         let mutableCaptureCellsBySymbol: [SymbolID: KIRExprID]
+        let localDelegateStorageBySymbol: [SymbolID: KIRExprID]
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
@@ -73,6 +80,7 @@ final class KIRLoweringContext {
             localValuesBySymbol: localValuesBySymbol,
             localDeclaredTypesBySymbol: localDeclaredTypesBySymbol,
             mutableCaptureCellsBySymbol: mutableCaptureCellsBySymbol,
+            localDelegateStorageBySymbol: localDelegateStorageBySymbol,
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
@@ -88,6 +96,7 @@ final class KIRLoweringContext {
         localValuesBySymbol = snapshot.localValuesBySymbol
         localDeclaredTypesBySymbol = snapshot.localDeclaredTypesBySymbol
         mutableCaptureCellsBySymbol = snapshot.mutableCaptureCellsBySymbol
+        localDelegateStorageBySymbol = snapshot.localDelegateStorageBySymbol
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
@@ -111,6 +120,7 @@ final class KIRLoweringContext {
         localValuesBySymbol.removeAll(keepingCapacity: true)
         localDeclaredTypesBySymbol.removeAll(keepingCapacity: true)
         mutableCaptureCellsBySymbol.removeAll(keepingCapacity: true)
+        localDelegateStorageBySymbol.removeAll(keepingCapacity: true)
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
         currentImplicitReceiverSymbol = nil
@@ -133,6 +143,15 @@ final class KIRLoweringContext {
         localValuesBySymbol.removeValue(forKey: symbol)
         localDeclaredTypesBySymbol.removeValue(forKey: symbol)
         mutableCaptureCellsBySymbol.removeValue(forKey: symbol)
+        localDelegateStorageBySymbol.removeValue(forKey: symbol)
+    }
+
+    func localDelegateStorage(for symbol: SymbolID) -> KIRExprID? {
+        localDelegateStorageBySymbol[symbol]
+    }
+
+    func setLocalDelegateStorage(_ exprID: KIRExprID, for symbol: SymbolID) {
+        localDelegateStorageBySymbol[symbol] = exprID
     }
 
     func localDeclaredType(for symbol: SymbolID) -> TypeID? {
