@@ -174,4 +174,85 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // KSP-441: for-in over a generic object-expression Sequence/Iterator pipeline
+    // whose `map` is inferred from the receiver's element type.
+    func testCodegenForInOverGenericObjectExpressionSequence() throws {
+        let source = """
+        interface Seq<out T> {
+            operator fun iterator(): Iterator<T>
+        }
+
+        fun <T, R> Seq<T>.mapManual(transform: (T) -> R): Seq<R> {
+            val source = this
+            val t = transform
+            return object : Seq<R> {
+                override fun iterator(): Iterator<R> {
+                    val src = source
+                    val tr = t
+                    val it = src.iterator()
+                    return object : Iterator<R> {
+                        override fun hasNext(): Boolean = it.hasNext()
+                        override fun next(): R = tr(it.next())
+                    }
+                }
+            }
+        }
+
+        fun makeSeq(limit: Int): Seq<Int> = object : Seq<Int> {
+            override fun iterator(): Iterator<Int> {
+                val l = limit
+                return object : Iterator<Int> {
+                    var count = 0
+                    override fun hasNext(): Boolean = count < l
+                    override fun next(): Int {
+                        val r = count
+                        count++
+                        return r
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            val mapped = makeSeq(3).mapManual { it * 10 }
+            for (i in mapped) {
+                println(i)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ForInGenericObjectExpressionSequenceExecution",
+            expected:
+                """
+                0
+                10
+                20
+                """
+                + "\n"
+        )
+    }
+
+    // KSP-441: trailing-lambda type inference for a member function of a
+    // user-defined generic class must substitute the receiver's type args.
+    func testCodegenGenericClassMemberTrailingLambdaTypeInference() throws {
+        let source = """
+        class Box<T>(val value: T) {
+            fun <R> map(transform: (T) -> R): Box<R> = Box(transform(value))
+        }
+
+        fun main() {
+            val b = Box(3).map { it * 10 }
+            println(b.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericClassMemberTrailingLambdaInferenceExecution",
+            expected: "30\n"
+        )
+    }
 }
