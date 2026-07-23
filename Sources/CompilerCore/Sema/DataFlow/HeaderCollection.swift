@@ -761,9 +761,21 @@ extension DataFlowSemaPhase {
             // StringSplitJoin.kt) even when the declaring package differs from the
             // receiver owner package. Skip private extensions so they retain
             // file-private visibility rather than being gated by the receiver class.
+            // Also skip functions whose synthetic runtime stub is intentionally retained
+            // as a migration bridge (e.g. List.first), so call sites keep routing
+            // through the kk_* ABI entry.
             if declaration.visibility != .private,
                let receiverType,
-               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)) {
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let semanticSymbol = symbols.symbol(symbol),
+               let key = BundledDeclarationIndex.memberKey(
+                   for: semanticSymbol,
+                   symbolID: symbol,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               ),
+               !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
                 symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol)
             }
 
