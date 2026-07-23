@@ -9,8 +9,6 @@ enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     static let excludedBundledStdlibFiles: Set<String> = [
-        // KSP-312: the source file exists but range iterator lowering is not wired yet.
-        "kotlin/ranges/RangeIterators",
     ]
 
     // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet

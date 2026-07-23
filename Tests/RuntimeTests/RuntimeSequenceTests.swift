@@ -259,7 +259,7 @@ private func runtimeTestStringHandle(_ value: String) -> Int {
 private func runtimeTestStringBuilder(_ value: String) -> Int {
     let bytes = Array(value.utf8)
     return bytes.withUnsafeBufferPointer { buffer in
-        kk_string_builder_new_from_string_flat(
+        __kk_string_builder_new_from_string_flat(
             buffer.baseAddress,
             value.unicodeScalars.count,
             value.utf8.count,
@@ -732,7 +732,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(returned, builder)
-        let renderedRaw = kk_string_builder_toString(builder)
+        let renderedRaw = __kk_string_builder_toString(builder)
         XCTAssertEqual(extractString(from: UnsafeMutableRawPointer(bitPattern: renderedRaw)), "seed:<1|2|3>")
     }
 
