@@ -1187,21 +1187,7 @@ public func kk_string_trimEnd_predicate_flat(
     )
 }
 
-@_cdecl("kk_string_endsWith_flat")
-public func kk_string_endsWith_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ suffixData: UnsafePointer<UInt8>?,
-    _ suffixLength: Int,
-    _ suffixByteCount: Int,
-    _ suffixHash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let suffix = runtimeStringFromFlatFields(data: suffixData, length: suffixLength, byteCount: suffixByteCount, hash: suffixHash)
-    return source.hasSuffix(suffix) ? 1 : 0
-}
+// KSP-404: kk_string_endsWith_flat removed; endsWith is bundled Kotlin source.
 
 @_cdecl("kk_string_chunked_flat")
 public func kk_string_chunked_flat(

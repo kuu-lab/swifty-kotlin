@@ -67,8 +67,6 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "startsWith": "kk_string_startsWith_flat",
-            "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
         ]
 
@@ -77,6 +75,15 @@ struct StringSyntheticMemberLinkTests {
             #expect(
                 links.contains(expectedLink),
                 "String.\(member) should link to \(expectedLink), got \(links.sorted())"
+            )
+        }
+        // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+        // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
+        for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
+            let links = externalLinks(for: member, sema: sema, interner: interner)
+            #expect(
+                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
             )
         }
         #expect(

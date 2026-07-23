@@ -231,10 +231,15 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
+    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+    // bundled Kotlin source (StringPrefixSuffix.kt); the backend must no longer emit
+    // any raw or flat runtime call for them.
+    func testLLVMBackendKeepsPrefixSuffixSourceBacked() throws {
         let source = """
         fun main() {
             val value = "foo-body-bar"
+            println(value.startsWith("foo-"))
+            println(value.endsWith("-bar"))
             println(value.removePrefix("foo-"))
             println(value.removeSuffix("-bar"))
             println(value.removeSurrounding("foo-"))
@@ -248,22 +253,23 @@ extension CodegenBackendIntegrationTests {
                 .path
             let llvmCtx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "StringRemoveFlatIR",
+                moduleName: "StringPrefixSuffixSourceBackedIR",
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            let removedStems = [
+                "kk_string_startsWith",
+                "kk_string_endsWith",
                 "kk_string_removePrefix",
                 "kk_string_removeSuffix",
                 "kk_string_removeSurrounding",
-                "kk_string_removeSurrounding_pair",
             ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String remove call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String remove call: \(rawName)_flat")
+            for stem in removedStems {
+                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String call: \(stem)")
+                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String call: \(stem)_flat")
             }
         }
     }
@@ -636,7 +642,6 @@ extension CodegenBackendIntegrationTests {
         let dropWhileResult = arena.appendExpr(.temporary(57), type: types.stringType)
         let dropWhileThrown = arena.appendExpr(.temporary(58), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
-        let startsWithResult = arena.appendExpr(.temporary(15), type: types.booleanType)
         let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
         let indexOfResult = arena.appendExpr(.temporary(17), type: types.intType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
@@ -720,7 +725,6 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_takeLastWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: takeLastWhileResult, canThrow: true, thrownResult: takeLastWhileThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_dropWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: dropWhileResult, canThrow: true, thrownResult: dropWhileThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(symbol: nil, callee: interner.intern("kk_string_startsWith_flat"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str_flat"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_flat"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
@@ -875,7 +879,6 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_takeWhile_flat"))
         XCTAssertTrue(ir.contains("@kk_string_takeLastWhile_flat"))
         XCTAssertTrue(ir.contains("@kk_string_dropWhile_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))

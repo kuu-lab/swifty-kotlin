@@ -967,30 +967,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_removePrefix_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removePrefix_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_removeSuffix_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeSuffix_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_removeSurrounding_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeSurrounding_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_removeSurrounding_pair_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeSurrounding_pair_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
+                // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
+                // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
                 "kk_string_substringBefore_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBefore_flat",
                     stringArgumentCount: 3,
@@ -1400,16 +1378,8 @@ extension NativeEmitter {
                     extraArgumentCount: 3,
                     stringArgumentPositions: [1]
                 ),
-                "kk_string_startsWith_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_startsWith_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_endsWith_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_endsWith_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
+                // KSP-404: startsWith/endsWith are bundled Kotlin source
+                // (StringPrefixSuffix.kt); no flat emission spec.
                 "kk_string_contains_str_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contains_str_flat",
                     stringArgumentCount: 2,

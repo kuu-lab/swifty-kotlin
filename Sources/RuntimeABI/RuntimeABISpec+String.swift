@@ -506,36 +506,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_startsWith_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "prefixData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "prefixLength", type: .intptr),
-                RuntimeABIParameter(name: "prefixByteCount", type: .intptr),
-                RuntimeABIParameter(name: "prefixHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_endsWith_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "suffixData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "suffixLength", type: .intptr),
-                RuntimeABIParameter(name: "suffixByteCount", type: .intptr),
-                RuntimeABIParameter(name: "suffixHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        // KSP-404: kk_string_startsWith_flat / kk_string_endsWith_flat removed;
+        // startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt).
         RuntimeABIFunctionSpec(
             name: "kk_string_contains_str_flat",
             parameters: [
@@ -2471,23 +2443,8 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         flatStringHOFReturnSpec(name: "kk_string_replaceFirstChar_flat"),
-        // STDLIB-185
-        flatStringReturnSpec(
-            name: "kk_string_removePrefix_flat",
-            trailingStringPrefixes: ["prefix"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_removeSuffix_flat",
-            trailingStringPrefixes: ["suffix"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_removeSurrounding_flat",
-            trailingStringPrefixes: ["delimiter"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_removeSurrounding_pair_flat",
-            trailingStringPrefixes: ["prefix", "suffix"]
-        ),
+        // KSP-404: removePrefix/removeSuffix/removeSurrounding flat bridges removed;
+        // implemented in bundled Kotlin source (StringPrefixSuffix.kt).
         // STDLIB-TEXT-FN-019
         RuntimeABIFunctionSpec(
             name: "kk_string_indent_default",

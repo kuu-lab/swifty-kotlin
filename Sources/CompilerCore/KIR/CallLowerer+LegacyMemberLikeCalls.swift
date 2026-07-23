@@ -1810,10 +1810,6 @@ extension CallLowerer {
                     } else {
                         nil
                     }
-                case "startsWith":
-                    ("kk_string_startsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "endsWith":
-                    ("kk_string_endsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
@@ -1888,12 +1884,6 @@ extension CallLowerer {
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
 
-                case "removePrefix":
-                    ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "removeSuffix":
-                    ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "removeSurrounding":
-                    ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "take":
                     ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "drop":
@@ -2132,23 +2122,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], hasEndExpr],
                     result: result,
                     canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: 2-arg removeSurrounding(prefix, suffix) (STDLIB-TEXT-EDGE-010 / STDLIB-185)
-        if args.count == 2, interner.resolve(calleeName) == "removeSurrounding" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_removeSurrounding_pair_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
                     thrownResult: nil
                 ))
                 return result

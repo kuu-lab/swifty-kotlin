@@ -412,10 +412,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
-        case ("startsWith", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_startsWith_flat")
-        case ("endsWith", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_endsWith_flat")
         case ("lastIndexOf", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastIndexOf_flat")
         case ("get", 1):
@@ -485,12 +481,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
-        case ("removePrefix", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removePrefix_flat")
-        case ("removeSuffix", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSuffix_flat")
-        case ("removeSurrounding", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_flat")
         case ("take", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_take_flat", canThrow: true)
         case ("drop", 1):
@@ -510,8 +500,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_flat")
         case ("compareTo", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareToIgnoreCase_flat")
-        case ("removeSurrounding", 2):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeSurrounding_pair_flat")
         case ("removeRange", 2):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_removeRange_flat", canThrow: true)
         case ("replaceRange", 2):

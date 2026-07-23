@@ -748,123 +748,8 @@ public func kk_string_take(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutabl
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< nRaw]))
 }
 
-// MARK: - STDLIB-185: removePrefix / removeSuffix / removeSurrounding
-
-@_cdecl("kk_string_removePrefix")
-public func kk_string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let prefix = runtimeStringFromRawOrPanic(prefixRaw, caller: #function)
-    guard source.hasPrefix(prefix) else {
-        return runtimeMakeStringRaw(source)
-    }
-    return runtimeMakeStringRaw(String(source.dropFirst(prefix.count)))
-}
-
-@_cdecl("kk_string_removeSuffix")
-public func kk_string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let suffix = runtimeStringFromRawOrPanic(suffixRaw, caller: #function)
-    guard source.hasSuffix(suffix) else {
-        return runtimeMakeStringRaw(source)
-    }
-    return runtimeMakeStringRaw(String(source.dropLast(suffix.count)))
-}
-
-@_cdecl("kk_string_removeSurrounding")
-public func kk_string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let delimiter = runtimeStringFromRawOrPanic(delimiterRaw, caller: #function)
-    guard !delimiter.isEmpty,
-          source.hasPrefix(delimiter),
-          source.hasSuffix(delimiter),
-          source.count >= delimiter.count * 2
-    else {
-        return runtimeMakeStringRaw(source)
-    }
-    let start = source.index(source.startIndex, offsetBy: delimiter.count)
-    let end = source.index(source.endIndex, offsetBy: -delimiter.count)
-    return runtimeMakeStringRaw(String(source[start ..< end]))
-}
-
-@_cdecl("kk_string_removeSurrounding_pair")
-public func kk_string_removeSurrounding_pair(
-    _ strRaw: Int,
-    _ prefixRaw: Int,
-    _ suffixRaw: Int
-) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let prefix = runtimeStringFromRawOrPanic(prefixRaw, caller: #function)
-    let suffix = runtimeStringFromRawOrPanic(suffixRaw, caller: #function)
-    guard source.hasPrefix(prefix),
-          source.hasSuffix(suffix),
-          source.count >= prefix.count + suffix.count
-    else {
-        return runtimeMakeStringRaw(source)
-    }
-    let start = source.index(source.startIndex, offsetBy: prefix.count)
-    let end = source.index(source.endIndex, offsetBy: -suffix.count)
-    return runtimeMakeStringRaw(String(source[start ..< end]))
-}
-
-// MARK: - Flat ABI wrappers
-
-@_cdecl("kk_string_removePrefix_flat")
-public func kk_string_removePrefix_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_removePrefix(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_removeSuffix_flat")
-public func kk_string_removeSuffix_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_removeSuffix(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_removeSurrounding_flat")
-public func kk_string_removeSurrounding_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_removeSurrounding(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_removeSurrounding_pair_flat")
-public func kk_string_removeSurrounding_pair_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
-    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_removeSurrounding_pair(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash),
-        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
+// KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source
+// (StringPrefixSuffix.kt); their runtime bridges were removed.
 
 @_cdecl("kk_string_takeLast")
 public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -915,35 +800,8 @@ public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMu
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< end]))
 }
 
-@_cdecl("kk_string_startsWith")
-public func kk_string_startsWith(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let prefix = runtimeStringFromRawOrPanic(prefixRaw, caller: #function)
-    return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
-}
-
-@_cdecl("kk_string_startsWith_flat")
-public func kk_string_startsWith_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ prefixData: UnsafePointer<UInt8>?,
-    _ prefixLength: Int,
-    _ prefixByteCount: Int,
-    _ prefixHash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let prefix = runtimeStringFromFlatFields(data: prefixData, length: prefixLength, byteCount: prefixByteCount, hash: prefixHash)
-    return source.hasPrefix(prefix) ? 1 : 0
-}
-
-@_cdecl("kk_string_endsWith")
-public func kk_string_endsWith(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let suffix = runtimeStringFromRawOrPanic(suffixRaw, caller: #function)
-    return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
-}
+// KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt);
+// their runtime bridges were removed.
 
 @_cdecl("kk_string_contains_str")
 public func kk_string_contains_str(_ strRaw: Int, _ otherRaw: Int) -> Int {

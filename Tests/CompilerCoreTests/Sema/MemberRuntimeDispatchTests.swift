@@ -87,7 +87,6 @@ struct MemberRuntimeDispatchTests {
             ("mapIndexed", 1, "kk_string_mapIndexed_flat", false, .normalized, .none),
             ("partition", 1, "kk_string_partition_flat", true, .normalized, .nullableAny),
             ("take", 1, "kk_string_take_flat", true, .lowered, .none),
-            ("removeSurrounding", 2, "kk_string_removeSurrounding_pair_flat", false, .lowered, .none),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 
@@ -105,6 +104,22 @@ struct MemberRuntimeDispatchTests {
         for memberName in ["ifBlank", "ifEmpty"] {
             let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: 1)
             #expect(MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil)
+        }
+        // KSP-404: prefix/suffix members are bundled Kotlin source.
+        let ksp404Cases: [(String, Int)] = [
+            ("startsWith", 1),
+            ("endsWith", 1),
+            ("removePrefix", 1),
+            ("removeSuffix", 1),
+            ("removeSurrounding", 1),
+            ("removeSurrounding", 2),
+        ]
+        for (memberName, arity) in ksp404Cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
+                "String.\(memberName)/\(arity) should be source-backed after KSP-404"
+            )
         }
     }
 }

@@ -834,23 +834,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
-            withFlatString("KSw") { prefixData, prefixLength, prefixByteCount, prefixHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(
-                        kk_string_startsWith_flat(
-                            data,
-                            length,
-                            byteCount,
-                            hash,
-                            prefixData,
-                            prefixLength,
-                            prefixByteCount,
-                            prefixHash
-                        )
-                    ),
-                    1
-                )
-            }
             withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
                 XCTAssertEqual(
                     kk_unbox_bool(
@@ -1253,36 +1236,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash), 0)
             XCTAssertEqual(kk_string_isNullOrBlank_flat(data, length, byteCount, hash), 0)
 
-            withFlatString("KSw") { prefixData, prefixLength, prefixByteCount, prefixHash in
-                XCTAssertEqual(
-                    kk_string_startsWith_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        prefixData,
-                        prefixLength,
-                        prefixByteCount,
-                        prefixHash
-                    ),
-                    1
-                )
-            }
-
             withFlatString("iftK") { suffixData, suffixLength, suffixByteCount, suffixHash in
-                XCTAssertEqual(
-                    kk_string_endsWith_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        suffixData,
-                        suffixLength,
-                        suffixByteCount,
-                        suffixHash
-                    ),
-                    1
-                )
                 XCTAssertEqual(
                     kk_string_contains_str_flat(
                         data,
@@ -2744,35 +2698,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringStartsWithEndsWithContains() {
         withFlatString("HelloWorld") { data, length, byteCount, hash in
-            withFlatString("Hello") { prefixData, prefixLength, prefixByteCount, prefixHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(kk_string_startsWith_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        prefixData,
-                        prefixLength,
-                        prefixByteCount,
-                        prefixHash
-                    )),
-                    1
-                )
-            }
             withFlatString("World") { suffixData, suffixLength, suffixByteCount, suffixHash in
-                XCTAssertEqual(
-                    kk_unbox_bool(kk_string_endsWith_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        suffixData,
-                        suffixLength,
-                        suffixByteCount,
-                        suffixHash
-                    )),
-                    1
-                )
                 XCTAssertEqual(
                     kk_unbox_bool(kk_string_contains_str_flat(
                         data,
