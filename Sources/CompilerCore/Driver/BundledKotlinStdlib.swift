@@ -9,10 +9,10 @@ enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
     static let excludedBundledStdlibFiles: Set<String> = [
-        // KSP-305: the source file exists but collection-factory lowering is not wired yet.
-        "kotlin/collections/CollectionFactories",
         // KSP-312: the source file exists but range iterator lowering is not wired yet.
         "kotlin/ranges/RangeIterators",
+        // KSP-312: the source file exists but range membership lowering is not wired yet.
+        "kotlin/ranges/RangeMembership",
     ]
 
     // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet
@@ -24,17 +24,6 @@ enum BundledKotlinStdlib {
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
-
-@KsSymbolName("kk_list_of")
-private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
-
-public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
-    val result: MutableList<T> = __kk_list_of(null, 0)
-    for (element in elements) {
-        if (element != null) result.add(element)
-    }
-    return result
-}
 
 public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
     var count = 0

@@ -35,10 +35,6 @@ symbol fq=kotlin.collections.MutableMap.putAll kind=function vis=public flags=sy
 symbol fq=kotlin.collections.MutableMap.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableMap<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V> params=[kotlin.collections.MutableMap.K] ret=kotlin.collections.MutableMap.V?
 symbol fq=kotlin.collections.MutableMap.set kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableMap<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V> params=[kotlin.collections.MutableMap.K,kotlin.collections.MutableMap.V] ret=Unit
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.mapOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.mapOf.K kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.mapOf.V kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.mapOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -145,7 +141,7 @@ expr e@43:26#1 memberCall recv=e@43:26 callee=to args=[_:e@43:31] type=kotlin.Pa
 expr e@43:39 int(5) type=Int
 expr e@43:44 string(five) type=String
 expr e@43:39#1 memberCall recv=e@43:39 callee=to args=[_:e@43:44] type=kotlin.Pair<Int, String>
-expr e@43:20 call callee=e@43:20#1 args=[_:e@43:26#1,_:e@43:39#1] type=kotlin.collections.Map<Int, out String> call=kotlin.collections.mapOf#1 targs=[Int,String]
+expr e@43:20 call callee=e@43:20#1 args=[_:e@43:26#1,_:e@43:39#1] type=kotlin.collections.Map<Int, out String> call=kotlin.collections.mapOf#3 targs=[Int,String]
 expr e@43:5#1 memberCall recv=e@43:5 callee=putAll args=[_:e@43:20] type=Unit call=kotlin.collections.MutableMap.putAll
 expr e@44:13 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@44:5 call callee=e@44:5#1 args=[_:e@44:13] type=Unit call=kotlin.io.println#1

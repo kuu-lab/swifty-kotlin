@@ -7,9 +7,6 @@ symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=syntheti
 symbol fq=kotlin.collections.MutableSet.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableSet.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
 symbol fq=kotlin.collections.MutableSet.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
-symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -18,7 +15,7 @@ file fto_hash_set package=_
 expr e@2:24 string(a) type=String
 expr e@2:29 string(b) type=String
 expr e@2:34 string(c) type=String
-expr e@2:17 call callee=e@2:17#1 args=[_:e@2:24,_:e@2:29,_:e@2:34] type=kotlin.collections.List<out String> call=kotlin.collections.listOf#1 targs=[String]
+expr e@2:17 call callee=e@2:17#1 args=[_:e@2:24,_:e@2:29,_:e@2:34] type=kotlin.collections.List<out String> call=kotlin.collections.listOf#3 targs=[String]
 expr e@2:5 localDecl items mutable=0 type=_ init=e@2:17 type=Unit ref=__local_0.items
 expr e@3:34 name(items) type=kotlin.collections.List<out String> ref=__local_0.items
 expr e@3:34#1 memberCall recv=e@3:34 callee=toHashSet args=[] type=kotlin.collections.MutableSet<String> call=kotlin.collections.List.toHashSet targs=[String]

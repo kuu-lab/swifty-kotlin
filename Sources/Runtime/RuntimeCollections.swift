@@ -87,7 +87,7 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
 
 // MARK: - List Functions (STDLIB-001)
 
-@_cdecl("kk_list_of")
+@_cdecl("__kk_list_of")
 public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
@@ -112,7 +112,7 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_list_add).
-@_cdecl("kk_emptyList")
+@_cdecl("__kk_emptyList")
 public func kk_emptyList() -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
 }

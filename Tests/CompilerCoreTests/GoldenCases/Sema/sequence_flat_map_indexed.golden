@@ -2,9 +2,6 @@ symbol fq=__local_0.iterableResult kind=local vis=private flags=_ type=kotlin.se
 symbol fq=__local_1.sequenceResult kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out String>
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
@@ -31,7 +28,7 @@ expr e@3:50#3 binary(add) lhs=e@3:50#2 rhs=e@3:75 type=String
 expr e@3:82 name(value) type=String ref=s-1
 expr e@3:90 name(value) type=String ref=s-1
 expr e@3:82#1 binary(add) lhs=e@3:82 rhs=e@3:90 type=String
-expr e@3:43 call callee=e@3:43#1 args=[_:e@3:50#3,_:e@3:82#1] type=kotlin.collections.List<out String> call=kotlin.collections.listOf#1 targs=[String]
+expr e@3:43 call callee=e@3:43#1 args=[_:e@3:50#3,_:e@3:82#1] type=kotlin.collections.List<out String> call=kotlin.collections.listOf#3 targs=[String]
 expr e@3:25 lambda params=[index,value] body=e@3:43 label=flatMapIndexed type=(Int, String) -> Any
 expr e@2:26#2 memberCall recv=e@2:26 callee=flatMapIndexed args=[_:e@3:25] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.Sequence.flatMapIndexed#0
 expr e@2:5 localDecl iterableResult mutable=0 type=_ init=e@2:26#2 type=Unit ref=__local_0.iterableResult
