@@ -1252,13 +1252,15 @@ extension CallTypeChecker {
                     switch calleeStr {
                     case "any", "none": resultType = sema.types.booleanType
                     case "count": resultType = sema.types.intType
-                    case "first", "last": resultType = collectionElementType
+                    case "first", "last":
+                        resultType = collectionElementType
+                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
                     default: resultType = sema.types.anyType
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {
-                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find": sema.types.booleanType
+                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last": sema.types.booleanType
                     case "forEach", "onEach": sema.types.unitType
                     case "count": sema.types.booleanType
                     case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
@@ -1604,7 +1606,7 @@ extension CallTypeChecker {
                     default: resultType = sema.types.anyType
                     }
 
-                    if ["any", "none", "all", "count", "find"].contains(calleeStr) {
+                    if ["any", "none", "all", "count", "find", "first", "last"].contains(calleeStr) {
                         if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                             if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
