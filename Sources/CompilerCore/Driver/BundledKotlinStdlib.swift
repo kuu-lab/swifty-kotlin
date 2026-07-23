@@ -11,8 +11,6 @@ enum BundledKotlinStdlib {
     static let excludedBundledStdlibFiles: Set<String> = [
         // KSP-305: the source file exists but collection-factory lowering is not wired yet.
         "kotlin/collections/CollectionFactories",
-        // KSP-312: the source file exists but range iterator lowering is not wired yet.
-        "kotlin/ranges/RangeIterators",
     ]
 
     // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet
