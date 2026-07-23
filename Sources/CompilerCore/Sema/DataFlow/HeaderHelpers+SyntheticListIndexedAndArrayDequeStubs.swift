@@ -166,7 +166,17 @@ extension DataFlowSemaPhase {
         // mapIndexedNotNull(transform: (Int, E) -> R?): List<R>
         let mapIndexedNotNullName = interner.intern("mapIndexedNotNull")
         let mapIndexedNotNullFQName = listFQName + [mapIndexedNotNullName]
-        if symbols.lookup(fqName: mapIndexedNotNullFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: mapIndexedNotNullName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: mapIndexedNotNullFQName) == nil {
             let rName = interner.intern("R")
             let rFQName = mapIndexedNotNullFQName + [rName]
             let rSymbol = symbols.define(

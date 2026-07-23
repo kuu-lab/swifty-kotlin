@@ -62,7 +62,7 @@ public inline fun <T> List<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
     var accumulator = this[0]
     var i = 1
     while (i < size) {
-        accumulator = operation(i - 1, accumulator, this[i])
+        accumulator = operation(i, accumulator, this[i])
         i += 1
     }
     return accumulator
@@ -84,7 +84,7 @@ public inline fun <T> List<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): 
     var accumulator = this[0]
     var i = 1
     while (i < size) {
-        accumulator = operation(i - 1, accumulator, this[i])
+        accumulator = operation(i, accumulator, this[i])
         i += 1
     }
     return accumulator
@@ -221,7 +221,7 @@ public inline fun <T> List<T>.runningReduceIndexed(operation: (Int, T, T) -> T):
     result.add(accumulator)
     var i = 1
     while (i < size) {
-        accumulator = operation(i - 1, accumulator, this[i])
+        accumulator = operation(i, accumulator, this[i])
         result.add(accumulator)
         i += 1
     }

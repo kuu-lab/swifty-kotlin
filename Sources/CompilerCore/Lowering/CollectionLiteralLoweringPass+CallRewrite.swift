@@ -38,9 +38,11 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
+            || callee == lookup.mapIndexedNotNullName
             || callee == lookup.mapToName
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
+            || callee == lookup.mapIndexedNotNullToName
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName

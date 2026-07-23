@@ -34,6 +34,19 @@ public fun <T, R, C : MutableCollection<R>> List<T>.mapIndexedTo(destination: C,
     return destination
 }
 
+public fun <T, R : Any> List<T>.mapIndexedNotNull(transform: (Int, T) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < size) { val item = transform(i, this[i]); if (item != null) result.add(item); i += 1 }
+    return result
+}
+
+public fun <T, R : Any, C : MutableCollection<R>> List<T>.mapIndexedNotNullTo(destination: C, transform: (Int, T) -> R?): C {
+    var i = 0
+    while (i < size) { val item = transform(i, this[i]); if (item != null) destination.add(item); i += 1 }
+    return destination
+}
+
 public fun <T, R : Any> List<T>.mapNotNull(transform: (T) -> R?): List<R> {
     val result = mutableListOf<R>()
     var i = 0
