@@ -11,9 +11,11 @@ private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
  */
 @ExperimentalUuidApi
 public class Uuid private constructor(
-    public val mostSignificantBits: Long,
-    public val leastSignificantBits: Long,
+    msb: Long,
+    lsb: Long,
 ) : Comparable<Uuid> {
+    @PublishedApi internal val mostSignificantBits: Long = msb
+    @PublishedApi internal val leastSignificantBits: Long = lsb
     public companion object {
         public const val SIZE_BITS: Int = 128
         public const val SIZE_BYTES: Int = 16
@@ -64,6 +66,9 @@ public class Uuid private constructor(
         public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
             __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
 
+        public fun fromULongs(mostSignificantBits: ULong, leastSignificantBits: ULong): Uuid =
+            fromLongs(mostSignificantBits.toLong(), leastSignificantBits.toLong())
+
         public fun fromByteArray(byteArray: ByteArray): Uuid {
             if (byteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("byteArray.size must be 16, was ${byteArray.size}")
@@ -81,6 +86,26 @@ public class Uuid private constructor(
             }
             return Uuid(msb, lsb)
         }
+
+        public fun fromUByteArray(ubyteArray: UByteArray): Uuid {
+            if (ubyteArray.size != SIZE_BYTES) {
+                throw IllegalArgumentException("ubyteArray.size must be 16, was ${ubyteArray.size}")
+            }
+            var msb = 0L
+            var lsb = 0L
+            var i = 0
+            while (i < 8) {
+                msb = (msb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            while (i < 16) {
+                lsb = (lsb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            return Uuid(msb, lsb)
+        }
+
+        public fun generateV4(): Uuid = random()
 
         private fun parseStringOrNull(uuidString: String): Uuid? {
             if (uuidString.length == 36) {
@@ -163,8 +188,13 @@ public class Uuid private constructor(
         return sb.toString()
     }
 
+    public fun toHexDashString(): String = toString()
+
     public inline fun <T> toLongs(action: (Long, Long) -> T): T =
         action(mostSignificantBits, leastSignificantBits)
+
+    public inline fun <T> toULongs(action: (ULong, ULong) -> T): T =
+        action(mostSignificantBits.toULong(), leastSignificantBits.toULong())
 
     public fun toByteArray(): ByteArray {
         val bytes = ByteArray(SIZE_BYTES) { 0 }
@@ -180,6 +210,16 @@ public class Uuid private constructor(
             i += 1
         }
         return bytes
+    }
+
+    public fun toUByteArray(): UByteArray {
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
+        return UByteArray(SIZE_BYTES) { i ->
+            val shift = 56 - (if (i < 8) i else i - 8) * 8
+            val value = if (i < 8) (msb ushr shift) and 0xffL else (lsb ushr shift) and 0xffL
+            value.toUByte()
+        }
     }
 
     public override fun compareTo(other: Uuid): Int {
