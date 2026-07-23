@@ -31,9 +31,9 @@
 - [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する。2026-07-15 注記: `70c77932aa`（本タスク名義のコミット）で共有内部ヘルパー方式の統合（`RuntimeRangeSharedHOF.swift` 782 行）がマージ済みだが、generics 化そのものは未実施のため open を維持
 - [~] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する。2026-07-15 監査で `[ ]` から更新: PR #4589（share runtime HOF helpers）がマージ済みで、fold/scan 共通化（`RuntimeSequenceFoldScan.swift` 295 行）と責務分割（本体は 2,983 / 3,771 行に縮小）が実在。残: filter/map 系など残共通化箇所の棚卸しと完了判定の記録
 
-### Phase RF7: テスト資産再編（残り 4 件）
-- [ ] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）
-- [ ] RF-TEST-002: fixture 化を領域単位で展開し、「新規 Codegen 実行テストは fixture 必須」のガイドラインを `docs/ARCHITECTURE.md` に追記する
+### Phase RF7: テスト資産再編（残り 2 件）
+- [x] RF-TEST-001: Codegen 統合テスト（`CodegenBackendIntegrationTests+*` 214 ファイル・ボイラープレート ~13k 行）向けの fixture 駆動ハーネスを設計し、1 領域を移行する実証 PR を出す（.kt + expected stdout ペア、`Scripts/diff_cases` と同形式）。`CodegenBackendFixtureTests`（`Tests/CompilerBackendTests/Fixtures/` を実行時走査）を新設し、`basic/hello` と `collections/`（`list_is_not_empty` / `list_sum` / `list_subtract` / `list_index_of_first`）を fixture 化。移行済みの 4 個別テストファイルは削除
+- [x] RF-TEST-002: fixture 化を領域単位で展開し、「新規 Codegen 実行テストは fixture 必須」のガイドラインを `docs/ARCHITECTURE.md` に追記する。§Codegen 実行テスト資産 (fixture 駆動) にハーネス仕様・追加手順・必須ガイドラインを記載し、テスト追加表にも fixture 行を追加
 - [ ] RF-TEST-004: `SemanticsAndUtilitiesRegressionTests.swift`（3,520 行）を責務別に分割する
 - [ ] RF-TEST-005: GoldenCases/Sema 244 ケースのうち同型ケース（minof_* / maxof_* 等）をパラメタライズ統合する
 ## 技術負債バックログ（コード監査 2026-06-12）
