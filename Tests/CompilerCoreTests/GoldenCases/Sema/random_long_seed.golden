@@ -3,7 +3,7 @@ symbol fq=__local_1.a kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.b kind=local vis=private flags=_ type=Long
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomLongSeed kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_long_seed package=_
   decl useRandomLongSeed fun useRandomLongSeed sym=useRandomLongSeed
 expr e@4:20 long(42) type=Long
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#2

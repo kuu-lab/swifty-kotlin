@@ -7,7 +7,7 @@ symbol fq=golden.sema.useTakeIfFalse kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.useTakeUnless kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int?
 symbol fq=golden.sema.useTakeUnlessFalse kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int?
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
-file f0 package=golden.sema
+file ftake_if_take_unless package=golden.sema
   decl golden.sema.useTakeIf fun useTakeIf sym=golden.sema.useTakeIf
   decl golden.sema.useTakeUnless fun useTakeUnless sym=golden.sema.useTakeUnless
   decl golden.sema.useTakeIfFalse fun useTakeIfFalse sym=golden.sema.useTakeIfFalse

@@ -76,39 +76,4 @@ private func assertKotlinInputsToKIR(
             "KIR file not produced at \(kirPath)")
 }
 
-/// Compile Kotlin source through object emission and assert a valid object file is produced.
-func assertKotlinCompilesToObject(
-    _ source: String,
-    moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let fm = FileManager.default
-        let outputBase = fm.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let objectPath = outputBase + ".o"
-        defer { try? fm.removeItem(atPath: objectPath) }
-
-        let options = makeTestOptions(
-            moduleName: moduleName,
-            inputs: [path],
-            outputPath: outputBase,
-            emit: .object
-        )
-        let result = makeTestDriver().runForTesting(options: options)
-
-        #expect(result.exitCode == 0,
-                       "Object compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
-        #expect(!(result.diagnostics.contains(where: { $0.severity == .error })),
-                       "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
-        #expect(fm.fileExists(atPath: objectPath),
-                      "Object file not produced at \(objectPath)")
-        if fm.fileExists(atPath: objectPath) {
-            let data = try Data(contentsOf: URL(fileURLWithPath: objectPath))
-            #expect(data.count > 0,
-                                 "Object file is empty")
-        }
-    }
-}
 #endif

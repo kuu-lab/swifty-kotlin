@@ -641,6 +641,11 @@ extension CodegenBackendIntegrationTests {
             marker("|alpha\\n|beta".replaceIndentByMargin())
             marker("|alpha\\n|beta".replaceIndentByMargin(">>"))
             marker("plain\\n  |mark".replaceIndentByMargin("++", "|"))
+            try {
+                marker("|line".replaceIndentByMargin(">", "   "))
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
         }
         """
 
@@ -655,6 +660,7 @@ extension CodegenBackendIntegrationTests {
                 alpha/beta
                 >>alpha/>>beta
                 plain/++mark
+                marginPrefix must be non-blank string.
                 """
                 + "\n"
         )

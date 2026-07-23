@@ -37,7 +37,7 @@ symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedLinkedSets kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processLinkedSet kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.LinkedHashSet<String>] ret=Unit
 symbol fq=processLinkedSet.$1.set kind=valueParameter vis=private flags=_
-file f0 package=_
+file flinkedhashset_alias package=_
   decl processLinkedSet fun processLinkedSet sym=processLinkedSet
   decl createLinkedSet fun createLinkedSet sym=createLinkedSet
   decl OrderedTags class OrderedTags sym=OrderedTags
@@ -137,7 +137,7 @@ expr e@64:17 call callee=e@64:17#1 args=[] type=MySet call=MySet.<init>
 expr e@64:5 localDecl mySet mutable=0 type=_ init=e@64:17 type=Unit ref=__local_8.mySet
 expr e@65:5 name(mySet) type=MySet ref=__local_8.mySet
 expr e@65:15 string(inherited) type=String
-expr e@65:5#1 memberCall recv=e@65:5 callee=add args=[_:e@65:15] type=<error>
+expr e@65:5#1 memberCall recv=e@65:5 callee=add args=[_:e@65:15] type=Boolean call=kotlin.collections.MutableSet.add targs=[String]
 expr e@66:13 name(mySet) type=MySet ref=__local_8.mySet
 expr e@66:13#1 memberCall recv=e@66:13 callee=customOp args=[] type=String call=MySet.customOp
 expr e@66:5 call callee=e@66:5#1 args=[_:e@66:13#1] type=Unit call=kotlin.io.println#1

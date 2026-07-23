@@ -1,4 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+// SKIP-DIFF (DEBT-DIFF-005): SecureRandom.getInstance() with no arguments is a
+// kswiftc-only convenience overload — real Java/Kotlin's SecureRandom.getInstance
+// requires an algorithm name argument, so the JVM reference always fails to
+// compile this file ("none of the following candidates is applicable").
 import java.security.SecureRandom
 
 fun main() {

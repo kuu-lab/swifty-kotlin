@@ -28,6 +28,7 @@ func makeCompilationContext(
     searchPaths: [String] = [],
     irFlags: [String] = [],
     frontendFlags: [String] = [],
+    includeStdlib: Bool = true,
     interner: StringInterner? = nil,
     diagnostics: DiagnosticEngine? = nil
 ) -> CompilationContext {
@@ -42,7 +43,8 @@ func makeCompilationContext(
         searchPaths: searchPaths,
         target: defaultTargetTriple(),
         frontendFlags: frontendFlags,
-        irFlags: irFlags
+        irFlags: irFlags,
+        includeStdlib: includeStdlib
     )
     return CompilationContext(
         options: options,

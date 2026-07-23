@@ -10,7 +10,7 @@ symbol fq=golden.sema.smartCastAfterIs kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.smartCastAfterIs.$4.v kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.smartCastAfterNegatedIs kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Int
 symbol fq=golden.sema.smartCastAfterNegatedIs.$5.v kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fis_type_check package=golden.sema
   decl golden.sema.basicIs fun basicIs sym=golden.sema.basicIs
   decl golden.sema.negatedIs fun negatedIs sym=golden.sema.negatedIs
   decl golden.sema.smartCastAfterIs fun smartCastAfterIs sym=golden.sema.smartCastAfterIs

@@ -3,7 +3,7 @@ symbol fq=__local_1.multi kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fraw_string_basic package=_
   decl main fun main sym=main
 expr e@2:13 string(hello world) type=String
 expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s

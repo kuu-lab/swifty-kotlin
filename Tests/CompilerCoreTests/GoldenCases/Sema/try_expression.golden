@@ -8,6 +8,7 @@ symbol fq=__try_3_catch_0.e kind=local vis=internal flags=_ type=kotlin.Exceptio
 symbol fq=__try_4_catch_0.e kind=local vis=internal flags=_ type=golden.sema.Handled
 symbol fq=__try_4_catch_1.e kind=local vis=internal flags=_ type=golden.sema.Unhandled
 symbol fq=__try_5_catch_0.e kind=local vis=internal flags=_ type=golden.sema.Handled
+symbol fq=__try_6_catch_0.e kind=local vis=internal flags=_ type=kotlin.Exception
 symbol fq=golden.sema.Handled kind=class vis=public flags=_
 symbol fq=golden.sema.Handled.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Handled params=[] ret=golden.sema.Handled
 symbol fq=golden.sema.Unhandled kind=class vis=public flags=_
@@ -25,9 +26,9 @@ symbol fq=golden.sema.tryMultiCatchJoin kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.tryMultiCatchJoin.$1.flag kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.tryPartialCatchRethrow kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Int
 symbol fq=golden.sema.tryPartialCatchRethrow.$2.flag kind=valueParameter vis=private flags=_
-symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
-file f0 package=golden.sema
+symbol fq=kotlin.Exception kind=class vis=public flags=synthetic|openType type=kotlin.Exception
+symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
+file ftry_expression package=golden.sema
   decl golden.sema.Handled class Handled sym=golden.sema.Handled
   decl golden.sema.Unhandled class Unhandled sym=golden.sema.Unhandled
   decl golden.sema.tryCatchExpr fun tryCatchExpr sym=golden.sema.tryCatchExpr
@@ -113,3 +114,12 @@ expr e@46:26 blockExpr stmts=[e@47:9] trailing=_ type=Unit ref=__try_5_catch_0.e
 expr e@44:5 try body=e@44:9 catches=[e@46:26] finally=_ type=Unit
 expr e@49:12 name(x) type=Int ref=__local_1.x
 expr e@49:5 return value=e@49:12 type=Nothing
+expr e@53:11 string(ok) type=String
+expr e@53:9 blockExpr stmts=[] trailing=e@53:11 type=String
+expr e@54:28 string(err) type=String
+expr e@54:26 blockExpr stmts=[] trailing=e@54:28 type=String ref=__try_6_catch_0.e
+expr e@53:5 try body=e@53:9 catches=[e@54:26] finally=_ type=String
+expr e@57:11 string(result) type=String
+expr e@57:9 blockExpr stmts=[] trailing=e@57:11 type=String
+expr e@58:13 blockExpr stmts=[] trailing=_ type=Unit
+expr e@57:5 try body=e@57:9 catches=[] finally=e@58:13 type=String

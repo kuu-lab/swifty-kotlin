@@ -1487,9 +1487,15 @@ final class RuntimeLazyBox {
     }
 
     private func evaluateInitializer() -> Int {
-        let fnPtr = unsafeBitCast(initializerFnPtr, to: KKThunkEntryPoint.self)
         var thrown = 0
-        let value = fnPtr(&thrown)
+        // `initializerFnPtr` is either a raw thunk pointer (property-delegate
+        // `by lazy { }`, whose initializer is built as a standalone top-level
+        // function) or a boxed Function0 value (plain `lazy { }` calls, whose
+        // lambda literal goes through the general closure-conversion path and
+        // may capture state). `kk_function_invoke_0` already dispatches on
+        // which of the two it was given -- reuse it instead of assuming the
+        // raw-thunk shape, which crashed for the boxed-closure case.
+        let value = kk_function_invoke_0(initializerFnPtr, &thrown)
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: lazy initializer threw")
         }

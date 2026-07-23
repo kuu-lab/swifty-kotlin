@@ -380,6 +380,7 @@ public final class IncrementalCompilationCache {
     }
 
     private static func buildConfigurationHash(for options: CompilerOptions) -> String {
+        let stdlibManifestHash = options.includeStdlib ? BundledKotlinStdlib.manifestHash() : ""
         let config = IncrementalBuildConfiguration(
             schemaVersion: 1,
             moduleName: options.moduleName,
@@ -398,7 +399,8 @@ public final class IncrementalCompilationCache {
             debugInfo: options.debugInfo,
             frontendFlags: options.frontendFlags.filter(Self.isOutputAffectingFrontendFlag),
             irFlags: options.irFlags,
-            runtimeFlags: options.runtimeFlags
+            runtimeFlags: options.runtimeFlags,
+            stdlibManifestHash: stdlibManifestHash
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -465,6 +467,7 @@ private struct IncrementalBuildConfiguration: Encodable {
     let frontendFlags: [String]
     let irFlags: [String]
     let runtimeFlags: [String]
+    let stdlibManifestHash: String
 }
 
 private struct IncrementalTargetTriple: Encodable {

@@ -4,7 +4,7 @@ symbol fq=golden.sema.B.greet kind=function vis=public flags=overrideMember sig=
 symbol fq=golden.sema.C kind=interface vis=public flags=_
 symbol fq=golden.sema.C.greet kind=function vis=public flags=overrideMember sig=recv=golden.sema.C params=[] ret=String
 symbol fq=golden.sema.D kind=class vis=public flags=_
-file f0 package=golden.sema
+file fdiamond_inheritance package=golden.sema
   decl golden.sema.A interface A sym=golden.sema.A
   decl golden.sema.B interface B sym=golden.sema.B
   decl golden.sema.C interface C sym=golden.sema.C

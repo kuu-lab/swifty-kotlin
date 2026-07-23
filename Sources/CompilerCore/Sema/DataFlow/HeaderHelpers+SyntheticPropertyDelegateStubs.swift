@@ -454,7 +454,17 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let lazyModeFQName = kotlinPkg + [lazyName, interner.intern("mode")]
+        // A distinct fqName (rather than reusing `lazyFQName`) avoids relying on
+        // `canCoexistAsOverload` symbol-table plumbing for this synthetic pair, but
+        // it must still sit directly under `kotlinPkg` — nesting it under `lazyName`
+        // (e.g. `kotlin.lazy.mode`) makes `ScopeBuilder.collectLibraryTopLevelSymbolsByPackage`
+        // (which derives a symbol's package via `fqName.dropLast()`) file this overload
+        // under the bogus package `kotlin.lazy` instead of `kotlin`. Since `kotlin.lazy`
+        // is never a default-import package, the 2-arg `lazy(mode) { ... }` overload
+        // then becomes invisible to unqualified call resolution (KSWIFTK-SEMA-0002:
+        // No viable overload found), even though `.name` alone would suggest it's
+        // findable. `name` (used for scope/short-name bucketing) is still "lazy".
+        let lazyModeFQName = kotlinPkg + [interner.intern("lazy$mode")]
         if symbols.lookup(fqName: lazyModeFQName) == nil {
             let lazyModeSymbol = symbols.define(
                 kind: .function, name: lazyName, fqName: lazyModeFQName,
@@ -2557,50 +2567,5 @@ extension DataFlowSemaPhase {
         if let upperBoundsSymbol = symbols.lookup(fqName: upperBoundsFQName) {
             symbols.setPropertyType(listOfKType, for: upperBoundsSymbol)
         }
-    }
-}
-
-extension DataFlowSemaPhase {
-    func registerSyntheticKPropertyIsInitializedStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
-        let kotlinReflectPkg = ensurePackage(path: ["kotlin", "reflect"], symbols: symbols, interner: interner)
-        let kProperty0Symbol = ensureInterfaceSymbol(
-            named: "KProperty0",
-            in: kotlinReflectPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let propertyName = interner.intern("isInitialized")
-        let propertyFQName = kotlinPkg + [propertyName]
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: kProperty0Symbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-                && symbols.extensionPropertyReceiverType(for: symbolID) == receiverType
-        }) {
-            symbols.setPropertyType(types.booleanType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setPropertyType(types.booleanType, for: propertySymbol)
-        symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
     }
 }

@@ -24,4 +24,11 @@ fun main() {
         }
     }
     println("nextFloat(1.0f, 10.0f) in range: $okFloatRange")
+
+    // Instance-method form split out of random_overload_edge_cases.kt.
+    val r = Random(7)
+    val floatVal = r.nextFloat(1.0f, 2.0f)
+    println(floatVal >= 1.0f && floatVal < 2.0f)
+
+    println("OK")
 }

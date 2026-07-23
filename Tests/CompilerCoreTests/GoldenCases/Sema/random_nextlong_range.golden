@@ -2,7 +2,7 @@ symbol fq=__local_0.r kind=local vis=private flags=_ type=kotlin.random.Random
 symbol fq=__local_1.a kind=local vis=private flags=_ type=Long
 symbol fq=kotlin.random.Random kind=class vis=public flags=_
 symbol fq=useRandomNextLongRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file frandom_nextlong_range package=_
   decl useRandomNextLongRange fun useRandomNextLongRange sym=useRandomNextLongRange
 expr e@4:20 int(42) type=Int
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#0

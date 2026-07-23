@@ -36,6 +36,29 @@ struct FrontendPhasesTests {
     }
 
     @Test
+    func testLoadSourcesRespectsIncludeStdlibOption() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let withoutStdlib = makeCompilationContext(inputs: [path], includeStdlib: false)
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(withoutStdlib) }
+            #expect(
+                withoutStdlib.sourceManager.fileIDs().allSatisfy {
+                    !withoutStdlib.sourceManager.path(of: $0).hasPrefix("__bundled_")
+                },
+                "--no-stdlib should not inject bundled sources"
+            )
+
+            let withStdlib = makeCompilationContext(inputs: [path], includeStdlib: true)
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(withStdlib) }
+            #expect(
+                withStdlib.sourceManager.fileIDs().contains {
+                    withStdlib.sourceManager.path(of: $0).hasPrefix("__bundled_")
+                },
+                "stdlib-enabled compilation should inject bundled sources"
+            )
+        }
+    }
+
+    @Test
     func testLoadSourcesSkipsDuplicatePaths() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let ctx = makeCompilationContext(inputs: [path, path])
@@ -45,6 +68,48 @@ struct FrontendPhasesTests {
             #expect(throws: Never.self) { try LoadSourcesPhase().run(singleCtx) }
             #expect(ctx.sourceManager.fileIDs().count == singleCtx.sourceManager.fileIDs().count, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
+    }
+
+    @Test
+    func testBundledStdlibMissingResourcePathEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: nil)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibMissingStdlibDirEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        let resourcePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        defer { try? FileManager.default.removeItem(atPath: resourcePath) }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: resourcePath)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibUnreadableSourceEmits0102AndThrows() throws {
+        let ctx = makeCompilationContext(inputs: [])
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let stdlibDir = tempDir.appendingPathComponent("Stdlib")
+        try FileManager.default.createDirectory(at: stdlibDir, withIntermediateDirectories: true)
+        // Use a directory named `.kt` instead of a real file; `FileManager.contents(atPath:)`
+        // returns nil for directories even when running as root, so this failure path is
+        // independent of the current user/permission bits.
+        let unreadablePath = stdlibDir.appendingPathComponent("test.kt")
+        try FileManager.default.createDirectory(at: unreadablePath, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: tempDir.path)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0102", in: ctx)
     }
 
     // MARK: - LexPhase
