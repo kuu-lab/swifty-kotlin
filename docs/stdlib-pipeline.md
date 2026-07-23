@@ -140,6 +140,28 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 - `RuntimeABISpec` は最終的に「ブリッジ + 言語コア（GC/boxing/coroutine/メタデータ）」のみを宣言する。
   specVersion は縮小のたびに更新する
 
+### ライセンス表記（本家移植部品）
+
+`Sources/CompilerCore/Stdlib/kotlin/` 以下のうち、kotlin-stdlib 本家
+（`https://github.com/JetBrains/kotlin` の `libraries/stdlib/src/` 以下）から
+コード・構造・定数値を移植したファイルは、Apache License, Version 2.0 に基づく
+帰属ヘッダをファイル先頭に付ける。
+
+```kotlin
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/...>.
+ */
+```
+
+- 移植元パスとファイル名を可能な限り明記する。
+- 本家からの移植でない KSwiftK 独自実装（MIGRATION コメントで Swift Runtime から
+  移行したもの等）にはこのヘッダを付けない。
+- リポジトリルートに `NOTICE` を置き、本プロジェクトが kotlin-stdlib 由来のコードを
+  含むことを記載する。
+
 ## 7. コンパイル時間戦略とキャッシュ
 
 方針: **都度コンパイル + 計測から始め、閾値超過で初めてキャッシュを設計する**（早すぎる最適化をしない）。
