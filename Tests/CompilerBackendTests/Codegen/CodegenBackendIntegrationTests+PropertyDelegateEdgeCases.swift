@@ -62,7 +62,7 @@ extension CodegenBackendIntegrationTests {
     // explicit `Lazy<T>` annotation still fails separately: the lambda-return
     // driven generic inference for user-defined `fun <T> f(block: () -> T): T`
     // shapes has its own pre-existing bug, unrelated to this fix -- see
-    // BUG-141.)
+    // BUG-150.)
     func testCodegenCompilesExplicitlyTypedLazyOfValueRead() throws {
         let source = """
         fun main() {
