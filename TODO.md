@@ -476,18 +476,22 @@
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
-- [ ] KSP-301: ゴーストエントリ 5 件を削除する
-  - 手順: `FrontendPhases.swift` の `excludedBundledStdlibFiles` から、実ファイルが存在しない `kotlin/ResultExtensions`, `kotlin/logging/AdvancedLogger`, `kotlin/reflect/KClassAnnotationRegistration`, `kotlin/text/StringBasics`, `kotlin/text/StringEncoding` を削除（`find Sources/CompilerCore/Stdlib -name '*.kt'` で不在を確認してから）
-  - 注記(2026-07-10 監査): さらに `kotlin/comparisons/Comparators`, `kotlin/ranges/RangeIterators`, `kotlin/ranges/RangeMembership` の3件は対象ファイル未移設のため**現状 no-op の予約枠**（KSP-309/312 の移設時に初めて機能する）。削除せず予約枠である旨のコメントを付ける
-  - 検証: G のみ
+- [x] KSP-301: ゴーストエントリ 5 件を削除する（PR #A）
+  - 実ファイル: `Sources/CompilerCore/Driver/BundledKotlinStdlib.swift` の `excludedBundledStdlibFiles`（TODO 上は `FrontendPhases.swift` と記載されていたが、実体は `BundledKotlinStdlib.swift`）
+  - ゴースト 5 件は既に削除済みだったため、コメントだけ整備
+  - 注記(2026-07-10 監査): `kotlin/comparisons/Comparators` は KSP-309 で移設・配線済み。`kotlin/ranges/RangeIterators` は KSP-312 （PR #4996）で配線済み。`kotlin/ranges/RangeMembership` は未だ未移設の no-op 予約枠
+  - 検証: `check_todo_ids.sh` pass
 - [x] KSP-302: StringIndentFormat を配線する（`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）
   - 注意: **同一 PR で** `BundledKotlinStdlib.kotlinTextSource` 内の同名 5 関数を削除（二重定義になるため）。runtime `__string_trimIndent` 系 / `kk_string_trimIndent` 系（`RuntimeStringFormat.swift`）は Kotlin 版が完全なら削除、不足なら `__kk_` 降格
   - 手順: T / diff: `string_indent.kt`（既存）
-- [ ] KSP-305: CollectionFactories を配線する（`listOf`/`setOf`/`mapOf`/`empty*`/`mutable*Of`）
-  - 注意: `CollectionLiteralLoweringPass` がファクトリ呼び出しを直接 `kk_*` へ書き換えている。ブリッジ残留: 生成コア `kk_list_of`, `kk_set_of`, `kk_map_of`, `kk_emptyList`, `kk_emptySet`, `kk_emptyMap` は `__kk_` 降格（アロケーション主体のため）
-  - 削除: `CallLowerer+StdlibArrayConstructor.swift` のファクトリ特例 / 各 `HeaderHelpers+Synthetic{List,Set,Map,Array}Stubs.swift` のファクトリ登録
-  - 手順: T / diff: `collection_builders.kt`（既存）
-  - CI 回帰（KSP-311 / PR #4572 で発見・修正）: source-backed collection factory の lowering 呼び出しが抜けると、`listOf(3, 2, 1)` が `kk_list_of(3, 1, 2)` のように array/count ABI へ誤渡しされ、結果が空リストになる。最小再現: `Scripts/diff_cases/compare_by.kt`（同時に `firstOrNull_comprehensive.kt` など 12 ケースで発生）。`tryLowerCollectionFactoryCall` の呼び出しを復元
+- [x] KSP-305: CollectionFactories を配線する（`listOf`/`setOf`/`mapOf`/`empty*`/`mutable*Of`）（PR #A）
+  - `Sources/CompilerCore/Driver/BundledKotlinStdlib.swift` から `kotlin/collections/CollectionFactories` を `excludedBundledStdlibFiles` から削除
+  - `CollectionFactories.kt` が既に `__kk_list_of` / `__kk_set_of` / `__kk_map_of` / `__kk_empty*` ブリッジ経由で `RuntimeCollections.swift` / `RuntimeSetAndMap.swift` の `kk_*` エントリを呼ぶよう定義済みだったため、runtime 側は `__kk_` ブリッジとして再利用
+  - `BundledKotlinStdlib.kotlinCollectionsSource` 内の重複 `listOfNotNull` と `__kk_list_of` external 宣言を削除（`CollectionFactories.kt` へ一本化）
+  - `CallLowerer+CollectionFactoryCalls.swift` の `tryLowerCollectionFactoryCall` は既に呼ばれており、`CollectionFactories.kt` 由来の `listOf`/`setOf`/`mapOf` 等を `kk_*` 呼び出しに正しく lowering することを確認
+  - `HeaderHelpers+SyntheticCollectionTypeAliases.swift` の synthetic factory stub 登録は、`BundledSyntheticStubRegistration.shouldSkipRegistration` / `BundledDeclarationIndex`（KSP-INF-011 導入済み）により `CollectionFactories.kt` 登録時にスキップされるため、削除せず存置
+  - 手順: T / diff: `collection_builders.kt` 実行確認 / 影響を受ける Golden Sema ファイルを `UPDATE_GOLDEN=1` で更新
+  - 検証: `swift build`, `validate_runtime_abi_links.sh`, `SmokeTests`, `Golden` pass
 - [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録
