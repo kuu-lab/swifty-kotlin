@@ -305,6 +305,13 @@ struct BundledDeclarationIndex: Sendable {
             return key.arity == 1
         case "filterNotNull", "filterIsInstance", "requireNoNulls", "withIndex":
             return key.arity == 0
+        case "associate", "associateBy", "associateWith",
+             "groupBy":
+            // MIGRATION-SEQ-004: Sequence aggregate HOFs are partially migrated to
+            // Kotlin source, but the runtime-backed ABI stubs are still the
+            // member-call resolution path. Retain them until source-backed
+            // lowering takes over.
+            return key.arity == 1
         case "toList", "toSet", "toMutableList":
             // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
             // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
