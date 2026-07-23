@@ -5,7 +5,7 @@
 
 // MARK: - Set Functions (STDLIB-001)
 
-@_cdecl("kk_set_of")
+@_cdecl("__kk_set_of")
 public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
@@ -27,7 +27,7 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
 
 // STDLIB-410: emptySet<T>() - allocates a fresh empty set each call to avoid
 // aliasing with mutable collection operations.
-@_cdecl("kk_emptySet")
+@_cdecl("__kk_emptySet")
 public func kk_emptySet() -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
@@ -328,7 +328,7 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
 
 // MARK: - Map Functions (STDLIB-001)
 
-@_cdecl("kk_map_of")
+@_cdecl("__kk_map_of")
 public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
@@ -345,7 +345,7 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
 
 // STDLIB-410: emptyMap<K,V>() - allocates a fresh empty map each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_map_put).
-@_cdecl("kk_emptyMap")
+@_cdecl("__kk_emptyMap")
 public func kk_emptyMap() -> Int {
     return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 }

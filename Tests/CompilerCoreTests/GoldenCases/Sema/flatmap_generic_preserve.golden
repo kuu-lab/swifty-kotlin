@@ -4,9 +4,6 @@ symbol fq=__local_2.doubled kind=local vis=private flags=_ type=kotlin.collectio
 symbol fq=flatMapGeneric kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=flatMapGeneric.$0.names kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file fflatmap_generic_preserve package=_

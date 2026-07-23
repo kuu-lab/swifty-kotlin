@@ -14,8 +14,6 @@ symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic|openType
 symbol fq=kotlin.RuntimeException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.RuntimeException
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=Any
-symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file foverride_generic_covariant_return package=golden.sema

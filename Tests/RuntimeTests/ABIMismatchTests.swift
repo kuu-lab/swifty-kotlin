@@ -703,71 +703,23 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringIndentFlatSignatures() throws {
-        let receiverOnlyNames = [
+    func testKKStringIndentFlatABIRemoved() {
+        let flatNames = [
             "kk_string_trimIndent_flat",
             "kk_string_trimMargin_default_flat",
-            "kk_string_prependIndent_default_flat",
-            "kk_string_replaceIndent_default_flat",
-        ]
-        let receiverOnlyTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in receiverOnlyNames {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), receiverOnlyTypes)
-        }
-
-        let oneStringArgumentNames = [
             "kk_string_trimMargin_flat",
+            "kk_string_prependIndent_default_flat",
             "kk_string_prependIndent_flat",
+            "kk_string_replaceIndent_default_flat",
             "kk_string_replaceIndent_flat",
+            "kk_string_replaceIndentByMargin_flat",
         ]
-        let oneStringArgumentTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in oneStringArgumentNames {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), oneStringArgumentTypes)
+        for name in flatNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be provided by bundled Kotlin source, not the flattened runtime ABI"
+            )
         }
-
-        let replaceIndentByMargin = try requireSpec("kk_string_replaceIndentByMargin_flat")
-        XCTAssertEqual(replaceIndentByMargin.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(replaceIndentByMargin.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
     }
 
     func testKKPrintlnAnySignature() throws {

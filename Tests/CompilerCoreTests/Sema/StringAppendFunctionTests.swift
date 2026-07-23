@@ -112,25 +112,25 @@ struct StringAppendFunctionTests {
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [sema.types.charType]
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_append_char"
+                    && (sema.symbols.externalLinkName(for: symbolID)?.isEmpty ?? true)
             },
-            "Expected Appendable.append(Char) to link to kk_string_builder_append_char"
+            "Expected Appendable.append(Char) to have no external link (StringBuilder source overrides)"
         )
         #expect(
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 1
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_append_obj"
+                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_obj"
             },
-            "Expected Appendable.append(CharSequence?) to link to kk_string_builder_append_obj"
+            "Expected Appendable.append(CharSequence?) to link to __kk_string_builder_append_obj"
         )
         #expect(
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 3
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_appendRange_obj_flat"
+                    && (sema.symbols.externalLinkName(for: symbolID)?.isEmpty ?? true)
             },
-            "Expected Appendable.append(CharSequence?, Int, Int) to link to kk_string_builder_appendRange_obj_flat"
+            "Expected Appendable.append(CharSequence?, Int, Int) to have no external link (StringBuilder source overrides)"
         )
     }
 }

@@ -74,7 +74,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `property_based_test.kt`: seeded samples, shrinking, statistics report を持つ property-based style parity
 - `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity（JVM reference には `kotlin-test.jar` classpath 注入が必要）
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
-- `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
+- `uuid_put_uuid.kt`: `java.nio.ByteBuffer.putUuid(index, uuid)` / `ByteBuffer.getUuid(index)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
