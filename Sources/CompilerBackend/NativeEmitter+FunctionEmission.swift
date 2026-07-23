@@ -1323,21 +1323,15 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_string_builder_new_from_string_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_new_from_string_flat",
+                "__kk_string_builder_new_from_string_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_builder_new_from_string_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_builder_append_obj": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_obj_flat",
+                "__kk_string_builder_append_obj": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_builder_append_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "kk_string_builder_appendRange_obj_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_appendRange_obj_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
                     stringArgumentPositions: [1]
                 ),
                 // KSP-404: startsWith/endsWith are bundled Kotlin source

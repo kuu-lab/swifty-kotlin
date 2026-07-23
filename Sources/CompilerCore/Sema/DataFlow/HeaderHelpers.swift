@@ -162,7 +162,7 @@ extension DataFlowSemaPhase {
         guard let fileID, let sourceManager else {
             return false
         }
-        return sourceManager.path(of: fileID).hasPrefix("__bundled_")
+        return sourceManager.origin(of: fileID)?.isBundledStdlib == true
     }
 
     private func annotationStringArgumentValue(_ raw: String) -> String {
@@ -1227,7 +1227,13 @@ extension DataFlowSemaPhase {
         registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTODOAndIOStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)

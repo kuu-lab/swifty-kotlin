@@ -23,7 +23,8 @@ struct KsSymbolNameSemaTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .library)
             _ = ctx.sourceManager.addFile(
                 path: "__bundled_bridge_identity.kt",
-                contents: Data(bundledSource.utf8)
+                contents: Data(bundledSource.utf8),
+                origin: .bundledStdlib
             )
 
             try runToKIR(ctx)
@@ -70,7 +71,8 @@ struct KsSymbolNameSemaTests {
             let ctx = makeCompilationContext(inputs: [path])
             _ = ctx.sourceManager.addFile(
                 path: "__bundled_bridge_no_body.kt",
-                contents: Data(bundledSource.utf8)
+                contents: Data(bundledSource.utf8),
+                origin: .bundledStdlib
             )
 
             try runSema(ctx)

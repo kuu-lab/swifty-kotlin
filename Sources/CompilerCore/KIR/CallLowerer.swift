@@ -122,10 +122,10 @@ final class CallLowerer {
            let firstArgType = arena.exprType(firstArg),
            sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.stringType)
         {
-            runtimeCallee = interner.intern("kk_string_builder_new_from_string_flat")
+            runtimeCallee = interner.intern("__kk_string_builder_new_from_string_flat")
             runtimeArgs = [firstArg]
         } else {
-            runtimeCallee = interner.intern("kk_string_builder_new")
+            runtimeCallee = interner.intern("__kk_string_builder_new")
             runtimeArgs = []
         }
         instructions.append(.call(

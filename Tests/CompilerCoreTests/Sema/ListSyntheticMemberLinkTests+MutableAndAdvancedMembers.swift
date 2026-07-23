@@ -91,10 +91,15 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks = [
+            let expectedExternalLinks: [String: String?] = [
                 "toMutableList": "kk_list_to_mutable_list",
                 "toSet": "kk_list_to_set",
-                "joinToString": "kk_list_joinToString",
+                // KSP-INF-011: List<T>.joinToString is now source-backed
+                // (StringSplitJoin.kt) and its body delegates to the private
+                // __kk_string_joinToString bridge with external link
+                // kk_list_joinToString. The public member itself has no
+                // external link name.
+                "joinToString": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {

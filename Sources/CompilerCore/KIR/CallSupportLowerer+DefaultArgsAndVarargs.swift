@@ -95,14 +95,14 @@ extension CallSupportLowerer {
         case "StringBuilder":
             switch argumentCount {
             case 0:
-                return interner.intern("kk_string_builder_new")
+                return interner.intern("__kk_string_builder_new")
             case 1:
                 if let firstArgumentType = argumentTypes.first,
                    !types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
                 {
-                    return interner.intern("kk_string_builder_new")
+                    return interner.intern("__kk_string_builder_new")
                 }
-                return interner.intern("kk_string_builder_new_from_string_flat")
+                return interner.intern("__kk_string_builder_new_from_string_flat")
             default:
                 return nil
             }
