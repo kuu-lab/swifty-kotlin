@@ -2084,35 +2084,71 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            var resolvedFromLocalShadow = false
             if candidates.isEmpty, let local = locals[calleeName] {
                 if let sym = ctx.cachedSymbol(local.symbol), sym.kind == .function {
                     candidates = [local.symbol]
+                    resolvedFromLocalShadow = true
                 }
             }
-            if candidates.isEmpty {
+            // KSP-CAP-006: a class/enum/annotation-class/object may coexist
+            // with a top-level function of the same name (e.g. `class Random`
+            // + top-level `fun Random(seed: Long): Random`, the real
+            // kotlin-stdlib factory-function idiom). Merge that type's
+            // constructors into the candidate set instead of only using them
+            // as an empty-candidates fallback, so overload resolution can
+            // choose between the function(s) and the constructor(s) by
+            // argument type -- the same way it already does between two
+            // overloaded functions of the same name. Skipped when a local
+            // variable already shadows the name (resolvedFromLocalShadow).
+            if !resolvedFromLocalShadow {
                 let classSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                     return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass || symbol.kind == .object
                 }
                 if let classSym = classSymbols.first, let classSymbol = ctx.cachedSymbol(classSym) {
-                    // P5-112: Prohibit direct instantiation of abstract classes.
                     if classSymbol.flags.contains(.abstractType) {
-                        let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                        ctx.semaCtx.diagnostics.error(
-                            "KSWIFTK-SEMA-ABSTRACT",
-                            "Cannot create an instance of abstract class '\(className)'.",
-                            range: range
-                        )
-                        sema.bindings.bindExprType(id, type: sema.types.errorType)
-                        return sema.types.errorType
-                    }
-                    let initName = interner.intern("<init>")
-                    let ctorFQName = classSymbol.fqName + [initName]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    if !ctorSymbols.isEmpty {
-                        let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
-                        candidates = vis
-                        callInvisible.append(contentsOf: invis)
+                        // P5-112: Prohibit direct instantiation of abstract classes,
+                        // but only when there is no other viable candidate (e.g. a
+                        // coexisting top-level factory function): an abstract
+                        // class's own constructor is never itself a usable call
+                        // target, so it must not blot out a real candidate.
+                        if candidates.isEmpty {
+                            let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                            ctx.semaCtx.diagnostics.error(
+                                "KSWIFTK-SEMA-ABSTRACT",
+                                "Cannot create an instance of abstract class '\(className)'.",
+                                range: range
+                            )
+                            sema.bindings.bindExprType(id, type: sema.types.errorType)
+                            return sema.types.errorType
+                        }
+                    } else {
+                        let initName = interner.intern("<init>")
+                        let ctorFQName = classSymbol.fqName + [initName]
+                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                        if !ctorSymbols.isEmpty {
+                            let (ctorVis, ctorInvis) = ctx.filterByVisibility(ctorSymbols)
+                            // Some synthetic stdlib types register a class
+                            // constructor whose signature exactly duplicates a
+                            // coexisting top-level factory function's signature
+                            // (e.g. kotlin.io.path.Path's synthetic
+                            // `<init>(String)` alongside the top-level `fun
+                            // Path(pathString: String): Path`). Without this
+                            // filter the duplicate becomes a second,
+                            // indistinguishable overload candidate and every
+                            // call to that name falsely resolves as ambiguous.
+                            let newCtorVis = ctorVis.filter { ctorID in
+                                guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
+                                    return true
+                                }
+                                return !candidates.contains { existingID in
+                                    sema.symbols.functionSignature(for: existingID)?.parameterTypes == ctorSignature.parameterTypes
+                                }
+                            }
+                            candidates.append(contentsOf: newCtorVis)
+                            callInvisible.append(contentsOf: ctorInvis)
+                        }
                     }
                 }
             }

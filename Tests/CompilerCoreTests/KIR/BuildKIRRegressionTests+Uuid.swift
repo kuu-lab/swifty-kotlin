@@ -20,8 +20,13 @@ extension BuildKIRRegressionTests {
             val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
             val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
             val longsSum = uuid.toLongs { msb, lsb -> msb + lsb }
-            val fromLongs = Uuid.fromLongs(uuid.mostSignificantBits, uuid.leastSignificantBits)
+            val fromLongs = Uuid.fromLongs(0x550e8400e29b41d4L, 0xa716446655440000uL.toLong())
             val fromBytes = Uuid.fromByteArray(uuid.toByteArray())
+            val uBytes = uuid.toUByteArray()
+            val fromUBytes = Uuid.fromUByteArray(uBytes)
+            val fromULongs = Uuid.fromULongs(0x550e8400e29b41d4uL, 0xa716446655440000uL)
+            val v4 = Uuid.generateV4()
+            val uLongsSum = uuid.toULongs { msb, lsb -> msb + lsb }
             nil.toString()
             random.toString()
             uuid.toString()
@@ -33,6 +38,12 @@ extension BuildKIRRegressionTests {
             longsSum.toString()
             fromLongs.toString()
             fromBytes.toByteArray()
+            uBytes.size
+            fromUBytes.toString()
+            fromULongs.toString()
+            v4.toString()
+            uLongsSum.toString()
+            uuid.toHexDashString()
             uuid.compareTo(nil)
         }
         """
@@ -48,9 +59,15 @@ extension BuildKIRRegressionTests {
             for callee in [
                 "random",
                 "fromLongs",
+                "fromULongs",
                 "fromByteArray",
+                "fromUByteArray",
                 "toByteArray",
+                "toUByteArray",
                 "toLongs",
+                "toULongs",
+                "toHexDashString",
+                "generateV4",
                 "compareTo",
             ] {
                 #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")

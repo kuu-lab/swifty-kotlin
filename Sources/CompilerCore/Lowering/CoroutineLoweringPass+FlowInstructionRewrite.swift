@@ -19,23 +19,11 @@ extension CoroutineLoweringPass {
             return expr
         }
 
-        // KSP-499 Stage 3: `.call` branches below already gate on `symbol ==
-        // nil` per-branch (the existing convention in this file for "this is
-        // still an unresolved Flow intrinsic, not a call to something else").
-        // `.virtualCall` — the KIR shape for ordinary member-call syntax like
-        // `someFlow.map { ... }`, the far more common way these operators are
-        // actually written — has no equivalent check, so once Sema resolves
-        // `.map`/`.toList`/etc. to a real bundled/user Kotlin declaration
-        // (non-nil, non-synthetic symbol), this pass must stop rewriting it
-        // by name so that real implementation actually runs.
-        func hasRealDeclaration(_ symbol: SymbolID?) -> Bool {
-            guard let symbol, let sema = ctx.sema,
-                  let resolvedSymbol = sema.symbols.symbol(symbol)
-            else {
-                return false
-            }
-            return !resolvedSymbol.flags.contains(.synthetic)
-        }
+        // KSP-CAP-010 / KSP-499 Stage 3: both `.call` and `.virtualCall`
+        // branches now gate on `hasRealDeclaration(symbol, in: ctx)`. Calls
+        // whose symbol is unresolved (`nil`) or synthetic are treated as flow
+        // intrinsics and rewritten to `kk_flow_*`; real bundled/user Kotlin
+        // declarations are left unchanged so their actual implementation runs.
 
         func appendFlowReleaseCall(_ handleExpr: KIRExprID) {
             loweredBody.append(.call(
@@ -152,7 +140,7 @@ extension CoroutineLoweringPass {
         for instruction in originalBody {
             switch instruction {
             case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-                if callee == names.flow, arguments.count == 1, symbol == nil {
+                if callee == names.flow, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: names.kkFlowCreate,
@@ -166,7 +154,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.emit, arguments.count == 1, symbol == nil {
+                if callee == names.emit, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: names.kkFlowEmit,
@@ -183,7 +171,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.map, arguments.count == 2, symbol == nil,
+                if callee == names.map, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -193,7 +181,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.filter, arguments.count == 2, symbol == nil,
+                if callee == names.filter, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -203,7 +191,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.take, arguments.count == 2, symbol == nil,
+                if callee == names.take, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -213,112 +201,112 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.transform, arguments.count == 2, symbol == nil,
+                if callee == names.transform, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .transform, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.takeWhile, arguments.count == 2, symbol == nil,
+                if callee == names.takeWhile, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .takeWhile, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.dropWhile, arguments.count == 2, symbol == nil,
+                if callee == names.dropWhile, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .dropWhile, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.buffer, arguments.count == 2, symbol == nil,
+                if callee == names.buffer, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .buffer, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.flowOn, arguments.count == 2, symbol == nil,
+                if callee == names.flowOn, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .flowOn, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.debounce, arguments.count == 2, symbol == nil,
+                if callee == names.debounce, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .debounce, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.sample, arguments.count == 2, symbol == nil,
+                if callee == names.sample, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .sample, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.delayEach, arguments.count == 2, symbol == nil,
+                if callee == names.delayEach, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .delayEach, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.conflate, arguments.count == 1, symbol == nil,
+                if callee == names.conflate, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: appendIntConstantInBody(0), tag: .conflate, result: result, isSuperCall: isSuperCall)
                     continue
                 }
 
-                if callee == names.flatMapConcat, arguments.count == 2, symbol == nil,
+                if callee == names.flatMapConcat, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowFlatMapConcat, handleExpr: arguments[0], extraArguments: [arguments[1]], result: result)
                     continue
                 }
 
-                if callee == names.flatMapMerge, arguments.count == 2, symbol == nil,
+                if callee == names.flatMapMerge, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowFlatMapMerge, handleExpr: arguments[0], extraArguments: [arguments[1]], result: result)
                     continue
                 }
 
-                if callee == names.flatMapLatest, arguments.count == 2, symbol == nil,
+                if callee == names.flatMapLatest, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowFlatMapLatest, handleExpr: arguments[0], extraArguments: [arguments[1]], result: result)
                     continue
                 }
 
-                if callee == names.zip, arguments.count == 3, symbol == nil,
+                if callee == names.zip, arguments.count == 3, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowZip, handleExpr: arguments[0], extraArguments: [arguments[1], arguments[2]], result: result)
                     continue
                 }
 
-                if callee == names.combine, arguments.count == 3, symbol == nil,
+                if callee == names.combine, arguments.count == 3, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowCombine, handleExpr: arguments[0], extraArguments: [arguments[1], arguments[2]], result: result)
                     continue
                 }
 
-                if callee == names.merge, arguments.count == 2, symbol == nil,
+                if callee == names.merge, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowRuntimeCall(callee: names.kkFlowMerge, handleExpr: arguments[0], extraArguments: [arguments[1]], result: result)
                     continue
                 }
 
-                if callee == names.catchHandler, arguments.count == 2, symbol == nil,
+                if callee == names.catchHandler, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -328,7 +316,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.retry, arguments.count == 2, symbol == nil,
+                if callee == names.retry, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -338,7 +326,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.retryWhen, arguments.count == 2, symbol == nil,
+                if callee == names.retryWhen, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -348,7 +336,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.onErrorReturn, arguments.count == 2, symbol == nil,
+                if callee == names.onErrorReturn, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -358,7 +346,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.onErrorResume, arguments.count == 2, symbol == nil,
+                if callee == names.onErrorResume, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowTransformCall(
@@ -368,7 +356,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.collect, arguments.count == 2, symbol == nil,
+                if callee == names.collect, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowCollectCall(
@@ -381,7 +369,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.collect, arguments.count == 3, symbol == nil,
+                if callee == names.collect, arguments.count == 3, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowCollectCall(
@@ -393,7 +381,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.collectLatest, arguments.count == 2, symbol == nil,
+                if callee == names.collectLatest, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowCollectCall(
@@ -406,7 +394,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.collectLatest, arguments.count == 3, symbol == nil,
+                if callee == names.collectLatest, arguments.count == 3, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
                     emitFlowCollectCall(
@@ -418,7 +406,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.toList, symbol == nil,
+                if callee == names.toList, !hasRealDeclaration(symbol, in: ctx),
                    arguments.count == 1,
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
@@ -436,7 +424,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.first, symbol == nil,
+                if callee == names.first, !hasRealDeclaration(symbol, in: ctx),
                    arguments.count == 1,
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
@@ -454,7 +442,7 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.single, symbol == nil,
+                if callee == names.single, !hasRealDeclaration(symbol, in: ctx),
                    arguments.count == 1,
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
@@ -538,7 +526,7 @@ extension CoroutineLoweringPass {
                 loweredBody.append(instruction)
 
             case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-                if hasRealDeclaration(symbol) {
+                if hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(instruction)
                     continue
                 }
