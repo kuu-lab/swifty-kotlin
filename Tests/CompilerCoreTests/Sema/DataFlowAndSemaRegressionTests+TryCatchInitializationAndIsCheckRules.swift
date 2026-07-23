@@ -19,8 +19,10 @@ extension DataFlowAndSemaRegressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
             let wrapSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "wrap"
+                ctx.interner.resolve(symbol.name) == "wrap" &&
+                    sema.symbols.sourceFileID(for: symbol.id) == sourceFileID
             }
             #expect(wrapSymbol != nil)
             if let sym = wrapSymbol,

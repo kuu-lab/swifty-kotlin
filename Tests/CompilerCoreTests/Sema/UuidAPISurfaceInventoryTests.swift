@@ -89,7 +89,6 @@ struct UuidAPISurfaceInventoryTests {
             ["kotlin", "uuid", "Uuid", "toUByteArray"],
             ["kotlin", "uuid", "Uuid", "compareTo"],
             ["kotlin", "uuid", "getUuid"],
-            ["kotlin", "uuid", "uuid"],
             ["kotlin", "uuid", "putUuid"],
         ]
 
@@ -124,11 +123,11 @@ struct UuidAPISurfaceInventoryTests {
         }
     }
 
-    /// KSP-476: java.util.UUID.toKotlinUuid() is a regular Kotlin function now
+    /// KSP-508: java.util.UUID.toKotlinUuid() is a regular Kotlin function now
     /// (source-backed, no external link of its own) whose body delegates to the
     /// __kk_uuid_toKotlinUuid bridge verified above — it is the only remaining
     /// kotlin.uuid extension that needs native support (java UUID interop).
-    /// ByteArray.getUuid/uuid/putUuid are pure Kotlin (covered by
+    /// java.nio.ByteBuffer.getUuid/putUuid are pure Kotlin (covered by
     /// testUuidPublicClassApisAreSourceBackedWithoutPureRuntimeLinks above).
     @Test
     func testUuidJavaInteropExtensionIsSourceBackedDelegatingToRenamedBridge() throws {
