@@ -9,6 +9,66 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let interner: StringInterner
     }
 
+    /// Returns true when the callee resolves to a bundled Kotlin source declaration
+    /// that should not be rewritten to a runtime `kk_*` entry point.
+    private func shouldPreserveSourceBackedVirtualCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        context: VirtualCallRewriteContext
+    ) -> Bool {
+        guard callee == lookup.foldName
+            || callee == lookup.foldRightName
+            || callee == lookup.reduceName
+            || callee == lookup.reduceOrNullName
+            || callee == lookup.scanName
+            || callee == lookup.scanIndexedName
+            || callee == lookup.scanReduceName
+            || callee == lookup.runningFoldName
+            || callee == lookup.runningFoldIndexedName
+            || callee == lookup.runningReduceName
+            || callee == lookup.runningReduceIndexedName
+            || callee == lookup.foldIndexedName
+            || callee == lookup.foldRightIndexedName
+            || callee == lookup.reduceRightName
+            || callee == lookup.reduceRightOrNullName
+            || callee == lookup.reduceRightIndexedName
+            || callee == lookup.reduceRightIndexedOrNullName
+            || callee == lookup.reduceIndexedName
+            || callee == lookup.reduceIndexedOrNullName
+            || callee == lookup.filterName
+            || callee == lookup.filterNotName
+            || callee == lookup.filterNotNullName
+            || callee == lookup.filterIndexedName
+            || callee == lookup.associateName
+            || callee == lookup.associateByName
+            || callee == lookup.groupByName
+            || callee == lookup.sumOfName
+            || callee == lookup.maxByOrNullName
+            || callee == lookup.minByOrNullName
+            || callee == lookup.mapName
+            || callee == lookup.mapIndexedName
+            || callee == lookup.mapNotNullName
+            || callee == lookup.mapToName
+            || callee == lookup.mapIndexedToName
+            || callee == lookup.mapNotNullToName
+            || callee == lookup.flatMapName
+            || callee == lookup.flatMapIndexedName
+            || callee == lookup.flatMapToName
+            || callee == lookup.flatMapIndexedToName
+            || callee == lookup.flattenName
+            || callee == lookup.takeName
+            || callee == lookup.dropName,
+            let symbol,
+            let sema = context.sema,
+            let semanticSymbol = sema.symbols.symbol(symbol),
+            semanticSymbol.declSite != nil
+        else {
+            return false
+        }
+        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
+
     func rewriteVirtualCallInstruction(
         symbol: SymbolID?,
         callee: InternedString,
@@ -33,6 +93,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
+
+        if shouldPreserveSourceBackedVirtualCall(
+            symbol: symbol,
+            callee: callee,
+            lookup: lookup,
+            context: context
+        ) {
+            return false
+        }
 
         // LOWERING-001: If the receiver is not in any tracking set yet,
         // attempt to classify it from its static type in the KIR arena.

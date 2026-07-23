@@ -217,7 +217,17 @@ extension DataFlowSemaPhase {
         // foldIndexed(initial: R, operation: (Int, R, T) -> R): R
         let foldIndexedName = interner.intern("foldIndexed")
         let foldIndexedFQName = listFQName + [foldIndexedName]
-        if symbols.lookup(fqName: foldIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: foldIndexedName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: foldIndexedFQName) == nil {
             let rName = interner.intern("R")
             let rFQName = foldIndexedFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])
@@ -232,7 +242,17 @@ extension DataFlowSemaPhase {
         // reduceIndexed(operation: (Int, S, T) -> S): S
         let reduceIndexedName = interner.intern("reduceIndexed")
         let reduceIndexedFQName = listFQName + [reduceIndexedName]
-        if symbols.lookup(fqName: reduceIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: reduceIndexedName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: reduceIndexedFQName) == nil {
             let sName = interner.intern("S")
             let sFQName = reduceIndexedFQName + [sName]
             let sSymbol = symbols.define(kind: .typeParameter, name: sName, fqName: sFQName, declSite: nil, visibility: .private, flags: [])
@@ -247,7 +267,17 @@ extension DataFlowSemaPhase {
         // reduceIndexedOrNull(operation: (Int, S, T) -> S): S?
         let reduceIndexedOrNullName = interner.intern("reduceIndexedOrNull")
         let reduceIndexedOrNullFQName = listFQName + [reduceIndexedOrNullName]
-        if symbols.lookup(fqName: reduceIndexedOrNullFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: reduceIndexedOrNullName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: reduceIndexedOrNullFQName) == nil {
             let sName = interner.intern("S")
             let sFQName = reduceIndexedOrNullFQName + [sName]
             let sSymbol = symbols.define(kind: .typeParameter, name: sName, fqName: sFQName, declSite: nil, visibility: .private, flags: [])
@@ -263,7 +293,17 @@ extension DataFlowSemaPhase {
         // runningFoldIndexed(initial: R, operation: (Int, R, T) -> R): List<R>
         let runningFoldIndexedName = interner.intern("runningFoldIndexed")
         let runningFoldIndexedFQName = listFQName + [runningFoldIndexedName]
-        if symbols.lookup(fqName: runningFoldIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: runningFoldIndexedName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: runningFoldIndexedFQName) == nil {
             let rName = interner.intern("R")
             let rFQName = runningFoldIndexedFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])
@@ -279,7 +319,17 @@ extension DataFlowSemaPhase {
         // runningReduceIndexed(operation: (Int, S, T) -> S): List<S>
         let runningReduceIndexedName = interner.intern("runningReduceIndexed")
         let runningReduceIndexedFQName = listFQName + [runningReduceIndexedName]
-        if symbols.lookup(fqName: runningReduceIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: runningReduceIndexedName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: runningReduceIndexedFQName) == nil {
             let sName = interner.intern("S")
             let sFQName = runningReduceIndexedFQName + [sName]
             let sSymbol = symbols.define(kind: .typeParameter, name: sName, fqName: sFQName, declSite: nil, visibility: .private, flags: [])
@@ -333,7 +383,17 @@ extension DataFlowSemaPhase {
         // scanIndexed(initial: R, operation: (Int, R, T) -> R): List<R>
         let scanIndexedName = interner.intern("scanIndexed")
         let scanIndexedFQName = listFQName + [scanIndexedName]
-        if symbols.lookup(fqName: scanIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: scanIndexedName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: scanIndexedFQName) == nil {
             let rName = interner.intern("R")
             let rFQName = scanIndexedFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])
@@ -375,7 +435,17 @@ extension DataFlowSemaPhase {
         // foldRightIndexed(initial: R, operation: (index: Int, T, acc: R) -> R): R
         let foldRightIndexedName = interner.intern("foldRightIndexed")
         let foldRightIndexedFQName = listFQName + [foldRightIndexedName]
-        if symbols.lookup(fqName: foldRightIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: foldRightIndexedName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: foldRightIndexedFQName) == nil {
             let rName = interner.intern("R")
             let rFQName = foldRightIndexedFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])
@@ -390,7 +460,17 @@ extension DataFlowSemaPhase {
         // reduceRight(operation: (T, acc: S) -> S): S
         let reduceRightName = interner.intern("reduceRight")
         let reduceRightFQName = listFQName + [reduceRightName]
-        if symbols.lookup(fqName: reduceRightFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: reduceRightName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: reduceRightFQName) == nil {
             let sName = interner.intern("S")
             let sFQName = reduceRightFQName + [sName]
             let sSymbol = symbols.define(kind: .typeParameter, name: sName, fqName: sFQName, declSite: nil, visibility: .private, flags: [])

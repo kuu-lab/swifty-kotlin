@@ -220,10 +220,7 @@ struct BundledDeclarationIndex: Sendable {
         // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
-        case "map", "mapIndexed", "mapNotNull", "flatMap":
-            return key.arity == 1
-        case "flatten":
-            return key.arity == 0
+        // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
             return key.arity == 0 || key.arity == 1
         case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
@@ -243,10 +240,18 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter is bundled as Kotlin source, but that implementation is
-        // only valid for concrete List receivers. Keep the runtime bridge for
-        // nominal Iterable<T> receivers, whose values may not expose List indexing.
-        interner.resolve(key.name) == "filter" && key.arity == 1
+        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
+        // implementations are only valid for concrete List receivers. Keep the
+        // runtime bridge for nominal Iterable<T> receivers until Iterable has
+        // its own Kotlin source (KSP-435).
+        switch interner.resolve(key.name) {
+        case "filter",
+             "reduce", "reduceIndexed",
+             "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
+            return key.arity == 1
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
