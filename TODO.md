@@ -281,9 +281,9 @@
 - [x] DEADCODE-RUNTIME-040: [R0] `RuntimeTypes.swift:2323` の `RuntimeOutputStreamBox.isClosed` を削除する。常に `false` を返す未参照 property
 - [ ] DEADCODE-RUNTIME-041: [R0] `RuntimeCoroutine.swift:788` の `RuntimeTaskHandle.awaitResultThrowing(outThrown:)` を削除する。suspend-aware/live な `awaitResult` 経路は残す
 - [ ] DEADCODE-RUNTIME-042: [R0 overload] `RuntimeStringFormat.swift:151` の private `runtimeFormatString(_:arguments: [Int], locale:)` を削除する。`[RuntimeValue]` overload は live
-- [x] DEADCODE-RUNTIME-043: [R0 requirement] `RuntimeRangeSharedHOF.swift:12` の `RuntimeRangeHOFKind.count(_:)` protocol requirement を削除する
-- [x] DEADCODE-RUNTIME-044: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:42` の `RuntimeSignedRangeHOFKind.count(_:)` witness を削除する
-- [x] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する
+- [ ] DEADCODE-RUNTIME-043: [R0 requirement] `RuntimeRangeSharedHOF.swift:12` の `RuntimeRangeHOFKind.count(_:)` protocol requirement を削除する（保留: 本ブランチでは witness が live のため requirement も削除不可。RUNTIME-044/045 参照）
+- [ ] DEADCODE-RUNTIME-044: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:42` の `RuntimeSignedRangeHOFKind.count(_:)` witness を削除する（保留: `kk_long_range_count` が `RuntimeSignedRangeHOFKind.count(range)` を呼んでおり参照ゼロではない）
+- [ ] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する（保留: `kk_uint_range_count`/`kk_ulong_range_count` が `RuntimeUnsignedRangeHOFKind.count(range)` を呼んでおり参照ゼロではない）
 
 ### LSPServer
 

@@ -9,6 +9,7 @@ private typealias RuntimeRangeIndexedFoldLambda = @convention(c) (Int, Int, Int,
 protocol RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (_ value: Int, _ index: Int) -> Bool) -> Bool
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool
+    static func count(_ range: RuntimeRangeBox) -> Int
     static func doubleValue(_ value: Int) -> Double
     static func sortValues(_ values: inout [Int])
     static func firstMatch(
@@ -36,6 +37,10 @@ enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool {
         runtimeSignedRangeIsEmpty(range)
+    }
+
+    static func count(_ range: RuntimeRangeBox) -> Int {
+        runtimeSignedRangeCount(range)
     }
 
     static func doubleValue(_ value: Int) -> Double {
@@ -85,6 +90,10 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool {
         runtimeUnsignedRangeIsEmpty(range)
+    }
+
+    static func count(_ range: RuntimeRangeBox) -> Int {
+        runtimeUnsignedRangeCount(range)
     }
 
     static func doubleValue(_ value: Int) -> Double {
