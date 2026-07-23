@@ -12,22 +12,22 @@ import kotlin.internal.KsSymbolName
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
 // parameter layout: null array + count=0 produces a fresh mutable collection.
 
-@KsSymbolName("kk_emptyList")
+@KsSymbolName("__kk_emptyList")
 private external fun <T> __kk_emptyList(): List<T>
 
-@KsSymbolName("kk_list_of")
+@KsSymbolName("__kk_list_of")
 private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
 
-@KsSymbolName("kk_emptySet")
+@KsSymbolName("__kk_emptySet")
 private external fun <T> __kk_emptySet(): Set<T>
 
-@KsSymbolName("kk_set_of")
+@KsSymbolName("__kk_set_of")
 private external fun <T> __kk_set_of(array: Any?, count: Int): MutableSet<T>
 
-@KsSymbolName("kk_emptyMap")
+@KsSymbolName("__kk_emptyMap")
 private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
-@KsSymbolName("kk_map_of")
+@KsSymbolName("__kk_map_of")
 private external fun <K, V> __kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
 
 // --- emptyList / emptySet / emptyMap -----------------------------------------

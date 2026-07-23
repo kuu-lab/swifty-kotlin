@@ -260,7 +260,7 @@ extension CallLowerer {
             )
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_list_of"),
+                callee: interner.intern("__kk_list_of"),
                 arguments: argExprs,
                 result: listExpr,
                 canThrow: false,

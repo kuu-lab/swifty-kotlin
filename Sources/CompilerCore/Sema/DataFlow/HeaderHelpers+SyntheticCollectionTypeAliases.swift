@@ -9,14 +9,16 @@ extension DataFlowSemaPhase {
 
     /// Register bootstrap symbols for collection factory functions while the
     /// bundled CollectionFactories.kt source is being type-checked. The
-    /// source declarations replace these synthetic symbols in the normal
-    /// post-bundled pass; during the bootstrap pass they are still required so
-    /// calls from other bundled files (for example ListHOF.kt) can resolve.
+    /// bundled declaration index is used to skip functions that are already
+    /// provided by Kotlin source so they do not duplicate source declarations
+    /// in the symbol table.
     func registerSyntheticCollectionFactoryStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let packageSymbol = symbols.lookup(fqName: kotlinCollectionsPkg)
 
@@ -52,6 +54,8 @@ extension DataFlowSemaPhase {
                 returnType: types.anyType,
                 externalLinkName: externalLinkName,
                 typeParameterSymbols: typeParameterSymbols,
+                bundledIndex: bundledIndex,
+                skipStats: skipStats,
                 symbols: symbols,
                 interner: interner
             )
@@ -60,30 +64,30 @@ extension DataFlowSemaPhase {
             }
         }
 
-        register(name: "emptyList", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptyList")
-        register(name: "listOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptyList")
-        register(name: "listOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
+        register(name: "emptyList", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptyList")
+        register(name: "listOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptyList")
+        register(name: "listOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")
         register(name: "listOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of_not_null")
-        register(name: "arrayListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
-        register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_list_of")
-        register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of")
+        register(name: "arrayListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")
+        register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_list_of")
+        register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")
 
-        register(name: "emptySet", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptySet")
-        register(name: "setOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_emptySet")
-        register(name: "setOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
+        register(name: "emptySet", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptySet")
+        register(name: "setOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptySet")
+        register(name: "setOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
         register(name: "setOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of_not_null")
-        register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "kk_set_of")
-        register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
-        register(name: "hashSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
-        register(name: "linkedSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of")
+        register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_set_of")
+        register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
+        register(name: "hashSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
+        register(name: "linkedSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
 
-        register(name: "emptyMap", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_emptyMap")
-        register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_emptyMap")
-        register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
-        register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "kk_map_of")
-        register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
-        register(name: "hashMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
-        register(name: "linkedMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "kk_map_of")
+        register(name: "emptyMap", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_emptyMap")
+        register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_emptyMap")
+        register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
+        register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_map_of")
+        register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
+        register(name: "hashMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
+        register(name: "linkedMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
     }
 
     // MARK: - Collection Type Aliases (STDLIB-560)
@@ -344,8 +348,8 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerConstructor(parameterTypes: [], externalLinkName: "kk_emptySet")
-        registerConstructor(parameterTypes: [types.intType], externalLinkName: "kk_emptySet")
+        registerConstructor(parameterTypes: [], externalLinkName: "__kk_emptySet")
+        registerConstructor(parameterTypes: [types.intType], externalLinkName: "__kk_emptySet")
         registerConstructor(parameterTypes: [collectionType], externalLinkName: "kk_iterable_toMutableSet")
     }
 }
