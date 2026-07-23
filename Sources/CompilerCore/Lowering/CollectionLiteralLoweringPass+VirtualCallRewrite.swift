@@ -60,7 +60,22 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
             || callee == lookup.takeName
-            || callee == lookup.dropName,
+            || callee == lookup.dropName
+            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
+            || callee == lookup.findName
+            || callee == lookup.findLastName
+            || callee == lookup.indexOfName
+            || callee == lookup.lastIndexOfName
+            || callee == lookup.indexOfFirstName
+            || callee == lookup.indexOfLastName
+            || callee == lookup.containsName
+            || callee == lookup.containsAllName
+            || callee == lookup.countName
+            || callee == lookup.anyName
+            || callee == lookup.allName
+            || callee == lookup.noneName
+            || callee == lookup.firstOrNullName
+            || callee == lookup.lastOrNullName,
             let symbol,
             let sema = context.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
@@ -677,7 +692,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
-        guard callee == lookup.groupByName || callee == lookup.sortedByName || callee == lookup.findName || callee == lookup.findLastName
+        guard callee == lookup.groupByName || callee == lookup.sortedByName
             || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
             || callee == lookup.maxByName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
@@ -703,8 +718,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         case lookup.sortedByName: lookup.kkListSortedByName
         case lookup.sortedByDescendingName: lookup.kkListSortedByDescendingName
         case lookup.sortedWithName: lookup.kkListSortedWithName
-        case lookup.findName: lookup.kkListFindName
-        case lookup.findLastName: lookup.kkListFindLastName
         case lookup.associateByName: lookup.kkListAssociateByName
         case lookup.associateWithName: lookup.kkListAssociateWithName
         case lookup.associateName: lookup.kkListAssociateName
@@ -1205,18 +1218,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         guard listExprIDs.contains(receiver.rawValue) else { return false }
 
-        if callee == lookup.countName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListCountName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
         if callee == lookup.firstName || callee == lookup.lastName {
             let kkName: InternedString = callee == lookup.firstName
                 ? lookup.kkListFirstName
@@ -1420,30 +1421,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(kkName: lookup.kkListReduceRightOrNullName, receiver: receiver, arguments: arguments + [zeroExpr], result: result, origCanThrow: origCanThrow, origThrownResult: origThrownResult, module: module, loweredBody: &loweredBody)
-            return true
-        }
-
-        if callee == lookup.indexOfFirstName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListIndexOfFirstName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
-        if callee == lookup.indexOfLastName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListIndexOfLastName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
             return true
         }
 

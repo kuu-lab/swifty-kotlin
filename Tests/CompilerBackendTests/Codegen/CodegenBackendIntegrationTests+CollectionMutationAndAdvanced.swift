@@ -415,7 +415,7 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(callees.contains("kk_list_minBy"))
             XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_find"))
+            XCTAssertTrue(callees.contains("find") || callees.contains("__kk_values_equal"))
             XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
             // The old runtime entry points for source-backed HOFs must not appear

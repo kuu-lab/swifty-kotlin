@@ -258,10 +258,10 @@ struct BundledDeclarationIndex: Sendable {
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
+        // KSP-423 source-backed search/predicate HOFs (find, indexOf, contains,
+        // any, all, none, count) are also source-bound.
         case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
             return key.arity == 0 || key.arity == 1
-        case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
-            return key.arity == 1
         case "reversed", "sorted":
             return key.arity == 0
         case "shuffled":
@@ -543,9 +543,24 @@ struct BundledDeclarationIndex: Sendable {
         let collections = interner.intern("collections")
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
+        // Aliasing List member implementations to Iterable suppresses synthetic
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // require a concrete Collection with a size/indices contract; they cannot
+        // be served by the List source for an Iterable receiver.
+        let nonAliasedZeroArgNames = Set([
+            interner.intern("any"),
+            interner.intern("none"),
+            interner.intern("count"),
+            interner.intern("first"),
+            interner.intern("last"),
+            interner.intern("single"),
+        ])
 
         let listKeys = keys.filter { $0.ownerFQName == listOwnerFQName }
         for key in listKeys {
+            if key.arity == 0, nonAliasedZeroArgNames.contains(key.name) {
+                continue
+            }
             keys.insert(
                 BundledMemberKey(
                     ownerFQName: iterableOwnerFQName,

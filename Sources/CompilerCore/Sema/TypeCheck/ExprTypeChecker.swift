@@ -533,7 +533,7 @@ final class ExprTypeChecker {
         let nonNullContainerType = sema.types.makeNonNullable(containerType)
         guard case .classType = sema.types.kind(of: nonNullContainerType) else { return }
 
-        let candidates = driver.helpers.collectMemberFunctionCandidates(
+        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: containsName,
             receiverType: nonNullContainerType,
             sema: sema,
@@ -547,6 +547,63 @@ final class ExprTypeChecker {
                 return false
             }
             return true
+        }
+
+        // Bundle Kotlin source extension functions such as `List.contains` live at
+        // package scope, so the direct owner+name member lookup above misses them.
+        // Fall back to scope lookup and filter by receiver type, mirroring the
+        // extension-function resolution path in `inferRegularMemberCall`.
+        let scopeCandidates = ctx.cachedScopeLookup(containsName).filter { candidate in
+            guard !memberCandidates.contains(candidate),
+                  let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  symbol.flags.contains(SymbolFlags.operatorFunction),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let receiverType = signature.receiverType
+            else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullContainerType,
+                declaredReceiver: receiverType,
+                sema: sema
+            )
+        }
+
+        var candidates = memberCandidates
+        candidates.append(contentsOf: scopeCandidates)
+
+        // Drop synthetic supertype candidates when a bundled source implementation
+        // exists on a subtype. Overload resolution currently treats extension
+        // functions as having no class type parameters, which makes a synthetic
+        // Collection.contains look more specific than List.contains; prefer the
+        // source member from the more-derived receiver.
+        func receiverClassSymbol(of signature: FunctionSignature?) -> SymbolID? {
+            guard let receiverType = signature?.receiverType else { return nil }
+            let nonNull = sema.types.makeNonNullable(receiverType)
+            guard case let .classType(classType) = sema.types.kind(of: nonNull) else {
+                return nil
+            }
+            return classType.classSymbol
+        }
+        let sourceCandidates = candidates.filter { sema.symbols.symbol($0)?.declSite != nil }
+        if !sourceCandidates.isEmpty {
+            let sourceReceiverClasses = Set(sourceCandidates.compactMap { receiverClassSymbol(of: sema.symbols.functionSignature(for: $0)) })
+            candidates = candidates.filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.declSite == nil,
+                      let candidateClass = receiverClassSymbol(of: sema.symbols.functionSignature(for: candidate))
+                else {
+                    return true
+                }
+                if sourceReceiverClasses.contains(candidateClass) {
+                    return false
+                }
+                return !sourceReceiverClasses.contains(where: {
+                    sema.types.isNominalSubtypeSymbol($0, of: candidateClass)
+                })
+            }
         }
 
         guard !candidates.isEmpty else { return }

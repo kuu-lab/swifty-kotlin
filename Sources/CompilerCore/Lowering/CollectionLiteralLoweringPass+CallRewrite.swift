@@ -53,7 +53,24 @@ extension CollectionLiteralConstructionLoweringPass {
             // to that source declaration must not be short-circuited to the
             // unchecked kk_sequence_take/drop runtime bridge.
             || callee == lookup.takeName
-            || callee == lookup.dropName,
+            || callee == lookup.dropName
+            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
+            || callee == lookup.findName
+            || callee == lookup.findLastName
+            || callee == lookup.indexOfName
+            || callee == lookup.lastIndexOfName
+            || callee == lookup.indexOfFirstName
+            || callee == lookup.indexOfLastName
+            || callee == lookup.containsName
+            || callee == lookup.containsAllName
+            || callee == lookup.countName
+            || callee == lookup.anyName
+            || callee == lookup.allName
+            || callee == lookup.noneName
+            || callee == lookup.firstName
+            || callee == lookup.lastName
+            || callee == lookup.firstOrNullName
+            || callee == lookup.lastOrNullName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),

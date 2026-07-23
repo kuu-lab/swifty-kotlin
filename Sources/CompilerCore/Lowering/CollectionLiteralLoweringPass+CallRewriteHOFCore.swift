@@ -35,10 +35,8 @@ extension CollectionLiteralConstructionLoweringPass {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]
-            // countName with a List receiver is handled by the dedicated count/first/last
-            // handler below, which correctly rewrites it to kk_list_count.
-            // Entering this generic list-HOF path for countName would emit a call with
-            // the un-rewritten "count" callee and mark the call handled, skipping that handler.
+            // countName with a List receiver is now a bundled Kotlin source function, so
+            // it must not be intercepted by the generic list-HOF rewrite path below.
             if state.listExprIDs.contains(receiverID.rawValue)
                 && callee != lookup.countName
                 && callee != lookup.filterName

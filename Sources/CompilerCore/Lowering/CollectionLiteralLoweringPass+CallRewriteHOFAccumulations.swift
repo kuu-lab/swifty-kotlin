@@ -18,7 +18,6 @@ extension CollectionLiteralConstructionLoweringPass {
             let lambdaID = arguments[1]
             if state.listExprIDs.contains(receiverID.rawValue) {
                 let kkName: InternedString = switch callee {
-                case lookup.countName: lookup.kkListCountName
                 case lookup.firstName: lookup.kkListFirstName
                 case lookup.lastName: lookup.kkListLastName
                 default: callee

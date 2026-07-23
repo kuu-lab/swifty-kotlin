@@ -25,7 +25,7 @@ extension CallTypeChecker {
             "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
             "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
             "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
-            "groupBy", "groupingBy", "reduceTo", "sortedBy", "count", "first", "last", "find",
+            "groupBy", "groupingBy", "reduceTo", "sortedBy", "count", "first", "last", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
             "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
             "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
             "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
@@ -1181,6 +1181,69 @@ extension CallTypeChecker {
                 return finalType
             }
             switch calleeStr {
+            case "indexOf", "lastIndexOf":
+                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                    return nil
+                }
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.intType)
+                    return sema.types.intType
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                resultType = sema.types.intType
+                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+
+            case "contains":
+                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                    return nil
+                }
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.booleanType)
+                    return sema.types.booleanType
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                resultType = sema.types.booleanType
+                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+
+            case "containsAll":
+                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                    return nil
+                }
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.booleanType)
+                    return sema.types.booleanType
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+                resultType = sema.types.booleanType
+                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+
+            case "findLast", "firstOrNull", "lastOrNull":
+                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                    return nil
+                }
+                if args.isEmpty {
+                    resultType = sema.types.makeNullable(collectionElementType)
+                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                } else if args.count == 1 {
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType],
+                        returnType: sema.types.booleanType
+                    )))
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    resultType = sema.types.makeNullable(collectionElementType)
+                    if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                    }
+                } else {
+                    sema.bindings.bindExprType(id, type: sema.types.makeNullable(collectionElementType))
+                    return sema.types.makeNullable(collectionElementType)
+                }
+
             case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
                  "count", "first", "last", "find", "associateBy", "associateWith", "associate",
                  "mapValues", "mapKeys", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "onEach":
@@ -1189,12 +1252,17 @@ extension CallTypeChecker {
                     switch calleeStr {
                     case "any", "none": resultType = sema.types.booleanType
                     case "count": resultType = sema.types.intType
-                    case "first", "last": resultType = collectionElementType
+                    case "first", "last":
+                        resultType = collectionElementType
+                    case "find": resultType = sema.types.makeNullable(collectionElementType)
                     default: resultType = sema.types.anyType
+                    }
+                    if ["any", "none", "first", "last"].contains(calleeStr) {
+                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {
-                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile": sema.types.booleanType
+                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last": sema.types.booleanType
                     case "forEach", "onEach": sema.types.unitType
                     case "count": sema.types.booleanType
                     case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
@@ -1538,6 +1606,14 @@ extension CallTypeChecker {
                             resultType = sema.types.nullableAnyType
                         }
                     default: resultType = sema.types.anyType
+                    }
+
+                    if ["any", "none", "all", "count", "find", "first", "last"].contains(calleeStr) {
+                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                            if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
+                        }
                     }
                 }
 
@@ -2578,6 +2654,11 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
+                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                }
 
             case "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed", "onEachIndexed":
                 guard args.count == 1 else {

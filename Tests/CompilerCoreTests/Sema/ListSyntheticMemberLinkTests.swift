@@ -421,7 +421,6 @@ struct ListSyntheticMemberLinkTests {
                 "maxBy": "kk_list_maxBy",
                 "minOfWithOrNull": "kk_list_minOfWithOrNull",
                 "maxOfOrNull": "kk_list_maxOfOrNull",
-                "find": "kk_list_find",
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -434,6 +433,29 @@ struct ListSyntheticMemberLinkTests {
                         ]
                     ))
                 #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+            }
+
+            // find / findLast are source-backed in ListSearchHOF.kt (KSP-423)
+            // and therefore have no external link name.
+            let collectionsPkg = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+            ]
+            for memberName in ["find", "findLast"] {
+                let sourceSymbols = sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern(memberName)]).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.receiverType != nil
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                }
+                #expect(!sourceSymbols.isEmpty, "Expected bundled Kotlin source for List.\(memberName)")
+                #expect(sourceSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "List.\(memberName) should be source-backed")
             }
         }
     }
@@ -541,6 +563,38 @@ struct ListSyntheticMemberLinkTests {
                 )
             }
 
+            // KSP-423: search and predicate HOFs are source-backed.
+            let sourceBackedSearchHOFs: [(name: String, arity: Int)] = [
+                ("contains", 1),
+                ("containsAll", 1),
+                ("lastIndexOf", 1),
+                ("count", 0),
+                ("count", 1),
+                ("any", 0),
+                ("any", 1),
+                ("all", 1),
+                ("none", 0),
+                ("none", 1),
+            ]
+            for (name, arity) in sourceBackedSearchHOFs {
+                let bundled = bundledListExtensionSymbols(named: name, arity: arity)
+                #expect(!bundled.isEmpty, "Expected bundled Kotlin source for List.\(name)(arity: \(arity))")
+                #expect(
+                    bundled.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+                    "Bundled List.\(name) should not have an external link name"
+                )
+                let synthetic = syntheticMemberSymbols(
+                    ownerFQName: listOwnerFQName,
+                    name: name,
+                    arity: arity,
+                    externalLinkPrefix: "kk_list_"
+                )
+                #expect(
+                    synthetic.isEmpty,
+                    "Expected no synthetic List.\(name)(arity: \(arity)) stub when bundled Kotlin source exists, found \(synthetic.count)"
+                )
+            }
+
             for (name, link) in [("any", "kk_iterable_any"), ("all", "kk_iterable_all")] {
                 let synthetic = syntheticMemberSymbols(
                     ownerFQName: iterableOwnerFQName,
@@ -583,6 +637,13 @@ struct ListSyntheticMemberLinkTests {
                 "indexOf": [1],
                 "indexOfFirst": [1],
                 "indexOfLast": [1],
+                "lastIndexOf": [1],
+                "contains": [1],
+                "containsAll": [1],
+                "count": [0, 1],
+                "any": [0, 1],
+                "all": [1],
+                "none": [0, 1],
             ]
 
             for (name, arities) in expectedArities {
@@ -1037,7 +1098,7 @@ struct ListSyntheticMemberLinkTests {
                     Issue.record("Expected \(memberName)(predicate) call to keep its lambda argument")
                     continue
                 }
-                #expect(sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be marked for HOF lowering")
+                #expect(!sema.bindings.isCollectionHOFLambdaExpr(predicateArg), "Expected \(memberName)(predicate) lambda to be unmarked for source-backed lowering")
                 #expect(sema.bindings.exprTypes[predicateCall] == nullableIntType, "Expected \(memberName)(predicate) to return nullable element type")
                 #expect(!(sema.bindings.isCollectionExpr(predicateCall)), "Expected \(memberName)(predicate) result to avoid collection-expression marking")
             }

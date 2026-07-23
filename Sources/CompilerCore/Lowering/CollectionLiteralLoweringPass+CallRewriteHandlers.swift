@@ -171,9 +171,6 @@ extension CollectionLiteralConstructionLoweringPass {
         case lookup.onEachName: lookup.kkListOnEachName
         case lookup.flatMapName: lookup.kkListFlatMapName
         case lookup.flatMapIndexedName: lookup.kkListFlatMapIndexedName
-        case lookup.anyName: lookup.kkListAnyName
-        case lookup.noneName: lookup.kkListNoneName
-        case lookup.allName: lookup.kkListAllName
         default: callee
         }
     }
