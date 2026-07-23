@@ -435,7 +435,7 @@ public func kk_map_size(_ mapRaw: Int) -> Int {
     return map.keys.count
 }
 
-@_cdecl("kk_map_get")
+@_cdecl("__kk_map_get")
 public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
@@ -570,7 +570,7 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: entries))
 }
 
-@_cdecl("kk_map_iterator")
+@_cdecl("__kk_map_iterator")
 public func kk_map_iterator(_ mapRaw: Int) -> Int {
     let (keys, values): ([Int], [Int]) = if let map = runtimeMapBox(from: mapRaw) {
         (map.keys, map.values)
@@ -580,7 +580,7 @@ public func kk_map_iterator(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeMapIteratorBox(keys: keys, values: values))
 }
 
-@_cdecl("kk_map_iterator_hasNext")
+@_cdecl("__kk_map_iterator_hasNext")
 public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
     guard let iter = runtimeMapIteratorBox(from: iterRaw) else {
         return 0
@@ -589,7 +589,7 @@ public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
 }
 
 /// Returns the key at the current position, matching the C preamble behavior.
-@_cdecl("kk_map_iterator_next")
+@_cdecl("__kk_map_iterator_next")
 public func kk_map_iterator_next(_ iterRaw: Int) -> Int {
     guard let iter = runtimeMapIteratorBox(from: iterRaw) else {
         return 0

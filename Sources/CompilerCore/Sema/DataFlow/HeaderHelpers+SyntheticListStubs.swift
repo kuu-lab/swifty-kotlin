@@ -238,7 +238,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(listInterfaceSymbol, for: listGetSymbol)
-        symbols.setExternalLinkName("kk_list_get", for: listGetSymbol)
+        symbols.setExternalLinkName("__kk_list_get", for: listGetSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: listReceiverType,

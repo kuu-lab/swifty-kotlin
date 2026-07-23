@@ -937,7 +937,7 @@ extension CallLowerer {
             case .array?:
                 return interner.intern("kk_array_size")
             case .list?, .collection?:
-                return interner.intern("kk_list_size")
+                return interner.intern("__kk_list_size")
             default:
                 break
             }

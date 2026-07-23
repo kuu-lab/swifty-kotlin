@@ -117,7 +117,7 @@ public func kk_emptyList() -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
 }
 
-@_cdecl("kk_list_size")
+@_cdecl("__kk_list_size")
 public func kk_list_size(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -133,7 +133,7 @@ public func kk_list_indices(_ listRaw: Int) -> Int {
     return kk_op_rangeTo(0, list.elements.count - 1)
 }
 
-@_cdecl("kk_list_get")
+@_cdecl("__kk_list_get")
 public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0

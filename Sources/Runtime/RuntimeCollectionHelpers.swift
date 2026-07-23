@@ -442,6 +442,12 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return lhs == rhs
 }
 
+/// Kotlin stdlib bridge for structural equality of raw runtime values.
+@_cdecl("__kk_values_equal")
+public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
+    kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+}
+
 /// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
 /// retaining structural equality for data classes and collection/value boxes.
 /// Returns nil when either operand is not a nominal runtime object, allowing

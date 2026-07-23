@@ -37,7 +37,7 @@ extension CallTypeChecker {
                  "kk_array_joinToString_transform",
                  "kk_list_intersect", "kk_list_union", "kk_list_subtract",
                  "kk_set_contains", "kk_set_containsAll", "kk_set_intersect", "kk_set_union", "kk_set_subtract",
-                 "kk_map_get", "kk_map_contains_key", "kk_map_contains_value",
+                 "__kk_map_get", "kk_map_contains_key", "kk_map_contains_value",
                  "kk_map_getValue", "kk_map_getOrDefault", "kk_map_getOrElse":
                 return true
             default:

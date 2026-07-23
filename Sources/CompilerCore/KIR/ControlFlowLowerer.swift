@@ -1656,10 +1656,10 @@ final class ControlFlowLowerer {
                 // Map destructuring component1 = key, which is the iterator next value
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, componentIndex == 2 {
-                // Map destructuring component2 = value, obtained via kk_map_get(map, key)
+                // Map destructuring component2 = value, obtained via __kk_map_get(map, key)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_map_get"),
+                    callee: interner.intern("__kk_map_get"),
                     arguments: [iterableID, nextValueID],
                     result: componentResult,
                     canThrow: false,
