@@ -19,9 +19,10 @@ fun main() {
 
     @Suppress("DEPRECATION")
     run {
-        // subSequence delegates to substring
-        println("hello".subSequence(1, 3))
-        println("hello".subSequence(2, 2) + "|")
+        // subSequence delegates to substring; toString() keeps kotlinc parity
+        // because the stdlib subSequence returns CharSequence (no CharSequence.plus).
+        println("hello".subSequence(1, 3).toString())
+        println("hello".subSequence(2, 2).toString() + "|")
     }
 
     // slice(IntRange)
