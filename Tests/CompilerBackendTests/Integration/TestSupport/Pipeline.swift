@@ -85,16 +85,3 @@ func makeContextFromSource(
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }
-
-func makeContextFromSources(_ sources: [String]) -> CompilationContext {
-    let tempDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-    let fakePaths = sources.indices.map { index in
-        tempDir.appendingPathComponent("input\(index).kt").path
-    }
-    let ctx = makeCompilationContext(inputs: fakePaths)
-    for (path, source) in zip(fakePaths, sources) {
-        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
-    }
-    return ctx
-}
