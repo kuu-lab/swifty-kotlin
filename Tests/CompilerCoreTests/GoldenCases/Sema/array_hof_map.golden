@@ -37,7 +37,7 @@ expr e@5:15 name(values) type=kotlin.Array<String> ref=transform.$0.values
 expr e@5:28 name(it) type=String ref=s-3
 expr e@5:28#1 memberCall recv=e@5:28 callee=isEmpty args=[] type=Boolean call=kotlin.text.isEmpty
 expr e@5:26 lambda params=[] body=e@5:28#1 label=any type=(String) -> Boolean
-expr e@5:15#1 memberCall recv=e@5:15 callee=any args=[_:e@5:26] type=Boolean
+expr e@5:15#1 memberCall recv=e@5:15 callee=any args=[_:e@5:26] type=Boolean call=kotlin.collections.any#1 targs=[String]
 expr e@5:5 localDecl any mutable=0 type=_ init=e@5:15#1 type=Unit ref=__local_3.any
 expr e@6:15 name(values) type=kotlin.Array<String> ref=transform.$0.values
 expr e@6:28 name(it) type=String ref=s-4

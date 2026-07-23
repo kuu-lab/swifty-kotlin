@@ -2,7 +2,7 @@
 ///
 /// The Kotlin stdlib source owns StringBuilder behavior. These signatures keep
 /// Sema contexts that do not load the bundled source directly from losing the
-/// type surface, but they intentionally do not attach kk_string_builder_* links
+/// type surface, but they intentionally do not attach __kk_string_builder_* links
 /// to public API members.
 func ensureKotlinTextStringBuilderSymbol(symbols: SymbolTable, interner: StringInterner) -> SymbolID {
     let kotlinPkg = [interner.intern("kotlin")]
@@ -363,7 +363,7 @@ extension DataFlowSemaPhase {
                 guard symbols.symbol(candidate)?.kind == .property else {
                     continue
                 }
-                symbols.setExternalLinkName("kk_string_builder_length_prop", for: candidate)
+                symbols.setExternalLinkName("__kk_string_builder_length_prop", for: candidate)
             }
         }
     }
@@ -478,7 +478,7 @@ extension DataFlowSemaPhase {
         }) {
             symbols.setPropertyType(returnType, for: existing)
             if name == "length" {
-                symbols.setExternalLinkName("kk_string_builder_length_prop", for: existing)
+                symbols.setExternalLinkName("__kk_string_builder_length_prop", for: existing)
             }
             return
         }
@@ -494,7 +494,7 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
         if name == "length" {
-            symbols.setExternalLinkName("kk_string_builder_length_prop", for: propertySymbol)
+            symbols.setExternalLinkName("__kk_string_builder_length_prop", for: propertySymbol)
         }
     }
 }

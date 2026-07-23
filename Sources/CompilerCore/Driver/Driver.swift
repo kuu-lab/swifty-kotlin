@@ -99,7 +99,7 @@ public final class CompilerDriver {
     private func prepareIncrementalPipeline(ctx: CompilationContext) -> Bool {
         guard let cache = ctx.incrementalCache else { return false }
 
-        let allPaths = ctx.options.inputs
+        let allPaths = ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) }
         cache.computeCurrentFingerprints(for: allPaths, sourceManager: ctx.sourceManager)
 
         if let recompileSet = cache.recompilationSet(allPaths: allPaths, options: ctx.options) {

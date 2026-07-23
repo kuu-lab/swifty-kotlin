@@ -364,7 +364,7 @@ public func kk_iterable_joinTo(
     let stringRaw = utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     }
-    return kk_string_builder_append_obj(destinationRaw, Int(bitPattern: stringRaw))
+    return __kk_string_builder_append_obj(destinationRaw, Int(bitPattern: stringRaw))
 }
 
 @_cdecl("kk_iterable_joinToString")

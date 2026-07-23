@@ -41,7 +41,7 @@ private func collectPerFileResultsInParallel<Result: Sendable>(
 }
 
 private func isBundledStdlibFile(_ fileID: FileID, sourceManager: SourceManager) -> Bool {
-    sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    sourceManager.origin(of: fileID)?.isBundledStdlib == true
 }
 
 private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
@@ -118,7 +118,10 @@ final class LoadSourcesPhase: CompilerPhase {
             let sources = try BundledKotlinStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
             for source in sources {
                 guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
-                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents)
+                let origin: SourceOrigin = BundledKotlinStdlib.isResidualBundledStdlibSource(source.path)
+                    ? .residualStdlib
+                    : .bundledStdlib
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents, origin: origin)
             }
         } catch let error as BundledKotlinStdlib.LoadError {
             switch error {

@@ -1,0 +1,10 @@
+KSwiftK
+Copyright 2024-2026 Fumiya Kume and KSwiftK contributors
+
+This project includes code derived from the Kotlin Standard Library,
+which is licensed under the Apache License, Version 2.0.
+Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+
+The derived Kotlin Standard Library code is located under
+Sources/CompilerCore/Stdlib/kotlin/ and is marked with an attribution
+header in each file.

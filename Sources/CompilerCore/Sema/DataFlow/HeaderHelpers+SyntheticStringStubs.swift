@@ -80,7 +80,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "kk_string_builder_append_char",
+            externalLinkName: "",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -90,7 +90,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "kk_string_builder_append_obj",
+            externalLinkName: "__kk_string_builder_append_obj",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", nullableCharSequenceType, false, false)],
@@ -100,7 +100,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "kk_string_builder_appendRange_obj_flat",
+            externalLinkName: "",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -1852,7 +1852,10 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "__kk_string_joinToString",
-            externalLinkName: "__kk_string_joinToString",
+            // KSP-INF-011: Route the source List<T>.joinToString bridge through the
+            // generic collection runtime entry so non-String element types (e.g.
+            // Int) are rendered by runtimeElementToString instead of being dropped.
+            externalLinkName: "kk_list_joinToString",
             receiverType: listAnyType,
             parameters: [
                 ("separator", stringType, false, false),

@@ -227,7 +227,7 @@ extension KIRLoweringDriver {
         }
         let fileID = sema.symbols.sourceFileID(for: symbol) ?? symbolInfo.declSite?.start.file
         guard let fileID,
-              sourceManager.path(of: fileID).hasPrefix("__bundled_")
+              sourceManager.origin(of: fileID)?.isBundledStdlib == true
         else {
             return false
         }
