@@ -1,4 +1,16 @@
 
+private func isConstructorVisibilityModifier(_ kind: TokenKind) -> Bool {
+    guard case .keyword(let keyword) = kind else {
+        return false
+    }
+    switch keyword {
+    case .internal, .private, .public, .protected, .external:
+        return true
+    default:
+        return false
+    }
+}
+
 extension BuildASTPhase {
     func declarationEnumEntries(
         from nodeID: NodeID,
@@ -177,6 +189,16 @@ extension BuildASTPhase {
         var index = nameIndex + 1
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
+        // Primary constructors may use the explicit `constructor` keyword with an
+        // optional visibility modifier; skip it (and its parameter list) before
+        // looking for the supertype colon.
+        while index < tokens.count, isConstructorVisibilityModifier(tokens[index].kind) {
+            index += 1
+        }
+        if index < tokens.count, tokens[index].kind == .keyword(.constructor) {
+            index += 1
+            index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
+        }
         guard index < tokens.count, tokens[index].kind == .symbol(.colon) else {
             return []
         }
@@ -220,12 +242,11 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> SuperTypeEntry? {
-        let stripped = stripSuperTypeInvocation(from: tokens)
-        guard !stripped.isEmpty else { return nil }
+        guard !tokens.isEmpty else { return nil }
 
         var byIndex: Int?
         var depth = BracketDepth()
-        for (index, token) in stripped.enumerated() {
+        for (index, token) in tokens.enumerated() {
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
                 break
@@ -234,16 +255,16 @@ extension BuildASTPhase {
         }
 
         let typeTokens: [Token]
-        let exprTokens: ArraySlice<Token>
+        let exprTokens: [Token]
         if let byIndex {
-            typeTokens = Array(stripped[..<byIndex])
-            exprTokens = stripped[(byIndex + 1)...].filter { $0.kind != .symbol(.semicolon) }
+            typeTokens = Array(tokens[..<byIndex])
+            exprTokens = Array(tokens[(byIndex + 1)...]).filter { $0.kind != .symbol(.semicolon) }
         } else {
-            typeTokens = stripped
-            exprTokens = [][...]
+            typeTokens = tokens
+            exprTokens = []
         }
 
-        guard let typeRef = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+        guard let typeRef = parseSuperTypeTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
             return nil
         }
 
@@ -268,17 +289,60 @@ extension BuildASTPhase {
         return entries.map(\.typeRef)
     }
 
-    func stripSuperTypeInvocation(from tokens: [Token]) -> [Token] {
-        var result: [Token] = []
-        var depth = BracketDepth()
-        for token in tokens {
-            if depth.angle == 0, token.kind == .symbol(.lParen) {
-                break
-            }
-            depth.track(token.kind)
-            result.append(token)
+    /// Parses a supertype type reference, stripping an optional trailing
+    /// constructor invocation `(args)` while still allowing function type
+    /// literals such as `() -> V` and receiver function types such as
+    /// `String.() -> Unit`.
+    private func parseSuperTypeTypeRef(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> TypeRefID? {
+        guard !tokens.isEmpty else { return nil }
+
+        let options = TypeRefParserCore.Options.declaration
+        guard let parsed = TypeRefParserCore.parseTypeRefPrefix(
+            tokens[...],
+            interner: interner,
+            astArena: astArena,
+            options: options,
+            diagnostics: diagnostics
+        ) else {
+            return nil
         }
-        return result
+
+        let remainingStart = parsed.consumed
+        guard remainingStart < tokens.count else {
+            return parsed.ref
+        }
+
+        // A named supertype may be followed by a constructor invocation `(...)`.
+        // Strip the argument list and return only the type reference.
+        guard tokens[remainingStart].kind == .symbol(.lParen) else {
+            return nil
+        }
+
+        var parenDepth = 0
+        var index = remainingStart
+        while index < tokens.count {
+            let kind = tokens[index].kind
+            if kind == .symbol(.lParen) {
+                parenDepth += 1
+            } else if kind == .symbol(.rParen) {
+                parenDepth -= 1
+                if parenDepth == 0 {
+                    index += 1
+                    break
+                }
+            }
+            index += 1
+        }
+
+        guard parenDepth == 0 else { return nil }
+        let trailing = tokens[index...]
+        guard trailing.allSatisfy({ $0.kind == .symbol(.semicolon) }) else { return nil }
+
+        return parsed.ref
     }
 
     func declarationMemberDecls(
