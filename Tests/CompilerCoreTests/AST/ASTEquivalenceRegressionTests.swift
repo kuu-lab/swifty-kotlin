@@ -202,17 +202,18 @@ struct ASTEquivalenceRegressionTests {
         }
         fun main() = Circle(5.0).area()
         """
-        let (ast, _) = try buildAST(from: source)
+        let (ast, ctx) = try buildAST(from: source)
 
-        // interface + class + fun(main) + 24 bundled stdlib functions (7 collections + 13 text)
+        // interface + class + fun(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
-        let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
+        let userInterfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
             guard case let .interfaceDecl(i) = decl else { return nil }
+            guard !isBundledStdlibSource(i.range.start.file, in: ctx) else { return nil }
             return i
         }
-        #expect(interfaceDecls.count == 1)
-        assertValidSourceRange(interfaceDecls[0].range, label: "Shape interface")
+        #expect(userInterfaceDecls.count == 1)
+        assertValidSourceRange(userInterfaceDecls[0].range, label: "Shape interface")
     }
 
     // MARK: - Properties with accessors
