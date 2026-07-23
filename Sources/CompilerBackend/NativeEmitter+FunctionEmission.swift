@@ -834,24 +834,8 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_takeWhile_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_takeWhile_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_takeLastWhile_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_takeLastWhile_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_dropWhile_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_dropWhile_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin
+                // source (StringTakeDrop.kt); no flat emission spec.
                 "kk_string_replace_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replace_flat",
                     stringArgumentCount: 3,
@@ -943,30 +927,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_take_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_take_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_takeLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_takeLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_drop_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_drop_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_dropLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_dropLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
+                // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+                // (StringTakeDrop.kt); no flat emission spec.
                 // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
                 // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
                 "kk_string_substringBefore_flat": FlatStringReturnCallSpec(

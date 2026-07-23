@@ -81,10 +81,6 @@ private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
 
-private let isAsciiLowercasePredicate: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    (0x61 ... 0x7A).contains(charRaw) ? 1 : 0
-}
-
 private let isEvenIndexPredicate: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     _, index, _, _ in
     index.isMultiple(of: 2) ? 1 : 0
@@ -116,11 +112,6 @@ private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<I
 
 private let partitionMatchesB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
     charRaw == Int(Unicode.Scalar("b").value) ? 1 : 0
-}
-
-private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, charRaw, _ in
-    (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
 }
 
 private typealias RuntimeFlatStringHOFEntry = (
@@ -446,28 +437,8 @@ struct RuntimeStringHOFTests {
         #expect(result == "ab")
     }
 
-    @Test
-    func testStringTakeAndDropWhileFlatReturnFlattenedStringFields() {
-        var takeThrown = -1
-        let taken = flatStringHOFValue(
-            "abc123",
-            entry: kk_string_takeWhile_flat,
-            fnPtr: unsafeBitCast(isAsciiLowercasePredicate, to: Int.self),
-            thrown: &takeThrown
-        )
-        var dropThrown = -1
-        let dropped = flatStringHOFValue(
-            "abc123",
-            entry: kk_string_dropWhile_flat,
-            fnPtr: unsafeBitCast(isAsciiLowercasePredicate, to: Int.self),
-            thrown: &dropThrown
-        )
-
-        #expect(takeThrown == 0)
-        #expect(dropThrown == 0)
-        #expect(taken == "abc")
-        #expect(dropped == "123")
-    }
+    // KSP-405: takeWhile/dropWhile are bundled Kotlin source (StringTakeDrop.kt);
+    // their runtime bridges and direct tests were removed.
 
     // MARK: - kk_string_indexOfFirst_flat (STDLIB-TEXT-FN-022)
 
@@ -666,19 +637,8 @@ struct RuntimeStringHOFTests {
         #expect(thrown != 0)
     }
 
-    @Test
-    func testTakeLastWhileUsesUTF16CodeUnits() {
-        var thrown = -1
-        let result = flatStringHOFValue(
-            "a🐻",
-            entry: kk_string_takeLastWhile_flat,
-            fnPtr: unsafeBitCast(takeLastWhileSurrogateCodeUnit, to: Int.self),
-            thrown: &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == "🐻")
-    }
+    // KSP-405: takeLastWhile is bundled Kotlin source (StringTakeDrop.kt);
+    // its runtime bridge and direct test were removed.
 
     @Test
     func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {

@@ -86,7 +86,6 @@ struct MemberRuntimeDispatchTests {
             ("toInt", 1, "kk_string_toInt_radix_flat", true, .lowered, .none),
             ("mapIndexed", 1, "kk_string_mapIndexed_flat", false, .normalized, .none),
             ("partition", 1, "kk_string_partition_flat", true, .normalized, .nullableAny),
-            ("take", 1, "kk_string_take_flat", true, .lowered, .none),
             ("windowedSequence", 3, "kk_string_windowedSequence_partial_flat", false, .lowered, .none),
         ]
 
@@ -119,6 +118,23 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
                 "String.\(memberName)/\(arity) should be source-backed after KSP-404"
+            )
+        }
+        // KSP-405: take/drop members are bundled Kotlin source.
+        let ksp405Cases: [(String, Int)] = [
+            ("take", 1),
+            ("takeLast", 1),
+            ("drop", 1),
+            ("dropLast", 1),
+            ("takeWhile", 1),
+            ("takeLastWhile", 1),
+            ("dropWhile", 1),
+        ]
+        for (memberName, arity) in ksp405Cases {
+            let key = MemberDispatchKey(receiverKind: .string, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.stringRuntimeCall(for: key) == nil,
+                "String.\(memberName)/\(arity) should be source-backed after KSP-405"
             )
         }
     }

@@ -2389,9 +2389,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let list = runtimeListBox(from: listRaw)
         let expectedCodeUnits: [Int] = [97, 233, 0xD83D, 0xDC3B]
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
-
-        XCTAssertEqual(flatStringReturnValue(text, intArg: 2, using: kk_string_take_flat), "aé")
-        XCTAssertEqual(flatStringReturnValue(text, intArg: 1, using: kk_string_drop_flat), "é🐻")
     }
 
     func testStringScalarIndexedOperationsWithNonASCII() {
@@ -2501,14 +2498,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(extractString(from: converted) ?? "", expected)
     }
 
-    func testStringTakeDropFunctions() {
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_take_flat), "")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_take_flat), "ab")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_take_flat), "abcde")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_drop_flat), "abcde")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_drop_flat), "cde")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_drop_flat), "")
-    }
+    // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
+    // their runtime bridges and direct tests were removed.
 
     func testStringRepeatFlatFunction() {
         XCTAssertEqual(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat), "")
@@ -2520,37 +2511,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
         XCTAssertNotEqual(thrown, 0, "kk_string_repeat_flat(-1) should set outThrown")
-    }
-
-    func testStringTakeNegativeThrowsIllegalArgumentException() {
-        // STDLIB-005-BUG-01: negative count must throw, not silently return empty/full.
-        var thrown = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_take_flat, outThrown: &thrown)
-        XCTAssertNotEqual(thrown, 0, "kk_string_take_flat(-1) should set outThrown")
-
-        var thrown2 = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_drop_flat, outThrown: &thrown2)
-        XCTAssertNotEqual(thrown2, 0, "kk_string_drop_flat(-1) should set outThrown")
-    }
-
-    func testStringTakeLastDropLastFunctions() {
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_takeLast_flat), "")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_takeLast_flat), "de")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_takeLast_flat), "abcde")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_dropLast_flat), "abcde")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_dropLast_flat), "abc")
-        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_dropLast_flat), "")
-    }
-
-    func testStringTakeLastDropLastNegativeThrowsIllegalArgumentException() {
-        // STDLIB-005-BUG-01: negative count must throw, not silently return empty/full.
-        var thrown = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_takeLast_flat, outThrown: &thrown)
-        XCTAssertNotEqual(thrown, 0, "kk_string_takeLast_flat(-1) should set outThrown")
-
-        var thrown2 = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_dropLast_flat, outThrown: &thrown2)
-        XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast_flat(-1) should set outThrown")
     }
 
     func testStringReplaceSupportsLiteralReplacement() {
