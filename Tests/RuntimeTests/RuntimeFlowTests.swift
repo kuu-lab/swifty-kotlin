@@ -21,12 +21,7 @@ private enum RuntimeFlowTag: Int {
     case retryWhen = 8
     case onErrorReturn = 9
     case onErrorResume = 10
-    case transform = 11
-    case takeWhile = 12
-    case dropWhile = 13
-    case buffer = 14
     case conflate = 15
-    case flowOn = 16
     case debounce = 17
     case sample = 18
     case delayEach = 19

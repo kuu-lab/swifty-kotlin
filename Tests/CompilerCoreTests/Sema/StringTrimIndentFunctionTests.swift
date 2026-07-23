@@ -3,9 +3,9 @@ import Testing
 
 /// STDLIB-TEXT-FN-112: `kotlin.text.String.trimIndent()`
 ///
-/// `trimIndent()` は複数行文字列リテラルから共通の最小インデント
-/// (スペース・タブ) を取り除く拡張関数。Sema が `kk_string_trimIndent_flat`
-/// 外部リンク名に解決し、戻り値型が `String` になることを検証する。
+/// `trimIndent()` removes the common minimal indent from multiline string
+/// literals. KSP-302 wires it through bundled Kotlin source, so these tests
+/// verify resolution and String return typing rather than a C runtime link.
 @Suite
 struct StringTrimIndentFunctionTests {
     @Test

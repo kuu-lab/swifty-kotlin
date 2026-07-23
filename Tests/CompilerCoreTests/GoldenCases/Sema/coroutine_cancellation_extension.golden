@@ -7,7 +7,7 @@ symbol fq=kotlinx.coroutines.launch#1 kind=function vis=public flags=synthetic s
 symbol fq=kotlinx.coroutines.launch.block kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlinx.coroutines.runBlocking kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Any] ret=Any
 symbol fq=kotlinx.coroutines.runBlocking.block kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fcoroutine_cancellation_extension package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@8:15 int(10) type=Long
 expr e@8:9 call callee=e@8:9#1 args=[_:e@8:15] type=Unit

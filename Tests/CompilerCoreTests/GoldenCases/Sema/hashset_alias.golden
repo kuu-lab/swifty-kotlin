@@ -32,7 +32,7 @@ symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedSets kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processSet kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableSet<String>] ret=Unit
 symbol fq=processSet.$1.set kind=valueParameter vis=private flags=_
-file f0 package=_
+file fhashset_alias package=_
   decl processSet fun processSet sym=processSet
   decl createSet fun createSet sym=createSet
   decl TagContainer class TagContainer sym=TagContainer

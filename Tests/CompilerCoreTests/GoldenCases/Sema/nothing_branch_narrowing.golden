@@ -4,10 +4,10 @@ symbol fq=golden.sema.returnOrValue kind=function vis=public flags=_ sig=recv=_ 
 symbol fq=golden.sema.returnOrValue.$0.flag kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.throwOrValue kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=String
 symbol fq=golden.sema.throwOrValue.$1.flag kind=valueParameter vis=private flags=_
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
+symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fnothing_branch_narrowing package=golden.sema
   decl golden.sema.throwOrValue fun throwOrValue sym=golden.sema.throwOrValue
   decl golden.sema.returnOrValue fun returnOrValue sym=golden.sema.returnOrValue
 expr e@4:25 name(flag) type=Boolean ref=golden.sema.throwOrValue.$1.flag

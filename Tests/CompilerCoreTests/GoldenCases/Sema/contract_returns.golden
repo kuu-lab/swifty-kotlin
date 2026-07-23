@@ -5,7 +5,7 @@ symbol fq=__local_3.y kind=local vis=private flags=_ type=String?
 symbol fq=__local_4.result kind=local vis=private flags=_ type=Boolean
 symbol fq=bareReturns kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Unit
 symbol fq=bareReturns.$0.x kind=valueParameter vis=private flags=_
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
+symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.contracts.ContractBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.contracts.ContractBuilder.returns#0 kind=function vis=public flags=synthetic sig=recv=kotlin.contracts.ContractBuilder params=[] ret=kotlin.contracts.Returns
@@ -23,7 +23,7 @@ symbol fq=returnsFalse kind=function vis=public flags=_ sig=recv=_ params=[Boole
 symbol fq=returnsFalse.$3.condition kind=valueParameter vis=private flags=_
 symbol fq=returnsTrue kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean
 symbol fq=returnsTrue.$4.condition kind=valueParameter vis=private flags=_
-file f0 package=_
+file fcontract_returns package=_
   decl requireNonNull fun requireNonNull sym=requireNonNull
   decl bareReturns fun bareReturns sym=bareReturns
   decl returnsTrue fun returnsTrue sym=returnsTrue

@@ -29,6 +29,8 @@ struct BundledStdlibOrderingTests {
 
             let bundledPaths = bundledEntries.map { $0.element }
             #expect(bundledPaths == bundledPaths.sorted())
+            #expect(bundledPaths.contains { $0.hasSuffix("kotlin/text/StringIndentFormat.kt") })
+            #expect(bundledPaths.contains { $0.hasSuffix("kotlin/text/StringSearchReplace.kt") })
         }
     }
 

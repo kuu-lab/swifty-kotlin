@@ -454,7 +454,17 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let lazyModeFQName = kotlinPkg + [lazyName, interner.intern("mode")]
+        // A distinct fqName (rather than reusing `lazyFQName`) avoids relying on
+        // `canCoexistAsOverload` symbol-table plumbing for this synthetic pair, but
+        // it must still sit directly under `kotlinPkg` — nesting it under `lazyName`
+        // (e.g. `kotlin.lazy.mode`) makes `ScopeBuilder.collectLibraryTopLevelSymbolsByPackage`
+        // (which derives a symbol's package via `fqName.dropLast()`) file this overload
+        // under the bogus package `kotlin.lazy` instead of `kotlin`. Since `kotlin.lazy`
+        // is never a default-import package, the 2-arg `lazy(mode) { ... }` overload
+        // then becomes invisible to unqualified call resolution (KSWIFTK-SEMA-0002:
+        // No viable overload found), even though `.name` alone would suggest it's
+        // findable. `name` (used for scope/short-name bucketing) is still "lazy".
+        let lazyModeFQName = kotlinPkg + [interner.intern("lazy$mode")]
         if symbols.lookup(fqName: lazyModeFQName) == nil {
             let lazyModeSymbol = symbols.define(
                 kind: .function, name: lazyName, fqName: lazyModeFQName,

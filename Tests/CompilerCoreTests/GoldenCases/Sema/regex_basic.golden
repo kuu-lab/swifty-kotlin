@@ -17,7 +17,7 @@ symbol fq=kotlin.text.matches kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.matches.regex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.toRegex#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=kotlin.text.Regex
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fregex_basic package=_
   decl main fun main sym=main
 expr e@2:23 string([a-z]+) type=String
 expr e@2:17 call callee=e@2:17#1 args=[_:e@2:23] type=kotlin.text.Regex call=kotlin.text.Regex#1

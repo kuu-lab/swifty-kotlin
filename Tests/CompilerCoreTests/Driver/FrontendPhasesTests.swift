@@ -70,6 +70,48 @@ struct FrontendPhasesTests {
         }
     }
 
+    @Test
+    func testBundledStdlibMissingResourcePathEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: nil)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibMissingStdlibDirEmits0101AndThrows() {
+        let ctx = makeCompilationContext(inputs: [])
+        let resourcePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        defer { try? FileManager.default.removeItem(atPath: resourcePath) }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: resourcePath)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0101", in: ctx)
+    }
+
+    @Test
+    func testBundledStdlibUnreadableSourceEmits0102AndThrows() throws {
+        let ctx = makeCompilationContext(inputs: [])
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let stdlibDir = tempDir.appendingPathComponent("Stdlib")
+        try FileManager.default.createDirectory(at: stdlibDir, withIntermediateDirectories: true)
+        // Use a directory named `.kt` instead of a real file; `FileManager.contents(atPath:)`
+        // returns nil for directories even when running as root, so this failure path is
+        // independent of the current user/permission bits.
+        let unreadablePath = stdlibDir.appendingPathComponent("test.kt")
+        try FileManager.default.createDirectory(at: unreadablePath, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        #expect(throws: (any Error).self) {
+            try LoadSourcesPhase().injectBundledStdlib(into: ctx, resourcePath: tempDir.path)
+        }
+        assertHasDiagnostic("KSWIFTK-SOURCE-0102", in: ctx)
+    }
+
     // MARK: - LexPhase
 
     @Test

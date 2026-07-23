@@ -182,12 +182,6 @@ struct NumericBitCountTests {
             Int(bitPattern: 0x8000_0000_0000_0000), Int(bitPattern: 0x0000_0000_0000_0001)
         ]
 
-        func assertSingleBitSet(_ value: Int) {
-            let bits = UInt(bitPattern: value)
-            #expect(bits != 0)
-            #expect(bits & (bits &- 1) == 0)
-        }
-
         for value in testValues {
             for distance in [0, 1, 31, 63] {
                 let rotatedLeft = kk_long_rotateLeft(value, distance)

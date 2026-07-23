@@ -4,7 +4,7 @@ symbol fq=__local_2.a kind=local vis=private flags=_ type=Any
 symbol fq=__local_3.b kind=local vis=private flags=_ type=Any
 symbol fq=__local_4.c kind=local vis=private flags=_ type=String?
 symbol fq=__local_5.d kind=local vis=private flags=_ type=String?
-symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
+symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic|openType type=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.check#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Boolean] ret=Unit
 symbol fq=kotlin.check.condition kind=valueParameter vis=private flags=synthetic
@@ -20,7 +20,7 @@ symbol fq=kotlin.require.lazyMessage kind=valueParameter vis=private flags=synth
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=myRequire kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Unit
 symbol fq=myRequire.$0.value kind=valueParameter vis=private flags=_
-file f0 package=_
+file fcontract_smartcast package=_
   decl myRequire fun myRequire sym=myRequire
   decl main fun main sym=main
 expr e@7:9 call callee=e@7:9#1 args=[] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0

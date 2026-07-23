@@ -5,7 +5,7 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> kotlin.lazy.T] ret=kotlin.Lazy<kotlin.lazy.T>
 symbol fq=kotlin.lazy.T kind=typeParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file fdelegate_property package=golden.sema
   decl golden.sema.lazyVal property lazyVal var=0 sym=golden.sema.lazyVal
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@3:24 name(lazy) type=kotlin.Lazy<kotlin.lazy.T> ref=kotlin.lazy

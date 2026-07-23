@@ -549,7 +549,7 @@ struct TypeCheckHelpers {
                 return sema.types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol, nullability: nullability)))
             }
             do {
-                let fqCandidates = sema.symbols.lookupAll(fqName: path).filter { symbolID in
+                func isTypeLikeSymbol(_ symbolID: SymbolID) -> Bool {
                     guard let sym = sema.symbols.symbol(symbolID) else { return false }
                     switch sym.kind {
                     case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
@@ -557,22 +557,33 @@ struct TypeCheckHelpers {
                     default:
                         return false
                     }
-                }.sorted(by: { $0.rawValue < $1.rawValue })
+                }
+                // Prefer the lexically-scoped candidate (which encodes import
+                // priority: explicit imports > wildcard imports > default
+                // imports, same as expression name resolution) for unqualified
+                // references. Without this, an unrelated same-named
+                // declaration from a non-imported package (e.g.
+                // `kotlin.properties.Lazy` vs. the in-scope `kotlin.Lazy`)
+                // could shadow the correct symbol merely by having a lower
+                // internal ID, since the short-name fallback below has no
+                // notion of scope.
+                let scopeCandidates: [SymbolID] = if path.count == 1, let scope {
+                    scope.lookup(shortName).filter(isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
+                } else {
+                    []
+                }
+                let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
+                    .sorted(by: { $0.rawValue < $1.rawValue })
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.
-                let candidates: [SymbolID] = if !fqCandidates.isEmpty {
+                let candidates: [SymbolID] = if !scopeCandidates.isEmpty {
+                    scopeCandidates
+                } else if !fqCandidates.isEmpty {
                     fqCandidates
                 } else {
-                    sema.symbols.lookupByShortName(shortName).filter { symbolID in
-                        guard let sym = sema.symbols.symbol(symbolID) else { return false }
-                        switch sym.kind {
-                        case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                            return true
-                        default:
-                            return false
-                        }
-                    }.sorted(by: { $0.rawValue < $1.rawValue })
+                    sema.symbols.lookupByShortName(shortName).filter(isTypeLikeSymbol)
+                        .sorted(by: { $0.rawValue < $1.rawValue })
                 }
                 if let symbolID = candidates.first {
                     if let inferenceContext, let diagnostics {

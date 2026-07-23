@@ -187,5 +187,152 @@ extension CompilerCoreTests {
             return
         }
     }
+
+    // KSP-CAP-005: a top-level (or member) property/val initializer ending in a
+    // trailing-lambda call -- e.g. the built-in `Comparator<T> { a, b -> ... }`
+    // SAM constructor -- used to have its trailing lambda silently dropped by
+    // `propertyHeadTokens`, because `parseTail` splits the lambda off into a
+    // bare `.block` CST node that `propertyHeadTokens` stopped at. The
+    // remaining `Comparator < Int >` tokens then re-parsed as a chained
+    // comparison instead of a generic call, and the property's initializer
+    // type came out as `Boolean` instead of `Comparator<Int>`. Function
+    // declarations were never affected (they parse their body via the full
+    // single-pass expression grammar), only top-level/member property
+    // initializers routed through the CST head-token/re-parse split.
+    @Test func testTopLevelPropertyWithGenericTrailingLambdaInitializerKeepsCallArguments() throws {
+        let source = """
+        fun <T> build(block: () -> T): T = block()
+        val topLevelValue = build<Int> { 1 }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try #require(ctx.ast)
+        let property = try #require(topLevelProperty(named: "topLevelValue", in: ast, interner: ctx.interner))
+        let initializerID = try #require(property.initializer)
+        guard let initializerExpr = ast.arena.expr(initializerID),
+              case let .call(calleeID, typeArgs, args, _) = initializerExpr
+        else {
+            Issue.record("Expected property initializer to parse as a call expression.")
+            return
+        }
+
+        #expect(typeArgs.count == 1)
+        #expect(args.count == 1)
+        guard let calleeExpr = ast.arena.expr(calleeID),
+              case let .nameRef(calleeName, _) = calleeExpr
+        else {
+            Issue.record("Expected call callee to be a name reference.")
+            return
+        }
+        #expect(ctx.interner.resolve(calleeName) == "build")
+        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+              case .lambdaLiteral = lambdaExpr
+        else {
+            Issue.record("Expected trailing lambda argument.")
+            return
+        }
+    }
+
+    @Test func testTopLevelPropertyWithNonGenericTrailingLambdaInitializerKeepsCallArguments() throws {
+        let source = """
+        fun apply(block: () -> Int): Int = block()
+        val topLevelValue = apply { 42 }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try #require(ctx.ast)
+        let property = try #require(topLevelProperty(named: "topLevelValue", in: ast, interner: ctx.interner))
+        let initializerID = try #require(property.initializer)
+        guard let initializerExpr = ast.arena.expr(initializerID),
+              case let .call(_, _, args, _) = initializerExpr
+        else {
+            Issue.record("Expected property initializer to parse as a call expression.")
+            return
+        }
+        #expect(args.count == 1)
+        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+              case .lambdaLiteral = lambdaExpr
+        else {
+            Issue.record("Expected trailing lambda argument.")
+            return
+        }
+    }
+
+    @Test func testClassMemberPropertyWithGenericTrailingLambdaInitializerKeepsCallArguments() throws {
+        let source = """
+        fun <T> build(block: () -> T): T = block()
+        class Holder {
+            val member = build<Int> { 7 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try #require(ctx.ast)
+        var memberProperty: PropertyDecl?
+        outer: for file in ast.files {
+            for declID in file.topLevelDecls {
+                guard let decl = ast.arena.decl(declID),
+                      case let .classDecl(classDecl) = decl
+                else { continue }
+                for propertyDeclID in classDecl.memberProperties {
+                    guard let propertyDecl = ast.arena.decl(propertyDeclID),
+                          case let .propertyDecl(property) = propertyDecl,
+                          ctx.interner.resolve(property.name) == "member"
+                    else { continue }
+                    memberProperty = property
+                    break outer
+                }
+            }
+        }
+        let property = try #require(memberProperty)
+        let initializerID = try #require(property.initializer)
+        guard let initializerExpr = ast.arena.expr(initializerID),
+              case let .call(_, typeArgs, args, _) = initializerExpr
+        else {
+            Issue.record("Expected member property initializer to parse as a call expression.")
+            return
+        }
+        #expect(typeArgs.count == 1)
+        #expect(args.count == 1)
+        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+              case .lambdaLiteral = lambdaExpr
+        else {
+            Issue.record("Expected trailing lambda argument.")
+            return
+        }
+    }
+
+    // Regression for the Devin Review follow-up: semicolons inside the trailing
+    // lambda body must survive the top-level-semicolon stripping in
+    // declarationPropertyInitializer, otherwise multi-statement single-line
+    // lambda bodies collapse into one malformed statement.
+    @Test func testTopLevelPropertyTrailingLambdaPreservesInnerSemicolons() throws {
+        let source = """
+        fun apply(block: () -> Int): Int = block()
+        val topLevelValue = apply { val x = 42; x }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try #require(ctx.ast)
+        let property = try #require(topLevelProperty(named: "topLevelValue", in: ast, interner: ctx.interner))
+        let initializerID = try #require(property.initializer)
+        guard let initializerExpr = ast.arena.expr(initializerID),
+              case let .call(_, _, args, _) = initializerExpr
+        else {
+            Issue.record("Expected property initializer to parse as a call expression.")
+            return
+        }
+        #expect(args.count == 1)
+        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+              case .lambdaLiteral = lambdaExpr
+        else {
+            Issue.record("Expected trailing lambda argument.")
+            return
+        }
+    }
 }
 #endif

@@ -92,7 +92,7 @@ final class LoadSourcesPhase: CompilerPhase {
         }
 
         if ctx.options.includeStdlib {
-            injectBundledStdlib(into: ctx.sourceManager)
+            try injectBundledStdlib(into: ctx)
         }
 
         for path in ctx.options.inputs {
@@ -110,49 +110,32 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
-    private static let excludedBundledStdlibFiles: Set<String> = [
-        // KSP-305: the source file exists but collection-factory lowering is not wired yet.
-        "kotlin/collections/CollectionFactories",
-        // KSP-312: the source file exists but range iterator lowering is not wired yet.
-        "kotlin/ranges/RangeIterators",
-    ]
-
-    private func injectBundledStdlib(into sourceManager: SourceManager) {
-        guard let resourcePath = Bundle.module.resourcePath else { return }
-        let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(atPath: stdlibDir) else { return }
-
-        var relativePaths: [String] = []
-        while let path = enumerator.nextObject() as? String {
-            if path.hasSuffix(".kt") {
-                relativePaths.append(String(path.dropLast(3)))
+    internal func injectBundledStdlib(
+        into ctx: CompilationContext,
+        resourcePath: String? = Bundle.module.resourcePath
+    ) throws {
+        do {
+            let sources = try BundledKotlinStdlib.collectBundledStdlibSources(resourcePath: resourcePath)
+            for source in sources {
+                guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
+                _ = ctx.sourceManager.addFile(path: source.path, contents: source.contents)
             }
-        }
-        relativePaths.sort()
-
-        var bundledSources: [(path: String, contents: Data)] = []
-        for relativePath in relativePaths {
-            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
-            let bundledPath = "__bundled_\(relativePath).kt"
-            guard !sourceManager.containsFile(path: bundledPath) else { continue }
-            let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
-            guard let data = fm.contents(atPath: fullPath) else { continue }
-            bundledSources.append((path: bundledPath, contents: data))
-        }
-
-        let residualSources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
-            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
-            ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
-        ]
-        for (path, source) in residualSources {
-            guard !sourceManager.containsFile(path: path) else { continue }
-            bundledSources.append((path: path, contents: Data(source.utf8)))
-        }
-
-        for source in bundledSources.sorted(by: { $0.path < $1.path }) {
-            _ = sourceManager.addFile(path: source.path, contents: source.contents)
+        } catch let error as BundledKotlinStdlib.LoadError {
+            switch error {
+            case .resourcePathMissing, .resourceDirectoryMissing:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0101",
+                    error.description,
+                    range: nil
+                )
+            case .enumerationFailed, .readFailed:
+                ctx.diagnostics.error(
+                    "KSWIFTK-SOURCE-0102",
+                    error.description,
+                    range: nil
+                )
+            }
+            throw CompilerPipelineError.loadError
         }
     }
 

@@ -32,7 +32,7 @@ symbol fq=java.math.BigInteger.subtract.other kind=valueParameter vis=private fl
 symbol fq=java.math.BigInteger.toInt kind=function vis=public flags=synthetic sig=recv=java.math.BigInteger params=[] ret=Int
 symbol fq=java.math.BigInteger.toLong kind=function vis=public flags=synthetic sig=recv=java.math.BigInteger params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file fbig_integer_basic package=_
   decl main fun main sym=main
 expr e@4:24 string(100) type=String
 expr e@4:13 call callee=e@4:13#1 args=[_:e@4:24] type=java.math.BigInteger call=java.math.BigInteger.<init>#0

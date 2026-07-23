@@ -14,7 +14,7 @@ symbol fq=testFlatMapIndexedTo kind=function vis=public flags=_ sig=recv=_ param
 symbol fq=testFlatMapIndexedTo.$0.values kind=valueParameter vis=private flags=_
 symbol fq=testFlatMapTo kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=testFlatMapTo.$1.values kind=valueParameter vis=private flags=_
-file f0 package=_
+file fcollection_flat_map_to package=_
   decl testFlatMapTo fun testFlatMapTo sym=testFlatMapTo
   decl testFlatMapIndexedTo fun testFlatMapIndexedTo sym=testFlatMapIndexedTo
 expr e@2:16 call callee=e@2:16#1 args=[] type=kotlin.collections.MutableList<String> call=kotlin.collections.mutableListOf#0 targs=[String]

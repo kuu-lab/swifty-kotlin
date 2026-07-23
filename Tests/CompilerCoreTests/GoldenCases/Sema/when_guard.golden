@@ -1,6 +1,6 @@
 symbol fq=classify kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=classify.$0.x kind=valueParameter vis=private flags=_
-file f0 package=_
+file fwhen_guard package=_
   decl classify fun classify sym=classify
 expr e@2:18 name(x) type=Any ref=classify.$0.x
 expr e@2:18#1 isCheck expr=e@2:18 type=String type=Boolean
