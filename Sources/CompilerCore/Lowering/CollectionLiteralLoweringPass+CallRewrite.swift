@@ -67,6 +67,8 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.anyName
             || callee == lookup.allName
             || callee == lookup.noneName
+            || callee == lookup.firstName
+            || callee == lookup.lastName
             || callee == lookup.firstOrNullName
             || callee == lookup.lastOrNullName,
             let symbol,
