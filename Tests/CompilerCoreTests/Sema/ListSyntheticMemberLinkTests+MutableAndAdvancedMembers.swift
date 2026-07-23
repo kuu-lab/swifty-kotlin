@@ -325,7 +325,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFlatMapRegistersRuntimeExternalLink() throws {
+    func testListFlatMapBindsToBundledSource() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMap { listOf(it.length) }
@@ -341,18 +341,26 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let sourceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("flatMap"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(symbols.count == 1, "Expected one synthetic List.flatMap overload")
+            let symbols = sema.symbols.lookupAll(fqName: sourceFQName)
+            let listFlatMapSymbol = try #require(symbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      let (receiverClassType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+                      let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol)
+                else { return false }
+                return ctx.interner.resolve(receiverSymbol.name) == "List"
+            }, "Expected bundled source List.flatMap overload")
 
-            let symbol = try #require(symbols.first)
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMap")
+            let symbolInfo = try #require(sema.symbols.symbol(listFlatMapSymbol))
+            #expect(!symbolInfo.flags.contains(.synthetic), "flatMap must be a bundled source declaration")
+            #expect(sema.symbols.externalLinkName(for: listFlatMapSymbol) == nil, "source flatMap must not link to runtime")
 
+            let symbol = listFlatMapSymbol
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
@@ -365,9 +373,9 @@ extension ListSyntheticMemberLinkTests {
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
-                Issue.record("Expected List.flatMap transform to return Collection<R>"); return
+                Issue.record("Expected List.flatMap transform to return List<R>"); return
             }
-            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "List")
         }
     }
 
@@ -2070,7 +2078,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFlatMapIndexedRegistersRuntimeExternalLink() throws {
+    func testListFlatMapIndexedBindsToBundledSource() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMapIndexed { index, value -> listOf(index + value.length) }
@@ -2086,18 +2094,26 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let memberFQName = [
+            let sourceFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("flatMapIndexed"),
             ]
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            #expect(symbols.count == 1, "Expected one synthetic List.flatMapIndexed overload")
+            let symbols = sema.symbols.lookupAll(fqName: sourceFQName)
+            let listFlatMapIndexedSymbol = try #require(symbols.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      let (receiverClassType, _) = resolveClassTypeSymbol(receiverType, sema: sema),
+                      let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol)
+                else { return false }
+                return ctx.interner.resolve(receiverSymbol.name) == "List"
+            }, "Expected bundled source List.flatMapIndexed overload")
 
-            let symbol = try #require(symbols.first)
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMapIndexed")
+            let symbolInfo = try #require(sema.symbols.symbol(listFlatMapIndexedSymbol))
+            #expect(!symbolInfo.flags.contains(.synthetic), "flatMapIndexed must be a bundled source declaration")
+            #expect(sema.symbols.externalLinkName(for: listFlatMapIndexedSymbol) == nil, "source flatMapIndexed must not link to runtime")
 
+            let symbol = listFlatMapIndexedSymbol
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
@@ -2110,12 +2126,12 @@ extension ListSyntheticMemberLinkTests {
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
-                Issue.record("Expected List.flatMapIndexed transform to return Collection<R>"); return
+                Issue.record("Expected List.flatMapIndexed transform to return List<R>"); return
             }
             #expect(functionType.params.count == 2, "Expected flatMapIndexed transform to take (index, element)")
             #expect(functionType.params.first == sema.types.intType)
             #expect(functionType.params.last != sema.types.intType, "Second transform parameter should be the list element type, not Int")
-            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "List")
         }
     }
 

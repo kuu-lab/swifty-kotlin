@@ -884,7 +884,9 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexed" }.count == 2)
+            // List.reduceRightIndexed is now source-backed; only the Iterable
+            // call resolves to the retained runtime bridge.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexed" }.count == 1)
         }
     }
 
@@ -933,7 +935,9 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexedOrNull" }.count == 2)
+            // List.reduceRightIndexedOrNull is now source-backed; only the Iterable
+            // call resolves to the retained runtime bridge.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightIndexedOrNull" }.count == 1)
         }
     }
 
@@ -977,7 +981,9 @@ struct ListSyntheticMemberLinkTests {
             let callLinks = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            #expect(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count == 2)
+            // List.reduceRightOrNull is now source-backed; only the Iterable
+            // call resolves to the retained runtime bridge.
+            #expect(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count == 1)
         }
     }
 
