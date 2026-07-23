@@ -109,3 +109,24 @@ Bundled stdlib injection cost is defined here as `Lex bundled-stdlib + Parse bun
 Median bundled stdlib injection cost: **37.29 ms**.
 
 Cache work trigger: start bundled stdlib caching when the same local/debug measurement regresses by **+100 ms** or more from this baseline, i.e. median total `>= 137.29 ms`. RF-STDLIB-006 did not add the `IncrementalCompilationCache` pre-parse path because the measured overhead is below the trigger.
+
+## Migration API Runtime Benchmark
+
+KSP-INF-007 baseline captured on 2026-07-23 with a debug `kswiftc` build on Linux (x86_64).
+
+Command:
+
+```bash
+bash Scripts/benchmark_stdlib_hof.sh
+```
+
+The harness compiles each Kotlin source in `Scripts/benchmark_cases/` with `kswiftc` and reports the median wall-clock execution time over 7 runs.
+
+| Case | Workload | Median (ms) |
+|---|---|---:|
+| filter | `(1..100000).filter { it > 50000 }.sum()` | 63 |
+| map | `(1..100000).map { it * 2 }.sum()` | 111 |
+| sort | `(1..100000).toList().sorted().first()` | 94 |
+| for_in_range | `for (i in 1..1000000) sum += i` | 1236 |
+
+These numbers are the reference for "performance reasons to keep Swift residuals". Any migration of stdlib internals to Swift must beat the relevant baseline.
