@@ -25,7 +25,7 @@ public func kk_sequence_joinTo(
     let stringRaw = Int(bitPattern: utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     })
-    return kk_string_builder_append_obj(destinationRaw, stringRaw)
+    return __kk_string_builder_append_obj(destinationRaw, stringRaw)
 }
 
 @_cdecl("kk_sequence_joinToString")

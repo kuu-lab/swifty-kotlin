@@ -11,7 +11,8 @@ extension DataFlowSemaPhase {
     func registerSyntheticArrayStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
 
@@ -1614,9 +1615,21 @@ extension DataFlowSemaPhase {
             let byteJoinToStringName = interner.intern("joinToString")
             let byteJoinToStringFQName = byteArrayFQName + [byteJoinToStringName]
             if symbols.lookup(fqName: byteJoinToStringFQName) == nil {
-                let joinToStringSym = symbols.define(
-                    kind: .function,
+                if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                    declaredOwnerFQName: byteArrayFQName,
+                    receiverType: byteArrayType,
                     name: byteJoinToStringName,
+                    arity: 3,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) {
+                    skipStats?.recordSkip(ownerFQName: byteArrayFQName, name: byteJoinToStringName, arity: 3, interner: interner)
+                    // fall through to transform overloads; they are registered outside this block.
+                } else {
+                    let joinToStringSym = symbols.define(
+                        kind: .function,
+                        name: byteJoinToStringName,
                     fqName: byteJoinToStringFQName,
                     declSite: nil,
                     visibility: .public,
@@ -1659,6 +1672,7 @@ extension DataFlowSemaPhase {
                     ),
                     for: joinToStringSym
                 )
+                }
             }
         }
 
@@ -1961,75 +1975,86 @@ extension DataFlowSemaPhase {
 
             let primJoinToStringName = interner.intern("joinToString")
             let primJoinToStringFQName = fqName + [primJoinToStringName]
+            let primArrayReceiverType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
             if symbols.lookup(fqName: primJoinToStringFQName) == nil {
-                let primJoinToStringSym = symbols.define(
-                    kind: .function,
+                if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                    declaredOwnerFQName: fqName,
+                    receiverType: primArrayReceiverType,
                     name: primJoinToStringName,
-                    fqName: primJoinToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: primJoinToStringSym)
-
-                let externalLinkName: String = switch name {
-                case "IntArray": "kk_intArray_joinToString"
-                case "LongArray": "kk_longArray_joinToString"
-                case "ByteArray": "kk_byteArray_joinToString"
-                case "ShortArray": "kk_shortArray_joinToString"
-                case "UIntArray": "kk_uIntArray_joinToString"
-                case "ULongArray": "kk_uLongArray_joinToString"
-                case "DoubleArray": "kk_doubleArray_joinToString"
-                case "FloatArray": "kk_floatArray_joinToString"
-                case "BooleanArray": "kk_booleanArray_joinToString"
-                case "CharArray": "kk_charArray_joinToString"
-                case "UByteArray": "kk_uByteArray_joinToString"
-                case "UShortArray": "kk_uShortArray_joinToString"
-                default: "kk_array_joinToString"
-                }
-                symbols.setExternalLinkName(externalLinkName, for: primJoinToStringSym)
-
-                let primArrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                let primJoinParams: [(name: String, type: TypeID)] = [
-                    ("separator", types.stringType),
-                    ("prefix", types.stringType),
-                    ("postfix", types.stringType),
-                ]
-                var primJoinParamTypes: [TypeID] = []
-                var primJoinParamSymbols: [SymbolID] = []
-                for param in primJoinParams {
-                    let paramName = interner.intern(param.name)
-                    let paramSym = symbols.define(
-                        kind: .valueParameter,
-                        name: paramName,
-                        fqName: primJoinToStringFQName + [paramName],
+                    arity: 3,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) {
+                    skipStats?.recordSkip(ownerFQName: fqName, name: primJoinToStringName, arity: 3, interner: interner)
+                } else {
+                    let primJoinToStringSym = symbols.define(
+                        kind: .function,
+                        name: primJoinToStringName,
+                        fqName: primJoinToStringFQName,
                         declSite: nil,
-                        visibility: .private,
+                        visibility: .public,
                         flags: [.synthetic]
                     )
-                    symbols.setParentSymbol(primJoinToStringSym, for: paramSym)
-                    primJoinParamTypes.append(param.type)
-                    primJoinParamSymbols.append(paramSym)
-                }
+                    symbols.setParentSymbol(arraySymbol, for: primJoinToStringSym)
 
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: primArrayReceiverType,
-                        parameterTypes: primJoinParamTypes,
-                        returnType: types.stringType,
-                        isSuspend: false,
-                        valueParameterSymbols: primJoinParamSymbols,
-                        valueParameterHasDefaultValues: [true, true, true],
-                        valueParameterIsVararg: [false, false, false],
-                        typeParameterSymbols: []
-                    ),
-                    for: primJoinToStringSym
-                )
+                    let externalLinkName: String = switch name {
+                    case "IntArray": "kk_intArray_joinToString"
+                    case "LongArray": "kk_longArray_joinToString"
+                    case "ByteArray": "kk_byteArray_joinToString"
+                    case "ShortArray": "kk_shortArray_joinToString"
+                    case "UIntArray": "kk_uIntArray_joinToString"
+                    case "ULongArray": "kk_uLongArray_joinToString"
+                    case "DoubleArray": "kk_doubleArray_joinToString"
+                    case "FloatArray": "kk_floatArray_joinToString"
+                    case "BooleanArray": "kk_booleanArray_joinToString"
+                    case "CharArray": "kk_charArray_joinToString"
+                    case "UByteArray": "kk_uByteArray_joinToString"
+                    case "UShortArray": "kk_uShortArray_joinToString"
+                    default: "kk_array_joinToString"
+                    }
+                    symbols.setExternalLinkName(externalLinkName, for: primJoinToStringSym)
+
+                    let primJoinParams: [(name: String, type: TypeID)] = [
+                        ("separator", types.stringType),
+                        ("prefix", types.stringType),
+                        ("postfix", types.stringType),
+                    ]
+                    var primJoinParamTypes: [TypeID] = []
+                    var primJoinParamSymbols: [SymbolID] = []
+                    for param in primJoinParams {
+                        let paramName = interner.intern(param.name)
+                        let paramSym = symbols.define(
+                            kind: .valueParameter,
+                            name: paramName,
+                            fqName: primJoinToStringFQName + [paramName],
+                            declSite: nil,
+                            visibility: .private,
+                            flags: [.synthetic]
+                        )
+                        symbols.setParentSymbol(primJoinToStringSym, for: paramSym)
+                        primJoinParamTypes.append(param.type)
+                        primJoinParamSymbols.append(paramSym)
+                    }
+
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: primArrayReceiverType,
+                            parameterTypes: primJoinParamTypes,
+                            returnType: types.stringType,
+                            isSuspend: false,
+                            valueParameterSymbols: primJoinParamSymbols,
+                            valueParameterHasDefaultValues: [true, true, true],
+                            valueParameterIsVararg: [false, false, false],
+                            typeParameterSymbols: []
+                        ),
+                        for: primJoinToStringSym
+                    )
+                }
             }
         }
 
@@ -2042,52 +2067,67 @@ extension DataFlowSemaPhase {
                 args: [.invariant(arrayTypeParamType)],
                 nullability: .nonNull
             )))
-            let joinToStringSym = symbols.define(
-                kind: .function,
-                name: joinToStringName,
-                fqName: joinToStringFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: joinToStringSym)
-            symbols.setExternalLinkName("kk_array_joinToString", for: joinToStringSym)
 
-            let joinParams: [(name: String, type: TypeID)] = [
-                ("separator", types.stringType),
-                ("prefix", types.stringType),
-                ("postfix", types.stringType),
-            ]
-            var joinParamTypes: [TypeID] = []
-            var joinParamSymbols: [SymbolID] = []
-            for param in joinParams {
-                let paramName = interner.intern(param.name)
-                let paramSym = symbols.define(
-                    kind: .valueParameter,
-                    name: paramName,
-                    fqName: joinToStringFQName + [paramName],
+            // KSP-INF-011: guard the default (non-transform) overload against
+            // bundled source definitions; transform overloads follow below.
+            if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: arrayFQName,
+                receiverType: arrayReceiverType,
+                name: joinToStringName,
+                arity: 3,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                skipStats?.recordSkip(ownerFQName: arrayFQName, name: joinToStringName, arity: 3, interner: interner)
+            } else {
+                let joinToStringSym = symbols.define(
+                    kind: .function,
+                    name: joinToStringName,
+                    fqName: joinToStringFQName,
                     declSite: nil,
-                    visibility: .private,
+                    visibility: .public,
                     flags: [.synthetic]
                 )
-                symbols.setParentSymbol(joinToStringSym, for: paramSym)
-                joinParamTypes.append(param.type)
-                joinParamSymbols.append(paramSym)
+                symbols.setParentSymbol(arraySymbol, for: joinToStringSym)
+                symbols.setExternalLinkName("kk_array_joinToString", for: joinToStringSym)
+
+                let joinParams: [(name: String, type: TypeID)] = [
+                    ("separator", types.stringType),
+                    ("prefix", types.stringType),
+                    ("postfix", types.stringType),
+                ]
+                var joinParamTypes: [TypeID] = []
+                var joinParamSymbols: [SymbolID] = []
+                for param in joinParams {
+                    let paramName = interner.intern(param.name)
+                    let paramSym = symbols.define(
+                        kind: .valueParameter,
+                        name: paramName,
+                        fqName: joinToStringFQName + [paramName],
+                        declSite: nil,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(joinToStringSym, for: paramSym)
+                    joinParamTypes.append(param.type)
+                    joinParamSymbols.append(paramSym)
+                }
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: arrayReceiverType,
+                        parameterTypes: joinParamTypes,
+                        returnType: types.stringType,
+                        isSuspend: false,
+                        valueParameterSymbols: joinParamSymbols,
+                        valueParameterHasDefaultValues: [true, true, true],
+                        valueParameterIsVararg: [false, false, false],
+                        typeParameterSymbols: [tParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: joinToStringSym
+                )
             }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: arrayReceiverType,
-                    parameterTypes: joinParamTypes,
-                    returnType: types.stringType,
-                    isSuspend: false,
-                    valueParameterSymbols: joinParamSymbols,
-                    valueParameterHasDefaultValues: [true, true, true],
-                    valueParameterIsVararg: [false, false, false],
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: joinToStringSym
-            )
 
             // Register `Array<T>.joinToString(separator?, prefix?, postfix?, transform)` HOF
             // overloads. See the matching comment in

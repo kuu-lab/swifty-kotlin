@@ -208,16 +208,16 @@ public class StringBuilder {
     private fun currentLength(): Int =
         __kk_string_builder_length()
 
-    @KsSymbolName("kk_string_builder_append_obj")
+    @KsSymbolName("__kk_string_builder_append_obj")
     private external fun __kk_string_builder_append_obj(value: Any?): StringBuilder
 
-    @KsSymbolName("kk_string_builder_toString")
+    @KsSymbolName("__kk_string_builder_toString")
     private external fun __kk_string_builder_toString(): String
 
-    @KsSymbolName("kk_string_builder_length_prop")
+    @KsSymbolName("__kk_string_builder_length_prop")
     private external fun __kk_string_builder_length(): Int
 
-    @KsSymbolName("kk_string_builder_clear")
+    @KsSymbolName("__kk_string_builder_clear")
     private external fun __kk_string_builder_clear(): StringBuilder
 }
 

@@ -11,7 +11,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinSequencesPkg: [InternedString]
+        kotlinSequencesPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
@@ -80,6 +82,21 @@ extension DataFlowSemaPhase {
             ("prefix", types.stringType, true),
             ("postfix", types.stringType, true),
         ]
+
+        // KSP-INF-011: Guard the default overload against bundled source.
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: sequenceFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: parameters.count,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: sequenceFQName, name: memberName, arity: parameters.count, interner: interner)
+            return
+        }
+
         registerSyntheticFunctionStub(
             named: "joinTo",
             ownerFQName: sequenceFQName,
@@ -100,7 +117,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinSequencesPkg: [InternedString]
+        kotlinSequencesPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
@@ -152,6 +171,21 @@ extension DataFlowSemaPhase {
             ("prefix", types.stringType, true),
             ("postfix", types.stringType, true),
         ]
+
+        // KSP-INF-011: Guard the default overload against bundled source.
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: sequenceFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: parameters.count,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: sequenceFQName, name: memberName, arity: parameters.count, interner: interner)
+            return
+        }
+
         registerSyntheticFunctionStub(
             named: "joinToString",
             ownerFQName: sequenceFQName,
