@@ -22,6 +22,19 @@ import kotlin.math.nextDown
 // to seed Random.Default from system entropy.
 private external fun __kk_random_seed_entropy(): Long
 
+// Interfaces exposing the Random methods that native runtime helpers need to
+// call through itable dispatch. Single-method interfaces keep the itable
+// methodSlot at 0 and independent of source-ordering symbol IDs. They are
+// public so they can be exported in library metadata and resolved by downstream
+// modules that load the compiled Random class from a .kklib.
+public interface RandomSource {
+    public fun nextIntBelow(until: Int): Int
+}
+
+public interface RandomLongSource {
+    public fun nextLongBits(): Long
+}
+
 public open class Random internal constructor(
     private var x: Int,
     private var y: Int,
@@ -29,7 +42,7 @@ public open class Random internal constructor(
     private var w: Int,
     private var v: Int,
     private var addend: Int
-) {
+) : RandomSource, RandomLongSource {
     public constructor(seed: Int) : this(
         seed, seed.shr(31), 0, 0, seed.inv(), (seed shl 10) xor (seed.shr(31) ushr 4)
     )
@@ -136,6 +149,12 @@ public open class Random internal constructor(
         } while (result !in from until until)
         return result
     }
+
+    // Implementations of the runtime-dispatch interfaces used by native
+    // collection/range helpers for deterministic seeded random values.
+    public open override fun nextIntBelow(until: Int): Int = nextInt(until)
+
+    public open override fun nextLongBits(): Long = nextLong()
 
     public open fun nextBoolean(): Boolean = nextBits(1) != 0
 
