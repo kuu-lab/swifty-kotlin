@@ -98,7 +98,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testBuildKIRCollectionHOFLambdaStillReceivesClosureParameter() throws {
+    @Test func testBuildKIRCollectionSourceHOFLambdaHasElementParameter() throws {
         let source = """
         fun main(): Int {
             val values = listOf(1, 2, 3)
@@ -114,9 +114,10 @@ extension BuildKIRRegressionTests {
             let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
                 ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
             }
-            // Find the user's HOF lambda (2 params: closure + elem), not the bundled stdlib's require lambda
+            // Source-backed map uses an ordinary boxed lambda (1 param: element),
+            // not the native collection-HOF (closureObj, elem) ABI.
             let generatedFunction = try #require(generatedLambdaFunctions.last)
-            #expect(generatedFunction.params.count == 2, "closure + elem")
+            #expect(generatedFunction.params.count == 1, "single element param")
             #expect(generatedFunction.params.first?.type == ctx.sema?.types.intType)
         }
     }

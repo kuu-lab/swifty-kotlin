@@ -1309,8 +1309,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
         #expect(
-            callees.contains("kk_list_size"),
-            "virtualCall(size) on List-typed parameter should be rewritten to kk_list_size, got: \(callees)"
+            callees.contains("__kk_list_size"),
+            "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1340,8 +1340,8 @@ struct CollectionLiteralLoweringTests {
             fqNameComponents: ["com", "example", "List"]
         )
         #expect(
-            !callees.contains("kk_list_size"),
-            "virtualCall(size) on user-defined List must not be rewritten to kk_list_size, got: \(callees)"
+            !callees.contains("__kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
