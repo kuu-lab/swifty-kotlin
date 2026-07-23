@@ -417,7 +417,16 @@ extension DataFlowSemaPhase {
         do {
             let getOrNullName = interner.intern("getOrNull")
             let getOrNullFQName = listFQName + [getOrNullName]
-            if symbols.lookup(fqName: getOrNullFQName) == nil {
+            let shouldSkipGetOrNull = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: getOrNullName,
+                arity: 1,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            if !shouldSkipGetOrNull, symbols.lookup(fqName: getOrNullFQName) == nil {
                 let memberSymbol = symbols.define(
                     kind: .function,
                     name: getOrNullName,
@@ -442,7 +451,16 @@ extension DataFlowSemaPhase {
 
             let elementAtOrNullName = interner.intern("elementAtOrNull")
             let elementAtOrNullFQName = listFQName + [elementAtOrNullName]
-            if symbols.lookup(fqName: elementAtOrNullFQName) == nil {
+            let shouldSkipElementAtOrNull = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: elementAtOrNullName,
+                arity: 1,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            if !shouldSkipElementAtOrNull, symbols.lookup(fqName: elementAtOrNullFQName) == nil {
                 let memberSymbol = symbols.define(
                     kind: .function,
                     name: elementAtOrNullName,
@@ -473,7 +491,16 @@ extension DataFlowSemaPhase {
             )))
             let getOrElseName = interner.intern("getOrElse")
             let getOrElseFQName = listFQName + [getOrElseName]
-            if symbols.lookup(fqName: getOrElseFQName) == nil {
+            let shouldSkipGetOrElse = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: getOrElseName,
+                arity: 2,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            if !shouldSkipGetOrElse, symbols.lookup(fqName: getOrElseFQName) == nil {
                 let memberSymbol = symbols.define(
                     kind: .function,
                     name: getOrElseName,
@@ -499,7 +526,16 @@ extension DataFlowSemaPhase {
             // elementAtOrElse — identical signature to getOrElse (STDLIB-212)
             let elementAtOrElseName = interner.intern("elementAtOrElse")
             let elementAtOrElseFQName = listFQName + [elementAtOrElseName]
-            if symbols.lookup(fqName: elementAtOrElseFQName) == nil {
+            let shouldSkipElementAtOrElse = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: elementAtOrElseName,
+                arity: 2,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            if !shouldSkipElementAtOrElse, symbols.lookup(fqName: elementAtOrElseFQName) == nil {
                 let memberSymbol = symbols.define(
                     kind: .function,
                     name: elementAtOrElseName,
@@ -527,7 +563,16 @@ extension DataFlowSemaPhase {
         do {
             let elementAtName = interner.intern("elementAt")
             let elementAtFQName = listFQName + [elementAtName]
-            if symbols.lookup(fqName: elementAtFQName) == nil {
+            let shouldSkipElementAt = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: elementAtName,
+                arity: 1,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            if !shouldSkipElementAt, symbols.lookup(fqName: elementAtFQName) == nil {
                 let memberSymbol = symbols.define(
                     kind: .function,
                     name: elementAtName,
@@ -552,23 +597,13 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // firstOrNull / lastOrNull are intentionally NOT registered as synthetic
-        // members here. ListSearchHOF.kt already declares both the no-predicate
-        // and predicate overloads for each; a synthetic arity-0 entry at these
-        // FQ names makes collectMemberFunctionCandidates return a single arity-0
-        // match and skip the extension-function scope lookup that would
-        // otherwise find both Kotlin-source overloads, permanently hiding the
-        // predicate overload.
-        //
-        // single/singleOrNull keep their synthetic no-predicate registration:
-        // unlike firstOrNull/lastOrNull, there is no kk_list_single*-with-predicate
-        // runtime entry point yet, so removing the synthetic member would only
-        // trade "predicate silently ignored" for "predicate silently ignored,
-        // plus the no-predicate call breaks too." Tracked separately.
-        // single no-predicate (STDLIB-COL-FN-184)
-        registerSimpleMember(name: "single", returnType: listTypeParamType, externalLinkName: "kk_list_single", canThrow: true)
-        // singleOrNull no-predicate (STDLIB-211)
-        registerSimpleMember(name: "singleOrNull", returnType: nullableElementType, externalLinkName: "kk_list_singleOrNull")
+        // firstOrNull / lastOrNull / single / singleOrNull are intentionally NOT
+        // registered as synthetic members here. ListSearchHOF.kt already declares
+        // both the no-predicate and predicate overloads for each; a synthetic
+        // arity-0 entry at these FQ names makes collectMemberFunctionCandidates
+        // return a single arity-0 match and skip the extension-function scope
+        // lookup that would otherwise find both Kotlin-source overloads,
+        // permanently hiding the predicate overload.
 
         // STDLIB-214: binarySearch(element) — non-HOF, element argument
         let binarySearchName = interner.intern("binarySearch")
