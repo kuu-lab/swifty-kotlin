@@ -2,7 +2,7 @@ symbol fq=golden.sema.pickLargerString kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.pickLargerString.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.pickLargerString.$0.b kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
-file f0 package=golden.sema
+file fmaxof_comparable_2arg package=golden.sema
   decl golden.sema.pickLargerString fun pickLargerString sym=golden.sema.pickLargerString
 expr e@4:60 name(a) type=String ref=golden.sema.pickLargerString.$0.a
 expr e@4:63 name(b) type=String ref=golden.sema.pickLargerString.$0.b

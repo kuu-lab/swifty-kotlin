@@ -5,6 +5,14 @@ import Foundation
 
 let runtimeDefaultTrimMarginPrefixRaw = runtimeMakeStringRaw("|")
 
+func runtimeNormalizedMultilineString(_ source: String) -> [String] {
+    source
+        .replacingOccurrences(of: "\r\n", with: "\n")
+        .replacingOccurrences(of: "\r", with: "\n")
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .map(String.init)
+}
+
 func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
     Array(runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars)
 }

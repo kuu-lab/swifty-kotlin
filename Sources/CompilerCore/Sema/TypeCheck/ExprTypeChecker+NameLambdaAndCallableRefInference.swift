@@ -948,8 +948,31 @@ extension ExprTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
             }
-            sema.bindings.bindExprType(id, type: expectedType)
-            return expectedType
+            // When the expected return type is an unconstrained type parameter,
+            // returning `expectedType` verbatim would leak the unresolved type
+            // parameter back out as this lambda's own type. The overload
+            // resolver then decomposes that against the very same signature's
+            // parameter type, producing a self-referential `T <: T` bound
+            // instead of a real constraint derived from the body's actual
+            // type — so e.g. `lazy { 1 }` fails to infer T even though the
+            // body is plainly an Int. Substitute the concrete, actually
+            // inferred return type in that case so the caller can solve the
+            // type parameter from it.
+            let resultType: TypeID = if expectedReturnIsUnconstrainedTypeParam {
+                sema.types.make(.functionType(FunctionType(
+                    contextReceivers: expectedFunctionType.contextReceivers,
+                    receiver: expectedFunctionType.receiver,
+                    params: expectedFunctionType.params,
+                    returnType: optimizedReturnType,
+                    isSuspend: expectedFunctionType.isSuspend,
+                    nullability: expectedFunctionType.nullability,
+                    throws: expectedFunctionType.throws
+                )))
+            } else {
+                expectedType
+            }
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
         }
 
         let inferredFunctionType = sema.types.make(.functionType(FunctionType(

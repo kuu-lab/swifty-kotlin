@@ -2,7 +2,7 @@ symbol fq=golden.sema.minOfULongThreeArg kind=function vis=public flags=_ sig=re
 symbol fq=golden.sema.minOfULongThreeArg.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfULongThreeArg.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfULongThreeArg.$0.c kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fminof_ulong_3args package=golden.sema
   decl golden.sema.minOfULongThreeArg fun minOfULongThreeArg sym=golden.sema.minOfULongThreeArg
 expr e@3:69 name(a) type=ULong ref=golden.sema.minOfULongThreeArg.$0.a
 expr e@3:72 name(b) type=ULong ref=golden.sema.minOfULongThreeArg.$0.b

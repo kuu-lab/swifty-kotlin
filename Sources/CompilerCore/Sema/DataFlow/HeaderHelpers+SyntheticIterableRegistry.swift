@@ -962,7 +962,7 @@ extension DataFlowSemaPhase {
         if symbols.lookup(fqName: hasNextFQName) == nil {
             let sym = symbols.define(
                 kind: .function, name: hasNextName, fqName: hasNextFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
+                declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iteratorSymbol, for: sym)
             symbols.setExternalLinkName("kk_iterator_hasNext", for: sym)
@@ -986,7 +986,7 @@ extension DataFlowSemaPhase {
         if symbols.lookup(fqName: nextFQName) == nil {
             let sym = symbols.define(
                 kind: .function, name: nextName, fqName: nextFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
+                declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iteratorSymbol, for: sym)
             symbols.setExternalLinkName("kk_iterator_next", for: sym)

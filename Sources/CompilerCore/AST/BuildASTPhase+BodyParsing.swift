@@ -105,7 +105,7 @@ extension BuildASTPhase {
             // Strip only top-level semicolons; keep semicolons inside braces so
             // that nested block expressions (e.g. `if (c) { a; b }`) can still
             // split on them later in ExpressionParser.
-            let filtered = filterTopLevelSemicolons(rawTokens)
+            let filtered = filterTopLevelSemicolons(rawTokens[...])
             guard !filtered.isEmpty else { continue }
 
             // If the first token is `.` or `?.`, merge into the previous group.
@@ -148,7 +148,7 @@ extension BuildASTPhase {
 
     /// Filter out semicolons that are at the outermost brace level,
     /// preserving those inside nested braces (e.g. lambda bodies).
-    private func filterTopLevelSemicolons(_ tokens: [Token]) -> [Token] {
+    func filterTopLevelSemicolons(_ tokens: ArraySlice<Token>) -> [Token] {
         var result: [Token] = []
         var braceDepth = 0
         for token in tokens {

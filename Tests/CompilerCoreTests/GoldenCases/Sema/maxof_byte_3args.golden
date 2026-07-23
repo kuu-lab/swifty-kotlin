@@ -2,7 +2,7 @@ symbol fq=golden.sema.threeArgMaxByte kind=function vis=public flags=_ sig=recv=
 symbol fq=golden.sema.threeArgMaxByte.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxByte.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxByte.$0.c kind=valueParameter vis=private flags=_
-file f0 package=golden.sema
+file fmaxof_byte_3args package=golden.sema
   decl golden.sema.threeArgMaxByte fun threeArgMaxByte sym=golden.sema.threeArgMaxByte
 expr e@3:62 name(a) type=Int ref=golden.sema.threeArgMaxByte.$0.a
 expr e@3:65 name(b) type=Int ref=golden.sema.threeArgMaxByte.$0.b
