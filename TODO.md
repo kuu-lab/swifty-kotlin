@@ -86,7 +86,7 @@
 
 ### 監査基盤 / 残領域
 
-- [ ] DEADCODE-AUDIT-001: `Scripts/dead_code_audit.sh` の export 対象を `kk_*` だけでなく `__kk_*` にも広げ、static emit 検索を CompilerCore 限定から CompilerBackend / bundled `.kt` まで拡張し、`prefix` 変数 + `"\(prefix)_suffix"` の 2 段階生成も解決する。現状は `kk_print_string_flat` を A に誤分類し、Atomic 群を B に大量誤分類する。回帰 fixture を各 1 件追加する
+- [x] DEADCODE-AUDIT-001: `Scripts/dead_code_audit.sh` の export 対象を `kk_*` だけでなく `__kk_*` にも広げ、static emit 検索を CompilerCore 限定から CompilerBackend / bundled `.kt` まで拡張し、`prefix` 変数 + `"\(prefix)_suffix"` の 2 段階生成も解決する。現状は `kk_print_string_flat` を A に誤分類し、Atomic 群を B に大量誤分類する。回帰 fixture を各 1 件追加する
 - [~] DEADCODE-014: 旧「未監査領域」を継続監査する。2026-07-12 時点で tracked `.c/.h/.cc/.cpp` は 0 件、`DiagnosticRegistry` 108 descriptor は全て production 発行箇所あり、stored/global/Tests helper の検出結果は下記に分割済み。残りは SKIP-DIFF 62 件の実行可否。`compiler_plugin_api.kt` は強制実行で kotlinc timeout + kswiftc 型/抽象メンバ解決失敗のため解除不可を確認済み
 
 ### CompilerCore: 参照ゼロの独立シンボル
@@ -287,8 +287,8 @@
 
 ### LSPServer
 
-- [ ] DEADCODE-LSP-001: [W0] `Server.swift:17` の private `Server.log` closure property と initializer 内代入 `:26` を削除する
-- [ ] DEADCODE-LSP-002: [D: LSP-001 / public API 確認] `Server.init(connection:analyzer:log:)` の未使用 `log` parameter を削除する。source compatibility 影響を release note または deprecated overload で処理する
+- [x] DEADCODE-LSP-001: [W0] `Server.swift:17` の private `Server.log` closure property と initializer 内代入 `:26` を削除する
+- [x] DEADCODE-LSP-002: [D: LSP-001 / public API 確認] `Server.init(connection:analyzer:log:)` の未使用 `log` parameter を削除する。`KSwiftLSPCLI/main.swift` の trailing closure も同時に削除（唯一の呼び出し側で、`log` は Server 内で一度も呼ばれていなかった）
 
 ### Tests: 未使用 helper / closure / enum case
 
@@ -328,8 +328,8 @@
 - [x] DEADCODE-TEST-032: [R0] 同ファイル `:9` の `coroutineDispatchLabelBase` 定数を削除する
 - [x] DEADCODE-TEST-033: [R0] 同ファイル `:62` の `firstExprID(in:where:)` を削除する
 - [x] DEADCODE-TEST-034: [R0] 同ファイル `:74` の `lastExprID(in:where:)` を削除する
-- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する（CodegenBackendIntegrationTests+ArrayForLoopIteration.swift で使用中のため未完了）
-- [ ] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する
+- [ ] DEADCODE-TEST-035: [R0] `CompilerBackendTests/Integration/TestSupport/Pipeline.swift:78` の `makeContextFromSource(_:frontendFlags:)` を削除する（`CodegenBackendIntegrationTests+ArrayForLoopIteration.swift:78` で依然使用中のため未完了）
+- [x] DEADCODE-TEST-036: [R0] 同ファイル `:89` の `makeContextFromSources(_:)` を削除する（CompilerBackendTests 側の複製は参照ゼロを確認。CompilerCoreTests 側の同名 helper は別 module で live のため存続）
 - [x] DEADCODE-TEST-037: [R0] `CompilerBackendTests/Integration/TestSupport/SemaHelpers.swift:5` の `makeSema(source:)` を削除する
 - [x] DEADCODE-TEST-038: [R0] 同ファイル `:18` の `allExternalLinks(fqPath:sema:interner:)` を削除する
 - [x] DEADCODE-TEST-039: [R0] 同ファイル `:30` の `memberCallExprIDs(named:in:interner:)` を削除する
