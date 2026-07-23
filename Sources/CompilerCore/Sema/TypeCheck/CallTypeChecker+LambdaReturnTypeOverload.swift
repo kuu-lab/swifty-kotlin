@@ -414,11 +414,16 @@ extension CallTypeChecker {
         )
     }
 
-    /// Substitutes the leading class type parameters of `signature` with the
-    /// concrete generic arguments of `receiverType` (if it is a generic class
-    /// type). This lets trailing-lambda expected types be computed with the
-    /// receiver's generic substitutions already applied, so `it` in
-    /// `xs.map { it.uppercase() }` is seen as `String` rather than `T`.
+    /// Substitutes the class type parameters used in `signature.receiverType`
+    /// with the concrete generic arguments of the call-site `receiverType`. This
+    /// lets trailing-lambda expected types be computed with the receiver's
+    /// generic substitutions already applied, so `it` in `xs.map { it * 10 }`
+    /// is seen as `Int` rather than `T`.
+    ///
+    /// For member functions whose declared receiver type is not available in the
+    /// signature, the leading `classTypeParameterCount` type parameters are taken
+    /// to be the class type parameters and are substituted from the call-site
+    /// receiver's concrete class arguments.
     private func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -426,34 +431,94 @@ extension CallTypeChecker {
         receiverType: TypeID?,
         sema: SemaModule
     ) -> TypeID {
-        guard let receiverType,
-              signature.classTypeParameterCount > 0,
+        guard sema.symbols.symbol(candidate)?.kind != .constructor,
               !signature.typeParameterSymbols.isEmpty,
-              sema.symbols.symbol(candidate)?.kind != .constructor,
-              let classType = resolveClassType(receiverType, sema: sema)
+              let callSiteReceiverType = receiverType,
+              let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
         else {
             return parameterType
         }
+
+        let declaredClassArgs: [TypeArg]
+        if let signatureReceiverType = signature.receiverType,
+           let declaredClass = resolveClassType(signatureReceiverType, sema: sema),
+           declaredClass.classSymbol == callSiteClass.classSymbol,
+           declaredClass.args.count == callSiteClass.args.count {
+            declaredClassArgs = declaredClass.args
+        } else if signature.classTypeParameterCount > 0,
+                  callSiteClass.args.count >= signature.classTypeParameterCount {
+            declaredClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+        } else {
+            return parameterType
+        }
+
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
-        let count = min(
-            signature.classTypeParameterCount,
-            classType.args.count,
-            signature.typeParameterSymbols.count
-        )
-        for index in 0 ..< count {
-            let concreteType: TypeID = switch classType.args[index] {
+        for index in 0 ..< declaredClassArgs.count {
+            let declaredArg: TypeID
+            switch declaredClassArgs[index] {
+            case let .invariant(type), let .out(type), let .in(type):
+                declaredArg = type
+            case .star:
+                continue
+            }
+            guard case let .typeParam(declaredTypeParam) = sema.types.kind(of: declaredArg),
+                  let typeVar = typeVarBySymbol[declaredTypeParam.symbol]
+            else {
+                continue
+            }
+            let concreteType: TypeID = switch callSiteClass.args[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 type
             case .star:
                 sema.types.anyType
             }
-            let typeParamSymbol = signature.typeParameterSymbols[index]
-            if let typeVar = typeVarBySymbol[typeParamSymbol] {
-                substitution[typeVar] = concreteType
-            }
+            substitution[typeVar] = concreteType
         }
         guard !substitution.isEmpty else { return parameterType }
+        return sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
+    /// Substitutes the receiver type parameter of `signature` with the concrete
+    /// call-site receiver type. For extension functions like `fun <T> T.apply(block: T.() -> Unit)`,
+    /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
+    /// before the lambda body is type-checked so that unqualified member access on
+    /// the implicit receiver resolves correctly.
+    private func applyFunctionReceiverTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        receiverType: TypeID?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let receiverType,
+              let declaredReceiver = signature.receiverType,
+              !signature.typeParameterSymbols.isEmpty
+        else {
+            return parameterType
+        }
+        let nonNullDeclaredReceiver = sema.types.makeNonNullable(declaredReceiver)
+        guard case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclaredReceiver) else {
+            return parameterType
+        }
+        // Class type parameters at the start of the list are handled by applyReceiverClassTypeArgs.
+        if let index = signature.typeParameterSymbols.firstIndex(of: receiverTypeParam.symbol),
+           index < signature.classTypeParameterCount {
+            return parameterType
+        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // Avoid circular substitution when the concrete receiver still references the same type parameter.
+        guard !sema.types.typeContainsTypeParam(nonNullReceiverType, symbol: receiverTypeParam.symbol) else {
+            return parameterType
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
+            return parameterType
+        }
+        let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiverType]
         return sema.types.substituteTypeParameters(
             in: parameterType,
             substitution: substitution,
@@ -572,10 +637,16 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 sema: sema
             )
-            let substituted = applyReceiverClassTypeArgs(
+            let receiverSubstituted = applyReceiverClassTypeArgs(
                 to: explicitSubstituted,
                 signature: signature,
                 candidate: candidates[0],
+                receiverType: receiverType,
+                sema: sema
+            )
+            let substituted = applyFunctionReceiverTypeArgs(
+                to: receiverSubstituted,
+                signature: signature,
                 receiverType: receiverType,
                 sema: sema
             )
@@ -601,8 +672,14 @@ extension CallTypeChecker {
                 receiverType: receiverType,
                 sema: sema
             )
-            let substituted = applyInferredArgumentTypeArgs(
+            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
                 to: receiverSubstituted,
+                signature: signature,
+                receiverType: receiverType,
+                sema: sema
+            )
+            let substituted = applyInferredArgumentTypeArgs(
+                to: functionReceiverSubstituted,
                 signature: signature,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,

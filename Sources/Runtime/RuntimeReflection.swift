@@ -23,19 +23,6 @@ private func runtimeReflectionKClassBox(from raw: Int) -> RuntimeKClassBox? {
     return tryCast(ptr, to: RuntimeKClassBox.self)
 }
 
-private func runtimeReflectionStringRaw(_ value: String) -> Int {
-    let utf8 = Array(value.utf8)
-    if utf8.isEmpty {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return utf8.withUnsafeBufferPointer { buffer in
-        Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
-    }
-}
-
 private extension RuntimeKClassBox {
     var reflectionSimpleName: String {
         if let metadata {

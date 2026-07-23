@@ -926,19 +926,29 @@ extension ExprTypeChecker {
                 sema: sema
             )
 
-            // Apply subtype constraint only if needed.
-            // Skip when the expected return type is an unconstrained type parameter —
-            // that is an inference placeholder the call resolver fills in, so any body
-            // type is valid (e.g. transform lambdas for zip/zipWithNext).
+            // Skip the local subtype constraint when the expected return is Unit
+            // (Kotlin allows any body type) or when it is a generic type variable.
+            // For Unit there is nothing to constrain. For a type variable the
+            // local solver cannot bind it; the concrete inferred function type
+            // returned below lets the call resolver infer it instead.
+            let expectedReturnIsTypeParam: Bool = {
+                guard case .typeParam = sema.types.kind(of: expectedFunctionType.returnType) else {
+                    return false
+                }
+                return true
+            }()
             let expectedReturnIsUnconstrainedTypeParam: Bool = {
                 guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
                     return false
                 }
                 return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
             }()
-            if expectedFunctionType.returnType != sema.types.unitType,
-               !expectedReturnIsUnconstrainedTypeParam
-            {
+            let shouldSkipSubtypeConstraint =
+                expectedFunctionType.returnType == sema.types.unitType
+                || (expectedFunctionType.receiver != nil
+                    ? expectedReturnIsTypeParam
+                    : expectedReturnIsUnconstrainedTypeParam)
+            if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
                     right: expectedFunctionType.returnType,
@@ -948,21 +958,23 @@ extension ExprTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
             }
-            // When the expected return type is an unconstrained type parameter,
-            // returning `expectedType` verbatim would leak the unresolved type
-            // parameter back out as this lambda's own type. The overload
-            // resolver then decomposes that against the very same signature's
-            // parameter type, producing a self-referential `T <: T` bound
-            // instead of a real constraint derived from the body's actual
-            // type — so e.g. `lazy { 1 }` fails to infer T even though the
-            // body is plainly an Int. Substitute the concrete, actually
-            // inferred return type in that case so the caller can solve the
-            // type parameter from it.
-            let resultType: TypeID = if expectedReturnIsUnconstrainedTypeParam {
+            // When the expected return type is an unresolved type parameter,
+            // returning `expectedType` verbatim leaks that type variable back
+            // out as the lambda's own type. The overload resolver then
+            // decomposes it against the same signature's parameter type and
+            // produces a self-referential `T <: T` bound instead of a real
+            // constraint derived from the body's actual type (e.g. `lazy { 1 }`
+            // or `box.run2 { myValue }` fails to infer `R`). Substitute the
+            // concrete, inferred return type in those cases so the caller can
+            // solve the type parameter from it.
+            let shouldReturnResolvedFunctionType =
+                expectedReturnIsUnconstrainedTypeParam
+                || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
+            let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,
                     receiver: expectedFunctionType.receiver,
-                    params: expectedFunctionType.params,
+                    params: parameterTypes,
                     returnType: optimizedReturnType,
                     isSuspend: expectedFunctionType.isSuspend,
                     nullability: expectedFunctionType.nullability,

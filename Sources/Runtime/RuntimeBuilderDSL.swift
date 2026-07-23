@@ -376,7 +376,7 @@ public func kk_build_string_with_capacity(
 @_cdecl("kk_build_string_builder")
 public func kk_build_string_builder(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string_builder")
-    return registerRuntimeObject(RuntimeStringBuilderBox(frame.value))
+    return runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(frame.value)))
 }
 
 @_cdecl("kk_build_string_builder_with_capacity")
