@@ -39,7 +39,7 @@ expr e@5:20 int(1) type=Int
 expr e@5:13#1 memberCall recv=e@5:13 callee=drop args=[_:e@5:20] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.drop targs=[Int]
 expr e@5:5 localDecl d mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_2.d
 expr e@6:13 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
-expr e@6:13#1 memberCall recv=e@6:13 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int>
+expr e@6:13#1 memberCall recv=e@6:13 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.distinct
 expr e@6:5 localDecl u mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_3.u
 expr e@7:13 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
 expr e@7:30 int(4) type=Int

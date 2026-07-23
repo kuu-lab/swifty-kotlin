@@ -91,7 +91,7 @@ struct BundledStdlibSuspendCapabilityTests {
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
             let sourceManager = SourceManager()
-            _ = sourceManager.addFile(path: bundledPath, contents: Data(probeSource.utf8))
+            _ = sourceManager.addFile(path: bundledPath, contents: Data(probeSource.utf8), origin: .bundledStdlib)
 
             let options = CompilerOptions(
                 moduleName: "KspCap012BundledSuspend",
