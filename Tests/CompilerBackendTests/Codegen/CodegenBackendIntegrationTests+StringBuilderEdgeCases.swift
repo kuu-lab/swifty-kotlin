@@ -357,4 +357,31 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // BUG-044 follow-up: `buildStringBuilder { ... }` (unlike `buildString { ... }`,
+    // which converts to a String via `.toString()` before returning) hands back
+    // the StringBuilder itself, constructed via the separate `kk_build_string_builder`
+    // DSL entry point (RuntimeBuilderDSL.swift), not the `kk_string_builder_new*`
+    // constructors the above test exercises. It needs the same
+    // runtimeRegisterStringBuilderType registration independently.
+    func testCodegenBuildStringBuilderResultIsCharSequenceAndAppendable() throws {
+        let source = """
+        fun main() {
+            val sb = buildStringBuilder { append("hello") }
+            println(sb is CharSequence)
+            println(sb is Appendable)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BuildStringBuilderResultIsCharSequenceAndAppendable",
+            expected:
+                """
+                true
+                true
+                """
+                + "\n"
+        )
+    }
 }

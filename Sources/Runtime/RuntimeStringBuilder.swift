@@ -17,7 +17,7 @@ private let stringBuilderTypeID = runtimeStableNominalTypeID(fqName: "kotlin.tex
 private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
 private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
 
-private func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
+func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
