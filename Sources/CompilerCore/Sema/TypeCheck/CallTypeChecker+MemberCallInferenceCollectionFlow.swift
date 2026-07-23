@@ -174,6 +174,11 @@ extension CallTypeChecker {
                 interner.intern("collections"),
                 calleeName,
             ]
+            let receiverForLookup = sema.types.makeNonNullable(receiverType)
+            guard let (actualReceiverClassType, _) = resolveClassTypeSymbol(receiverForLookup, sema: sema) else {
+                return false
+            }
+            let actualClassSymbol = actualReceiverClassType.classSymbol
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -185,17 +190,22 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner) {
+                if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner),
+                   let (sigClassType, _) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
+                   sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol) {
                     return true
                 }
-                guard let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
+                guard let (sigClassType, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema) else {
                     return false
                 }
-                return receiverSymbol.fqName == [
+                if receiverSymbol.fqName == [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
                     interner.intern("Iterable"),
-                ]
+                ], sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol) {
+                    return true
+                }
+                return false
             }) else {
                 return false
             }
@@ -3160,9 +3170,19 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
+                } else if !isSequenceReceiver, isCollectionReceiver,
+                          bindBundledIterableSourceFunction(typeArguments: [collectionElementType, initialType]) {
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                    }
                 }
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull" || calleeStr == "reduceIndexed" || calleeStr == "reduceIndexedOrNull"), args.count == 1 {
                 if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                } else if !isSequenceReceiver, isCollectionReceiver,
+                          bindBundledIterableSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
