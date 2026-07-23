@@ -316,31 +316,32 @@ extension LibraryMetadataImportIntegrationTests {
         symbols=3
         package _ fq=kotlin schema=v1
         package _ fq=kotlin.collections schema=v1
-        function _ fq=kotlin.collections.arrayListOf schema=v1 arity=0 sig=F0<A>
+        function _ fq=kotlin.collections.listOf schema=v1 arity=0 sig=F0<A>
         """
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
         let source = """
-        fun main() = arrayListOf()
+        fun main() = listOf()
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "DefaultImportApp",
                 emit: .kirDump,
-                searchPaths: [libDir.path]
+                searchPaths: [libDir.path],
+                includeStdlib: false
             )
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let arrayListOfSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "arrayListOf" &&
+            let listOfSymbol = sema.symbols.allSymbols().first { symbol in
+                ctx.interner.resolve(symbol.name) == "listOf" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic) &&
-                    symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "collections", "arrayListOf"]
+                    symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "collections", "listOf"]
             }
-            #expect(arrayListOfSymbol != nil, "Default import should resolve library function 'arrayListOf' from kotlin.collections")
+            #expect(listOfSymbol != nil, "Default import should resolve library function 'listOf' from kotlin.collections")
             #expect(!(ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }))
         }
     }
