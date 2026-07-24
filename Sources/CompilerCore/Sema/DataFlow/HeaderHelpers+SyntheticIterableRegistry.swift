@@ -1005,17 +1005,8 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticAbstractIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iteratorSymbol: iteratorSymbol
-        )
-
-        registerSyntheticPrimitiveIteratorStubs(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iteratorSymbol: iteratorSymbol
-        )
+        // KSP-664: AbstractIterator<T> and the primitive iterator shells are
+        // bundled Kotlin source (collections/AbstractIterator.kt, PrimitiveIterators.kt).
 
         // MutableIterator<T> : Iterator<T> (STDLIB-221)
         let mutableIteratorName = interner.intern("MutableIterator")
