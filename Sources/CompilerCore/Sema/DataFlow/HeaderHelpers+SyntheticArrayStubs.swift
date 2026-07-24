@@ -112,13 +112,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerArrayIsArrayOfJvmExtension(
-            arraySymbol: arraySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // --- STDLIB-410: arrayOf / emptyArray<T>() ---
         let emptyArrayName = interner.intern("emptyArray")
         let emptyArrayFQName = kotlinPkg + [emptyArrayName]
