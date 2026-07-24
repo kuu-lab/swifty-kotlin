@@ -8,7 +8,7 @@ import Testing
 /// (`()` and `(message: String?)`). See
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticExceptionStubs.swift`
 /// for the registration site and the constructors are routed to the runtime
-/// link `kk_throwable_new`.
+/// link `__kk_throwable_new`.
 @Suite
 struct CharacterCodingExceptionTypeTests {
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
@@ -115,8 +115,8 @@ struct CharacterCodingExceptionTypeTests {
         )
 
         let expected: [([TypeID], String)] = [
-            ([], "kk_throwable_new"),
-            ([nullableStringType], "kk_throwable_new"),
+            ([], "__kk_throwable_new"),
+            ([nullableStringType], "__kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(

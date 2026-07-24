@@ -748,7 +748,7 @@
 
 #### 例外・言語コア表面（(c) 再監査 2026-07-10 で b-reclass 確定分）
 
-- [ ] KSP-653: Throwable 本体とコンストラクタ群を Kotlin 化する（クラス階層宣言 + 0/1/2引数 ctor。残留: `__kk_throwable_new(_with_cause)`（GC 確保の1行ブリッジ）。注意: `kk_is_cancellation_exception` は coroutine 側 (c) で対象外）
+- [x] KSP-653: Throwable 本体とコンストラクタ群を Kotlin 化する（クラス階層宣言 + 0/1/2引数 ctor。残留: `__kk_throwable_new(_with_cause)`（GC 確保の1行ブリッジ）。注意: `kk_is_cancellation_exception` は coroutine 側 (c) で対象外）
 - [ ] KSP-654: Throwable メンバを Kotlin 化する（message/cause getter・initCause・addSuppressed/getSuppressed/suppressedExceptions。前提: KSP-653。残留: `__kk_throwable_setCause`/`__kk_throwable_appendSuppressed`/`__kk_throwable_suppressedRaw`）
 - [ ] KSP-655: stackTraceToString/printStackTrace を Kotlin 化する（前提: KSP-654 + runtime の renderedMessage を「生フレーム取得（`__kk_throwable_rawStackFrames` 新設）」と「整形（Kotlin 側で cause/suppressed チェーンを辿る）」に分離するリファクタ）
 - [ ] KSP-656: 例外サブクラス階層の宣言を .kt 化する（IllegalArgumentException 等 `registerSyntheticExceptionConstructor` ループの置換。前提: KSP-653）

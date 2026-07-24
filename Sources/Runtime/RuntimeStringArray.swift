@@ -41,23 +41,23 @@ private func runtimeAllocateArrayBox(length: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
-@_cdecl("kk_throwable_new")
-public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
+@_cdecl("__kk_throwable_new")
+public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
     let text = extractString(from: message) ?? "Throwable"
     let throwableInt = runtimeAllocateThrowable(message: text)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        runtimeStructuredPanic("kk_throwable_new: allocation returned null")
+        runtimeStructuredPanic("__kk_throwable_new: allocation returned null")
     }
     return ptr
 }
 
-@_cdecl("kk_throwable_new_with_cause")
-public func kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
+@_cdecl("__kk_throwable_new_with_cause")
+public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
     let text = extractString(from: message) ?? "Throwable"
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let throwableInt = runtimeAllocateThrowable(message: text, cause: cause)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        runtimeStructuredPanic("kk_throwable_new_with_cause: allocation returned null")
+        runtimeStructuredPanic("__kk_throwable_new_with_cause: allocation returned null")
     }
     return ptr
 }
