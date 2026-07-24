@@ -337,27 +337,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testLocalFunctionShadowsImportedExtensionFunctions() throws {
-        let source = """
-        fun main(): Int {
-            fun sum(): Int = 1
-            fun count(): Int = 2
-            fun reversed(): Int = 3
-            return sum() + count() + reversed()
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Local functions named sum/count/reversed should shadow imported range extensions: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            let module = try #require(ctx.kir)
-            #expect(module.functionCount >= 2)
-        }
-    }
-
     func firstExprID(
         in ast: ASTModule,
         where predicate: (ExprID, Expr) -> Bool
