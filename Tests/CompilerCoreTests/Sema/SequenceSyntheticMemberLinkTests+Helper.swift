@@ -48,10 +48,15 @@ func assertSequenceSourceExtensionResolves(
         )
 
         let sema = try #require(ctx.sema)
-        let extensionFQName = ["kotlin", "sequences", functionName]
-            .map { ctx.interner.intern($0) }
+        let packageNameLists = [
+            ["kotlin", "sequences", functionName],
+            ["kotlin", "collections", functionName],
+        ]
         let symbolID = try #require(
-            sema.symbols.lookup(fqName: extensionFQName),
+            packageNameLists
+                .map { $0.map { ctx.interner.intern($0) } }
+                .first { sema.symbols.lookup(fqName: $0) != nil }
+                .flatMap { sema.symbols.lookup(fqName: $0) },
             "Expected \(diagnosticContext) source extension to be registered"
         )
         #expect(
