@@ -544,3 +544,50 @@
 - [ ] BUG-152: `CharSequence` インターフェース自体に `length`/`get(index)`/`subSequence(...)` がメンバとして登録されておらず、`registerSyntheticStringStubs`（`HeaderHelpers+SyntheticStringStubs.swift`）は `length` を `String` 型への extension function（`receiverType: stringType`）としてのみ登録している。実際の Kotlin では `CharSequence` がこれらを抽象メンバとして宣言し `String` 等の実装型がオーバーライドするため、静的型が `CharSequence`（`String` そのものではなくインターフェース型）の値に対するメンバアクセスは実装型に関わらず解決できるべきだが、本実装では静的型が具象型（`String` 等）の場合しか解決しない。最小再現: `fun printLength(cs: CharSequence) { println(cs.length) }; fun main() { printLength("hello") }` は `KSWIFTK-SEMA-0024: Unresolved member function 'length'` で失敗する（`"hello".length` の直接呼び出しは正常）。同様に `val cs: CharSequence = "hello"; cs.length` も失敗する。`CharSequence` 型のパラメータ・変数を経由した多態的なメンバアクセスが広く影響を受ける可能性がある（`length` 以外に `get`/`subSequence` も同様の懸念があるが未検証）。発見元: 本セッション（バグバックログ一括対応、BUG-044 の `StringBuilder is CharSequence` 修正検証中に、`is` チェックが通っても `cs.length` のようなメンバアクセスが別の理由で失敗することを発見）。番号は本セッション記載時点で未使用だった 152 を採番（BUG-141/142 は同日付で master に別内容が独立して着地したため衝突を避けた。BUG-150/151 は同セッション内の BUG-017 側追跡タスクで既に使用済み）。今回修正できない理由: `CharSequence` を真のインターフェースメンバとして再設計し、`String`/`StringBuilder` 等の実装型からの itable/vtable ディスパッチを通す変更は、Sema のシンボル登録方式とメンバ解決ロジック双方にまたがる規模の大きい変更で、単一の小さな修正では閉じられないため見送り
 - [ ] BUG-153: コンパイル時リテラルではなく実行時に構築された `String` 値（文字列連結・`toString()`・`buildString { ... }` 等の戻り値）は `is CharSequence` が誤って `false` を返す。リテラル文字列（`"hello" is CharSequence`）は `true` を返すため見かけ上は動いているように見えるが、実プログラムで実際に流通する動的な `String` の大半はこの誤判定の影響を受ける。原因は `kk_op_is`（`Sources/Runtime/RuntimeStringArray.swift:450-`）の型トークン分岐で、`CharSequence` は `String` 専用の `stringBase` 分岐ではなく interface 用の `nominalBase` 分岐（`runtimeObjectTypeID(rawValue:)` に依存）を通ること。`String` 自身は（本タスクで StringBuilder に対して追加した `kotlin.text.StringBuilder → kotlin.CharSequence` 相当の）`kotlin.String → kotlin.CharSequence` supertype edge をどの生成経路でも一度も登録していないため、`nominalBase` 分岐は常に該当インスタンスを見つけられず `false` を返す。リテラルが `true` になるのは、おそらく Sema/lowering 側でリテラル式に対する `is CharSequence` が定数畳み込みされ、この実行時チェック自体を経由しないため（未確認、コード追跡までは実施していない）。最小再現: `fun main() { val a = "he" + "llo"; println(a is CharSequence) }` は `false`（本家 kotlinc は `true`）。同様に `StringBuilder("x").toString() is CharSequence` や `buildString { } is CharSequence` も `false` になることを `.build/debug/kswiftc` で実機確認済み。発見元: 本セッション（バグバックログ一括対応、BUG-044 の `buildStringBuilder` フォローアップ検証中に誤って `buildString { ... }`（String を返す方）で同種のテストを書いてしまい、失敗して発覚）。今回修正できない理由: 全ての `String` 生成経路（flat string 生成・`toString()`・concatenation・`buildString` 等）を横断して type ID 登録を行き渡らせる設計と、`kk_op_is` の `CharSequence` 判定ロジック自体の見直し（`nominalBase` 単独ではなく `stringBase` 相当のケースへのフォールバックを追加する等）のどちらが正しい修正方針かの検討も含め、本 PR の StringBuilder 固有の修正スコープを大きく超えるため見送り
 - [ ] BUG-154: `kotlin.text.CASE_INSENSITIVE_ORDER` が `HeaderHelpers+SyntheticStringStubs.swift`（`registerSyntheticStringTopLevelProperty`, STDLIB-TEXT-TYPE-004）により `kotlin.text` パッケージ直下のトップレベルプロパティとして登録されているが、実際の Kotlin では `String` の companion object メンバ（`String.CASE_INSENSITIVE_ORDER`）としてのみ存在し、トップレベル `kotlin.text.CASE_INSENSITIVE_ORDER` という名前は存在しない。最小再現: `import kotlin.text.CASE_INSENSITIVE_ORDER; fun main() { println(CASE_INSENSITIVE_ORDER) }` は kswiftc ではコンパイルが通るが、本家 kotlinc は `error: unresolved reference 'CASE_INSENSITIVE_ORDER'` で拒否する（`String.CASE_INSENSITIVE_ORDER` であれば通る）。発見元: BUG-036（`CASE_INSENSITIVE_ORDER` の参照同一性修正、PR #4994）の CI で `Scripts/diff_cases/case_insensitive_order_identity.kt` が kotlinc diff で失敗し判明 — BUG-036 自体（参照同一性）の修正は正しく、この diff_cases ファイルの `SKIP-DIFF (DEBT-DIFF-005)` 化のみで対応し、根本原因はここに切り出した。今回修正できない理由: この top-level 登録は `CASE_INSENSITIVE_ORDER` 単体ではなく `HeaderHelpers+SyntheticStringStubs.swift` の synthetic property 登録パターン全体に関わる可能性があり（他の `registerSyntheticStringTopLevelProperty` 呼び出しが同様に本来 companion object メンバであるべきものを誤って top-level 化していないか要確認）、`String` の companion object 自体への synthetic メンバ登録経路の要否も含めた設計判断が必要で、単一の小さな修正では閉じられないため見送り
+
+---
+
+## Dead Code 追加監査（2026-07-25）
+
+> 現 HEAD `43419eb0b5` で production / tests / scripts / workflow を横断し、宣言・参照数、target 到達性、`@_cdecl` / ABI spec、protocol witness、動的 link-name 生成、履歴を照合した。さらに 2026-07-25 時点の open PR 34 件について title/body・changed files・該当 diff を確認し、下記対象が既存 PR に含まれないことを確認済み。候補ファイルと重なる PR（#5047、#5039、#5019、#5007、#4959）も exact symbol / hunk 単位で非重複を確認した。
+> 既存追跡との重複を避けるため、`registerCreateInstanceFunction`（KSP-682 / PR #5041）、`BundledKotlinStdlib.bundledStdlibSources()`（KSP-503）、`isStringBuilderLikeType`（DEADCODE-CORE-005 に既出）、動的生成される exception constructor 群、PR #4636 で互換目的に復元された raw String selection export 群は除外した。`Scripts/build_swift_tests.sh` の `common.sh` source も Bash version gate という観測可能な効果があるため dead 扱いしていない。
+
+### CompilerCore
+
+- [ ] DEADCODE-CORE-077: [R0] `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringRegistrationHelpers.swift:168` の `registerSyntheticBigNumberMemberFunction(...)` を削除する。KSP-415 で唯一の 2 caller が削除され、現 HEAD では宣言以外の参照がない
+
+### Runtime / RuntimeABI
+
+- [ ] DEADCODE-RUNTIME-046: [R0] `Sources/Runtime/RuntimeUuid.swift:162` の private `uuidMakeStringRaw(_:)` を削除する。宣言以外の参照、C export、selector、動的登録はいずれもない
+- [ ] DEADCODE-RUNTIME-047: [E0] `Sources/Runtime/RuntimeResult.swift:307` の `kk_runtime_result_success(_:)` と `RuntimeABISpec+Result.swift` の対応 spec を削除する。bundled `Result.kt` はこの export を呼ばず、Runtime 内部は live な `runtimeResultSuccess(_:)` を直接使う
+- [ ] DEADCODE-RUNTIME-048: [E0] `Sources/Runtime/RuntimeResult.swift:312` の `kk_runtime_result_failure(_:)` と `RuntimeABISpec+Result.swift` の対応 spec を削除する。bundled `Result.kt` はこの export を呼ばず、Runtime 内部は live な `runtimeResultFailure(_:)` を直接使う
+- [ ] DEADCODE-RUNTIME-049: [T/D cluster] `Sources/Runtime/RuntimeNetwork.swift:518-814` の `kk_http_*` export 26 本と、それら専用の HTTP box/helper・ABI spec/parity・Runtime-only tests を削除する。commit `5d86bc3a7c` で Kotlin-visible `java.net.http` stubs と compilation tests は削除済みで、現 HEAD の production 到達経路は 0。live な `java.net.URI` / `java.net.URL` surface と共有 helper は保持する
+- [ ] DEADCODE-RUNTIME-050: [T / C ABI 互換性確認] `Sources/Runtime/RuntimeStringHOF.swift:604` の `kk_string_equals(_:_:)` と、それだけを直接検証する `RuntimeStringEqualsTests.swift` を削除する。production emit は `kk_string_equals_flat` のみで、CompilerBackend の回帰テストも raw 版を emit しないことを明示的に assert しており、canonical ABI spec にも登録されていない
+- [ ] DEADCODE-RUNTIME-051: [R0/public property] `Sources/RuntimeABI/RuntimeABIExterns.swift:7` の `RuntimeABIExterns.specVersion` を削除する。参照される canonical property は別宣言の `RuntimeABISpec.specVersion`
+
+### LSPServer / Golden harness
+
+- [ ] DEADCODE-LSP-003: [R0/public API 確認] `Sources/LSPServer/Server.swift:27` の stdio 用 convenience `Server.init()` を削除する。`kswift-lsp` の実 entrypoint は `JSONRPCConnection` を生成して `Server(connection:)` を呼んでいる
+- [ ] DEADCODE-LSP-004: [R0/public API 確認] `Sources/LSPServer/DocumentStore.swift:55` の `document(for:)` を削除する。live caller は `text(for:)` / `version(for:)` のみ
+- [ ] DEADCODE-LSP-005: [W0; 前提 LSP-004] `DocumentStore.Document.uri` (`DocumentStore.swift:27`) と initializer 代入を削除する。URI は `documents` dictionary の key が保持しており、stored property の read は 0
+- [ ] DEADCODE-LSP-006: [W0; 前提 LSP-004 / public API 確認] `DocumentStore.Document.languageId` (`DocumentStore.swift:28`) と `open(...)` からの保存を削除する。didOpen で受け取った後の read は 0
+- [ ] DEADCODE-GOLDEN-001: [R0/public API 確認] `Sources/GoldenHarnessSupport/GoldenHarnessAPI.swift:80` の単一ケース用 `GoldenHarness.renderInSubprocess(suiteName:sourcePath:)` を削除する。test harness が使う `renderBatchInSubprocess(...)` と worker の `render(...)` は保持する
+
+### CI metadata
+
+- [ ] DEADCODE-CI-001: [R0] `.github/workflows/ci.yml:273` の未参照 step ID `cache-kotlin` を削除する。`actions/cache@v5` step 本体は live のため保持する
+
+### Tests / fixture
+
+- [ ] DEADCODE-TEST-042: [R0] `Tests/CompilerCoreTests/Sema/StringToDoubleOrNullFunctionTests.swift:42` の private `externalLinks(...)` を削除する。同ファイルで使われる singular `externalLink(...)` overload 2 本は保持する
+- [ ] DEADCODE-TEST-043: [R0] `Tests/CompilerCoreTests/Sema/StringToFloatOrNullFunctionTests.swift:21` の private `externalLinks(...)` を削除する。同ファイルで使われる singular `externalLink(...)` は保持する
+- [ ] DEADCODE-TEST-044: [R0] `Tests/RuntimeTests/RuntimeCollectionHOFTests.swift:94` の private C closure `windowSum` を削除する。`@convention(c)` だが export / `unsafeBitCast` / registration は 0
+- [ ] DEADCODE-TEST-045: [R0] `Tests/RuntimeTests/RuntimeCollectionHOFTests.swift:330` の private C closure `adjacentDifference` を削除する。`@convention(c)` だが export / `unsafeBitCast` / registration は 0
+- [ ] DEADCODE-TEST-046: [R0] `Tests/RuntimeTests/RuntimeComparatorTests.swift:24` の private C closure `throwingSelector` を削除する。同名の `RuntimeSequenceTests` 内 closure は別 lexical scope で live
+- [ ] DEADCODE-TEST-047: [R0] `Tests/RuntimeTests/RuntimeComparatorTests.swift:49` の private C closure `throwingComparator` を削除する。同名の `RuntimeSequenceTests` 内 closure は別 lexical scope で live
+- [ ] DEADCODE-TEST-048: [R0] `Tests/RuntimeTests/RuntimeComparatorTests.swift:82` の private `primitiveComparatorPtr(...)` を削除する。live な `comparatorPtr(...)` は保持する
+- [ ] DEADCODE-TEST-049: [R0] `Tests/RuntimeTests/RuntimeStringArrayTests.swift:119` の private `throwableBox(from:)` を削除する。他 test file の同名 helper は別 lexical scope で live
+- [ ] DEADCODE-TEST-050: [W0] `Tests/RuntimeTests/RuntimeUnsignedDivisionAndModuloTests.swift:16` の private property `small` を削除する。同名 property を使用する `RuntimeUnsignedComparisonAndToStringTests` は別 suite
+- [ ] DEADCODE-TEST-051: [R0] `Tests/CompilerBackendTests/Integration/TestSupport/Assertions.swift:5` の `assertHasDiagnostic(...)` を削除する。CompilerCoreTests module の同名 helper は別宣言で live
+- [ ] DEADCODE-TEST-052: [R0; 前提 TEST-051] `Tests/CompilerBackendTests/Integration/TestSupport/Assertions.swift:15` の `assertNoDiagnostic(...)` を削除し、import だけになる同ファイルも削除する。CompilerCoreTests module の同名 helper は別宣言で live
+- [ ] DEADCODE-TEST-053: [orphan fixture] `Package.swift:86` で明示的に exclude され、専用 harness もない `Tests/CompilerCoreTests/Integration/ClassDelegationSmokeTest.kt` を削除して exclude entry も外す。live な `Scripts/diff_cases/class_delegation.kt` が同じケースを保持している
