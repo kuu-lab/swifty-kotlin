@@ -49,6 +49,16 @@ func extractCallees(
     }
 }
 
+func extractVirtualCallees(
+    from body: [KIRInstruction],
+    interner: StringInterner
+) -> [String] {
+    body.compactMap { instruction -> String? in
+        guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+        return interner.resolve(callee)
+    }
+}
+
 func extractThrowFlags(
     from body: [KIRInstruction],
     interner: StringInterner
