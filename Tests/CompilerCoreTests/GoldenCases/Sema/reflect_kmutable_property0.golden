@@ -8,13 +8,6 @@ symbol fq=golden.sema.readFrom.$1.prop kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.swap kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KMutableProperty0<String>,String] ret=String
 symbol fq=golden.sema.swap.$2.newValue kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.swap.$2.prop kind=valueParameter vis=private flags=_
-symbol fq=kotlin.reflect.KMutableProperty0 kind=interface vis=public flags=synthetic
-symbol fq=kotlin.reflect.KMutableProperty0.V kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.reflect.KMutableProperty0.set kind=function vis=public flags=synthetic sig=recv=kotlin.reflect.KMutableProperty0<kotlin.reflect.KMutableProperty0.V> params=[kotlin.reflect.KMutableProperty0.V] ret=Unit
-symbol fq=kotlin.reflect.KMutableProperty0.set.value kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.reflect.KProperty0 kind=interface vis=public flags=synthetic
-symbol fq=kotlin.reflect.KProperty0.V kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.reflect.KProperty0.get kind=function vis=public flags=synthetic sig=recv=kotlin.reflect.KProperty0<out kotlin.reflect.KProperty0.V> params=[] ret=kotlin.reflect.KProperty0.V
 file freflect_kmutable_property0 package=golden.sema
   decl golden.sema.assignTo fun assignTo sym=golden.sema.assignTo
   decl golden.sema.readFrom fun readFrom sym=golden.sema.readFrom
