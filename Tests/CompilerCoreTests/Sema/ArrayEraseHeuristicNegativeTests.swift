@@ -7,10 +7,10 @@ import Testing
 /// collection HOF results as `Any`) is not reintroduced.
 ///
 /// Each test verifies that a specific collection higher-order function resolves
-/// to a synthetic stub and is callable on a `List<String>` receiver without
-/// producing a type-mismatch diagnostic.  If the array-erase heuristic is ever
-/// re-introduced, these calls would either fail to resolve or silently erase
-/// the result type — which the golden tests would also catch.
+/// (via bundled source or synthetic stub) and is callable on a `List<String>`
+/// receiver without producing a type-mismatch diagnostic.  If the array-erase
+/// heuristic is ever re-introduced, these calls would either fail to resolve or
+/// silently erase the result type — which the golden tests would also catch.
 @Suite
 struct ArrayEraseHeuristicNegativeTests {
 
@@ -24,14 +24,8 @@ struct ArrayEraseHeuristicNegativeTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listFQ: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-            ]
 
-            // partition is still registered as an explicit synthetic member stub.
-            // mapIndexed is now provided by bundled Kotlin source (top-level extension).
+            // mapIndexed and partition are now provided by bundled Kotlin source (top-level extensions).
             let collectionsFQ: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -49,12 +43,16 @@ struct ArrayEraseHeuristicNegativeTests {
             }
 
             let partitionSymbolID = sema.symbols.lookup(
-                fqName: listFQ + [ctx.interner.intern("partition")]
+                fqName: collectionsFQ + [ctx.interner.intern("partition")]
             )
             #expect(
                 partitionSymbolID != nil,
-                "Expected synthetic List member 'partition' to be registered"
+                "Expected bundled source 'partition' to be registered"
             )
+            if let partitionSymbolID {
+                let symbol = try #require(sema.symbols.symbol(partitionSymbolID))
+                #expect(!symbol.flags.contains(.synthetic), "partition must be a real bundled source declaration")
+            }
         }
     }
 
