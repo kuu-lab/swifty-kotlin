@@ -727,17 +727,6 @@ public func kk_string_singleOrNull_flat(
     return Int(codeUnits[0])
 }
 
-@_cdecl("kk_string_lines_flat")
-public func kk_string_lines_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
-}
-
 @_cdecl("kk_string_toBoolean_flat")
 public func kk_string_toBoolean_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1070,19 +1059,6 @@ public func kk_string_windowedSequence_transform_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     kk_string_windowedSequence_transform(kk_string_from_flat(data, length, byteCount, hash), size, step, partialWindows, fnPtr, closureRaw, outThrown)
-}
-
-@_cdecl("kk_string_lineSequence_flat")
-public func kk_string_lineSequence_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
-    let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
-    return registerRuntimeObject(seq)
 }
 
 @_cdecl("kk_string_trimStart_flat")

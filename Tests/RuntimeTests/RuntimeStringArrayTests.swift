@@ -1926,14 +1926,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testFlatStringListSequenceRuntimeAPIsUseFlattenedStringFields() {
-        withFlatString("a\nb\r\nc") { data, length, byteCount, hash in
-            let lines = runtimeListBox(from: kk_string_lines_flat(data, length, byteCount, hash))
-            XCTAssertEqual(lines?.elements.map(runtimeStringValue), ["a", "b", "c"])
-
-            let lineSequence = kk_string_lineSequence_flat(data, length, byteCount, hash)
-            XCTAssertEqual(runtimeSequenceSourceElements(from: lineSequence)?.map(runtimeStringValue), ["a", "b", "c"])
-        }
-
         withFlatString("a,b,c") { data, length, byteCount, hash in
             withFlatString(",") { delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
                 let split = runtimeListBox(from: kk_string_split_flat(
