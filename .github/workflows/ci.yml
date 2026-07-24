@@ -29,22 +29,20 @@ jobs:
 
   # Hosted CompilerCore and kotlinc-diff shards build in independent
   # workspaces. Verification 2-4 deliberately shares one self-hosted build so
-  # that the expensive SwiftPM products are reused within that lane.
+  # that SmokeTests and the expensive SwiftPM products are reused within that lane.
   verify-core:
-    name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
+    name: Verification 1/5 (CompilerCore, shard ${{ matrix.shard_label }}/2)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix:
         include:
           - shard_index: 0
             shard_label: 1
           - shard_index: 1
             shard_label: 2
-          - shard_index: 2
-            shard_label: 3
     steps:
       - uses: actions/checkout@v7
       - name: Setup Swift
@@ -68,16 +66,11 @@ jobs:
           echo "CompilerCore parallelization width: $worker_count"
       - name: Build compiler and tests
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run smoke tests with strict concurrency warnings
-        if: matrix.shard_index == 0
-        env:
-          SWIFT_TEST_PARALLEL: "1"
-        run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run CompilerCoreTests shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
-            --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
+            --shard-index "${{ matrix.shard_index }}" --shard-count 2 \
             -- --skip '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run CompilerCore frontend benchmarks separately
@@ -91,20 +84,19 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Verification 1/5 reproduce (shard ${{ matrix.shard_label }}/3)"
+            echo "## Verification 1/5 reproduce (shard ${{ matrix.shard_label }}/2)"
             echo '```bash'
             echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
             echo "SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/build_swift_tests.sh -j \"\$worker_count\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
-              echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
               echo "SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             fi
-            echo "SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 2 -- --skip '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-self-hosted:
-    name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
+    name: Verification 2-4/5 (Smoke, Backend, Runtime, CLI, LSP, and Repository Checks)
     runs-on: self-hosted
     timeout-minutes: 300
     steps:
@@ -119,6 +111,12 @@ jobs:
         env:
           SWIFT_TEST_BUILD_JOBS: "4"
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run smoke tests with strict concurrency warnings
+        env:
+          SWIFT_TEST_PARALLEL: "1"
+          SWIFT_TEST_WORKERS: "4"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       # With one shared lane there is no need to list every concrete XCTest
       # method for cross-job sharding. Suite-level static filters also ensure
       # test-discovery failures cannot be mistaken for an empty test set.
@@ -229,6 +227,7 @@ jobs:
             echo '## Verification 2-4/5 reproduce'
             echo '```bash'
             echo 'bash Scripts/build_swift_tests.sh -j 4 -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
+            echo 'SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo 'SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo 'SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo "SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
