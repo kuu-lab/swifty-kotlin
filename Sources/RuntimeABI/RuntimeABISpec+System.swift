@@ -94,16 +94,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sys_write",
-            parameters: [
-                RuntimeABIParameter(name: "fd", type: .int32),
-                RuntimeABIParameter(name: "buffer", type: .constRawPointer),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_platform_isLittleEndian",
             parameters: [
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
