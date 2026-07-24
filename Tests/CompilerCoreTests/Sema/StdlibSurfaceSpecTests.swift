@@ -210,7 +210,9 @@ struct StdlibSurfaceSpecTests {
             let sema = try #require(ctx.sema)
 
             let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
-                (.list, ["kotlin", "collections", "List"], "mapIndexedTo", 2),
+                // List.mapIndexedTo is source-backed (ListHOF.kt) and has no
+                // synthetic runtime-bridge stub; the remaining entries are still
+                // synthetically registered with their runtime links.
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
                 (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),

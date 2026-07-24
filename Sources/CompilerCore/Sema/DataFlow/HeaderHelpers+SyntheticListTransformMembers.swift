@@ -206,19 +206,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let listPredicateType = types.make(.functionType(FunctionType(
-            params: [listTypeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMember(
-            name: "find",
-            parameterTypes: [listPredicateType],
-            externalLinkName: "kk_list_find",
-            returnTypeOverride: types.makeNullable(listTypeParamType)
-        )
-
         let mapToTypeParamName = interner.intern("R")
         let mapToTypeParamSymbol = symbols.define(
             kind: .typeParameter,

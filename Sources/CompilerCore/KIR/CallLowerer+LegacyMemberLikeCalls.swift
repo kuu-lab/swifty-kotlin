@@ -267,8 +267,6 @@ extension CallLowerer {
                     interner.intern("kk_array_any")
                 } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_set_any")
-                } else if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_list_any")
                 } else {
                     nil
                 }
@@ -277,8 +275,6 @@ extension CallLowerer {
                     interner.intern("kk_array_none")
                 } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_set_none")
-                } else if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_list_none")
                 } else {
                     nil
                 }
@@ -2503,26 +2499,7 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_toList"),
-                        arguments: [loweredReceiverID],
-                        result: listExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_list_contains"),
-                        arguments: [listExpr] + normalizedArgIDs,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+
                 let runtimeCallee: String? = switch calleeStr {
                 case "map":
                     "kk_array_map"
@@ -3140,6 +3117,18 @@ extension CallLowerer {
                 }
             }
             if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                let isSourceBackedListCall: Bool = {
+                    guard let sourceCallee = chosenBase64Callee,
+                          let symbol = sema.symbols.symbol(sourceCallee),
+                          symbol.kind == .function,
+                          symbol.declSite != nil,
+                          (sema.symbols.externalLinkName(for: sourceCallee) ?? "").isEmpty
+                    else {
+                        return false
+                    }
+                    return true
+                }()
+                if !isSourceBackedListCall {
                 let calleeStr = interner.resolve(calleeName)
                 let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
                 let runtimeCallee: String? = switch calleeStr {
@@ -3179,10 +3168,6 @@ extension CallLowerer {
                     "kk_list_minOfWithOrNull"
                 case "minBy":
                     "kk_list_minBy"
-                case "indexOf":
-                    "kk_list_indexOf"
-                case "lastIndexOf":
-                    "kk_list_lastIndexOf"
                 case "partition":
                     "kk_list_partition"
                 case "getOrNull":
@@ -3191,8 +3176,6 @@ extension CallLowerer {
                     "kk_list_elementAtOrNull"
                 case "elementAt":
                     "kk_list_elementAt"
-                case "containsAll":
-                    "kk_list_containsAll"
                 case "intersect":
                     "kk_list_intersect"
                 default:
@@ -3221,6 +3204,7 @@ extension CallLowerer {
                         thrownResult: nil
                     ))
                     return result
+                    }
                 }
             }
             if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {

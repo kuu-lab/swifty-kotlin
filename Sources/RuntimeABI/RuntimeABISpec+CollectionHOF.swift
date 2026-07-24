@@ -44,7 +44,7 @@ public extension RuntimeABISpec {
         )
         let before = [
             "kk_list_map", "kk_list_mapNotNull", "kk_list_forEach",
-            "kk_list_flatMap", "kk_list_flatMapIndexed", "kk_list_any", "kk_list_none", "kk_list_all",
+            "kk_list_flatMap", "kk_list_flatMapIndexed",
         ]
         let reduceOrNullSpec = hofSpec("kk_list_reduceOrNull")
         let scanSpec = RuntimeABIFunctionSpec(
@@ -75,7 +75,7 @@ public extension RuntimeABISpec {
         let scanReduceSpec = hofSpec("kk_list_scanReduce")
         let genericAfter = [
             "kk_list_reduce", "kk_list_groupBy", "kk_list_sortedBy",
-            "kk_list_count", "kk_list_first", "kk_list_last", "kk_list_find", "kk_list_findLast",
+            "kk_list_first", "kk_list_last",
         ]
         let destinationLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -686,26 +686,6 @@ public extension RuntimeABISpec {
             isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_list_indexOf",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_lastIndexOf",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
                     name: "kk_list_binarySearchBy",
                     parameters: [
                         RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -759,8 +739,6 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-                hofSpec("kk_list_indexOfFirst"),
-                hofSpec("kk_list_indexOfLast"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",
                     parameters: [
@@ -904,16 +882,6 @@ public extension RuntimeABISpec {
                     parameters: [
                         RuntimeABIParameter(name: "listRaw", type: .intptr),
                         RuntimeABIParameter(name: "otherList", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_containsAll",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherListRaw", type: .intptr),
                     ],
                     returnType: .intptr,
                     section: "Collection",
