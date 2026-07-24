@@ -48,6 +48,12 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.flatMapToName
             || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
+            // KSP-430: Map higher-order functions have Kotlin source implementations.
+            || callee == lookup.mapValuesName
+            || callee == lookup.mapKeysName
+            || callee == lookup.filterKeysName
+            || callee == lookup.filterValuesName
+            || callee == lookup.forEachName
             // STDLIB-pipeline §5: take/drop have real require() validation in
             // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
             // to that source declaration must not be short-circuited to the

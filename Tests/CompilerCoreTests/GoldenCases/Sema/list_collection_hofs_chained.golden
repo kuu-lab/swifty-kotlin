@@ -44,5 +44,5 @@ expr e@6:56 name(it) type=kotlin.collections.Map.Entry<out Int, out kotlin.colle
 expr e@6:56#1 memberCall recv=e@6:56 callee=value args=[] type=kotlin.collections.List<Int> call=kotlin.collections.Map.Entry.value targs=[Int,kotlin.collections.List<Int>]
 expr e@6:56#2 memberCall recv=e@6:56#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@6:54 lambda params=[] body=e@6:56#2 label=mapValues type=(kotlin.collections.Map.Entry<out Int, out kotlin.collections.List<Int>>) -> Any
-expr e@6:18#2 memberCall recv=e@6:18#1 callee=mapValues args=[_:e@6:54] type=kotlin.collections.Map<Int, Int>
+expr e@6:18#2 memberCall recv=e@6:18#1 callee=mapValues args=[_:e@6:54] type=kotlin.collections.Map<Int, Int> call=kotlin.collections.mapValues targs=[Int,kotlin.collections.List<Int>,Int]
 expr e@6:5 localDecl groups mutable=0 type=_ init=e@6:18#2 type=Unit ref=__local_1.groups

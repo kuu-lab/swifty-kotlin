@@ -1056,39 +1056,13 @@ extension CallLowerer {
         }
         switch memberName {
         case "count":
-            return interner.intern(argumentCount == 0 ? "kk_map_size" : "kk_map_count")
-        case "any":
-            return interner.intern("kk_map_any")
-        case "all":
-            return interner.intern("kk_map_all")
-        case "none":
-            return interner.intern("kk_map_none")
+            return argumentCount == 0 ? interner.intern("kk_map_size") : nil
         case "getValue":
             return interner.intern("kk_map_getValue")
         case "getOrDefault":
             return interner.intern("kk_map_getOrDefault")
         case "getOrElse":
             return interner.intern("kk_map_getOrElse")
-        case "maxByOrNull":
-            return interner.intern("kk_map_maxByOrNull")
-        case "minByOrNull":
-            return interner.intern("kk_map_minByOrNull")
-        case "plus":
-            return interner.intern("kk_map_plus")
-        case "minus":
-            return interner.intern("kk_map_minus")
-        case "filterNot":
-            return interner.intern("kk_map_filterNot")
-        case "filterKeys":
-            return interner.intern("kk_map_filterKeys")
-        case "filterValues":
-            return interner.intern("kk_map_filterValues")
-        case "mapNotNull":
-            return interner.intern("kk_map_mapNotNull")
-        case "mapKeysTo":
-            return interner.intern("kk_map_mapKeysTo")
-        case "mapValuesTo":
-            return interner.intern("kk_map_mapValuesTo")
         case "getOrPut":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil
