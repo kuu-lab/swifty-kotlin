@@ -1,48 +1,40 @@
+symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.removePrefix#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=String
-symbol fq=kotlin.text.removePrefix.prefix kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.removeSuffix#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=String
-symbol fq=kotlin.text.removeSuffix.suffix kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.removeSurrounding#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=String
-symbol fq=kotlin.text.removeSurrounding#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String
-symbol fq=kotlin.text.removeSurrounding.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.removeSurrounding.prefix kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.removeSurrounding.suffix kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fremove_prefix_suffix_surrounding package=_
   decl main fun main sym=main
 expr e@3:13 string(HelloWorld) type=String
 expr e@3:39 string(Hello) type=String
-expr e@3:13#1 memberCall recv=e@3:13 callee=removePrefix args=[_:e@3:39] type=String call=kotlin.text.removePrefix#0
+expr e@3:13#1 memberCall recv=e@3:13 callee=removePrefix args=[_:e@3:39] type=String call=kotlin.text.removePrefix
 expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println#1
 expr e@4:13 string(HelloWorld) type=String
 expr e@4:39 string(Goodbye) type=String
-expr e@4:13#1 memberCall recv=e@4:13 callee=removePrefix args=[_:e@4:39] type=String call=kotlin.text.removePrefix#0
+expr e@4:13#1 memberCall recv=e@4:13 callee=removePrefix args=[_:e@4:39] type=String call=kotlin.text.removePrefix
 expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println#1
 expr e@5:13 string() type=String
 expr e@5:29 string(prefix) type=String
-expr e@5:13#1 memberCall recv=e@5:13 callee=removePrefix args=[_:e@5:29] type=String call=kotlin.text.removePrefix#0
+expr e@5:13#1 memberCall recv=e@5:13 callee=removePrefix args=[_:e@5:29] type=String call=kotlin.text.removePrefix
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1
 expr e@6:13 string(prefix) type=String
 expr e@6:35 string(prefix) type=String
-expr e@6:13#1 memberCall recv=e@6:13 callee=removePrefix args=[_:e@6:35] type=String call=kotlin.text.removePrefix#0
+expr e@6:13#1 memberCall recv=e@6:13 callee=removePrefix args=[_:e@6:35] type=String call=kotlin.text.removePrefix
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
 expr e@9:13 string(HelloWorld) type=String
 expr e@9:39 string(World) type=String
-expr e@9:13#1 memberCall recv=e@9:13 callee=removeSuffix args=[_:e@9:39] type=String call=kotlin.text.removeSuffix#0
+expr e@9:13#1 memberCall recv=e@9:13 callee=removeSuffix args=[_:e@9:39] type=String call=kotlin.text.removeSuffix
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
 expr e@10:13 string(HelloWorld) type=String
 expr e@10:39 string(Earth) type=String
-expr e@10:13#1 memberCall recv=e@10:13 callee=removeSuffix args=[_:e@10:39] type=String call=kotlin.text.removeSuffix#0
+expr e@10:13#1 memberCall recv=e@10:13 callee=removeSuffix args=[_:e@10:39] type=String call=kotlin.text.removeSuffix
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
 expr e@11:13 string() type=String
 expr e@11:29 string(suffix) type=String
-expr e@11:13#1 memberCall recv=e@11:13 callee=removeSuffix args=[_:e@11:29] type=String call=kotlin.text.removeSuffix#0
+expr e@11:13#1 memberCall recv=e@11:13 callee=removeSuffix args=[_:e@11:29] type=String call=kotlin.text.removeSuffix
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#1
 expr e@12:13 string(suffix) type=String
 expr e@12:35 string(suffix) type=String
-expr e@12:13#1 memberCall recv=e@12:13 callee=removeSuffix args=[_:e@12:35] type=String call=kotlin.text.removeSuffix#0
+expr e@12:13#1 memberCall recv=e@12:13 callee=removeSuffix args=[_:e@12:35] type=String call=kotlin.text.removeSuffix
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println#1
 expr e@15:13 string([bracketed]) type=String
 expr e@15:45 string([) type=String

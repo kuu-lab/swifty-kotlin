@@ -267,17 +267,28 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringRemovePrefixSuffixSurroundingPointerABIRemoved() {
-        let legacyNames = [
+    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+    // bundled Kotlin source (StringPrefixSuffix.kt); neither the raw pointer nor
+    // the flattened runtime ABI remains.
+    func testKKStringPrefixSuffixABIRemoved() {
+        let removedNames = [
+            "kk_string_startsWith",
+            "kk_string_startsWith_flat",
+            "kk_string_endsWith",
+            "kk_string_endsWith_flat",
             "kk_string_removePrefix",
+            "kk_string_removePrefix_flat",
             "kk_string_removeSuffix",
+            "kk_string_removeSuffix_flat",
             "kk_string_removeSurrounding",
+            "kk_string_removeSurrounding_flat",
             "kk_string_removeSurrounding_pair",
+            "kk_string_removeSurrounding_pair_flat",
         ]
-        for legacyName in legacyNames {
+        for removedName in removedNames {
             XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+                RuntimeABISpec.allFunctions.contains { $0.name == removedName },
+                "\(removedName) should be removed in favor of bundled Kotlin source (StringPrefixSuffix.kt)"
             )
         }
     }
