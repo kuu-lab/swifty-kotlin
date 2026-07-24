@@ -340,14 +340,14 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
 }
 
 // STDLIB-410: emptyMap<K,V>() - allocates a fresh empty map each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_map_put).
 @_cdecl("__kk_emptyMap")
 public func kk_emptyMap() -> Int {
-    return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
+    return registerRuntimeObject(RuntimeMapBox(keys: [], values: []), typeID: mutableMapRuntimeTypeID)
 }
 
 @_cdecl("kk_mutable_map_put")

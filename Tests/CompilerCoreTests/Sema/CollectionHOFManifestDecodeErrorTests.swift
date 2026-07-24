@@ -30,8 +30,6 @@ struct CollectionHOFManifestDecodeErrorTests {
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
             ]
-            let listFQ: [InternedString] = collectionsFQ + [ctx.interner.intern("List")]
-
             // mapIndexed is now provided by bundled Kotlin source (top-level extension).
             let mapIndexedSource = sema.symbols.lookup(
                 fqName: collectionsFQ + [ctx.interner.intern("mapIndexed")]
@@ -42,11 +40,15 @@ struct CollectionHOFManifestDecodeErrorTests {
                 #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
             }
 
-            // partition still uses a synthetic member stub.
+            // partition is now provided by bundled Kotlin source (top-level extension).
             let partitionSymbolID = sema.symbols.lookup(
-                fqName: listFQ + [ctx.interner.intern("partition")]
+                fqName: collectionsFQ + [ctx.interner.intern("partition")]
             )
-            #expect(partitionSymbolID != nil, "Synthetic stub for 'partition' must exist without external metadata")
+            #expect(partitionSymbolID != nil, "partition bundled source must exist without external metadata")
+            if let partitionSymbolID {
+                let symbol = try #require(sema.symbols.symbol(partitionSymbolID))
+                #expect(!symbol.flags.contains(.synthetic), "partition must be a real bundled source declaration")
+            }
 
             // No type-constraint errors expected.
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)

@@ -13,7 +13,6 @@ extension CallTypeChecker {
                  "kk_list_runningFoldIndexed", "kk_list_runningReduceIndexed", "kk_list_scanIndexed",
                  "kk_list_takeWhile", "kk_list_dropLastWhile",
                  "kk_list_sumBy", "kk_list_sumByDouble",
-                 "kk_list_onEach", "kk_list_onEachIndexed",
                  "kk_list_maxBy", "kk_list_minBy", "kk_list_maxByOrNull", "kk_list_minByOrNull",
                  "kk_list_maxOfOrNull", "kk_list_minOfOrNull",
                  "kk_list_maxOf", "kk_list_minOf",

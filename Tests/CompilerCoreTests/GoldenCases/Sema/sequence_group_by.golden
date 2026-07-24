@@ -30,7 +30,7 @@ expr e@4:19 name(seq) type=kotlin.sequences.Sequence<out String> ref=__local_0.s
 expr e@4:33 name(it) type=String ref=s-0
 expr e@4:33#1 memberCall recv=e@4:33 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@4:31 lambda params=[] body=e@4:33#1 label=groupBy type=(String) -> Any
-expr e@4:19#1 memberCall recv=e@4:19 callee=groupBy args=[_:e@4:31] type=kotlin.collections.Map<Int, kotlin.collections.List<String>> call=kotlin.collections.groupBy#0 targs=[String,Int]
+expr e@4:19#1 memberCall recv=e@4:19 callee=groupBy args=[_:e@4:31] type=kotlin.collections.Map<Int, kotlin.collections.List<String>> call=kotlin.collections.groupBy#2 targs=[String,Int]
 expr e@4:5 localDecl grouped mutable=0 type=_ init=e@4:19#1 type=Unit ref=__local_1.grouped
 expr e@5:13 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.List<String>> ref=__local_1.grouped
 expr e@5:21 int(1) type=Int
@@ -62,7 +62,7 @@ expr e@11:65 string(even) type=String
 expr e@11:77 string(odd) type=String
 expr e@11:48 if cond=e@11:52#2 then=e@11:65 else=e@11:77 type=String
 expr e@11:46 lambda params=[] body=e@11:48 label=groupBy type=(Any) -> Any
-expr e@11:20#2 memberCall recv=e@11:20#1 callee=groupBy args=[_:e@11:46] type=kotlin.collections.Map<String, kotlin.collections.List<Any>> call=kotlin.collections.groupBy#0 targs=[Any,String]
+expr e@11:20#2 memberCall recv=e@11:20#1 callee=groupBy args=[_:e@11:46] type=kotlin.collections.Map<String, kotlin.collections.List<Any>> call=kotlin.collections.groupBy#2 targs=[Any,String]
 expr e@11:5 localDecl byParity mutable=0 type=_ init=e@11:20#2 type=Unit ref=__local_3.byParity
 expr e@12:13 name(byParity) type=kotlin.collections.Map<String, kotlin.collections.List<Any>> ref=__local_3.byParity
 expr e@12:22 string(odd) type=String

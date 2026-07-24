@@ -90,7 +90,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListUnzipToCollectionRuntimeCall() throws {
+    func testBuildKIRKeepsListUnzipSourceBacked() throws {
         let source = """
         fun main(values: List<Pair<Int, String>>) {
             values.unzip()
@@ -105,8 +105,8 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_unzip"))
-            XCTAssertFalse(callNames.contains("unzip"))
+            XCTAssertTrue(callNames.contains("unzip"))
+            XCTAssertFalse(callNames.contains("kk_list_unzip"))
         }
     }
 
@@ -133,7 +133,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
         }
     }
 
-    func testBuildKIRLowersListWithIndexToCollectionRuntimeCall() throws {
+    func testBuildKIRKeepsListWithIndexSourceBacked() throws {
         let source = """
         fun main(values: List<Int>) {
             values.withIndex()
@@ -148,8 +148,8 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_list_withIndex"))
-            XCTAssertFalse(callNames.contains("withIndex"))
+            XCTAssertTrue(callNames.contains("withIndex"))
+            XCTAssertFalse(callNames.contains("kk_list_withIndex"))
         }
     }
 

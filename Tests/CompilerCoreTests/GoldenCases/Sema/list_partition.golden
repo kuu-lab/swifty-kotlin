@@ -22,7 +22,7 @@ expr e@3:42#1 binary(modulo) lhs=e@3:42 rhs=e@3:47 type=Int
 expr e@3:52 int(0) type=Int
 expr e@3:42#2 binary(equal) lhs=e@3:42#1 rhs=e@3:52 type=Boolean
 expr e@3:40 lambda params=[] body=e@3:42#2 label=partition type=(Int) -> Boolean
-expr e@3:25#1 memberCall recv=e@3:25 callee=partition args=[_:e@3:40] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
+expr e@3:25#1 memberCall recv=e@3:25 callee=partition args=[_:e@3:40] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> call=kotlin.collections.partition targs=[Int]
 expr e@3:5 destructuringDecl names=[evens,odds] mutable=0 init=e@3:25#1 type=Unit
 expr e@4:13 name(evens) type=kotlin.collections.List<Int> ref=__destructuring_0.evens
 expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println#1

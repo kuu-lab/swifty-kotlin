@@ -3,7 +3,7 @@ package kotlin.collections
 // MIGRATION-COL-009
 // List window/chunk HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-// Functions: chunked, windowed, zipWithNext, zip, withIndex
+// Functions: chunked, windowed, zipWithNext, zip
 
 private external fun <T> __kk_list_chunked(receiver: Iterable<T>, size: Int): List<List<T>>
 private external fun <T, R> __kk_list_chunked_transform(
@@ -103,14 +103,3 @@ public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> =
 
 public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> =
     __kk_list_zip_transform(this, other, transform)
-
-// ── withIndex ────────────────────────────────────────────────────────────────
-//
-// Kotlin stdlib: fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>>
-// Residual ABI counterpart: kk_list_withIndex
-//
-private external fun <T> kk_list_withIndex(receiver: Iterable<T>): Iterable<IndexedValue<T>>
-
-public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
-    return kk_list_withIndex(this)
-}

@@ -164,12 +164,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_minOfWith")
             case "minOfWithOrNull":
                 return interner.intern("kk_list_minOfWithOrNull")
-            case "onEach":
-                return interner.intern("kk_list_onEach")
-            case "onEachIndexed":
-                return interner.intern("kk_list_onEachIndexed")
-            case "partition":
-                return interner.intern("kk_list_partition")
             case "subList":
                 return interner.intern("kk_list_subList")
             case "toTypedArray":
@@ -424,8 +418,6 @@ extension CallLowerer {
             return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
-        case "partition":
-            return interner.intern("kk_list_partition")
         case "zipWithNext" where isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner):
             return interner.intern(hasHOFLambdaArg
                 ? "kk_sequence_zipWithNextTransform"
@@ -463,10 +455,6 @@ extension CallLowerer {
             return interner.intern("kk_list_minOfWith")
         case "minOfWithOrNull":
             return interner.intern("kk_list_minOfWithOrNull")
-        case "onEach":
-            return interner.intern("kk_list_onEach")
-        case "onEachIndexed":
-            return interner.intern("kk_list_onEachIndexed")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         case "binarySearch":
