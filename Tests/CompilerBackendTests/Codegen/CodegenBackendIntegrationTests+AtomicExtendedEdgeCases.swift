@@ -307,6 +307,23 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanBasic", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
+    func testCodegenAtomicBooleanGetSetGetAndSet() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.AtomicBoolean
+
+        fun main() {
+            val a = AtomicBoolean(false)
+            println(a.get())
+            a.set(true)
+            println(a.get())
+            println(a.getAndSet(false))
+            println(a.get())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanGetSet", expected: "false\ntrue\ntrue\nfalse\n")
+    }
+
     func testCodegenAtomicBooleanAsJavaAtomic() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)

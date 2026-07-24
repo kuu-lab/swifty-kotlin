@@ -81,6 +81,7 @@ extension DataFlowSemaPhase {
             includeArithmetic: false,
             includeGetAndUpdate: true,
             includeFetchAndUpdateAlias: true,
+            includeGetAndSetAlias: true,
             symbols: symbols,
             interner: interner,
             types: types

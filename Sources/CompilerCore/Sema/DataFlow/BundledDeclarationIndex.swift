@@ -237,9 +237,9 @@ struct BundledDeclarationIndex: Sendable {
         // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
         // extension functions in kotlin.concurrent, but current member-call
         // resolution still needs the receiver-owned synthetic bridge when users
-        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference
-        // directly. Retain these runtime-backed aliases until the bundled source
-        // path is visible to ordinary member-call lookup.
+        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference/
+        // AtomicBoolean directly. Retain these runtime-backed aliases until the
+        // bundled source path is visible to ordinary member-call lookup.
         switch ownerFQName {
         case ["kotlin", "concurrent", "atomics", "AtomicInt"],
              ["kotlin", "concurrent", "AtomicInt"],
@@ -254,7 +254,9 @@ struct BundledDeclarationIndex: Sendable {
                 return false
             }
         case ["kotlin", "concurrent", "atomics", "AtomicReference"],
-             ["kotlin", "concurrent", "AtomicReference"]:
+             ["kotlin", "concurrent", "AtomicReference"],
+             ["kotlin", "concurrent", "atomics", "AtomicBoolean"],
+             ["kotlin", "concurrent", "AtomicBoolean"]:
             switch interner.resolve(key.name) {
             case "get":
                 return key.arity == 0
