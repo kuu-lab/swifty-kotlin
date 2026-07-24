@@ -75,7 +75,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.allName
             || callee == lookup.noneName
             || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName,
+            || callee == lookup.lastOrNullName
+            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
+            || callee == lookup.copyOfName
+            || callee == lookup.copyOfRangeName,
             let symbol,
             let sema = context.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),

@@ -113,6 +113,26 @@ extension CallLowerer {
             return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
                 && (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
         }()
+        // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
+        // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
+        // When Sema resolves the call to that source declaration, skip the legacy
+        // kk_array_copyOf* interception below so the resolved symbol is emitted.
+        let isSourceBackedArrayCopyCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil,
+                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+            else {
+                return false
+            }
+            let sourceBackedArrayCopyFQNames: Set<[InternedString]> = [
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOf")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOfRange")],
+            ]
+            return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -3228,6 +3248,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedArrayCopyCall,
                interner.resolve(calleeName) == "copyOf"
             {
                 instructions.append(.call(
@@ -3245,7 +3266,8 @@ extension CallLowerer {
         if args.count == 2 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedArrayCopyCall {
                 if interner.resolve(calleeName) == "copyOf" {
                     let fnPtrExpr: KIRExprID
                     let envPtrExpr: KIRExprID
@@ -3491,7 +3513,7 @@ extension CallLowerer {
                 case "toTypedArray":
                     "kk_array_copyOf"
                 case "copyOf":
-                    "kk_array_copyOf"
+                    isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
                 default:
