@@ -2226,6 +2226,15 @@ extension CallTypeChecker {
             )
         }
 
+        if memberName == interner.intern("asSequence") {
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
+        }
+
         return sema.types.anyType
     }
 

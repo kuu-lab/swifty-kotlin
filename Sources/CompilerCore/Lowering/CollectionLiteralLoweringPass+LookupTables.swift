@@ -118,8 +118,6 @@ struct CollectionLiteralLookupTables {
     let kkListAssociateByToName: InternedString
     let kkListAssociateWithToName: InternedString
     let kkListGroupByToName: InternedString
-    let kkListFirstName: InternedString
-    let kkListLastName: InternedString
     let kkListZipBridgeName: InternedString
     let kkListZipTransformBridgeName: InternedString
     let kkListZipWithNextBridgeName: InternedString
@@ -893,8 +891,6 @@ struct CollectionLiteralLookupTables {
         kkListAssociateByToName = interner.intern("kk_list_associateByTo")
         kkListAssociateWithToName = interner.intern("kk_list_associateWithTo")
         kkListGroupByToName = interner.intern("kk_list_groupByTo")
-        kkListFirstName = interner.intern("kk_list_first")
-        kkListLastName = interner.intern("kk_list_last")
         kkListZipBridgeName = interner.intern("__kk_list_zip")
         kkListZipTransformBridgeName = interner.intern("__kk_list_zip_transform")
         kkListZipWithNextBridgeName = interner.intern("__kk_list_zipWithNext")

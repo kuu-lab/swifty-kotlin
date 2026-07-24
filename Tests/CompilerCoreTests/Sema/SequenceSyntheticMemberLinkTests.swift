@@ -9,15 +9,14 @@ struct SequenceSyntheticMemberLinkTests {
     // 30-line boilerplate used by the remaining tests in this file (which are kept verbose
     // for now to minimize this PR's diff; gradual migration is planned).
     @Test func testSequenceFilterTypeChecksInCallExpressions() throws {
-        try assertSequenceMemberResolves(
+        try assertSequenceSourceExtensionResolves(
             source: """
             fun evenValues(): Sequence<Int> {
                 val values = sequenceOf(1, 2, 3, 4)
                 return values.filter { value -> value % 2 == 0 }
             }
             """,
-            memberName: "filter",
-            expectedLinkName: "kk_sequence_filter",
+            functionName: "filter",
             diagnosticContext: "Sequence.filter"
         )
     }
@@ -125,33 +124,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceFlatMapResolvesInCallExpressions() throws {
-        let source = """
-        fun expand(): Sequence<Int> {
-            val values = sequenceOf(1, 2)
-            return values.flatMap { value -> listOf(value, value * 10) }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.flatMap surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "flatMap"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_flatMap"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun expand(): Sequence<Int> {
+                val values = sequenceOf(1, 2)
+                return values.flatMap { value -> listOf(value, value * 10) }
+            }
+            """,
+            functionName: "flatMap",
+            diagnosticContext: "Sequence.flatMap"
+        )
     }
 
     @Test func testSequenceAsSequenceResolvesInCallExpressions() throws {
@@ -502,33 +484,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToListResolvesInCallExpressions() throws {
-        let source = """
-        fun collectValues(): List<Int> {
-            val values = sequenceOf(1, 2, 3)
-            return values.toList()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.toList surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "toList"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_to_list"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun collectValues(): List<Int> {
+                val values = sequenceOf(1, 2, 3)
+                return values.toList()
+            }
+            """,
+            functionName: "toList",
+            diagnosticContext: "Sequence.toList"
+        )
     }
 
     @Test func testSequenceToHashSetResolvesInCallExpressions() throws {
@@ -793,33 +758,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToMutableListResolvesInCallExpressions() throws {
-        let source = """
-        fun collectMutableValues(): MutableList<Int> {
-            val values = sequenceOf(1, 2, 3)
-            return values.toMutableList()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.toMutableList surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "toMutableList"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_toMutableList"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun collectMutableValues(): MutableList<Int> {
+                val values = sequenceOf(1, 2, 3)
+                return values.toMutableList()
+            }
+            """,
+            functionName: "toMutableList",
+            diagnosticContext: "Sequence.toMutableList"
+        )
     }
 
     @Test func testSequenceToCollectionResolvesInCallExpressions() throws {
@@ -1139,34 +1087,17 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceOnEachResolvesInCallExpressions() throws {
-        let source = """
-        fun traceValues(): Sequence<Int> {
-            var sum = 0
-            val values = sequenceOf(1, 2, 3)
-            return values.onEach { value -> sum += value }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.onEach surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "onEach"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_onEach"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun traceValues(): Sequence<Int> {
+                var sum = 0
+                val values = sequenceOf(1, 2, 3)
+                return values.onEach { value -> sum += value }
+            }
+            """,
+            functionName: "onEach",
+            diagnosticContext: "Sequence.onEach"
+        )
     }
 
     @Test func testSequenceContainsResolvesInCallExpressions() throws {
@@ -1243,34 +1174,17 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceOnEachIndexedResolvesInCallExpressions() throws {
-        let source = """
-        fun traceIndexedValues(): Sequence<Int> {
-            var trace = ""
-            val values = sequenceOf(10, 20, 30)
-            return values.onEachIndexed { index, value -> trace += "$index:$value;" }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.onEachIndexed surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "onEachIndexed"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_onEachIndexed"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun traceIndexedValues(): Sequence<Int> {
+                var trace = ""
+                val values = sequenceOf(10, 20, 30)
+                return values.onEachIndexed { index, value -> trace += "$index:$value;" }
+            }
+            """,
+            functionName: "onEachIndexed",
+            diagnosticContext: "Sequence.onEachIndexed"
+        )
     }
 
     @Test func testSequenceUnionResolvesInCallExpressions() throws {
@@ -1364,33 +1278,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToSetResolvesInCallExpressions() throws {
-        let source = """
-        fun collectValues(): Set<Int> {
-            val values = sequenceOf(1, 2, 3, 2)
-            return values.toSet()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.toSet surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "toSet"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_toSet"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun collectValues(): Set<Int> {
+                val values = sequenceOf(1, 2, 3, 2)
+                return values.toSet()
+            }
+            """,
+            functionName: "toSet",
+            diagnosticContext: "Sequence.toSet"
+        )
     }
 
     @Test func testSequenceToMutableSetResolvesInCallExpressions() throws {
@@ -1616,30 +1513,38 @@ struct SequenceSyntheticMemberLinkTests {
             )
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "withIndex"]
+            let extensionFQName = ["kotlin", "sequences", "withIndex"]
                 .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            let withIndexSymbol = try #require(
+                sema.symbols.lookup(fqName: extensionFQName),
+                "Expected Sequence.withIndex source extension to be registered"
             )
-            #expect(links.contains("kk_sequence_withIndex"))
+            #expect(sema.symbols.externalLinkName(for: withIndexSymbol) == nil)
 
-            let withIndexSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
+            let pairSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("IndexedValue"),
+                ctx.interner.intern("Pair"),
             ]))
             let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
             guard case let .classType(sequenceType) = sema.types.kind(of: signature.returnType),
-                  let firstArg = sequenceType.args.first,
-                  case let .out(elementType) = firstArg,
-                  case let .classType(indexedValueType) = sema.types.kind(of: elementType)
+                  let firstArg = sequenceType.args.first
             else {
-                Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
+                Issue.record("Expected Sequence.withIndex() to return Sequence<Pair<Int, T>>")
                 return
             }
-            #expect(indexedValueType.classSymbol == indexedValueSymbol)
+            let elementType: TypeID
+            switch firstArg {
+            case .invariant(let t), .out(let t), .in(let t):
+                elementType = t
+            case .star:
+                Issue.record("Expected Sequence.withIndex() element type, got star projection")
+                return
+            }
+            guard case let .classType(pairType) = sema.types.kind(of: elementType) else {
+                Issue.record("Expected Sequence.withIndex() to return Sequence<Pair<Int, T>>")
+                return
+            }
+            #expect(pairType.classSymbol == pairSymbol)
         }
     }
 
@@ -1894,32 +1799,15 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceFilterNotNullResolvesInCallExpressions() throws {
-        let source = """
-        fun values(input: Sequence<Int?>): Sequence<Int> {
-            return input.filterNotNull()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.filterNotNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "filterNotNull"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_filterNotNull"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun values(input: Sequence<Int?>): Sequence<Int> {
+                return input.filterNotNull()
+            }
+            """,
+            functionName: "filterNotNull",
+            diagnosticContext: "Sequence.filterNotNull"
+        )
     }
 
     @Test func testSequenceMaxOfOrNullResolvesInCallExpressions() throws {
@@ -2106,33 +1994,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceFilterNotResolvesInCallExpressions() throws {
-        let source = """
-        fun odds(): Sequence<Int> {
-            val values = sequenceOf(1, 2, 3, 4, 5)
-            return values.filterNot { value -> value % 2 == 0 }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.filterNot surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "filterNot"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_filterNot"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun odds(): Sequence<Int> {
+                val values = sequenceOf(1, 2, 3, 4, 5)
+                return values.filterNot { value -> value % 2 == 0 }
+            }
+            """,
+            functionName: "filterNot",
+            diagnosticContext: "Sequence.filterNot"
+        )
     }
 
     @Test func testSequenceFilterIsInstanceToResolvesInCallExpressions() throws {
@@ -2586,33 +2457,16 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceRequireNoNullsResolvesNullableReceiverInCallExpressions() throws {
-        let source = """
-        fun checked(values: Sequence<Int?>) {
-            val result = values.requireNoNulls()
-            println(result.toList())
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.requireNoNulls surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "requireNoNulls"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_requireNoNulls"))
-        }
+        try assertSequenceSourceExtensionResolves(
+            source: """
+            fun checked(values: Sequence<Int?>) {
+                val result = values.requireNoNulls()
+                println(result.toList())
+            }
+            """,
+            functionName: "requireNoNulls",
+            diagnosticContext: "Sequence.requireNoNulls"
+        )
     }
 
     @Test func testSequenceMaxByResolvesInCallExpressions() throws {
