@@ -1993,7 +1993,10 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(receiverName) == "list"
             })
             let listCallee = try #require(sema.bindings.callBinding(for: listCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: listCallee) == "kk_list_getOrElse")
+            let listSymbol = try #require(sema.symbols.symbol(listCallee))
+            #expect(sema.symbols.externalLinkName(for: listCallee) == nil)
+            #expect(!listSymbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(listSymbol.name) == "getOrElse")
 
             let mapCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(receiver, callee, _, _, _) = expr,
