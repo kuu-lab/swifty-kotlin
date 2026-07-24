@@ -926,7 +926,7 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty"]
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "ifEmpty"]
         let memberNameText = interner.resolve(calleeName)
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)

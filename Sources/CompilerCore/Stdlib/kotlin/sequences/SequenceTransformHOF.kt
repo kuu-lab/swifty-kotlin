@@ -248,6 +248,34 @@ public fun <T, R : Any> Sequence<T>.mapIndexedNotNull(transform: (Int, T) -> R?)
     }
 }
 
+public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Iterable<R>): Sequence<R> {
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+            var currentIterator: Iterator<R> = emptySequence<R>().iterator()
+
+            fun ensureNext() {
+                while (!currentIterator.hasNext()) {
+                    if (!sourceIterator.hasNext()) return
+                    currentIterator = transform(sourceIterator.next()).iterator()
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                ensureNext()
+                return currentIterator.hasNext()
+            }
+
+            override fun next(): R {
+                ensureNext()
+                if (!currentIterator.hasNext()) throw NoSuchElementException()
+                return currentIterator.next()
+            }
+        }
+    }
+}
+
 public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Sequence<R>): Sequence<R> {
     val source = this
     return object : Sequence<R> {
@@ -259,6 +287,36 @@ public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Sequence<R>): Sequence<R
                 while (!currentIterator.hasNext()) {
                     if (!sourceIterator.hasNext()) return
                     currentIterator = transform(sourceIterator.next()).iterator()
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                ensureNext()
+                return currentIterator.hasNext()
+            }
+
+            override fun next(): R {
+                ensureNext()
+                if (!currentIterator.hasNext()) throw NoSuchElementException()
+                return currentIterator.next()
+            }
+        }
+    }
+}
+
+public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Iterable<R>): Sequence<R> {
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+            var index = 0
+            var currentIterator: Iterator<R> = emptySequence<R>().iterator()
+
+            fun ensureNext() {
+                while (!currentIterator.hasNext()) {
+                    if (!sourceIterator.hasNext()) return
+                    currentIterator = transform(index, sourceIterator.next()).iterator()
+                    index = index + 1
                 }
             }
 

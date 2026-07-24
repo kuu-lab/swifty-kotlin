@@ -38,7 +38,7 @@ extension CallTypeChecker {
             "maxOf", "minOf",
             "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinct", "distinctBy", "zip", "zipWithNext",
+            "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
             "flatten", "asSequence",
             "sort", "sortBy", "sortByDescending", "sortWith",
         ]
@@ -1377,17 +1377,6 @@ extension CallTypeChecker {
                     case "first", "last", "single":
                         resultType = collectionElementType
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
-                    case "distinct":
-                        if isSequenceReceiver {
-                            resultType = makeSyntheticSequenceType(
-                                symbols: sema.symbols,
-                                types: sema.types,
-                                interner: interner,
-                                elementType: collectionElementType
-                            )
-                        } else {
-                            resultType = receiverType
-                        }
                     case "withIndex":
                         let pairSymbol = lookupStdlibSymbol("Pair", symbols: sema.symbols, interner: interner)
                         let intType = sema.types.intType
