@@ -89,6 +89,23 @@ private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible 
     }
 }
 
+/// Safety timeout for acquiring a process-wide runtime isolation lock.
+///
+/// These `value: 1` semaphores serialize every Swift Testing case and XCTest
+/// case that mutates global runtime state, so they are heavily contended within
+/// a single test process. On a CPU-starved host (e.g. a parallel `swift build`
+/// running alongside `swift test`) a legitimately-queued waiter can block far
+/// longer than a few seconds while the current holder is starved of CPU. The
+/// timeout exists only to surface a genuine deadlock, so it is deliberately
+/// generous and overridable via `RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS`.
+private let runtimeIsolationLockWaitTimeout: DispatchTimeInterval = {
+    if let raw = ProcessInfo.processInfo.environment["RUNTIME_TEST_ISOLATION_LOCK_TIMEOUT_SECONDS"],
+       let seconds = Int(raw), seconds > 0 {
+        return .seconds(seconds)
+    }
+    return .seconds(120)
+}()
+
 private func semaphores(for lockSet: RuntimeLockSet) -> [DispatchSemaphore] {
     switch lockSet {
     case .none:
@@ -175,12 +192,13 @@ private func acquireSemaphores(
 
 private func acquireSemaphoresBlocking(
     _ semaphores: [DispatchSemaphore],
-    testName: String
+    testName: String,
+    timeout: DispatchTimeInterval = runtimeIsolationLockWaitTimeout
 ) throws -> [DispatchSemaphore] {
     var acquiredSemaphores: [DispatchSemaphore] = []
 
     for semaphore in semaphores {
-        let waitResult = semaphore.wait(timeout: .now() + .seconds(30))
+        let waitResult = semaphore.wait(timeout: .now() + timeout)
         guard waitResult == .success else {
             releaseSemaphores(acquiredSemaphores)
             throw RuntimeIsolationLockTimeoutError(testName: testName)
@@ -218,24 +236,138 @@ func runtimeIsolationSemaphoreWaitRunsOffCooperativePool() async throws {
     releaseSemaphores(acquired)
 }
 
+/// Thread-safe observer of the maximum number of holders inside a critical
+/// section, used to assert mutual exclusion under contention.
+private final class RuntimeIsolationConcurrencyProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = 0
+    private var observedMax = 0
+
+    func enter() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        current += 1
+        observedMax = max(observedMax, current)
+        return current
+    }
+
+    func leave() {
+        lock.lock()
+        defer { lock.unlock() }
+        current -= 1
+    }
+
+    var maxObserved: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return observedMax
+    }
+}
+
+// MARK: - Isolation-lock robustness regression tests
+
+/// A lock that stays held (never signaled) must surface a timeout by *throwing*,
+/// not by aborting the process. Regression for the flaky
+/// `RuntimeTestIsolationSupport` crash where a 30s contention timeout escalated
+/// to a fatal `preconditionFailure` (SIGILL) that killed every in-flight test.
+@Test
+func runtimeIsolationLockAcquisitionTimesOutWithoutCrashing() throws {
+    let heldForever = DispatchSemaphore(value: 0)
+    #expect(throws: RuntimeIsolationLockTimeoutError.self) {
+        _ = try acquireSemaphoresBlocking(
+            [heldForever],
+            testName: "timeout-regression",
+            timeout: .milliseconds(50)
+        )
+    }
+}
+
+/// `RuntimeTestIsolationLease` must degrade to a *recorded issue* (non-fatal) on
+/// a lock timeout, leaving the lease empty, instead of crashing the test binary.
+@Test
+func runtimeIsolationLeaseTimeoutIsNonFatal() {
+    let heldForever = DispatchSemaphore(value: 0)
+    var lease: RuntimeTestIsolationLease?
+    withKnownIssue("isolation lock intentionally times out") {
+        lease = RuntimeTestIsolationLease(
+            semaphores: [heldForever],
+            testName: "lease-timeout-regression",
+            timeout: .milliseconds(50)
+        )
+    }
+    #expect(lease?.isHoldingLocks == false)
+    lease?.release()
+}
+
+/// Many contenders on a single-token lock must serialize (never overlap) and all
+/// complete, proving acquire/release stays balanced with no leaked token.
+@Test
+func runtimeIsolationLockSerializesConcurrentContenders() async {
+    let mutex = DispatchSemaphore(value: 1)
+    let probe = RuntimeIsolationConcurrencyProbe()
+
+    await withTaskGroup(of: Void.self) { group in
+        for _ in 0..<32 {
+            group.addTask {
+                guard let acquired = try? acquireSemaphoresBlocking(
+                    [mutex],
+                    testName: "serialize-regression",
+                    timeout: .seconds(30)
+                ) else {
+                    Issue.record("unexpected isolation lock timeout")
+                    return
+                }
+                #expect(probe.enter() == 1)
+                probe.leave()
+                releaseSemaphores(acquired)
+            }
+        }
+    }
+
+    #expect(probe.maxObserved == 1)
+    // The single token is back (balanced release, no leak).
+    #expect(mutex.wait(timeout: .now()) == .success)
+    mutex.signal()
+}
+
 /// Use this base class for runtime tests that mutate global runtime state or
 /// observe file-global callback state.
 final class RuntimeTestIsolationLease {
-    private let lockSet: RuntimeLockSet
     private var acquiredSemaphores: [DispatchSemaphore] = []
 
-    init(lockSet: RuntimeLockSet) {
-        self.lockSet = lockSet
-        for semaphore in semaphores(for: lockSet) {
-            guard semaphore.wait(timeout: .now() + .seconds(30)) == .success else {
-                for acquired in acquiredSemaphores.reversed() {
-                    acquired.signal()
-                }
-                preconditionFailure("Runtime test isolation lock timed out while waiting for available token")
-            }
-            acquiredSemaphores.append(semaphore)
+    convenience init(lockSet: RuntimeLockSet) {
+        self.init(
+            semaphores: semaphores(for: lockSet),
+            testName: "RuntimeTestIsolationLease(\(lockSet))",
+            timeout: runtimeIsolationLockWaitTimeout
+        )
+    }
+
+    /// Designated initializer with injectable semaphores/timeout so the timeout
+    /// path can be exercised deterministically by regression tests.
+    init(
+        semaphores: [DispatchSemaphore],
+        testName: String,
+        timeout: DispatchTimeInterval
+    ) {
+        do {
+            acquiredSemaphores = try acquireSemaphoresBlocking(
+                semaphores,
+                testName: testName,
+                timeout: timeout
+            )
+        } catch {
+            // A timeout here is virtually always CPU starvation on the host, not
+            // a real deadlock. Record a non-fatal issue instead of crashing: a
+            // preconditionFailure aborts the entire test process with SIGILL,
+            // taking down every other in-flight test and losing all results.
+            Issue.record("Runtime test isolation lock timed out: \(error)")
+            acquiredSemaphores = []
         }
     }
+
+    /// Whether the lease successfully acquired its locks (false after a timeout).
+    var isHoldingLocks: Bool { !acquiredSemaphores.isEmpty }
 
     func release() {
         for semaphore in acquiredSemaphores.reversed() {
@@ -262,7 +394,7 @@ class IsolatedRuntimeXCTestCase: XCTestCase {
 
         let sems = semaphores(for: type(of: self).requiredLockSet)
         for sem in sems {
-            let waitResult = sem.wait(timeout: .now() + .seconds(30))
+            let waitResult = sem.wait(timeout: .now() + runtimeIsolationLockWaitTimeout)
             guard waitResult == .success else {
                 for acquired in acquiredSemaphores { acquired.signal() }
                 acquiredSemaphores = []
