@@ -1262,30 +1262,8 @@ public func kk_string_windowed_partial_flat(
     runtimeStringWindowedPartialList(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), size: size, step: step, partialWindows: partialWindows)
 }
 
-@_cdecl("kk_string_substring_flat")
-public func kk_string_substring_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ startRaw: Int,
-    _ endRaw: Int,
-    _ hasEndRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_substring(
-        kk_string_from_flat(data, length, byteCount, hash),
-        startRaw,
-        endRaw,
-        hasEndRaw,
-        outThrown
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
+// KSP-406: substring/subSequence flat bridges removed with the bundled Kotlin
+// source migration (StringSubstringSlice.kt).
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
 // (StringTakeDrop.kt); their flat runtime bridges were removed.

@@ -1752,21 +1752,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "substring" {
-                    let hasEndExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(0)))
-                    let endExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: endExpr, value: .intLiteral(0)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_substring_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], endExpr, hasEndExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "windowed" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1950,19 +1935,6 @@ extension CallLowerer {
                 return result
             }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "subSequence"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_subSequence_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
                calleeStr == "indexOf",
                sema.types.isSubtype(firstArgType, sema.types.stringType)
             {
@@ -2085,21 +2057,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "substring"
-            {
-                let hasEndExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
-                instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(1)))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_substring_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], hasEndExpr],
-                    result: result,
-                    canThrow: true,
                     thrownResult: nil
                 ))
                 return result
@@ -2241,57 +2198,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-            }
-        }
-
-        // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
-        if args.count == 2, interner.resolve(calleeName) == "removeRange" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_removeRange_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: removeRange(range) (STDLIB-TEXT-EDGE-008)
-        if args.count == 1, interner.resolve(calleeName) == "removeRange" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_removeRange_range_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: replaceRange(range, replacement) (STDLIB-188)
-        if args.count == 2, interner.resolve(calleeName) == "replaceRange" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_replaceRange_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
             }
         }
 

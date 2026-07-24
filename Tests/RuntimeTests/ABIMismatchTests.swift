@@ -414,58 +414,30 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringReplaceRangeFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replaceRange_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.count, 13)
-        XCTAssertEqual(spec.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-    }
-
-    func testKKStringRemoveRangeFlatSignatures() throws {
-        let indexed = try requireSpec("kk_string_removeRange_flat")
-        XCTAssertEqual(indexed.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(indexed.parameters.count, 10)
-        XCTAssertEqual(indexed.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-
-        let ranged = try requireSpec("kk_string_removeRange_range_flat")
-        XCTAssertEqual(ranged.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(ranged.parameters.count, 9)
-        XCTAssertEqual(ranged.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
+    func testKKStringSubstringSliceRangeABIRemoved() {
+        // KSP-406: substring / subSequence / slice / removeRange / replaceRange are
+        // bundled Kotlin source with no String-specific runtime ABI (raw or flat).
+        let removedNames = [
+            "kk_string_substring",
+            "kk_string_substring_flat",
+            "kk_string_subSequence",
+            "kk_string_subSequence_flat",
+            "kk_string_slice_range",
+            "kk_string_slice_iterable",
+            "kk_string_removeRange",
+            "kk_string_removeRange_flat",
+            "kk_string_removeRange_range",
+            "kk_string_removeRange_range_flat",
+            "kk_string_replaceRange",
+            "kk_string_replaceRange_flat",
+            "kk_string_replaceRange_indices",
+        ]
+        for removedName in removedNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == removedName },
+                "\(removedName) should be removed: substring/slice/range edits are source-backed after KSP-406"
+            )
+        }
     }
 
     func testKKStringPadPointerABIRemoved() {

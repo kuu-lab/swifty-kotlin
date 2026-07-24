@@ -524,25 +524,8 @@ extension DataFlowSemaPhase {
         )
 
 
-        registerSyntheticStringExtensionFunction(
-            named: "subSequence",
-            externalLinkName: "kk_string_subSequence_flat",
-            receiverType: stringType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use substring(startIndex, endIndex) instead.\"",
-                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
-                    ]
-                ),
-            ],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: subSequence/substring are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
@@ -567,33 +550,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
@@ -1463,99 +1419,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-188: replaceRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_indices",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-008: removeRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_range_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
-        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
-        // KIR lowering distinguishes the two via isRangeExpr on the argument.
-        let listOfIntTypeForSlice = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_range",
-            receiverType: stringType,
-            parameters: [
-                ("indices", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_iterable",
-            receiverType: stringType,
-            parameters: [
-                ("indices", listOfIntTypeForSlice, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // --- STDLIB-189: String HOF (filter, map, count, any, all, none) ---
         let charToBoolType = types.make(.functionType(FunctionType(
