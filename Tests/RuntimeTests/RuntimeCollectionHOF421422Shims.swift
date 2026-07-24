@@ -423,4 +423,3 @@ public func kk_list_runningReduceIndexed(_ listRaw: Int, _ fnPtr: Int, _ closure
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
-
