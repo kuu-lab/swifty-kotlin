@@ -172,7 +172,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "listOf should become kk_list_of")
+        #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
     @Test
@@ -187,7 +187,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf should become kk_list_of")
+        #expect(callees.contains("__kk_list_of"), "mutableListOf should become __kk_list_of")
     }
 
     @Test
@@ -202,7 +202,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "arrayListOf should become kk_list_of")
+        #expect(callees.contains("__kk_list_of"), "arrayListOf should become __kk_list_of")
     }
 
     @Test
@@ -217,7 +217,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyList"), "emptyList should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "emptyList should become kk_emptyList")
+        #expect(callees.contains("__kk_emptyList"), "emptyList should become __kk_emptyList")
     }
 
     @Test
@@ -266,7 +266,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
     }
 
     @Test
@@ -295,7 +295,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "linkedMapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "linkedMapOf should become __kk_map_of")
     }
 
     @Test
@@ -324,7 +324,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "hashMapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "hashMapOf should become __kk_map_of")
     }
 
     @Test
@@ -339,7 +339,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyMap"), "emptyMap should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "emptyMap should become kk_emptyMap")
+        #expect(callees.contains("__kk_emptyMap"), "emptyMap should become __kk_emptyMap")
     }
 
     @Test
@@ -390,7 +390,7 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
         #expect(!callees.contains("count"), "map.count should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
         #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
     }
 
@@ -441,7 +441,7 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
         #expect(!callees.contains("any"), "map.any should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
         #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
     }
 
@@ -492,7 +492,7 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
         #expect(!callees.contains("all"), "map.all should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
         #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
     }
 
@@ -543,7 +543,7 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
         #expect(!callees.contains("none"), "map.none should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
         #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
     }
 
@@ -561,7 +561,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptySet"), "emptySet should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "emptySet should become kk_emptySet")
+        #expect(callees.contains("__kk_emptySet"), "emptySet should become __kk_emptySet")
     }
 
     // MARK: - Zero-arg factory rewriting
@@ -578,7 +578,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "listOf() should become kk_emptyList")
+        #expect(callees.contains("__kk_emptyList"), "listOf() should become __kk_emptyList")
     }
 
     @Test
@@ -593,7 +593,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "setOf() should become kk_emptySet")
+        #expect(callees.contains("__kk_emptySet"), "setOf() should become __kk_emptySet")
     }
 
     @Test
@@ -608,7 +608,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "mapOf() should become kk_emptyMap")
+        #expect(callees.contains("__kk_emptyMap"), "mapOf() should become __kk_emptyMap")
     }
 
     // MARK: - Zero-arg mutable factory rewriting
@@ -625,7 +625,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf() should become kk_list_of (fresh mutable)")
+        #expect(callees.contains("__kk_list_of"), "mutableListOf() should become __kk_list_of (fresh mutable)")
     }
 
     @Test
@@ -640,7 +640,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf() should be rewritten")
-        #expect(callees.contains("kk_list_of"), "arrayListOf() should become kk_list_of (fresh mutable)")
+        #expect(callees.contains("__kk_list_of"), "arrayListOf() should become __kk_list_of (fresh mutable)")
     }
 
     @Test
@@ -655,7 +655,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "mutableSetOf() should become kk_set_of (fresh mutable)")
+        #expect(callees.contains("__kk_set_of"), "mutableSetOf() should become __kk_set_of (fresh mutable)")
     }
 
     @Test
@@ -670,7 +670,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "linkedSetOf() should become kk_set_of (fresh mutable)")
+        #expect(callees.contains("__kk_set_of"), "linkedSetOf() should become __kk_set_of (fresh mutable)")
     }
 
     @Test
@@ -685,7 +685,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "hashSetOf() should become kk_set_of (fresh mutable)")
+        #expect(callees.contains("__kk_set_of"), "hashSetOf() should become __kk_set_of (fresh mutable)")
     }
 
     @Test
@@ -700,7 +700,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mutableMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_map_of"), "mutableMapOf() should become __kk_map_of (fresh mutable)")
     }
 
     @Test
@@ -715,7 +715,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "linkedMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_map_of"), "linkedMapOf() should become __kk_map_of (fresh mutable)")
     }
 
     @Test
@@ -730,7 +730,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "hashMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_map_of"), "hashMapOf() should become __kk_map_of (fresh mutable)")
     }
 
     // MARK: - setOf rewriting
@@ -762,8 +762,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf should be rewritten")
-        #expect(callees.contains("kk_set_of"),
-                      "setOf should be rewritten to kk_set_of, got: \(callees)")
+        #expect(callees.contains("__kk_set_of"),
+                      "setOf should be rewritten to __kk_set_of, got: \(callees)")
     }
 
     @Test
@@ -796,7 +796,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
-        #expect(callees.contains("kk_set_of"), "linkedSetOf should become kk_set_of")
+        #expect(callees.contains("__kk_set_of"), "linkedSetOf should become __kk_set_of")
     }
 
     @Test
@@ -811,7 +811,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf should be rewritten")
-        #expect(callees.contains("kk_set_of"), "hashSetOf should become kk_set_of")
+        #expect(callees.contains("__kk_set_of"), "hashSetOf should become __kk_set_of")
     }
 
     // MARK: - buildList rewriting (STDLIB-070)
@@ -1042,7 +1042,7 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_list_of"),
+                    callee: interner.intern("__kk_list_of"),
                     arguments: [listInput],
                     result: listExpr,
                     canThrow: false,
@@ -1309,8 +1309,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
         #expect(
-            callees.contains("kk_list_size"),
-            "virtualCall(size) on List-typed parameter should be rewritten to kk_list_size, got: \(callees)"
+            callees.contains("__kk_list_size"),
+            "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1340,8 +1340,8 @@ struct CollectionLiteralLoweringTests {
             fqNameComponents: ["com", "example", "List"]
         )
         #expect(
-            !callees.contains("kk_list_size"),
-            "virtualCall(size) on user-defined List must not be rewritten to kk_list_size, got: \(callees)"
+            !callees.contains("__kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1452,13 +1452,13 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListContains() throws {
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListContains() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_contains"),
-            "virtualCall(contains) on List-typed parameter should be rewritten to kk_list_contains, got: \(callees)"
+            !callees.contains("kk_list_contains"),
+            "virtualCall(contains) on List-typed parameter should not be rewritten to deleted kk_list_contains, got: \(callees)"
         )
     }
 
@@ -1519,13 +1519,13 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListIndexOf() throws {
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListIndexOf() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_indexOf"),
-            "virtualCall(indexOf) on List-typed parameter should be rewritten to kk_list_indexOf, got: \(callees)"
+            !callees.contains("kk_list_indexOf"),
+            "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
         )
     }
 

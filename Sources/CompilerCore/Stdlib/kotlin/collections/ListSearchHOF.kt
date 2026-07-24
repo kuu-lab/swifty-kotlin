@@ -1,13 +1,14 @@
 package kotlin.collections
 
+import kotlin.internal.__valuesEqual
+
 // MIGRATION-COL-005
-// List search HOFs migrated to Kotlin source.
+// List search and predicate HOFs migrated to Kotlin source.
 // Migration source:
 //   Sources/Runtime/RuntimeCollectionHOF.swift  (first / last / find / findLast / indexOf*)
-//   Sources/Runtime/RuntimeCollections.swift    (firstOrNull / lastOrNull / single / singleOrNull)
+//   Sources/Runtime/RuntimeCollections.swift    (firstOrNull / lastOrNull / single / singleOrNull, contains / containsAll)
 //
-// NOTE: Runtime ABI entry points are intentionally kept as bridge/compatibility
-// helpers while stdlib-source dispatch is rolled out incrementally.
+// Equality is delegated to __kk_values_equal via kotlin.internal.__valuesEqual.
 
 public fun <T> List<T>.first(): T {
     if (size == 0) throw NoSuchElementException("Collection is empty.")
@@ -140,7 +141,7 @@ public fun <T> List<T>.indexOf(element: T): Int {
     var i = 0
     val sz = size
     while (i < sz) {
-        if (this[i] == element) return i
+        if (__valuesEqual(this[i], element)) return i
         i++
     }
     return -1
@@ -163,4 +164,69 @@ public fun <T> List<T>.indexOfLast(predicate: (T) -> Boolean): Int {
         i--
     }
     return -1
+}
+
+public fun <T> List<T>.lastIndexOf(element: T): Int {
+    var i = size - 1
+    while (i >= 0) {
+        if (__valuesEqual(this[i], element)) return i
+        i--
+    }
+    return -1
+}
+
+public operator fun <T> List<T>.contains(element: T): Boolean = indexOf(element) >= 0
+
+public fun <T> List<T>.containsAll(elements: Collection<T>): Boolean {
+    for (element in elements) {
+        if (!contains(element)) return false
+    }
+    return true
+}
+
+public fun <T> List<T>.count(): Int = size
+
+public fun <T> List<T>.any(): Boolean = size > 0
+
+public fun <T> List<T>.none(): Boolean = size == 0
+
+public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        if (predicate(this[i])) count += 1
+        i++
+    }
+    return count
+}
+
+public fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        if (predicate(this[i])) return true
+        i++
+    }
+    return false
+}
+
+public fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        if (!predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        if (predicate(this[i])) return false
+        i++
+    }
+    return true
 }

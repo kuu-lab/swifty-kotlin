@@ -134,7 +134,7 @@ final class CodegenPhase: CompilerPhase {
         // Bundled stdlib functions appear in every compilation unit. Use linkonce_odr so the
         // linker deduplicates them when the library object is linked with an app object.
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
-            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
         let bundledSymbolIDs: Set<SymbolID> = ctx.sema.map { sema in
             Set(sema.symbols.allSymbols()
@@ -376,7 +376,7 @@ final class CodegenPhase: CompilerPhase {
             }
         }()
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
-            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(

@@ -47,8 +47,6 @@ struct CollectionLiteralLookupTables {
     let kkEmptyMapName: InternedString
     let kkListSizeName: InternedString
     let kkListGetName: InternedString
-    let kkListContainsName: InternedString
-    let kkListContainsAllName: InternedString
     let kkListIsEmptyName: InternedString
     let kkListIteratorName: InternedString
     let kkListIteratorHasNextName: InternedString
@@ -95,9 +93,6 @@ struct CollectionLiteralLookupTables {
     let kkListAssociateToName: InternedString
     let kkListForEachName: InternedString
     let kkListFlatMapName: InternedString
-    let kkListAnyName: InternedString
-    let kkListNoneName: InternedString
-    let kkListAllName: InternedString
     let kkCollectionToCollectionName: InternedString
 
     // Additional higher-order collection function ABI names (STDLIB-005)
@@ -123,11 +118,8 @@ struct CollectionLiteralLookupTables {
     let kkListAssociateByToName: InternedString
     let kkListAssociateWithToName: InternedString
     let kkListGroupByToName: InternedString
-    let kkListCountName: InternedString
     let kkListFirstName: InternedString
     let kkListLastName: InternedString
-    let kkListFindName: InternedString
-    let kkListFindLastName: InternedString
     let kkListZipBridgeName: InternedString
     let kkListZipTransformBridgeName: InternedString
     let kkListZipWithNextBridgeName: InternedString
@@ -187,10 +179,6 @@ struct CollectionLiteralLookupTables {
     let kkListMinusElementName: InternedString
     let kkListMinusCollectionName: InternedString
     let kkListFlattenName: InternedString
-    let kkListIndexOfName: InternedString
-    let kkListLastIndexOfName: InternedString
-    let kkListIndexOfFirstName: InternedString
-    let kkListIndexOfLastName: InternedString
     let kkListChunkedBridgeName: InternedString
     let kkListChunkedTransformBridgeName: InternedString
     let kkListWindowedBridgeName: InternedString
@@ -831,16 +819,14 @@ struct CollectionLiteralLookupTables {
         linkedHashMapName = interner.intern("LinkedHashMap")
         linkedHashSetName = interner.intern("LinkedHashSet")
 
-        kkListOfName = interner.intern("kk_list_of")
+        kkListOfName = interner.intern("__kk_list_of")
         kkListOfNotNullName = interner.intern("kk_list_of_not_null")
-        kkEmptyListName = interner.intern("kk_emptyList")
+        kkEmptyListName = interner.intern("__kk_emptyList")
         kkEmptyArrayName = interner.intern("kk_empty_array")
-        kkEmptySetName = interner.intern("kk_emptySet")
-        kkEmptyMapName = interner.intern("kk_emptyMap")
-        kkListSizeName = interner.intern("kk_list_size")
-        kkListGetName = interner.intern("kk_list_get")
-        kkListContainsName = interner.intern("kk_list_contains")
-        kkListContainsAllName = interner.intern("kk_list_containsAll")
+        kkEmptySetName = interner.intern("__kk_emptySet")
+        kkEmptyMapName = interner.intern("__kk_emptyMap")
+        kkListSizeName = interner.intern("__kk_list_size")
+        kkListGetName = interner.intern("__kk_list_get")
         kkListIsEmptyName = interner.intern("kk_list_is_empty")
         kkListIteratorName = interner.intern("kk_list_iterator")
         kkListIteratorHasNextName = interner.intern("kk_list_iterator_hasNext")
@@ -849,7 +835,7 @@ struct CollectionLiteralLookupTables {
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
         kkListToStringName = interner.intern("kk_list_to_string")
         kkCollectionToMutableListName = interner.intern("kk_collection_toMutableList")
-        kkSetOfName = interner.intern("kk_set_of")
+        kkSetOfName = interner.intern("__kk_set_of")
         kkSetOfNotNullName = interner.intern("kk_set_of_not_null")
         kkSetSizeName = interner.intern("kk_set_size")
         kkSetContainsName = interner.intern("kk_set_contains")
@@ -883,9 +869,6 @@ struct CollectionLiteralLookupTables {
         kkListAssociateToName = interner.intern("kk_list_associateTo")
         kkListForEachName = interner.intern("kk_list_forEach")
         kkListFlatMapName = interner.intern("kk_list_flatMap")
-        kkListAnyName = interner.intern("kk_list_any")
-        kkListNoneName = interner.intern("kk_list_none")
-        kkListAllName = interner.intern("kk_list_all")
         kkCollectionToCollectionName = interner.intern("kk_collection_toCollection")
 
         kkListFoldName = interner.intern("kk_list_fold")
@@ -910,11 +893,8 @@ struct CollectionLiteralLookupTables {
         kkListAssociateByToName = interner.intern("kk_list_associateByTo")
         kkListAssociateWithToName = interner.intern("kk_list_associateWithTo")
         kkListGroupByToName = interner.intern("kk_list_groupByTo")
-        kkListCountName = interner.intern("kk_list_count")
         kkListFirstName = interner.intern("kk_list_first")
         kkListLastName = interner.intern("kk_list_last")
-        kkListFindName = interner.intern("kk_list_find")
-        kkListFindLastName = interner.intern("kk_list_findLast")
         kkListZipBridgeName = interner.intern("__kk_list_zip")
         kkListZipTransformBridgeName = interner.intern("__kk_list_zip_transform")
         kkListZipWithNextBridgeName = interner.intern("__kk_list_zipWithNext")
@@ -974,10 +954,6 @@ struct CollectionLiteralLookupTables {
         kkListMinusElementName = interner.intern("kk_list_minus_element")
         kkListMinusCollectionName = interner.intern("kk_list_minus_collection")
         kkListFlattenName = interner.intern("kk_list_flatten")
-        kkListIndexOfName = interner.intern("kk_list_indexOf")
-        kkListLastIndexOfName = interner.intern("kk_list_lastIndexOf")
-        kkListIndexOfFirstName = interner.intern("kk_list_indexOfFirst")
-        kkListIndexOfLastName = interner.intern("kk_list_indexOfLast")
         kkListChunkedBridgeName = interner.intern("__kk_list_chunked")
         kkListChunkedTransformBridgeName = interner.intern("__kk_list_chunked_transform")
         kkListWindowedBridgeName = interner.intern("__kk_list_windowed")
@@ -1072,9 +1048,9 @@ struct CollectionLiteralLookupTables {
         kkSequenceFilterNotNullToName = interner.intern("kk_sequence_filterNotNullTo")
         kkSequenceFilterIsInstanceToName = interner.intern("kk_sequence_filterIsInstanceTo")
 
-        kkMapOfName = interner.intern("kk_map_of")
+        kkMapOfName = interner.intern("__kk_map_of")
         kkMapSizeName = interner.intern("kk_map_size")
-        kkMapGetName = interner.intern("kk_map_get")
+        kkMapGetName = interner.intern("__kk_map_get")
         kkMapContainsKeyName = interner.intern("kk_map_contains_key")
         kkMapContainsValueName = interner.intern("kk_map_contains_value")
         kkMapIsEmptyName = interner.intern("kk_map_is_empty")
@@ -1094,9 +1070,9 @@ struct CollectionLiteralLookupTables {
         kkMapMinByOrNullName = interner.intern("kk_map_minByOrNull")
         kkMapToListName = interner.intern("kk_map_toList")
         kkMapToStringName = interner.intern("kk_map_to_string")
-        kkMapIteratorName = interner.intern("kk_map_iterator")
-        kkMapIteratorHasNextName = interner.intern("kk_map_iterator_hasNext")
-        kkMapIteratorNextName = interner.intern("kk_map_iterator_next")
+        kkMapIteratorName = interner.intern("__kk_map_iterator")
+        kkMapIteratorHasNextName = interner.intern("__kk_map_iterator_hasNext")
+        kkMapIteratorNextName = interner.intern("__kk_map_iterator_next")
         kkMutableMapPutAllName = interner.intern("kk_mutable_map_putAll")
         kkMapKeysName = interner.intern("kk_map_keys")
         kkMapValuesName = interner.intern("kk_map_values")
@@ -1594,13 +1570,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_substring_flat"),
             interner.intern("kk_string_slice_range"),
             interner.intern("kk_string_slice_iterable"),
-            interner.intern("kk_string_take_flat"),
-            interner.intern("kk_string_drop_flat"),
-            interner.intern("kk_string_takeLast_flat"),
-            interner.intern("kk_string_dropLast_flat"),
-            interner.intern("kk_string_removePrefix_flat"),
-            interner.intern("kk_string_removeSuffix_flat"),
-            interner.intern("kk_string_removeSurrounding_flat"),
             interner.intern("kk_string_removeRange_flat"),
             interner.intern("kk_string_removeRange_range_flat"),
             interner.intern("kk_string_substringBefore_flat"),

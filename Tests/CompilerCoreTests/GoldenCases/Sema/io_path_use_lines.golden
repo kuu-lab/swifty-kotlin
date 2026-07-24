@@ -17,7 +17,7 @@ expr e@5:13 call callee=e@5:13#1 args=[_:e@5:18] type=kotlin.io.path.Path call=k
 expr e@5:5 localDecl p mutable=0 type=_ init=e@5:13 type=Unit ref=__local_0.p
 expr e@6:12 name(p) type=kotlin.io.path.Path ref=__local_0.p
 expr e@7:9 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-0
-expr e@7:9#1 memberCall recv=e@7:9 callee=toList args=[] type=kotlin.collections.List<String>
+expr e@7:9#1 memberCall recv=e@7:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.sequences.toList
 expr e@6:23 lambda params=[lines] body=e@7:9#1 label=useLines type=(kotlin.sequences.Sequence<out String>) -> kotlin.collections.List<String>
 expr e@6:12#1 memberCall recv=e@6:12 callee=useLines args=[_:e@6:23] type=kotlin.collections.List<String>
 expr e@6:5 return value=e@6:12#1 type=Nothing

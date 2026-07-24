@@ -227,7 +227,7 @@ extension KIRLoweringDriver {
         }
         let fileID = sema.symbols.sourceFileID(for: symbol) ?? symbolInfo.declSite?.start.file
         guard let fileID,
-              sourceManager.path(of: fileID).hasPrefix("__bundled_")
+              sourceManager.origin(of: fileID)?.isBundledStdlib == true
         else {
             return false
         }
@@ -253,10 +253,14 @@ extension KIRLoweringDriver {
             interner.intern("collections"),
         ]
         if packageFQName == kotlinCollectionsPackage {
-            // ListSortingHOF.kt is a migration target; current List call sites
-            // still dispatch through the synthetic kk_list_* runtime ABI.
+            // Collection factory call sites are lowered by
+            // CallLowerer+CollectionFactoryCalls and CollectionLiteralLoweringPass
+            // directly to __kk_* runtime ABI, so source bodies must not be emitted.
             switch name {
-            case "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+            case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
+                 "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
+                 "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
+                 "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
                 return true
             default:
                 return false
@@ -268,15 +272,11 @@ extension KIRLoweringDriver {
             interner.intern("text"),
         ]
         if packageFQName == kotlinTextPackage {
-            // These string APIs are source-backed for Sema, while call sites
-            // are still lowered by the String stdlib member call lowerers.
-            switch name {
-            case "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
-                 "isBlankLine", "trimBlankEdges":
-                return true
-            default:
-                return false
-            }
+            // The String indent/format helpers are pure Kotlin; only the
+            // private __kk_string_* bridges are external and skipped by the
+            // external-function path. Public functions must be lowered so user
+            // calls dispatch through the source declarations.
+            return false
         }
 
         let kotlinTimePackage = [

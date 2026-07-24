@@ -29,6 +29,7 @@ func makeCompilationContext(
     searchPaths: [String] = [],
     irFlags: [String] = [],
     frontendFlags: [String] = [],
+    includeStdlib: Bool = true,
     interner: StringInterner? = nil,
     diagnostics: DiagnosticEngine? = nil
 ) -> CompilationContext {
@@ -43,7 +44,8 @@ func makeCompilationContext(
         searchPaths: searchPaths,
         target: defaultTargetTriple(),
         frontendFlags: frontendFlags,
-        irFlags: irFlags
+        irFlags: irFlags,
+        includeStdlib: includeStdlib
     )
     return CompilationContext(
         options: options,
@@ -83,18 +85,5 @@ func makeContextFromSource(
         .appendingPathComponent(UUID().uuidString + ".kt").path
     let ctx = makeCompilationContext(inputs: [fakePath], frontendFlags: frontendFlags)
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-    return ctx
-}
-
-func makeContextFromSources(_ sources: [String]) -> CompilationContext {
-    let tempDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-    let fakePaths = sources.indices.map { index in
-        tempDir.appendingPathComponent("input\(index).kt").path
-    }
-    let ctx = makeCompilationContext(inputs: fakePaths)
-    for (path, source) in zip(fakePaths, sources) {
-        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
-    }
     return ctx
 }

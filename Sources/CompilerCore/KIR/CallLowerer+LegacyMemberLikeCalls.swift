@@ -292,8 +292,6 @@ extension CallLowerer {
                     interner.intern("kk_array_any")
                 } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_set_any")
-                } else if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_list_any")
                 } else {
                     nil
                 }
@@ -302,8 +300,6 @@ extension CallLowerer {
                     interner.intern("kk_array_none")
                 } else if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     interner.intern("kk_set_none")
-                } else if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    interner.intern("kk_list_none")
                 } else {
                     nil
                 }
@@ -1835,10 +1831,6 @@ extension CallLowerer {
                     } else {
                         nil
                     }
-                case "startsWith":
-                    ("kk_string_startsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "endsWith":
-                    ("kk_string_endsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
@@ -1896,12 +1888,6 @@ extension CallLowerer {
                     ("kk_string_indexOfFirst_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
                     ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "takeWhile":
-                    ("kk_string_takeWhile_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "takeLastWhile":
-                    ("kk_string_takeLastWhile_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "dropWhile":
-                    ("kk_string_dropWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
                     ("kk_string_find_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
@@ -1913,20 +1899,6 @@ extension CallLowerer {
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
 
-                case "removePrefix":
-                    ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "removeSuffix":
-                    ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "removeSurrounding":
-                    ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "take":
-                    ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "drop":
-                    ("kk_string_drop_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "takeLast":
-                    ("kk_string_takeLast_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "dropLast":
-                    ("kk_string_dropLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
@@ -1939,10 +1911,6 @@ extension CallLowerer {
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                        || calleeStr == "take"
-                        || calleeStr == "drop"
-                        || calleeStr == "takeLast"
-                        || calleeStr == "dropLast"
                     // Only `partition` captures the thrown result into a register so the
                     // caller can inspect it.  All other HOFs propagate exceptions through
                     // the standard thrown-channel codegen path (thrownResult == nil),
@@ -2157,23 +2125,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], hasEndExpr],
                     result: result,
                     canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        // String stdlib: 2-arg removeSurrounding(prefix, suffix) (STDLIB-TEXT-EDGE-010 / STDLIB-185)
-        if args.count == 2, interner.resolve(calleeName) == "removeSurrounding" {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_removeSurrounding_pair_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
                     thrownResult: nil
                 ))
                 return result
@@ -2573,26 +2524,7 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_toList"),
-                        arguments: [loweredReceiverID],
-                        result: listExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_list_contains"),
-                        arguments: [listExpr] + normalizedArgIDs,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+
                 let runtimeCallee: String? = switch calleeStr {
                 case "map":
                     "kk_array_map"
@@ -3186,6 +3118,18 @@ extension CallLowerer {
                 }
             }
             if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                let isSourceBackedListCall: Bool = {
+                    guard let sourceCallee = chosenBase64Callee,
+                          let symbol = sema.symbols.symbol(sourceCallee),
+                          symbol.kind == .function,
+                          symbol.declSite != nil,
+                          (sema.symbols.externalLinkName(for: sourceCallee) ?? "").isEmpty
+                    else {
+                        return false
+                    }
+                    return true
+                }()
+                if !isSourceBackedListCall {
                 let calleeStr = interner.resolve(calleeName)
                 let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
                 let runtimeCallee: String? = switch calleeStr {
@@ -3225,10 +3169,6 @@ extension CallLowerer {
                     "kk_list_minOfWithOrNull"
                 case "minBy":
                     "kk_list_minBy"
-                case "indexOf":
-                    "kk_list_indexOf"
-                case "lastIndexOf":
-                    "kk_list_lastIndexOf"
                 case "partition":
                     "kk_list_partition"
                 case "getOrNull":
@@ -3237,8 +3177,6 @@ extension CallLowerer {
                     "kk_list_elementAtOrNull"
                 case "elementAt":
                     "kk_list_elementAt"
-                case "containsAll":
-                    "kk_list_containsAll"
                 case "intersect":
                     "kk_list_intersect"
                 default:
@@ -3267,6 +3205,7 @@ extension CallLowerer {
                         thrownResult: nil
                     ))
                     return result
+                    }
                 }
             }
             if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {

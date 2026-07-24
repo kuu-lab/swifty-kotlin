@@ -366,6 +366,56 @@ struct IncrementalCompilationCacheTests {
     // MARK: - stdlib manifest hash
 
     @Test
+    func testComputeCurrentFingerprintsIncludesBundledStdlibSources() {
+        let sourceManager = SourceManager()
+        let userPath = "user.kt"
+        let bundledPath = "__bundled_stdlib.kt"
+        _ = sourceManager.addFile(path: userPath, contents: Data("fun main() {}".utf8))
+        _ = sourceManager.addFile(
+            path: bundledPath,
+            contents: Data("package kotlin".utf8),
+            origin: .bundledStdlib
+        )
+
+        let allPaths = sourceManager.fileIDs().map { sourceManager.path(of: $0) }
+        let cache = IncrementalCompilationCache(cachePath: tempDir)
+        cache.computeCurrentFingerprints(for: allPaths, sourceManager: sourceManager)
+
+        let changed = cache.changedFiles(allPaths: allPaths)
+        #expect(changed.contains(userPath))
+        #expect(changed.contains(bundledPath))
+    }
+
+    @Test
+    func testChangedFilesDetectsBundledStdlibContentChange() throws {
+        let sourceManager = SourceManager()
+        let bundledPath = "__bundled_stdlib.kt"
+        _ = sourceManager.addFile(
+            path: bundledPath,
+            contents: Data("package kotlin".utf8),
+            origin: .bundledStdlib
+        )
+
+        let allPaths = [bundledPath]
+        let cache1 = IncrementalCompilationCache(cachePath: tempDir)
+        cache1.computeCurrentFingerprints(for: allPaths, sourceManager: sourceManager)
+        cache1.saveState(dependencyGraph: DependencyGraph())
+
+        // Modify the bundled source contents
+        _ = sourceManager.addFile(
+            path: bundledPath,
+            contents: Data("package kotlin\nfun foo() {}".utf8),
+            origin: .bundledStdlib
+        )
+
+        let cache2 = IncrementalCompilationCache(cachePath: tempDir)
+        cache2.loadPreviousState()
+        cache2.computeCurrentFingerprints(for: allPaths, sourceManager: sourceManager)
+        let changed = cache2.changedFiles(allPaths: allPaths)
+        #expect(changed.contains(bundledPath))
+    }
+
+    @Test
     func testStdlibManifestHashIsStable() {
         let hash1 = BundledKotlinStdlib.manifestHash()
         let hash2 = BundledKotlinStdlib.manifestHash()

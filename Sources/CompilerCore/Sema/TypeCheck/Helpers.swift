@@ -422,7 +422,7 @@ struct TypeCheckHelpers {
              knownNames.charArray:
             guard argumentCount == 1 else { return nil }
             return sema.types.anyType
-        case interner.intern("kk_array_get"), interner.intern("kk_list_get"):
+        case interner.intern("kk_array_get"), interner.intern("__kk_list_get"):
             guard argumentCount == 2 else { return nil }
             return sema.types.anyType
         case interner.intern("kk_array_set"):

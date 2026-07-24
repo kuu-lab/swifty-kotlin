@@ -231,10 +231,15 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
+    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+    // bundled Kotlin source (StringPrefixSuffix.kt); the backend must no longer emit
+    // any raw or flat runtime call for them.
+    func testLLVMBackendKeepsPrefixSuffixSourceBacked() throws {
         let source = """
         fun main() {
             val value = "foo-body-bar"
+            println(value.startsWith("foo-"))
+            println(value.endsWith("-bar"))
             println(value.removePrefix("foo-"))
             println(value.removeSuffix("-bar"))
             println(value.removeSurrounding("foo-"))
@@ -248,22 +253,23 @@ extension CodegenBackendIntegrationTests {
                 .path
             let llvmCtx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "StringRemoveFlatIR",
+                moduleName: "StringPrefixSuffixSourceBackedIR",
                 emit: .llvmIR,
                 outputPath: llvmBase
             )
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            let removedStems = [
+                "kk_string_startsWith",
+                "kk_string_endsWith",
                 "kk_string_removePrefix",
                 "kk_string_removeSuffix",
                 "kk_string_removeSurrounding",
-                "kk_string_removeSurrounding_pair",
             ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String remove call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String remove call: \(rawName)_flat")
+            for stem in removedStems {
+                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String call: \(stem)")
+                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String call: \(stem)_flat")
             }
         }
     }
@@ -613,14 +619,6 @@ extension CodegenBackendIntegrationTests {
         let subSequenceResult = arena.appendExpr(.temporary(45), type: types.stringType)
         let subSequenceThrown = arena.appendExpr(.temporary(46), type: types.intType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
-        let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
-        let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
-        let takeLastResult = arena.appendExpr(.temporary(36), type: types.stringType)
-        let takeLastThrown = arena.appendExpr(.temporary(37), type: types.intType)
-        let dropResult = arena.appendExpr(.temporary(38), type: types.stringType)
-        let dropThrown = arena.appendExpr(.temporary(39), type: types.intType)
-        let dropLastResult = arena.appendExpr(.temporary(40), type: types.stringType)
-        let dropLastThrown = arena.appendExpr(.temporary(41), type: types.intType)
         let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
         let filterResult = arena.appendExpr(.temporary(47), type: types.stringType)
@@ -629,14 +627,7 @@ extension CodegenBackendIntegrationTests {
         let filterIndexedThrown = arena.appendExpr(.temporary(50), type: types.intType)
         let filterNotResult = arena.appendExpr(.temporary(51), type: types.stringType)
         let filterNotThrown = arena.appendExpr(.temporary(52), type: types.intType)
-        let takeWhileResult = arena.appendExpr(.temporary(53), type: types.stringType)
-        let takeWhileThrown = arena.appendExpr(.temporary(54), type: types.intType)
-        let takeLastWhileResult = arena.appendExpr(.temporary(55), type: types.stringType)
-        let takeLastWhileThrown = arena.appendExpr(.temporary(56), type: types.intType)
-        let dropWhileResult = arena.appendExpr(.temporary(57), type: types.stringType)
-        let dropWhileThrown = arena.appendExpr(.temporary(58), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
-        let startsWithResult = arena.appendExpr(.temporary(15), type: types.booleanType)
         let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
         let indexOfResult = arena.appendExpr(.temporary(17), type: types.intType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
@@ -706,21 +697,13 @@ extension CodegenBackendIntegrationTests {
                     thrownResult: subSequenceThrown
                 ),
                 .constValue(result: takeCount, value: .intLiteral(3)),
-                .call(symbol: nil, callee: interner.intern("kk_string_take_flat"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_repeat_flat"), arguments: [trimResult, takeCount], result: repeatResult, canThrow: true, thrownResult: repeatThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_takeLast_flat"), arguments: [trimResult, takeCount], result: takeLastResult, canThrow: true, thrownResult: takeLastThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_drop_flat"), arguments: [trimResult, takeCount], result: dropResult, canThrow: true, thrownResult: dropThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_dropLast_flat"), arguments: [trimResult, takeCount], result: dropLastResult, canThrow: true, thrownResult: dropLastThrown),
                 .constValue(result: hofFnPtr, value: .intLiteral(0)),
                 .constValue(result: hofClosureRaw, value: .intLiteral(0)),
                 .call(symbol: nil, callee: interner.intern("kk_string_filter_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterResult, canThrow: true, thrownResult: filterThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_filterIndexed_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterIndexedResult, canThrow: true, thrownResult: filterIndexedThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_filterNot_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterNotResult, canThrow: true, thrownResult: filterNotThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_takeWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: takeWhileResult, canThrow: true, thrownResult: takeWhileThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_takeLastWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: takeLastWhileResult, canThrow: true, thrownResult: takeLastWhileThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_dropWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: dropWhileResult, canThrow: true, thrownResult: dropWhileThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(symbol: nil, callee: interner.intern("kk_string_startsWith_flat"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str_flat"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_flat"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
@@ -864,18 +847,10 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_substring_flat"))
         XCTAssertTrue(ir.contains("@kk_string_subSequence_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_take_flat"))
         XCTAssertTrue(ir.contains("@kk_string_repeat_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_takeLast_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_drop_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_dropLast_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filter_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterNot_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_takeWhile_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_takeLastWhile_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_dropWhile_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
@@ -1229,9 +1204,8 @@ extension CodegenBackendIntegrationTests {
         appendBuilderCall("kk_string_builder_append_line_flat", arguments: [textExpr])
         appendBuilderCall("kk_string_builder_append_range_flat", arguments: [textExpr, startExpr, endExpr])
         appendBuilderCall("kk_string_builder_insert_flat", arguments: [startExpr, textExpr])
-        appendBuilderCall("kk_string_builder_new_from_string_flat", arguments: [textExpr])
-        appendBuilderCall("kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
-        appendBuilderCall("kk_string_builder_appendRange_obj_flat", arguments: [builderExpr, textExpr, startExpr, endExpr])
+        appendBuilderCall("__kk_string_builder_new_from_string_flat", arguments: [textExpr])
+        appendBuilderCall("__kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1266,8 +1240,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_builder_append_line",
             "kk_string_builder_append_range",
             "kk_string_builder_insert",
-            "kk_string_builder_new_from_string",
-            "kk_string_builder_append_obj",
+            "__kk_string_builder_new_from_string",
+            "__kk_string_builder_append_obj",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw StringBuilder String call: \(rawName)")

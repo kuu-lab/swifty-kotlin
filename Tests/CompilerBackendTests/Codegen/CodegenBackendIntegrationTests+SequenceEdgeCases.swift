@@ -1068,7 +1068,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
     }
 
-    // KSP-441 / BUG-145 regression: object-expression Sequence/Iterator pipelines must
+    // KSP-441 / BUG-155 regression: object-expression Sequence/Iterator pipelines must
     // support for-in iteration and virtual dispatch of the overridden iterator().
     func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
         let source = """

@@ -6,7 +6,9 @@ extension DataFlowSemaPhase {
     func registerSyntheticTODOAndIOStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let kotlinPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin")],
@@ -202,13 +204,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinSequencesPkg: kotlinSequencesPkg
+            kotlinSequencesPkg: kotlinSequencesPkg,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerSyntheticSequenceJoinToStringMember(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinSequencesPkg: kotlinSequencesPkg
+            kotlinSequencesPkg: kotlinSequencesPkg,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerSyntheticSequenceTerminalMembers(
             symbols: symbols,

@@ -67,8 +67,6 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "startsWith": "kk_string_startsWith_flat",
-            "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
         ]
 
@@ -77,6 +75,15 @@ struct StringSyntheticMemberLinkTests {
             #expect(
                 links.contains(expectedLink),
                 "String.\(member) should link to \(expectedLink), got \(links.sorted())"
+            )
+        }
+        // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+        // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
+        for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
+            let links = externalLinks(for: member, sema: sema, interner: interner)
+            #expect(
+                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
             )
         }
         #expect(
@@ -474,19 +481,16 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testNewSlicingStubsHaveCorrectExternalLinks() throws {
+    @Test func testTakeDropMembersAreBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
-        let expected: [String: String] = [
-            "drop": "kk_string_drop_flat",
-            "take": "kk_string_take_flat",
-            "dropLast": "kk_string_dropLast_flat",
-            "takeLast": "kk_string_takeLast_flat",
-        ]
-        for (member, expectedLink) in expected {
+        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+        // (StringTakeDrop.kt) and carry no runtime link.
+        for member in ["take", "takeLast", "drop", "dropLast"] {
+            let links = externalLinks(for: member, sema: sema, interner: interner)
             #expect(
-                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
-                "String.\(member) should link to \(expectedLink)"
+                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                "String.\(member) should be source-backed after KSP-405, got \(links.sorted())"
             )
         }
     }

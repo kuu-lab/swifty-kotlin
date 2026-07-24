@@ -1,9 +1,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-015: Validates that `CharSequence.endsWith(suffix)` resolves
-/// through Sema for `String` receivers, dispatching to the runtime link name
-/// `kk_string_endsWith_flat`.
+/// STDLIB-TEXT-FN-015 / KSP-404: Validates that `CharSequence.endsWith(suffix)`
+/// resolves through Sema for `String` receivers. The function is bundled Kotlin
+/// source (`Stdlib/kotlin/text/StringPrefixSuffix.kt`) with no runtime link.
 @Suite
 struct StringEndsWithFunctionTests {
     @Test func testEndsWithFunctionResolvesInSource() throws {

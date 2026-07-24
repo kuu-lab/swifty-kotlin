@@ -15,6 +15,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Hosted TODO ID duplicate check. Gating once TODO.md duplicate IDs are cleaned up.
+  verify-todo-ids:
+    name: Verification 0/5 (TODO ID duplicate check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Check for duplicate TODO task IDs
+        run: bash Scripts/check_todo_ids.sh
+
   # Hosted CompilerCore and kotlinc-diff shards build in independent
   # workspaces. Verification 2-4 deliberately shares one self-hosted build so
   # that the expensive SwiftPM products are reused within that lane.

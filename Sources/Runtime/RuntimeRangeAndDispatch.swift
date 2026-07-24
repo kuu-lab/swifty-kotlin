@@ -949,21 +949,6 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
 
 // MARK: - CharRange HOFs (STDLIB-290)
 
-@_cdecl("kk_char_range_isEmpty")
-public func kk_char_range_isEmpty(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_isEmpty")
-    }
-    let first = kk_unbox_char(range.first)
-    let last = kk_unbox_char(range.last)
-    if range.step > 0 {
-        return first > last ? 1 : 0
-    } else if range.step < 0 {
-        return first < last ? 1 : 0
-    }
-    return 1
-}
-
 @_cdecl("kk_char_range_step")
 public func kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

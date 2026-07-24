@@ -1,9 +1,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-078: Validates that `CharSequence.take(n)` resolves through
-/// Sema for `String` receivers. The synthetic extension links to
-/// `kk_string_take_flat`, which trims the receiver to its first `n` scalars and
+/// STDLIB-TEXT-FN-078: Validates that `String.take(n)` resolves through Sema for
+/// `String` receivers. After KSP-405 it is bundled Kotlin source
+/// (StringTakeDrop.kt), which trims the receiver to its first `n` characters and
 /// throws `IllegalArgumentException` when `n` is negative.
 @Suite
 struct StringTakeFunctionTests {

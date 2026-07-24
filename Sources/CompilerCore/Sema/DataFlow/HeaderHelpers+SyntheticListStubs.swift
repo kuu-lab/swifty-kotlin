@@ -83,7 +83,7 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType,
-            bundledIndex: bundledIndex
+            skipStats: skipStats
         )
         registerListContentEqualsMember(
             symbols: symbols, types: types, interner: interner,
@@ -239,7 +239,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(listInterfaceSymbol, for: listGetSymbol)
-        symbols.setExternalLinkName("kk_list_get", for: listGetSymbol)
+        symbols.setExternalLinkName("__kk_list_get", for: listGetSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: listReceiverType,
@@ -976,61 +976,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let containsName = interner.intern("contains")
-        let containsFQName = listFQName + [containsName]
-        if symbols.lookup(fqName: containsFQName) == nil {
-            let containsSymbol = symbols.define(
-                kind: .function,
-                name: containsName,
-                fqName: containsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: containsSymbol)
-            symbols.setExternalLinkName("kk_list_contains", for: containsSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listReceiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: containsSymbol
-            )
-        }
-
-        let containsAllName = interner.intern("containsAll")
-        let containsAllFQName = listFQName + [containsAllName]
-        if symbols.lookup(fqName: containsAllFQName) == nil {
-            let containsAllSymbol = symbols.define(
-                kind: .function,
-                name: containsAllName,
-                fqName: containsAllFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: containsAllSymbol)
-            symbols.setExternalLinkName("kk_list_containsAll", for: containsAllSymbol)
-            let collectionParamType = types.make(.classType(ClassType(
-                classSymbol: collectionInterfaceSymbol,
-                args: [.out(listTypeParamType)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listReceiverType,
-                    parameterTypes: [collectionParamType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: containsAllSymbol
-            )
-        }
-
         let isEmptyName = interner.intern("isEmpty")
         let isEmptyFQName = listFQName + [isEmptyName]
         if symbols.lookup(fqName: isEmptyFQName) == nil {
@@ -1136,7 +1081,7 @@ extension DataFlowSemaPhase {
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
         listTypeParamType: TypeID,
-        bundledIndex: BundledDeclarationIndex = .empty
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let memberName = interner.intern("joinToString")
         let memberFQName = listFQName + [memberName]
@@ -1148,12 +1093,19 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
-            ("separator", types.stringType, true),
-            ("prefix", types.stringType, true),
-            ("postfix", types.stringType, true),
-        ]
-        guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: parameters.count) else { return }
+        // KSP-INF-011: skip the default (non-transform) overload when bundled
+        // source already provides it. Transform overloads are registered below.
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 3,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: listFQName, name: memberName, arity: 3, interner: interner)
+        } else {
 
         let memberSymbol = symbols.define(
             kind: .function,
@@ -1165,6 +1117,12 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
         symbols.setExternalLinkName("kk_list_joinToString", for: memberSymbol)
+
+        let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
+            ("separator", types.stringType, true),
+            ("prefix", types.stringType, true),
+            ("postfix", types.stringType, true),
+        ]
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
         var parameterDefaults: [Bool] = []
@@ -1197,6 +1155,7 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+        }
 
         // Register `List<E>.joinToString(separator?, prefix?, postfix?, transform)` HOF
         // overloads. See the matching comment in
@@ -1210,7 +1169,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         func registerTransformOverload(_ parameterTypes: [TypeID]) {
-            guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: parameterTypes.count) else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,

@@ -87,7 +87,7 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
 
 // MARK: - List Functions (STDLIB-001)
 
-@_cdecl("kk_list_of")
+@_cdecl("__kk_list_of")
 public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
@@ -112,12 +112,12 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_list_add).
-@_cdecl("kk_emptyList")
+@_cdecl("__kk_emptyList")
 public func kk_emptyList() -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
 }
 
-@_cdecl("kk_list_size")
+@_cdecl("__kk_list_size")
 public func kk_list_size(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -133,7 +133,7 @@ public func kk_list_indices(_ listRaw: Int) -> Int {
     return kk_op_rangeTo(0, list.elements.count - 1)
 }
 
-@_cdecl("kk_list_get")
+@_cdecl("__kk_list_get")
 public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
@@ -183,13 +183,6 @@ public func kk_list_component5(_ listRaw: Int) -> Int {
     runtimeListComponent(listRaw, component: 5)
 }
 
-@_cdecl("kk_list_contains")
-public func kk_list_contains(_ listRaw: Int, _ element: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
-}
 
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
@@ -371,7 +364,7 @@ public func kk_iterable_joinTo(
     let stringRaw = utf8.withUnsafeBufferPointer { buf in
         kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
     }
-    return kk_string_builder_append_obj(destinationRaw, Int(bitPattern: stringRaw))
+    return __kk_string_builder_append_obj(destinationRaw, Int(bitPattern: stringRaw))
 }
 
 @_cdecl("kk_iterable_joinToString")
@@ -775,27 +768,6 @@ public func kk_list_subList(_ listRaw: Int, _ fromIndex: Int, _ toIndex: Int) ->
     return registerRuntimeObject(RuntimeListBox(elements: subElements))
 }
 
-@_cdecl("kk_list_containsAll")
-public func kk_list_containsAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    let otherElements: [Int]
-    if let otherList = runtimeListBox(from: collectionRaw) {
-        otherElements = otherList.elements
-    } else if let otherSet = runtimeSetBox(from: collectionRaw) {
-        otherElements = otherSet.elements
-    } else {
-        return kk_box_bool(0)
-    }
-    for element in otherElements {
-        // swiftlint:disable:next for_where
-        if !list.elements.contains(where: { runtimeValuesEqual($0, element) }) {
-            return kk_box_bool(0)
-        }
-    }
-    return kk_box_bool(1)
-}
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
     if !currentValues.isEmpty,

@@ -30,21 +30,31 @@ struct ArrayEraseHeuristicNegativeTests {
                 ctx.interner.intern("List"),
             ]
 
-            // Only mapIndexed and partition are registered as explicit synthetic
-            // stubs.  flatMap/associate*/groupBy use fallback inference and are
-            // NOT in the symbol table — their resolution is covered by the call
-            // tests below.
-            for memberName in [
-                "mapIndexed", "partition",
-            ] {
-                let symbolID = sema.symbols.lookup(
-                    fqName: listFQ + [ctx.interner.intern(memberName)]
-                )
-                #expect(
-                    symbolID != nil,
-                    "Expected synthetic List member '\(memberName)' to be registered"
-                )
+            // partition is still registered as an explicit synthetic member stub.
+            // mapIndexed is now provided by bundled Kotlin source (top-level extension).
+            let collectionsFQ: [InternedString] = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+            ]
+            let mapIndexedSource = sema.symbols.lookup(
+                fqName: collectionsFQ + [ctx.interner.intern("mapIndexed")]
+            )
+            #expect(
+                mapIndexedSource != nil,
+                "Expected bundled source 'mapIndexed' to be registered"
+            )
+            if let mapIndexedSource {
+                let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
+                #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
             }
+
+            let partitionSymbolID = sema.symbols.lookup(
+                fqName: listFQ + [ctx.interner.intern("partition")]
+            )
+            #expect(
+                partitionSymbolID != nil,
+                "Expected synthetic List member 'partition' to be registered"
+            )
         }
     }
 

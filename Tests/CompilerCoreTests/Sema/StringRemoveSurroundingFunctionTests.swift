@@ -2,14 +2,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-053: Validates that both overloads of `kotlin.text.removeSurrounding`
-/// resolve through Sema for `String` receivers and dispatch to the correct runtime
-/// link names:
-///   - `removeSurrounding(delimiter)` → `kk_string_removeSurrounding`
-///   - `removeSurrounding(prefix, suffix)` → `kk_string_removeSurrounding_pair`
-///
-/// Synthetic stubs are registered in `HeaderHelpers+SyntheticStringStubs.swift`.
-/// Runtime implementations live in `RuntimeStringStdlib.swift`.
+/// STDLIB-TEXT-FN-053 / KSP-404: Validates that both overloads of
+/// `kotlin.text.removeSurrounding` resolve through Sema for `String` receivers.
+/// Both overloads are bundled Kotlin source
+/// (`Stdlib/kotlin/text/StringPrefixSuffix.kt`) and carry no runtime external link.
 @Suite
 struct StringRemoveSurroundingFunctionTests {
     // MARK: - Type-check tests
@@ -70,9 +66,9 @@ struct StringRemoveSurroundingFunctionTests {
         )
     }
 
-    // MARK: - Runtime link-name tests
+    // MARK: - Source-backed (no runtime link) tests
 
-    @Test func testRemoveSurroundingDelimiterResolvesToRuntimeLink() throws {
+    @Test func testRemoveSurroundingDelimiterIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -83,20 +79,17 @@ struct StringRemoveSurroundingFunctionTests {
                     return false
                 }
                 return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType]
+                    && signature.parameterTypes.count == 1
+                    && signature.returnType == sema.types.stringType
             })
             #expect(
-                sema.symbols.externalLinkName(for: symbol) == "kk_string_removeSurrounding_flat",
-                "Single-delimiter overload must map to kk_string_removeSurrounding_flat"
-            )
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.removeSurrounding(delimiter) should return String"
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "String.removeSurrounding(delimiter) should be source-backed after KSP-404"
             )
         }
     }
 
-    @Test func testRemoveSurroundingPairResolvesToRuntimeLink() throws {
+    @Test func testRemoveSurroundingPairIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -107,15 +100,12 @@ struct StringRemoveSurroundingFunctionTests {
                     return false
                 }
                 return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes == [sema.types.stringType, sema.types.stringType]
+                    && signature.parameterTypes.count == 2
+                    && signature.returnType == sema.types.stringType
             })
             #expect(
-                sema.symbols.externalLinkName(for: symbol) == "kk_string_removeSurrounding_pair_flat",
-                "Two-argument overload must map to kk_string_removeSurrounding_pair_flat"
-            )
-            #expect(
-                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
-                "String.removeSurrounding(prefix, suffix) should return String"
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "String.removeSurrounding(prefix, suffix) should be source-backed after KSP-404"
             )
         }
     }

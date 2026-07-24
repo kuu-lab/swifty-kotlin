@@ -1,69 +1,64 @@
-// SKIP-DIFF (DEBT-DIFF-005): kswiftc's synthetic kotlin.uuid stubs expose ByteArray.putUuid(at, uuid) /
-// ByteArray.uuid(at) / ByteArray.getUuid(offset) (kk_byteArray_putUuid / kk_byteArray_uuid / kk_uuid_getUuid
-// bridge-only externs in HeaderHelpers+SyntheticUuidStubs.swift). Real Kotlin stdlib only has
-// java.nio.ByteBuffer.putUuid/getUuid (JVM-only, since Kotlin 2.4) — there is no ByteArray-receiver
-// version and no top-level ByteArray.uuid() at all, so JVM kotlinc fails with "receiver type mismatch"
-// / "unresolved reference 'uuid'".
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
 import kotlin.uuid.Uuid
+import kotlin.uuid.getUuid
 import kotlin.uuid.putUuid
-import kotlin.uuid.uuid
+import java.nio.ByteBuffer
 
 fun main() {
     val uuidStr = "550e8400-e29b-41d4-a716-446655440000"
     val original = Uuid.parse(uuidStr)
 
-    // putUuid writes UUID bytes into ByteArray
-    val buf = ByteArray(16)
-    buf.putUuid(0, original)
-
-    // uuid reads UUID back from ByteArray
-    val restored = buf.uuid(0)
+    // putUuid writes UUID bytes into ByteBuffer at the current position
+    val buf = ByteBuffer.allocate(16)
+    buf.putUuid(original)
+    buf.position(0)
+    val restored = buf.getUuid()
     println("roundtrip: ${restored.toString() == uuidStr}")
 
-    // putUuid at non-zero offset
-    val buf2 = ByteArray(20)
+    // putUuid/getUuid at a non-zero index
+    val buf2 = ByteBuffer.allocate(20)
     buf2.putUuid(4, original)
-    val restored2 = buf2.uuid(4)
+    val restored2 = buf2.getUuid(4)
     println("offset roundtrip: ${restored2.toString() == uuidStr}")
 
     // Bytes written by putUuid match toByteArray()
     val referenceBytes = original.toByteArray()
+    val writtenBytes = buf.array()
     var match = true
     for (i in 0 until 16) {
-        if (buf[i] != referenceBytes[i]) {
+        if (writtenBytes[i] != referenceBytes[i]) {
             match = false
             break
         }
     }
     println("bytes match toByteArray: $match")
 
-    // putUuid throws for a negative offset
+    // putUuid throws for a negative index
     try {
-        val small = ByteArray(16)
+        val small = ByteBuffer.allocate(16)
         small.putUuid(-1, original)
         println("putUuid negative offset: no exception thrown")
     } catch (e: IndexOutOfBoundsException) {
         println("putUuid negative offset: threw IndexOutOfBoundsException")
     }
 
-    // putUuid throws when the array is too small to hold 16 bytes
+    // putUuid throws when the buffer is too small to hold 16 bytes
     try {
-        val tooSmall = ByteArray(10)
+        val tooSmall = ByteBuffer.allocate(10)
         tooSmall.putUuid(0, original)
-        println("putUuid too-small array: no exception thrown")
+        println("putUuid too-small buffer: no exception thrown")
     } catch (e: IndexOutOfBoundsException) {
-        println("putUuid too-small array: threw IndexOutOfBoundsException")
+        println("putUuid too-small buffer: threw IndexOutOfBoundsException")
     }
 
-    // uuid(at:) throws when the offset runs past the end of the array
+    // getUuid(index) throws when the index runs past the end of the buffer
     try {
-        val tooSmall = ByteArray(10)
-        tooSmall.uuid(0)
-        println("uuid too-small array: no exception thrown")
+        val tooSmall = ByteBuffer.allocate(10)
+        tooSmall.getUuid(0)
+        println("getUuid too-small buffer: no exception thrown")
     } catch (e: IndexOutOfBoundsException) {
-        println("uuid too-small array: threw IndexOutOfBoundsException")
+        println("getUuid too-small buffer: threw IndexOutOfBoundsException")
     }
 
     println("OK")

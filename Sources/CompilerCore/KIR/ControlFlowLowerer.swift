@@ -650,6 +650,60 @@ final class ControlFlowLowerer {
         let nextSymbol: SymbolID
     }
 
+    /// Returns true when the class symbol is one of the built-in Range / Progression
+    /// classes in `kotlin.ranges` that now provide bundled Kotlin `iterator()`
+    /// operators. These synthetic classes are allowed to resolve a custom iterator
+    /// so that `for-in` over a range is lowered through `.iterator()` instead of
+    /// the legacy `kk_range_iterator` runtime path.
+    private func isRangeLikeClass(_ classSymbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard classSymbol.fqName.count >= 2,
+              interner.resolve(classSymbol.fqName[0]) == "kotlin",
+              interner.resolve(classSymbol.fqName[1]) == "ranges"
+        else {
+            return false
+        }
+        let shortName = interner.resolve(classSymbol.fqName.last!)
+        switch shortName {
+        case "IntRange", "LongRange", "CharRange",
+             "IntProgression", "LongProgression", "CharProgression":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Looks for a non-synthetic bundled `operator fun <Range>.iterator()` extension
+    /// declared in the same package as the range class. This is how KSP-312's
+    /// `RangeIterators.kt` functions are discovered for `for-in` lowering.
+    private func resolveBundledIteratorCandidate(
+        classSymbol: SemanticSymbol,
+        iterableType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard classSymbol.fqName.count >= 2 else {
+            return nil
+        }
+        let packageFQName = classSymbol.fqName.dropLast()
+        let iteratorName = interner.intern("iterator")
+        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [iteratorName]) {
+            guard let candidateSymbol = sema.symbols.symbol(candidate),
+                  candidateSymbol.kind == .function,
+                  candidateSymbol.flags.contains(.operatorFunction),
+                  !candidateSymbol.flags.contains(.synthetic),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  let receiverType = signature.receiverType
+            else {
+                continue
+            }
+            if sema.types.isSubtype(iterableType, receiverType) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
     /// Resolves user-defined `operator fun iterator()` on the iterable type,
     /// then resolves `hasNext()` and `next()` on the iterator return type.
     /// Returns nil if no custom iterator operator is defined.
@@ -659,8 +713,10 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        // Only resolve for user-defined class types, not primitives or built-in ranges.
-        guard resolveClassTypeSymbol(nonNullType, sema: sema) != nil else {
+        // Only resolve for user-defined class types and bundled Range/Progression
+        // or source Sequence/Iterator object-expression classes whose `iterator()`
+        // operators are supplied by Kotlin source.
+        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return nil
         }
         // KSP-441: Object-expression Sequence/Iterator pipelines are synthetic classes,
@@ -669,7 +725,7 @@ final class ControlFlowLowerer {
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")
-        let iteratorCandidates = helpers.collectMemberFunctionCandidates(
+        var iteratorCandidates = helpers.collectMemberFunctionCandidates(
             named: iteratorName,
             receiverType: nonNullType,
             sema: sema,
@@ -677,12 +733,28 @@ final class ControlFlowLowerer {
         ).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.flags.contains(.operatorFunction),
+                  !symbol.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
                 return false
             }
             return true
+        }
+
+        // Built-in Range/Progression classes expose their `iterator()` as a bundled
+        // Kotlin extension rather than as a class member, so `collectMemberFunctionCandidates`
+        // will not find it through class-hierarchy lookup.
+        if iteratorCandidates.isEmpty,
+           isRangeLikeClass(classSymbol, sema: sema, interner: interner),
+           let bundledIterator = resolveBundledIteratorCandidate(
+               classSymbol: classSymbol,
+               iterableType: nonNullType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            iteratorCandidates = [bundledIterator]
         }
 
         guard let iteratorSymbol = iteratorCandidates.first,
@@ -1729,10 +1801,10 @@ final class ControlFlowLowerer {
                 // Map destructuring component1 = key, which is the iterator next value
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, componentIndex == 2 {
-                // Map destructuring component2 = value, obtained via kk_map_get(map, key)
+                // Map destructuring component2 = value, obtained via __kk_map_get(map, key)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_map_get"),
+                    callee: interner.intern("__kk_map_get"),
                     arguments: [iterableID, nextValueID],
                     result: componentResult,
                     canThrow: false,

@@ -25,7 +25,7 @@ expr e@2:38 int(3) type=Int
 expr e@2:15 call callee=e@2:15#1 args=[_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35,_:e@2:38] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:5 localDecl seq mutable=0 type=_ init=e@2:15 type=Unit ref=__local_0.seq
 expr e@4:41 name(seq) type=kotlin.sequences.Sequence<Int> ref=__local_0.seq
-expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int>
+expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.toMutableList
 expr e@4:5 localDecl mutableList mutable=0 type=MutableList<Int> init=e@4:41#1 type=Unit ref=__local_1.mutableList
 expr e@5:5 name(mutableList) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableList
 expr e@5:21 int(99) type=Int

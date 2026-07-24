@@ -48,7 +48,7 @@ expr e@6:35 int(2) type=Int
 expr e@6:30#1 binary(modulo) lhs=e@6:30 rhs=e@6:35 type=Int
 expr e@6:40 int(0) type=Int
 expr e@6:30#2 binary(equal) lhs=e@6:30#1 rhs=e@6:40 type=Boolean
-expr e@6:28 lambda params=[] body=e@6:30#2 label=find type=(Int) -> Any
+expr e@6:28 lambda params=[] body=e@6:30#2 label=find type=(Int) -> Boolean
 expr e@6:21#1 memberCall recv=e@6:21 callee=find args=[_:e@6:28] type=Int?
 expr e@6:5 localDecl firstEven mutable=0 type=_ init=e@6:21#1 type=Unit ref=__local_4.firstEven
 expr e@7:20 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s

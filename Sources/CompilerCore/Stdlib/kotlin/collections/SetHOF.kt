@@ -89,3 +89,27 @@ fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
     }
     return true
 }
+
+/**
+ * Accumulates value starting with [initial] and applying [operation] from left to right.
+ */
+public inline fun <T, R> Set<T>.fold(initial: R, operation: (R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) {
+        accumulator = operation(accumulator, element)
+    }
+    return accumulator
+}
+
+/**
+ * Accumulates value starting with [initial] and applying [operation] from left to right with element index.
+ */
+public inline fun <T, R> Set<T>.foldIndexed(initial: R, operation: (Int, R, T) -> R): R {
+    var accumulator = initial
+    var index = 0
+    for (element in this) {
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
+}

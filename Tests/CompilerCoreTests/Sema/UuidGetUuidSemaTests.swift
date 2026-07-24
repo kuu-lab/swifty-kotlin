@@ -2,10 +2,10 @@
 import Foundation
 import Testing
 
-// KSP-476: ByteArray.getUuid(offset: Int) is pure Kotlin now, declared for
-// real in Stdlib/kotlin/uuid/Uuid.kt (no externalLinkName of its own). Verify
-// it's source-backed with the expected receiver/parameter/return signature
-// and @ExperimentalUuidApi annotation.
+// KSP-508: java.nio.ByteBuffer.getUuid() / getUuid(index: Int) are pure Kotlin,
+// declared in Stdlib/kotlin/uuid/Uuid.kt (no externalLinkName of their own). Verify
+// both overloads are source-backed with the expected ByteBuffer receiver,
+// parameter/return signatures, and @ExperimentalUuidApi annotation.
 
 @Suite
 struct UuidGetUuidSemaTests {
@@ -26,6 +26,29 @@ struct UuidGetUuidSemaTests {
         return (sema, interner)
     }
 
+    private func byteBufferSymbol(sema: SemaModule, interner: StringInterner) -> SymbolID? {
+        let fq = ["java", "nio", "ByteBuffer"].map { interner.intern($0) }
+        return sema.symbols.lookup(fqName: fq)
+    }
+
+    /// Finds the `getUuid` symbol with the given number of Int parameters and a ByteBuffer receiver.
+    private func findGetUuidSymbol(
+        parameterCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let interned = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
+        let byteBufferSym = byteBufferSymbol(sema: sema, interner: interner)
+        return sema.symbols.lookupAll(fqName: interned).first { sym in
+            guard let sig = sema.symbols.functionSignature(for: sym),
+                  let receiverType = sig.receiverType,
+                  sig.parameterTypes.count == parameterCount
+            else { return false }
+            guard case .classType(let ct) = sema.types.kind(of: receiverType) else { return false }
+            return byteBufferSym == nil ? false : ct.classSymbol == byteBufferSym
+        }
+    }
+
     // MARK: - Registration presence
 
     @Test
@@ -34,7 +57,7 @@ struct UuidGetUuidSemaTests {
         let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
         #expect(
             !sema.symbols.lookupAll(fqName: fq).isEmpty,
-            "ByteArray.getUuid must be registered in kotlin.uuid package"
+            "ByteBuffer.getUuid must be registered in kotlin.uuid package"
         )
     }
 
@@ -44,35 +67,35 @@ struct UuidGetUuidSemaTests {
     func testGetUuidIsSourceBackedNotSynthetic() throws {
         let (ctx, sema, interner) = try makeSemaWithContext()
         let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        #expect(
-            sema.symbols.lookupAll(fqName: fq).contains { sym in
-                guard let info = sema.symbols.symbol(sym) else { return false }
-                return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
-            },
-            "getUuid must be declared in Uuid.kt, not registered as a synthetic stub"
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )
+        guard let info = sema.symbols.symbol(sym) else {
+            Issue.record("getUuid symbol info missing"); return
+        }
+        #expect(!info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID)
     }
 
     // MARK: - Receiver type
 
     @Test
-    func testGetUuidHasByteArrayReceiverType() throws {
+    func testGetUuidHasByteBufferReceiverType() throws {
         let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let sym = try #require(sema.symbols.lookupAll(fqName: fq).first)
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
+        )
         guard let sig = sema.symbols.functionSignature(for: sym) else {
             Issue.record("getUuid has no signature"); return
         }
         guard let receiverType = sig.receiverType else {
-            Issue.record("getUuid must have a receiver type (ByteArray)"); return
+            Issue.record("getUuid must have a receiver type (ByteBuffer)"); return
         }
-        let byteArrayFQ = ["kotlin", "ByteArray"].map { interner.intern($0) }
-        guard let byteArraySym = sema.symbols.lookup(fqName: byteArrayFQ) else {
-            Issue.record("kotlin.ByteArray class symbol missing"); return
+        let byteBufferFQ = ["java", "nio", "ByteBuffer"].map { interner.intern($0) }
+        guard let byteBufferSym = sema.symbols.lookup(fqName: byteBufferFQ) else {
+            Issue.record("java.nio.ByteBuffer class symbol missing"); return
         }
         if case .classType(let ct) = sema.types.kind(of: receiverType) {
-            #expect(ct.classSymbol == byteArraySym, "getUuid receiver must be kotlin.ByteArray")
+            #expect(ct.classSymbol == byteBufferSym, "getUuid receiver must be java.nio.ByteBuffer")
         } else {
             Issue.record("getUuid receiver type is not a class type; got \(sema.types.kind(of: receiverType))")
         }
@@ -81,15 +104,28 @@ struct UuidGetUuidSemaTests {
     // MARK: - Parameters
 
     @Test
-    func testGetUuidHasOneIntParameter() throws {
+    func testGetUuidIndexOverloadHasOneIntParameter() throws {
         let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let sym = try #require(sema.symbols.lookupAll(fqName: fq).first)
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
+        )
         guard let sig = sema.symbols.functionSignature(for: sym) else {
             Issue.record("getUuid has no signature"); return
         }
-        #expect(sig.parameterTypes.count == 1, "getUuid must accept exactly one parameter (offset: Int)")
-        #expect(sig.parameterTypes.first == sema.types.intType, "offset parameter must be Int")
+        #expect(sig.parameterTypes.count == 1, "getUuid(index:) must accept exactly one parameter (index: Int)")
+        #expect(sig.parameterTypes.first == sema.types.intType, "index parameter must be Int")
+    }
+
+    @Test
+    func testGetUuidNoArgOverloadHasNoParameters() throws {
+        let (sema, interner) = try makeSema()
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
+        )
+        guard let sig = sema.symbols.functionSignature(for: sym) else {
+            Issue.record("getUuid has no signature"); return
+        }
+        #expect(sig.parameterTypes.isEmpty, "getUuid() must accept no parameters")
     }
 
     // MARK: - Return type
@@ -97,8 +133,9 @@ struct UuidGetUuidSemaTests {
     @Test
     func testGetUuidReturnsUuid() throws {
         let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let sym = try #require(sema.symbols.lookupAll(fqName: fq).first)
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
+        )
         guard let sig = sema.symbols.functionSignature(for: sym) else {
             Issue.record("getUuid has no signature"); return
         }
@@ -118,8 +155,9 @@ struct UuidGetUuidSemaTests {
     @Test
     func testGetUuidHasExperimentalUuidApiAnnotation() throws {
         let (sema, interner) = try makeSema()
-        let fq = ["kotlin", "uuid", "getUuid"].map { interner.intern($0) }
-        let sym = try #require(sema.symbols.lookupAll(fqName: fq).first)
+        let sym = try #require(
+            findGetUuidSymbol(parameterCount: 0, sema: sema, interner: interner)
+        )
         let annotations = sema.symbols.annotations(for: sym)
         #expect(
             annotations.contains { $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi" },

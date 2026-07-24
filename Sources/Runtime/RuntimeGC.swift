@@ -317,6 +317,7 @@ func kk_runtime_reset_gc() {
         state.coroutineRoots.removeAll(keepingCapacity: false)
         state.pinnedObjects.removeAll(keepingCapacity: false)
     }
+    resetCaseInsensitiveOrderCache()
 }
 
 func kk_runtime_reset_metadata() {

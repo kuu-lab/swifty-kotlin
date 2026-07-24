@@ -684,6 +684,33 @@ extension CallTypeChecker {
                             )
                         }
                     }
+                    // Bundled stdlib extensions on flat-representation receivers
+                    // (e.g. String.startsWith in kotlin.text) live only in scope,
+                    // but a same-named extension declared in the current package
+                    // (e.g. File.startsWith) fully shadows them because ordinary
+                    // scope lookup stops at the innermost binding. Merge the whole
+                    // scope chain and filter by receiver to recover them.
+                    if scopeCandidates.isEmpty {
+                        let nonNullReceiverForChain = sema.types.makeNonNullable(memberLookupType)
+                        scopeCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
+                            guard let symbol = ctx.cachedSymbol(candidate),
+                                  symbol.kind == .function,
+                                  let signature = sema.symbols.functionSignature(for: candidate),
+                                  let recv = signature.receiverType
+                            else { return false }
+                            if let parentID = sema.symbols.parentSymbol(for: candidate),
+                               let parentSym = sema.symbols.symbol(parentID),
+                               parentSym.kind == .property
+                            {
+                                return false
+                            }
+                            return extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullReceiverForChain,
+                                declaredReceiver: recv,
+                                sema: sema
+                            )
+                        }
+                    }
                     allCandidates = scopeCandidates
                 }
             }

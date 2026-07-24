@@ -24,7 +24,7 @@ extension CallLowerer {
         switch name {
         case "emptyList", "listOf", "listOfNotNull":
             if loweredArgIDs.isEmpty {
-                emitNoArgCall("kk_emptyList", result: result, interner: interner, instructions: &instructions)
+                emitNoArgCall("__kk_emptyList", result: result, interner: interner, instructions: &instructions)
                 return result
             }
             let packed = emitPackedCollectionFactoryArguments(
@@ -36,7 +36,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                name == "listOfNotNull" ? "kk_list_of_not_null" : "kk_list_of",
+                name == "listOfNotNull" ? "kk_list_of_not_null" : "__kk_list_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -48,7 +48,7 @@ extension CallLowerer {
         case "mutableListOf", "arrayListOf":
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "kk_list_of",
+                    "__kk_list_of",
                     arity: 1,
                     result: result,
                     sema: sema,
@@ -67,7 +67,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                "kk_list_of",
+                "__kk_list_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -78,7 +78,7 @@ extension CallLowerer {
 
         case "emptySet", "setOf", "setOfNotNull":
             if loweredArgIDs.isEmpty {
-                emitNoArgCall("kk_emptySet", result: result, interner: interner, instructions: &instructions)
+                emitNoArgCall("__kk_emptySet", result: result, interner: interner, instructions: &instructions)
                 return result
             }
             let packed = emitPackedCollectionFactoryArguments(
@@ -90,7 +90,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                name == "setOfNotNull" ? "kk_set_of_not_null" : "kk_set_of",
+                name == "setOfNotNull" ? "kk_set_of_not_null" : "__kk_set_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -102,7 +102,7 @@ extension CallLowerer {
         case "mutableSetOf", "hashSetOf", "linkedSetOf":
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "kk_set_of",
+                    "__kk_set_of",
                     arity: 1,
                     result: result,
                     sema: sema,
@@ -121,7 +121,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                "kk_set_of",
+                "__kk_set_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,
@@ -132,7 +132,7 @@ extension CallLowerer {
 
         case "emptyMap", "mapOf":
             if loweredArgIDs.isEmpty {
-                emitNoArgCall("kk_emptyMap", result: result, interner: interner, instructions: &instructions)
+                emitNoArgCall("__kk_emptyMap", result: result, interner: interner, instructions: &instructions)
                 return result
             }
             return emitMapFactoryCall(
@@ -148,7 +148,7 @@ extension CallLowerer {
         case "mutableMapOf", "hashMapOf", "linkedMapOf":
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "kk_map_of",
+                    "__kk_map_of",
                     arity: 2,
                     result: result,
                     sema: sema,
@@ -375,7 +375,7 @@ extension CallLowerer {
 
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_map_of"),
+            callee: interner.intern("__kk_map_of"),
             arguments: [keysArray, valuesArray, count],
             result: result,
             canThrow: false,

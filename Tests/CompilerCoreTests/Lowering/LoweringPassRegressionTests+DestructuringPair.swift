@@ -58,11 +58,11 @@ extension LoweringPassRegressionTests {
             )
 
             // The .size access on the resulting List<Int> variables must lower to
-            // kk_list_size — only possible when the component type was correctly
+            // __kk_list_size — only possible when the component type was correctly
             // inferred as List<Int> rather than the raw type parameter.
             #expect(
-                allCallees.contains("kk_list_size"),
-                "Expected kk_list_size for evens.size / odds.size; callees: \(allCallees)"
+                allCallees.contains("__kk_list_size"),
+                "Expected __kk_list_size for evens.size / odds.size; callees: \(allCallees)"
             )
         }
     }

@@ -10,7 +10,7 @@ file fpath_use_lines package=_
   decl countLines fun countLines sym=countLines
 expr e@5:12 name(path) type=kotlin.io.path.Path ref=collectLines.$0.path
 expr e@6:9 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-0
-expr e@6:9#1 memberCall recv=e@6:9 callee=toList args=[] type=kotlin.collections.List<String>
+expr e@6:9#1 memberCall recv=e@6:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.sequences.toList
 expr e@5:26 lambda params=[lines] body=e@6:9#1 label=useLines type=(kotlin.sequences.Sequence<out String>) -> kotlin.collections.List<String>
 expr e@5:12#1 memberCall recv=e@5:12 callee=useLines args=[_:e@5:26] type=kotlin.collections.List<String>
 expr e@5:5 return value=e@5:12#1 type=Nothing

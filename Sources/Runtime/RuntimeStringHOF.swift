@@ -1210,128 +1210,8 @@ public func kk_string_filterNot_flat(
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
-@_cdecl("kk_string_takeWhile")
-public func kk_string_takeWhile(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    var taken: [UnicodeScalar] = []
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        if result == 0 { break }
-        taken.append(scalar)
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(taken))
-}
-
-@_cdecl("kk_string_takeWhile_flat")
-public func kk_string_takeWhile_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_takeWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_takeLastWhile")
-public func kk_string_takeLastWhile(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    var takenCount = 0
-    for codeUnit in codeUnits.reversed() {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(codeUnit),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        if result == 0 { break }
-        takenCount += 1
-    }
-    return runtimeMakeStringRaw(String(decoding: codeUnits.suffix(takenCount), as: UTF16.self))
-}
-
-@_cdecl("kk_string_takeLastWhile_flat")
-public func kk_string_takeLastWhile_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_takeLastWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_dropWhile")
-public func kk_string_dropWhile(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    var dropIndex = 0
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        if result == 0 { break }
-        dropIndex += 1
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(Array(scalars.dropFirst(dropIndex))))
-}
-
-@_cdecl("kk_string_dropWhile_flat")
-public func kk_string_dropWhile_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_dropWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
+// KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
+// (StringTakeDrop.kt); their runtime bridges were removed.
 
 // MARK: - onEach (STDLIB-TEXT-FN-039)
 
@@ -1349,19 +1229,6 @@ public func kk_string_onEach(
         if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
     }
     return strRaw
-}
-
-@_cdecl("kk_string_onEach_flat")
-public func kk_string_onEach_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_onEach(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_splitToSequence")
@@ -1555,17 +1422,4 @@ public func kk_string_onEachIndexed(
         if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
     }
     return strRaw
-}
-
-@_cdecl("kk_string_onEachIndexed_flat")
-public func kk_string_onEachIndexed_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_onEachIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
