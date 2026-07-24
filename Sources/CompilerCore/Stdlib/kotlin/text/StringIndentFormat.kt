@@ -2,16 +2,11 @@ package kotlin.text
 
 import kswiftk.internal.*
 
-// String indent and format functions migrated from Swift Runtime
+// String indent and format functions migrated from Swift Runtime.
 // MIGRATION-TEXT-006
 //
-// Public APIs stay source-backed while delegating to private __kk_* bridges.
-// This avoids reviving the legacy public kk_string_* synthetic/member lowering
-// surface and keeps the current runtime semantics for multiline raw strings.
-//
-// String.indent()/indent(n) stay fully pure-Kotlin (not bridged): they have no
-// __kk_string_indent* runtime counterpart, so they keep the private
-// splitIntoLines()/leadingWhitespaceCount() helpers used by their bodies.
+// Public APIs are now fully implemented in Kotlin. The legacy `__kk_string_*`
+// runtime bridges have been removed as part of the KSP-302 cleanup.
 
 private fun String.normalizeLineSeparators(): String {
     val sb = StringBuilder()
@@ -57,25 +52,79 @@ private fun String.leadingWhitespaceCount(): Int {
     return count
 }
 
-private external fun String.__kk_string_trimIndent(): String
-private external fun String.__kk_string_trimMargin(marginPrefix: String): String
-private external fun String.__kk_string_prependIndent(indent: String): String
-private external fun String.__kk_string_replaceIndent(newIndent: String): String
-private external fun String.__kk_string_replaceIndentByMargin(newIndent: String, marginPrefix: String): String
+private fun String.trimBlankEdges(): List<String> {
+    val lines = splitIntoLines()
+    var start = 0
+    var end = lines.size
+    while (start < end && lines[start].isBlank()) {
+        start++
+    }
+    while (end > start && lines[end - 1].isBlank()) {
+        end--
+    }
+    return lines.subList(start, end)
+}
 
 /**
  * Detects a common minimal indent of all the input lines, removes it from every line and also
  * removes the first and the last lines if they are blank.
  */
-public fun String.trimIndent(): String =
-    this.__kk_string_trimIndent()
+public fun String.trimIndent(): String {
+    val lines = trimBlankEdges()
+    if (lines.isEmpty()) return ""
+
+    var minimumIndent = Int.MAX_VALUE
+    for (line in lines) {
+        if (!line.isBlank()) {
+            val indent = line.leadingWhitespaceCount()
+            if (indent < minimumIndent) {
+                minimumIndent = indent
+            }
+        }
+    }
+    if (minimumIndent == Int.MAX_VALUE) {
+        minimumIndent = 0
+    }
+
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (line.isBlank()) {
+            // Intentionally left empty for blank lines.
+        } else {
+            sb.append(line.substring(minimumIndent))
+        }
+        first = false
+    }
+    return sb.toString()
+}
 
 /**
  * Trims leading whitespace characters followed by [marginPrefix] from every line of a source string
  * and removes the first and the last lines if they are blank.
  */
-public fun String.trimMargin(marginPrefix: String = "|"): String =
-    this.__kk_string_trimMargin(marginPrefix)
+public fun String.trimMargin(marginPrefix: String = "|"): String {
+    if (marginPrefix.isBlank()) {
+        throw IllegalArgumentException("marginPrefix must be non-blank string.")
+    }
+    val lines = trimBlankEdges()
+    if (lines.isEmpty()) return ""
+
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        val trimmedLeading = line.dropWhile { it == ' ' || it == '\t' }
+        if (trimmedLeading.startsWith(marginPrefix)) {
+            sb.append(trimmedLeading.removePrefix(marginPrefix))
+        } else {
+            sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
 
 /**
  * Prepends [indent] to every line of the original string.
@@ -84,21 +133,84 @@ public fun String.trimMargin(marginPrefix: String = "|"): String =
  * that are already at least as long as [indent] are left unchanged. Non-blank
  * lines always get [indent] prepended. Matches kotlin.stdlib `String.prependIndent`.
  */
-public fun String.prependIndent(indent: String = "    "): String =
-    this.__kk_string_prependIndent(indent)
+public fun String.prependIndent(indent: String = "    "): String {
+    val lines = splitIntoLines()
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (line.isBlank() && line.length < indent.length) {
+            sb.append(indent)
+        } else {
+            sb.append(indent)
+            sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
 
 /**
  * Detects indent (as in [trimIndent]), removes it, then prepends [newIndent] to every line.
  */
-public fun String.replaceIndent(newIndent: String = ""): String =
-    this.__kk_string_replaceIndent(newIndent)
+public fun String.replaceIndent(newIndent: String = ""): String {
+    val lines = trimBlankEdges()
+    if (lines.isEmpty()) return ""
+
+    var minimumIndent = Int.MAX_VALUE
+    for (line in lines) {
+        if (!line.isBlank()) {
+            val indent = line.leadingWhitespaceCount()
+            if (indent < minimumIndent) {
+                minimumIndent = indent
+            }
+        }
+    }
+    if (minimumIndent == Int.MAX_VALUE) {
+        minimumIndent = 0
+    }
+
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (line.isBlank()) {
+            // Blank lines become empty after stripping their indent.
+        } else {
+            sb.append(newIndent)
+            sb.append(line.substring(minimumIndent))
+        }
+        first = false
+    }
+    return sb.toString()
+}
 
 /**
  * Trims leading whitespace followed by [marginPrefix] (as in [trimMargin]),
  * then prepends [newIndent] to every non-margin line.
  */
-public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String =
-    this.__kk_string_replaceIndentByMargin(newIndent, marginPrefix)
+public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String {
+    if (marginPrefix.isBlank()) {
+        throw IllegalArgumentException("marginPrefix must be non-blank string.")
+    }
+    val lines = trimBlankEdges()
+    if (lines.isEmpty()) return ""
+
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        val trimmedLeading = line.dropWhile { it == ' ' || it == '\t' }
+        if (trimmedLeading.startsWith(marginPrefix)) {
+            sb.append(newIndent)
+            sb.append(trimmedLeading.removePrefix(marginPrefix))
+        } else {
+            sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
 
 /**
  * Returns a string with content of this string where each line is indented by 4 spaces.
