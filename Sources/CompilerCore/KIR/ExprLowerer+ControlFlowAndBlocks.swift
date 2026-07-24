@@ -952,43 +952,80 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
-                    let initializerType = arena.exprType(initializerID)
-                    // Prefer the symbol's Sema-recorded declared type over the
-                    // initializer's own type: an explicit widening annotation
-                    // (e.g. `val x: Any = 42L`) records `Any` on the symbol while
-                    // the literal's own arena type stays `Long`. Falling back to
-                    // the initializer's type here would silently drop the
-                    // widening, leaving the local aliased to an unboxed literal
-                    // register.
-                    let declaredType = (isDelegated ? nil : sema.symbols.propertyType(for: symbol))
-                        ?? initializerType
-                        ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
-                    driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                    // Reference-like declared locals need a slot typed to the
-                    // declaration rather than an alias to the initializer. This
-                    // keeps later assignments (e.g. String -> Int in Any) in the
-                    // same erased storage and lets ABILoweringPass apply the
-                    // correct boxing at each copy. Primitive destinations are
-                    // intentionally excluded: nullable primitive locals use a
-                    // distinct sentinel representation and must keep their
-                    // existing coercion path.
-                    let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-                    case .any, .classType, .functionType, .typeParam:
-                        true
-                    default:
-                        false
-                    }
-                    if !isDelegated, let initializerType, initializerType != declaredType,
-                       declaredTypeIsReferenceLike
-                    {
-                        let localSlot = arena.appendTemporary(type: declaredType)
-                        instructions.append(.copy(from: initializerID, to: localSlot))
-                        driver.ctx.setLocalValue(localSlot, for: symbol)
-                        if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
-                            driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
-                        }
+                    let isCustomDelegateDecl = isDelegated
+                        && StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner) == .custom
+                        && !sema.symbols.hasProvideDelegate(for: symbol)
+                    if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
+                        // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
+                        // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
+                        // to the `Prop()` instance itself (`initializerID` here) —
+                        // the pre-fix behavior, which made a primitive-returning
+                        // delegate observably return a raw object handle instead
+                        // of its unboxed value. Stdlib-special-cased kinds (lazy/
+                        // observable/vetoable/notNull — KSP-491/492) and
+                        // provideDelegate are excluded above and fall through to
+                        // the unchanged `else` path below.
+                        driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
+                        let propertyType = sema.symbols.propertyType(for: symbol)
+                            ?? arena.exprType(initializerID)
+                            ?? sema.types.anyType
+                        driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
+                        let getterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
+                            localSymbol: symbol,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        let resultExprID = arena.appendTemporary(type: propertyType)
+                        instructions.append(.call(
+                            symbol: getValueSymbol,
+                            callee: interner.intern("getValue"),
+                            arguments: [initializerID] + getterArgs,
+                            result: resultExprID,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        driver.ctx.setLocalValue(resultExprID, for: symbol)
                     } else {
-                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                        let initializerType = arena.exprType(initializerID)
+                        // Prefer the symbol's Sema-recorded declared type over the
+                        // initializer's own type: an explicit widening annotation
+                        // (e.g. `val x: Any = 42L`) records `Any` on the symbol while
+                        // the literal's own arena type stays `Long`. Falling back to
+                        // the initializer's type here would silently drop the
+                        // widening, leaving the local aliased to an unboxed literal
+                        // register.
+                        let declaredType = (isDelegated ? nil : sema.symbols.propertyType(for: symbol))
+                            ?? initializerType
+                            ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                        driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
+                        // Reference-like declared locals need a slot typed to the
+                        // declaration rather than an alias to the initializer. This
+                        // keeps later assignments (e.g. String -> Int in Any) in the
+                        // same erased storage and lets ABILoweringPass apply the
+                        // correct boxing at each copy. Primitive destinations are
+                        // intentionally excluded: nullable primitive locals use a
+                        // distinct sentinel representation and must keep their
+                        // existing coercion path.
+                        let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
+                        case .any, .classType, .functionType, .typeParam:
+                            true
+                        default:
+                            false
+                        }
+                        if !isDelegated, let initializerType, initializerType != declaredType,
+                           declaredTypeIsReferenceLike
+                        {
+                            let localSlot = arena.appendTemporary(type: declaredType)
+                            instructions.append(.copy(from: initializerID, to: localSlot))
+                            driver.ctx.setLocalValue(localSlot, for: symbol)
+                            if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
+                                driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
+                            }
+                        } else {
+                            driver.ctx.setLocalValue(initializerID, for: symbol)
+                        }
                     }
                 }
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
@@ -1015,7 +1052,55 @@ extension ExprLowerer {
                 // localValuesBySymbol (which wouldn't persist across function calls).
                 // Top-level properties have nil or .package parent.
                 // Object member properties have .object parent.
-                if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
+                if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                   let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
+                {
+                    // Local custom-delegate `var` (BUG-014 / KSP-CAP-007): `x = value`
+                    // calls `Prop().setValue(null, KProperty("x"), value)`, mirroring
+                    // the getValue call synthesized at the declaration in the
+                    // `.localDecl` case, instead of overwriting x's storage register.
+                    let setterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
+                        localSymbol: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                    instructions.append(.call(
+                        symbol: setValueSymbol,
+                        callee: interner.intern("setValue"),
+                        arguments: [delegateStorageID] + setterArgs + [valueID],
+                        result: setResultExprID,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    // setValue is not guaranteed to store exactly what it was given
+                    // (e.g. a vetoable-style delegate may reject the write), so
+                    // refresh the cached read value with a fresh getValue call —
+                    // matching what a real subsequent read of a member-property
+                    // delegate would observe.
+                    if let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
+                        let getterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
+                            localSymbol: symbol,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        let propertyType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                        let refreshedExprID = arena.appendTemporary(type: propertyType)
+                        instructions.append(.call(
+                            symbol: getValueSymbol,
+                            callee: interner.intern("getValue"),
+                            arguments: [delegateStorageID] + getterArgs,
+                            result: refreshedExprID,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        driver.ctx.setLocalValue(refreshedExprID, for: symbol)
+                    }
+                } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
                     let p = sema.symbols.parentSymbol(for: symbol)
                     let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                     return pk == nil || pk == .package || pk == .object
