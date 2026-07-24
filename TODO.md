@@ -573,7 +573,10 @@
 
 #### kotlin.random [M7 実行体]
 
-- [ ] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）
+- [~] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）— PR 作成中
+  - Kotlin 化: `Sources/CompilerCore/Stdlib/kotlin/random/SecureRandom.kt` に `SecureRandom` クラスと companion `getInstance()`、`setSeed`、`generateSeed`、`nextBytes` を追加。`@KsSymbolName` 経由で `__kk_secure_random_get_instance` / `__kk_secure_random_set_seed` / `__kk_secure_random_generate_seed` / `__kk_secure_random_next_bytes` ABI ブリッジを呼ぶ
+  - クリーンアップ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift` から `SecureRandom` の synthetic class/companion/method 登録を除去
+  - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `RuntimeABIExternalLinkValidationTests` / `RuntimeSecureRandomTests` pass。`Scripts/diff_cases/secure_random.kt` を `kswiftc` で実行確認
 
 #### kotlin.time [M8 実行体]
 
