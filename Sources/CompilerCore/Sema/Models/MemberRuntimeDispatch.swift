@@ -234,13 +234,7 @@ enum MemberRuntimeDispatch {
             if kind.isLongRangeLike { return "kk_long_range_contains" }
             return "kk_op_contains"
         case "isEmpty":
-            return rangeRuntimeName(
-                kind: kind,
-                member: "isEmpty",
-                longMember: "isEmpty",
-                charMember: "isEmpty",
-                charProgressionUsesChar: true
-            )
+            return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
             return "kk_range_endExclusive"
         case "sum":

@@ -1,19 +1,19 @@
 /// Synthetic stubs for kotlin.time.Clock (STDLIB-TIME-086).
 ///
-/// Registers `kotlin.time.Clock` interface with:
-/// - `Clock.System` singleton object with `now()` method
-/// - Instance method `now()` on the Clock interface
+/// Registers `kotlin.time.Clock` interface with its instance method `now()`
+/// as a direct native bridge (kk_clock_now). Clock is a user-implementable
+/// interface, so `now()` must remain a real class member for virtual dispatch
+/// to work.
 ///
-/// Both `now()` overloads stay as direct native bridges (kk_clock_now /
-/// kk_clock_system_now): Clock is a user-implementable interface, so `now()`
-/// must remain a real class member for virtual dispatch to work, and
-/// Clock.System is a singleton whose factory-style member cannot be
-/// expressed as Kotlin-source extension (KSP-472).
+/// `Clock.System` is created as a nested object so that the bundled Kotlin
+/// source extension `Clock.System.now()` in Stdlib/kotlin/time/Clock.kt can
+/// resolve. The Clock.System.now() factory itself is implemented in Kotlin
+/// source and delegates to `kk_clock_system_now` via a `@KsSymbolName`
+/// external declaration.
 ///
 /// kotlin.time.Instant itself is registered by
 /// HeaderHelpers+SyntheticInstantStubs.swift; this file only re-resolves the
-/// existing Instant symbol to use as the return type of Clock.now() /
-/// Clock.System.now().
+/// existing Instant symbol to use as the return type of Clock.now().
 extension DataFlowSemaPhase {
     func registerSyntheticClockStubs(
         symbols: SymbolTable,
@@ -67,35 +67,12 @@ extension DataFlowSemaPhase {
         )
 
         // --- Clock.System nested object ---
-
-        let clockSystemFQName = ensureClockNestedObject(
+        // Created so the bundled Kotlin-source extension Clock.System.now()
+        // in Stdlib/kotlin/time/Clock.kt can resolve.
+        _ = ensureClockNestedObject(
             named: "System",
             ownerSymbol: clockSymbol,
             ownerFQName: kotlinTimePkg + [interner.intern("Clock")],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Retrieve the System symbol so we can get its TypeID for
-        // registerClockMemberFunction (which requires a receiverType).
-        guard let clockSystemSymbol = symbols.lookup(fqName: clockSystemFQName) else { return }
-        let clockSystemType = types.make(.classType(ClassType(
-            classSymbol: clockSystemSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        // Clock.System.now() -> Instant
-        // Registered as an instance member on the System object so that the
-        // type checker can find it via collectMemberFunctionCandidates when the
-        // receiver expression is typed as Clock.System (an object, not a class).
-        registerClockMemberFunction(
-            named: "now",
-            externalLinkName: "kk_clock_system_now",
-            ownerSymbol: clockSystemSymbol,
-            ownerType: clockSystemType,
-            parameters: [],
-            returnType: instantType,
             symbols: symbols,
             interner: interner
         )

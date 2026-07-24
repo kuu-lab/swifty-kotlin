@@ -20,7 +20,7 @@ struct RuntimeListPropertyTests {
 
         #expect(kk_range_first(indices) == 0)
         #expect(kk_range_last(indices) == 2)
-        #expect(kk_range_isEmpty(indices) == 0)
+        #expect(!RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: indices)!))
     }
 
     @Test
@@ -29,7 +29,7 @@ struct RuntimeListPropertyTests {
 
         #expect(kk_range_first(indices) == 0)
         #expect(kk_range_last(indices) == -1)
-        #expect(kk_range_isEmpty(indices) == 1)
+        #expect(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: indices)!))
     }
 
     @Test
