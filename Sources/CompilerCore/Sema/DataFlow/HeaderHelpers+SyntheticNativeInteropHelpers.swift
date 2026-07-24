@@ -94,31 +94,6 @@ extension DataFlowSemaPhase {
         )))
     }
 
-    func cPointerType(
-        pointedTypeName: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
-        guard let cPointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("CPointer")]),
-              let pointedSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern(pointedTypeName)])
-        else {
-            return types.anyType
-        }
-
-        let pointedType = types.make(.classType(ClassType(
-            classSymbol: pointedSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        return types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(pointedType)],
-            nullability: .nonNull
-        )))
-    }
-
     func registerSyntheticCInteropTypeAlias(
         named aliasName: String,
         in packageFQName: [InternedString],
@@ -267,105 +242,12 @@ extension DataFlowSemaPhase {
         return aliasSymbol
     }
 
-    func deprecatedImmutableBlobAnnotations() -> [MetadataAnnotationRecord] {
-        [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: ["message = \"ImmutableBlob is deprecated. Use ByteArray instead.\""]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                arguments: [
-                    "warningSince = \"1.9\"",
-                    "errorSince = \"2.1\"",
-                ]
-            ),
-        ]
-    }
-
-    func deprecatedImmutableBlobFactoryAnnotations() -> [MetadataAnnotationRecord] {
-        [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"ImmutableBlob is deprecated. Use ByteArray instead.\"",
-                    "replaceWith = ReplaceWith(\"byteArrayOf(*elements)\")",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                arguments: [
-                    "warningSince = \"1.9\"",
-                    "errorSince = \"2.1\"",
-                ]
-            ),
-        ]
-    }
-
-    func deprecatedImmutableBlobPointerAnnotations() -> [MetadataAnnotationRecord] {
-        [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"ImmutableBlob is deprecated. Use ByteArray instead. To get a stable C pointer to a `ByteArray`, pin it first.\"",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                arguments: [
-                    "warningSince = \"1.9\"",
-                    "errorSince = \"2.1\"",
-                ]
-            ),
-        ]
-    }
-
-    func deprecatedNativeVector128TypeAliasAnnotations() -> [MetadataAnnotationRecord] {
-        [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"Use kotlinx.cinterop.Vector128 instead.\"",
-                    "replaceWith = ReplaceWith(\"kotlinx.cinterop.Vector128\")",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                arguments: [
-                    "warningSince = \"1.9\"",
-                    "errorSince = \"2.1\"",
-                ]
-            ),
-            MetadataAnnotationRecord(annotationFQName: "kotlinx.cinterop.ExperimentalForeignApi"),
-        ]
-    }
-
     func deprecatedCEnumAnnotations() -> [MetadataAnnotationRecord] {
         [
             MetadataAnnotationRecord(
                 annotationFQName: "kotlin.Deprecated",
                 arguments: ["message = \"Will be removed.\""]
             ),
-        ]
-    }
-
-    func deprecatedNativeVectorOfAnnotations() -> [MetadataAnnotationRecord] {
-        [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"Use kotlinx.cinterop.vectorOf instead.\"",
-                    "replaceWith = ReplaceWith(\"kotlinx.cinterop.vectorOf(f0, f1, f2, f3)\")",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                arguments: [
-                    "warningSince = \"1.9\"",
-                    "errorSince = \"2.1\"",
-                ]
-            ),
-            MetadataAnnotationRecord(annotationFQName: "kotlinx.cinterop.ExperimentalForeignApi"),
         ]
     }
 
@@ -376,18 +258,6 @@ extension DataFlowSemaPhase {
     func experimentalNativeUnsignedApiAnnotations() -> [MetadataAnnotationRecord] {
         experimentalNativeApiAnnotations()
             + [MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalUnsignedTypes")]
-    }
-
-    func appendDeprecatedImmutableBlobAnnotations(to symbol: SymbolID, symbols: SymbolTable) {
-        var annotations = symbols.annotations(for: symbol)
-        var didAppend = false
-        for record in deprecatedImmutableBlobAnnotations() where !annotations.contains(record) {
-            annotations.append(record)
-            didAppend = true
-        }
-        if didAppend {
-            symbols.setAnnotations(annotations, for: symbol)
-        }
     }
 
     func registerSyntheticCPointedReadFunction(
