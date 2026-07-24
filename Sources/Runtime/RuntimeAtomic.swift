@@ -806,84 +806,34 @@ public func kk_atomic_int_array_size(_ receiver: Int) -> Int {
     return box.size()
 }
 
-@_cdecl("kk_atomic_int_array_loadAt")
-public func kk_atomic_int_array_loadAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+// KSP-672: The public `*At` boundary layer and bounds checks now live in Kotlin
+// (Stdlib/kotlin/concurrent/AtomicArrayMigration.kt). These `__kk_*` bridges are
+// the raw synchronized core: they assume the index has already been validated by
+// the Kotlin caller and never allocate exceptions.
+@_cdecl("__kk_atomic_int_array_load")
+public func __kk_atomic_int_array_load(_ receiver: Int, _ index: Int) -> Int {
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.load(at: index)
 }
 
-@_cdecl("kk_atomic_int_array_storeAt")
-public func kk_atomic_int_array_storeAt(
-    _ receiver: Int, _ index: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_int_array_store")
+public func __kk_atomic_int_array_store(_ receiver: Int, _ index: Int, _ value: Int) -> Int {
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     box.store(at: index, value: value)
     return 0
 }
 
-@_cdecl("kk_atomic_int_array_exchangeAt")
-public func kk_atomic_int_array_exchangeAt(
-    _ receiver: Int, _ index: Int, _ newValue: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_int_array_exchange")
+public func __kk_atomic_int_array_exchange(_ receiver: Int, _ index: Int, _ newValue: Int) -> Int {
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.exchange(at: index, newValue: newValue)
 }
 
-@_cdecl("kk_atomic_int_array_compareAndSetAt")
-public func kk_atomic_int_array_compareAndSetAt(
-    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int, _ outThrown: UnsafeMutablePointer<Int>?
+@_cdecl("__kk_atomic_int_array_compareAndExchange")
+public func __kk_atomic_int_array_compareAndExchange(
+    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int
 ) -> Int {
-    outThrown?.pointee = 0
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.compareAndSet(at: index, expect: expect, update: update) ? 1 : 0
-}
-
-@_cdecl("kk_atomic_int_array_compareAndExchangeAt")
-public func kk_atomic_int_array_compareAndExchangeAt(
-    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.compareAndExchange(at: index, expect: expect, update: update)
 }
 
@@ -914,100 +864,16 @@ public func kk_atomic_int_array_fetchAndUpdateAt(
     return result.old
 }
 
-@_cdecl("kk_atomic_int_array_fetchAndAddAt")
-public func kk_atomic_int_array_fetchAndAddAt(
-    _ receiver: Int, _ index: Int, _ delta: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_int_array_fetchAndAdd")
+public func __kk_atomic_int_array_fetchAndAdd(_ receiver: Int, _ index: Int, _ delta: Int) -> Int {
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.fetchAndAdd(at: index, delta: delta)
 }
 
-@_cdecl("kk_atomic_int_array_addAndFetchAt")
-public func kk_atomic_int_array_addAndFetchAt(
-    _ receiver: Int, _ index: Int, _ delta: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_int_array_addAndFetch")
+public func __kk_atomic_int_array_addAndFetch(_ receiver: Int, _ index: Int, _ delta: Int) -> Int {
     guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.addAndFetch(at: index, delta: delta)
-}
-
-@_cdecl("kk_atomic_int_array_fetchAndIncrementAt")
-public func kk_atomic_int_array_fetchAndIncrementAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.fetchAndAdd(at: index, delta: 1)
-}
-
-@_cdecl("kk_atomic_int_array_incrementAndFetchAt")
-public func kk_atomic_int_array_incrementAndFetchAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.addAndFetch(at: index, delta: 1)
-}
-
-@_cdecl("kk_atomic_int_array_fetchAndDecrementAt")
-public func kk_atomic_int_array_fetchAndDecrementAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.fetchAndAdd(at: index, delta: -1)
-}
-
-@_cdecl("kk_atomic_int_array_decrementAndFetchAt")
-public func kk_atomic_int_array_decrementAndFetchAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.addAndFetch(at: index, delta: -1)
 }
 
 // MARK: - AtomicLongArray
@@ -1126,84 +992,33 @@ public func kk_atomic_long_array_size(_ receiver: Int) -> Int {
     return box.size()
 }
 
-@_cdecl("kk_atomic_long_array_loadAt")
-public func kk_atomic_long_array_loadAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+// KSP-672: Raw synchronized core for AtomicLongArray. Bounds checks and the
+// public `*At` layer live in Kotlin (AtomicArrayMigration.kt); these bridges
+// assume a pre-validated index and never allocate exceptions.
+@_cdecl("__kk_atomic_long_array_load")
+public func __kk_atomic_long_array_load(_ receiver: Int, _ index: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.load(at: index)
 }
 
-@_cdecl("kk_atomic_long_array_storeAt")
-public func kk_atomic_long_array_storeAt(
-    _ receiver: Int, _ index: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_long_array_store")
+public func __kk_atomic_long_array_store(_ receiver: Int, _ index: Int, _ value: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     box.store(at: index, value: value)
     return 0
 }
 
-@_cdecl("kk_atomic_long_array_exchangeAt")
-public func kk_atomic_long_array_exchangeAt(
-    _ receiver: Int, _ index: Int, _ newValue: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_long_array_exchange")
+public func __kk_atomic_long_array_exchange(_ receiver: Int, _ index: Int, _ newValue: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.exchange(at: index, newValue: newValue)
 }
 
-@_cdecl("kk_atomic_long_array_compareAndSetAt")
-public func kk_atomic_long_array_compareAndSetAt(
-    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int, _ outThrown: UnsafeMutablePointer<Int>?
+@_cdecl("__kk_atomic_long_array_compareAndExchange")
+public func __kk_atomic_long_array_compareAndExchange(
+    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int
 ) -> Int {
-    outThrown?.pointee = 0
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.compareAndSet(at: index, expect: expect, update: update) ? 1 : 0
-}
-
-@_cdecl("kk_atomic_long_array_compareAndExchangeAt")
-public func kk_atomic_long_array_compareAndExchangeAt(
-    _ receiver: Int, _ index: Int, _ expect: Int, _ update: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.compareAndExchange(at: index, expect: expect, update: update)
 }
 
@@ -1239,100 +1054,16 @@ public func kk_atomic_long_array_fetchAndUpdateAt(
     return result.old
 }
 
-@_cdecl("kk_atomic_long_array_fetchAndAddAt")
-public func kk_atomic_long_array_fetchAndAddAt(
-    _ receiver: Int, _ index: Int, _ delta: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_long_array_fetchAndAdd")
+public func __kk_atomic_long_array_fetchAndAdd(_ receiver: Int, _ index: Int, _ delta: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.fetchAndAdd(at: index, delta: delta)
 }
 
-@_cdecl("kk_atomic_long_array_addAndFetchAt")
-public func kk_atomic_long_array_addAndFetchAt(
-    _ receiver: Int, _ index: Int, _ delta: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+@_cdecl("__kk_atomic_long_array_addAndFetch")
+public func __kk_atomic_long_array_addAndFetch(_ receiver: Int, _ index: Int, _ delta: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
     return box.addAndFetch(at: index, delta: delta)
-}
-
-@_cdecl("kk_atomic_long_array_fetchAndIncrementAt")
-public func kk_atomic_long_array_fetchAndIncrementAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.fetchAndAdd(at: index, delta: 1)
-}
-
-@_cdecl("kk_atomic_long_array_incrementAndFetchAt")
-public func kk_atomic_long_array_incrementAndFetchAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.addAndFetch(at: index, delta: 1)
-}
-
-@_cdecl("kk_atomic_long_array_fetchAndDecrementAt")
-public func kk_atomic_long_array_fetchAndDecrementAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.fetchAndAdd(at: index, delta: -1)
-}
-
-@_cdecl("kk_atomic_long_array_decrementAndFetchAt")
-public func kk_atomic_long_array_decrementAndFetchAt(
-    _ receiver: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    return box.addAndFetch(at: index, delta: -1)
 }
 
 // MARK: - AtomicArray<T> (generic reference-typed array)

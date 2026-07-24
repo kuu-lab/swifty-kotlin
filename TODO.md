@@ -770,7 +770,7 @@
 
 - [ ] KSP-670: AtomicBoolean を Kotlin 委譲化する（`AtomicMigration.kt` の委譲パターンで get/set/getAndSet 等 — CAS ループ非依存分のみ。`kk_atomic_bool_*` のうち load/store/exchange はブリッジ残留）
 - [ ] KSP-671: Atomic reverse 変種と compareAndSet 公開層を Kotlin 化する（fetchAndAdd/fetchAndIncrement/fetchAndDecrement + compareAndSet/compareAndExchange の公開層委譲。CPU 命令コアはブリッジ残留。前提: KSP-670 でパターン確立）
-- [ ] KSP-672: Atomic 配列 *At 系の委譲分を Kotlin 化する（loadAt/storeAt 等の公開層 + 境界検査を Kotlin 側へ。コア CAS 命令はブリッジ残留。39関数中の委譲可能分を着手時固定）
+- [x] KSP-672: Atomic 配列 *At 系の委譲分を Kotlin 化する（loadAt/storeAt 等の公開層 + 境界検査を Kotlin 側へ。コア CAS 命令はブリッジ残留。39関数中の委譲可能分を着手時固定）
 - [ ] KSP-673: Atomic CAS ループ系 13 関数を Kotlin 化する（getAndUpdate/updateAndGet/fetchAndUpdate + 配列版 fetchAndUpdateAt/updateAt/updateAndFetchAt。前提: **KSP-CAP-004**（`AtomicMigration.kt` コメントの保留解除））
 - [ ] KSP-674: Flow ビルダーを Kotlin 化する（`kk_flow_as_flow`/`kk_flow_empty`/`kk_flow_of` — (c) ブリッジ `kk_flow_create`+`kk_flow_emit` の合成で表現。前提: **KSP-CAP-010** + KSP-CAP-012）
 - [ ] KSP-675: SharedFlow を Kotlin 化する（`kk_mutable_shared_flow_create/emit/try_emit`, `kk_shared_flow_collect/replay_cache` — replay buffer・購読者管理は Kotlin の状態遷移で表現可（2026-07-10 再監査で b-reclass 確定）。前提: KSP-674）
