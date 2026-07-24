@@ -648,8 +648,12 @@ struct ExperimentalMarkerStubTests {
         for marker in Self.optInExperimentalPackageMarkerNames {
             let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", marker], sema: sema, interner: interner))
             let annotations = sema.symbols.annotations(for: symbol)
+            // Source-backed markers record `@RequiresOptIn` under its simple
+            // name while synthetic stubs use the qualified name; the compiler's
+            // opt-in logic normalizes both via `.matches`, so assert with the
+            // same predicate rather than a single spelling.
             #expect(annotations.contains {
-                    $0.annotationFQName == "kotlin.RequiresOptIn"
+                    KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
                         && $0.arguments.contains("level=RequiresOptIn.Level.ERROR")
                 }, "kotlin.experimental.\(marker) should carry @RequiresOptIn(ERROR), got \(annotations)")
         }
