@@ -112,15 +112,12 @@ extension ListSyntheticMemberLinkTests {
                     ]))
                     #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
-                    // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
-                    // internal calls like `result.add(element)` inside bundled Set HOFs.
-                    let callExpr = try #require(firstExprID(in: ast) { id, expr in
+                    // Use the last matching call site: bundled stdlib source files are
+                    // loaded before the fixture's own source, so the fixture call is
+                    // the last expression with this member name in the AST arena.
+                    let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                        guard ctx.interner.resolve(callee) == memberName else { return false }
-                        if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
-                            return false
-                        }
-                        return true
+                        return ctx.interner.resolve(callee) == memberName
                     })
                     let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                     #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
@@ -254,7 +251,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "unzip"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
+            // KSP-425: List.unzip() is now source-backed and has no external runtime link.
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected List.unzip to resolve to bundled source")
 
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {
@@ -1202,17 +1200,24 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testWithIndexUsesIterableOfIndexedValueSignature() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
+        let source = """
+        fun test(values: List<Int>) {
+            values.withIndex()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.withIndex to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-                ctx.interner.intern("withIndex"),
-            ]))
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "withIndex"
+            })
+            let withIndexSymbol = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -1227,9 +1232,14 @@ extension ListSyntheticMemberLinkTests {
                 Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
-            guard case let .out(elementType) = try #require(iterableType.args.first),
-                  case let .classType(indexedValueType) = sema.types.kind(of: elementType)
-            else {
+            let elementType: TypeID
+            switch try #require(iterableType.args.first) {
+            case .out(let t), .invariant(let t):
+                elementType = t
+            default:
+                Issue.record("Expected Iterable element type projection to be out/invariant"); return
+            }
+            guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
                 Issue.record("Expected Iterable element type to be IndexedValue"); return
             }
             #expect(indexedValueType.classSymbol == indexedValueSymbol)

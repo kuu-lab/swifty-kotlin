@@ -74,7 +74,7 @@ public extension RuntimeABISpec {
         let runningReduceSpec = hofSpec("kk_list_runningReduce")
         let scanReduceSpec = hofSpec("kk_list_scanReduce")
         let genericAfter = [
-            "kk_list_reduce", "kk_list_groupBy", "kk_list_sortedBy",
+            "kk_list_reduce", "kk_list_sortedBy",
         ]
         let destinationLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -177,58 +177,6 @@ public extension RuntimeABISpec {
         )
         let flatMapIndexedToSpec = RuntimeABIFunctionSpec(
             name: stdlibListHOFName("flatMapIndexedTo", arity: 2, fallback: "kk_list_flatMapIndexedTo"),
-            parameters: destinationLambdaParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateBySpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateBy",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateByTransformSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateByTransform",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "keyFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "keyClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "valueClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateWithSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateWith",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associate",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let associateToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_associateTo",
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
@@ -337,24 +285,6 @@ public extension RuntimeABISpec {
                 section: "Collection"
             ),
         ]
-        let unzipSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_unzip",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let withIndexSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_withIndex",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
         let forEachIndexedSpec = RuntimeABIFunctionSpec(
             name: stdlibListHOFName("forEachIndexed", arity: 1, fallback: "kk_list_forEachIndexed"),
             parameters: [
@@ -614,62 +544,10 @@ public extension RuntimeABISpec {
             }
         )
         functions.append(contentsOf: [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec])
-        functions.append(contentsOf: [
-                associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_associateByTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_associateWithTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_groupByTo",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "destRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_groupByTransform",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "keyFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "keyClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "valueFnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "valueClosureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-            ]
-            + [legacyListZipTransformSpec]
+        functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
+                forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
@@ -775,7 +653,6 @@ public extension RuntimeABISpec {
                     section: "Collection"
                 ),
                 hofSpec("kk_list_sortedWith"),
-                hofSpec("kk_list_partition"),
                 stdlibListHOFSpec("takeWhile", arity: 1, fallback: "kk_list_takeWhile"),
                 stdlibListHOFSpec("dropWhile", arity: 1, fallback: "kk_list_dropWhile"),
                 stdlibListHOFSpec("takeLastWhile", arity: 1, fallback: "kk_list_takeLastWhile"),

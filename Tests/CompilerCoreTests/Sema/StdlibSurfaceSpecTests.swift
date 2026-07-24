@@ -47,11 +47,7 @@ struct StdlibSurfaceSpecTests {
             list("mapNotNull", 1),
             list("flatMap", 1),
             list("forEach", 1),
-            list("groupBy", 1),
             list("groupingBy", 1),
-            list("associateBy", 1),
-            list("associateWith", 1),
-            list("associate", 1),
             list("sumOf", 1),
             list("sumBy", 1),
             list("sumByDouble", 1),
@@ -59,8 +55,6 @@ struct StdlibSurfaceSpecTests {
             list("firstNotNullOfOrNull", 1),
             list("maxOfOrNull", 1),
             list("forEachIndexed", 1),
-            list("onEach", 1),
-            list("onEachIndexed", 1),
             list("mapIndexed", 1),
             list("takeWhile", 1),
             list("dropWhile", 1),
@@ -72,10 +66,6 @@ struct StdlibSurfaceSpecTests {
             list("mapIndexedTo", 2),
             list("mapIndexedNotNullTo", 2),
             list("flatMapIndexedTo", 2),
-            list("associateTo", 2),
-            list("associateByTo", 2),
-            list("associateWithTo", 2),
-            list("groupByTo", 2),
 
             set("map", 1),
             set("filter", 1),
@@ -213,8 +203,6 @@ struct StdlibSurfaceSpecTests {
                 // List.mapIndexedTo is source-backed (ListHOF.kt) and has no
                 // synthetic runtime-bridge stub; the remaining entries are still
                 // synthetically registered with their runtime links.
-                (.list, ["kotlin", "collections", "List"], "associateTo", 2),
-                (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
                 (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.map, ["kotlin", "collections", "Map"], "mapValuesTo", 2),
