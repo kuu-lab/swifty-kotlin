@@ -449,13 +449,12 @@ extension TypeSystem {
             first
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
-        } else if filtered.allSatisfy({ isSubtype($0, anyType) }) {
-            // All types are non-null subtypes of Any — prefer non-null LUB.
-            anyType
-        } else if filtered.allSatisfy({ isSubtype($0, nullableAnyType) }) {
-            nullableAnyType
         } else {
-            anyType
+            // Separate the nullability dimension from the underlying type:
+            // compute the LUB over the non-null projections and re-apply
+            // nullability when any input was nullable. This keeps
+            // `lub(T, T?) == T?` instead of widening all the way to `Any?`.
+            lubReapplyingNullability(filtered)
         }
         // If any input was Nothing? (null literal), the result must be nullable
         if hasNullableNothing {
@@ -607,6 +606,25 @@ extension TypeSystem {
         default:
             return false
         }
+    }
+
+    /// Computes the LUB over the non-null projections of `filtered` and
+    /// re-applies nullability if any input was nullable. When the non-null
+    /// projections share a single underlying type (e.g. `String` and
+    /// `String?`), the result is that type made nullable (`String?`) rather
+    /// than being widened to `Any?`.
+    private func lubReapplyingNullability(_ filtered: [TypeID]) -> TypeID {
+        let anyNullable = filtered.contains { nullability(of: $0) == .nullable }
+        let nonNull = filtered.map { makeNonNullable($0) }
+        let base: TypeID
+        if let firstNonNull = nonNull.first, nonNull.dropFirst().allSatisfy({ $0 == firstNonNull }) {
+            base = firstNonNull
+        } else if let kClassLub = lubKClassTypes(nonNull) {
+            base = kClassLub
+        } else {
+            base = anyType
+        }
+        return anyNullable ? makeNullable(base) : base
     }
 
     /// If **all** types in `filtered` are `KClass<…>`, compute

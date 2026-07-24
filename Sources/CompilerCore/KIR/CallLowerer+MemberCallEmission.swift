@@ -1013,27 +1013,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        let atomicReferenceUpdateRuntimeNames: Set = [
-            interner.intern("kk_atomic_ref_getAndUpdate"),
-            interner.intern("kk_atomic_ref_updateAndGet"),
-            interner.intern("kk_atomic_ref_array_fetchAndUpdateAt"),
-            interner.intern("kk_atomic_ref_array_updateAt"),
-            interner.intern("kk_atomic_ref_array_updateAndFetchAt"),
-        ]
-        if atomicReferenceUpdateRuntimeNames.contains(loweredCallee),
-           let transformID = finalArguments.last,
-           let transformArgExprID = sourceArgExprs.last,
-           let adaptedTransform = makeAtomicReferenceUpdateFunctionValue(
-               loweredArgID: transformID,
-               argExprID: transformArgExprID,
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
-        {
-            finalArguments[finalArguments.count - 1] = adaptedTransform
-        }
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred.

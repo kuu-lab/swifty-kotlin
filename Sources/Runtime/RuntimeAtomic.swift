@@ -65,19 +65,6 @@ final class AtomicIntBox {
         storage = storage &+ delta
         return storage
     }
-
-    func getAndUpdate(transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        while true {
-            let old = load()
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(expect: old, update: new) {
-                return (old, new)
-            }
-        }
-    }
 }
 
 private func atomicIntBox(from raw: Int) -> AtomicIntBox? {
@@ -169,33 +156,6 @@ public func kk_atomic_int_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicInt.getAndUpdate / updateAndGet)
-@_cdecl("kk_atomic_int_getAndUpdate")
-public func kk_atomic_int_getAndUpdate(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicIntBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
-}
-
-@_cdecl("kk_atomic_int_updateAndGet")
-public func kk_atomic_int_updateAndGet(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicIntBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.new
-}
-
 // MARK: - AtomicLong
 
 /// Backing storage for kotlin.concurrent.AtomicLong.
@@ -260,19 +220,6 @@ final class AtomicLongBox {
         defer { lock.unlock() }
         storage = storage &+ delta
         return storage
-    }
-
-    func getAndUpdate(transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        while true {
-            let old = load()
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(expect: old, update: new) {
-                return (old, new)
-            }
-        }
     }
 }
 
@@ -365,33 +312,6 @@ public func kk_atomic_long_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicLong.getAndUpdate / updateAndGet)
-@_cdecl("kk_atomic_long_getAndUpdate")
-public func kk_atomic_long_getAndUpdate(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicLongBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
-}
-
-@_cdecl("kk_atomic_long_updateAndGet")
-public func kk_atomic_long_updateAndGet(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicLongBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.new
-}
-
 // MARK: - AtomicBoolean
 
 /// Backing storage for kotlin.concurrent.AtomicBoolean.
@@ -443,19 +363,6 @@ final class AtomicBooleanBox {
             storage = update ? 1 : 0
         }
         return old
-    }
-
-    func getAndUpdate(transform: (Bool) -> Bool, outThrown: UnsafeMutablePointer<Int>?) -> (old: Bool, new: Bool) {
-        while true {
-            let old = load()
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(expect: old, update: new) {
-                return (old, new)
-            }
-        }
     }
 }
 
@@ -512,33 +419,6 @@ public func kk_atomic_bool_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicBoolean.getAndUpdate / updateAndGet)
-@_cdecl("kk_atomic_bool_getAndUpdate")
-public func kk_atomic_bool_getAndUpdate(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicBoolBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old ? 1 : 0, outThrown) != 0
-    }, outThrown: outThrown)
-    return result.old ? 1 : 0
-}
-
-@_cdecl("kk_atomic_bool_updateAndGet")
-public func kk_atomic_bool_updateAndGet(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicBoolBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old ? 1 : 0, outThrown) != 0
-    }, outThrown: outThrown)
-    return result.new ? 1 : 0
-}
-
 // MARK: - AtomicReference<T>
 
 /// Backing storage for kotlin.concurrent.AtomicReference<T>.
@@ -591,19 +471,6 @@ final class AtomicRefBox {
             storage = update
         }
         return old
-    }
-
-    func getAndUpdate(transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        while true {
-            let old = load()
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(expect: old, update: new) {
-                return (old, new)
-            }
-        }
     }
 }
 
@@ -658,33 +525,6 @@ public func kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _ u
 @_cdecl("kk_atomic_ref_asJavaAtomic")
 public func kk_atomic_ref_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
-}
-
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicReference.getAndUpdate / updateAndGet)
-@_cdecl("kk_atomic_ref_getAndUpdate")
-public func kk_atomic_ref_getAndUpdate(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicRefBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
-}
-
-@_cdecl("kk_atomic_ref_updateAndGet")
-public func kk_atomic_ref_updateAndGet(
-    _ receiver: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicRefBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate(transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.new
 }
 
 // MARK: - AtomicIntArray
@@ -766,19 +606,6 @@ final class AtomicIntArrayBox {
         guard storage.indices.contains(index) else { return 0 }
         storage[index] = storage[index] &+ delta
         return storage[index]
-    }
-
-    func fetchAndUpdate(at index: Int, transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        while true {
-            let old = load(at: index)
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(at: index, expect: old, update: new) {
-                return (old, new)
-            }
-        }
     }
 }
 
@@ -890,28 +717,6 @@ public func kk_atomic_int_array_compareAndExchangeAt(
 @_cdecl("kk_atomic_int_array_asJavaAtomicArray")
 public func kk_atomic_int_array_asJavaAtomicArray(_ receiver: Int) -> Int {
     receiver
-}
-
-@_cdecl("kk_atomic_int_array_fetchAndUpdateAt")
-public func kk_atomic_int_array_fetchAndUpdateAt(
-    _ receiver: Int,
-    _ index: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicIntArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    let result = box.fetchAndUpdate(at: index, transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
 }
 
 @_cdecl("kk_atomic_int_array_fetchAndAddAt")
@@ -1088,19 +893,6 @@ final class AtomicLongArrayBox {
         storage[index] = storage[index] &+ delta
         return storage[index]
     }
-
-    func fetchAndUpdate(at index: Int, transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        while true {
-            let old = load(at: index)
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(at: index, expect: old, update: new) {
-                return (old, new)
-            }
-        }
-    }
 }
 
 private func atomicLongArrayBox(from raw: Int) -> AtomicLongArrayBox? {
@@ -1215,28 +1007,6 @@ public func kk_atomic_long_array_asJavaAtomicArray(_ receiver: Int) -> Int {
 @_cdecl("kk_java_atomic_long_array_asKotlinAtomicArray")
 public func kk_java_atomic_long_array_asKotlinAtomicArray(_ receiver: Int) -> Int {
     receiver
-}
-
-@_cdecl("kk_atomic_long_array_fetchAndUpdateAt")
-public func kk_atomic_long_array_fetchAndUpdateAt(
-    _ receiver: Int,
-    _ index: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
-    let size = box.size()
-    guard index >= 0 && index < size else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "index \(index) out of bounds for size \(size)"
-        )
-        return 0
-    }
-    let result = box.fetchAndUpdate(at: index, transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
 }
 
 @_cdecl("kk_atomic_long_array_fetchAndAddAt")
@@ -1402,20 +1172,6 @@ final class AtomicRefArrayBox {
         }
         return old
     }
-
-    func fetchAndUpdate(at index: Int, transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
-        guard index >= 0 && index < size() else { return (0, 0) }
-        while true {
-            let old = load(at: index)
-            let new = transform(old)
-            if let thrown = outThrown, thrown.pointee != 0 {
-                return (old, old)
-            }
-            if compareAndSet(at: index, expect: old, update: new) {
-                return (old, new)
-            }
-        }
-    }
 }
 
 private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
@@ -1505,46 +1261,4 @@ public func kk_atomic_ref_array_compareAndExchangeAt(_ receiver: Int, _ index: I
 @_cdecl("kk_atomic_ref_array_asJavaAtomicArray")
 public func kk_atomic_ref_array_asJavaAtomicArray(_ receiver: Int) -> Int {
     receiver
-}
-
-@_cdecl("kk_atomic_ref_array_fetchAndUpdateAt")
-public func kk_atomic_ref_array_fetchAndUpdateAt(
-    _ receiver: Int,
-    _ index: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicRefArrayBox(from: receiver) else { return 0 }
-    let result = box.fetchAndUpdate(at: index, transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.old
-}
-
-@_cdecl("kk_atomic_ref_array_updateAt")
-public func kk_atomic_ref_array_updateAt(
-    _ receiver: Int,
-    _ index: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicRefArrayBox(from: receiver) else { return 0 }
-    _ = box.fetchAndUpdate(at: index, transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return 0
-}
-
-@_cdecl("kk_atomic_ref_array_updateAndFetchAt")
-public func kk_atomic_ref_array_updateAndFetchAt(
-    _ receiver: Int,
-    _ index: Int,
-    _ updateFn: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let box = atomicRefArrayBox(from: receiver) else { return 0 }
-    let result = box.fetchAndUpdate(at: index, transform: { old in
-        kk_function_invoke(updateFn, old, outThrown)
-    }, outThrown: outThrown)
-    return result.new
 }
