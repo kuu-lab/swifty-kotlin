@@ -2537,8 +2537,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCallee {
-                    let canThrow = runtimeCallee == "kk_list_partition"
-                        || runtimeCallee == "kk_iterable_firstNotNullOf"
+                    let canThrow = runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
                         || runtimeCallee == "kk_array_reduce"
                         || runtimeCallee == "kk_array_reduceOrNull"
@@ -3168,8 +3167,6 @@ extension CallLowerer {
                     "kk_list_minOfWithOrNull"
                 case "minBy":
                     "kk_list_minBy"
-                case "partition":
-                    "kk_list_partition"
                 case "intersect":
                     "kk_list_intersect"
                 default:

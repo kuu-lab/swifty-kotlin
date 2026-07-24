@@ -9,6 +9,16 @@ let listRuntimeTypeID: Int64 = {
     return payload == 0 ? 1 : payload
 }()
 
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
+    let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
+    let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
+    runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
+    return (mapID, mutableMapID)
+}()
+
+let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
+let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
+
 private let mapEntryRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
     for byte in "kotlin.collections.Map.Entry".utf8 {

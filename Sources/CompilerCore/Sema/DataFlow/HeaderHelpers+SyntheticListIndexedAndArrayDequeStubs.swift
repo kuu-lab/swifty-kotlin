@@ -44,7 +44,16 @@ extension DataFlowSemaPhase {
 
         let withIndexName = interner.intern("withIndex")
         let withIndexFQName = listFQName + [withIndexName]
-        if symbols.lookup(fqName: withIndexFQName) == nil {
+        let shouldSkipWithIndex = BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: listFQName,
+            receiverType: receiverType,
+            name: withIndexName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if !shouldSkipWithIndex, symbols.lookup(fqName: withIndexFQName) == nil {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: withIndexName,
@@ -54,7 +63,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_withIndex", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,

@@ -1093,6 +1093,15 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = destinationType
+                if calleeStr == "associateTo" {
+                    if bindBundledListSourceFunction(
+                        typeArguments: [collectionElementType, destinationMapKeyType, destinationMapValueType, nonNullableDestinationType]
+                    ) {
+                        if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                        }
+                    }
+                }
                 if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr),
                    !isSequenceReceiver
                 {
@@ -1375,6 +1384,11 @@ extension CallTypeChecker {
                         } else {
                             resultType = receiverType
                         }
+                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
+                        }
                     case "flatMap":
                         let lambdaBodyType = inferredLambdaReturnType(
                             argExpr: args[0].expr, ast: ast, sema: sema
@@ -1478,6 +1492,19 @@ extension CallTypeChecker {
                                     ? [collectionElementType, keyType, valueType]
                                     : [collectionElementType, keyType]
                             }
+                            let associateByTypeArgs: [TypeID] = args.count >= 2
+                                ? [collectionElementType, keyType, valueType]
+                                : [collectionElementType, keyType]
+                            if bindBundledListSourceFunction(typeArguments: associateByTypeArgs) {
+                                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                                }
+                                if args.count >= 2,
+                                   let lambdaExpr = ast.arena.expr(args[1].expr),
+                                   lambdaExpr.isLambdaOrCallableRef {
+                                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                                }
+                            }
                         } else {
                             resultType = sema.types.anyType
                         }
@@ -1491,6 +1518,11 @@ extension CallTypeChecker {
                                 args: [.invariant(collectionElementType), .invariant(valueType)],
                                 nullability: .nonNull
                             )))
+                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, valueType]) {
+                                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                                }
+                            }
                         } else {
                             resultType = sema.types.anyType
                         }
@@ -1525,6 +1557,11 @@ extension CallTypeChecker {
                             )))
                             if isSequenceReceiver {
                                 sourceBackedSequenceAggregateTypeArguments = [collectionElementType, keyType, valueType]
+                            }
+                            if bindBundledListSourceFunction(typeArguments: [collectionElementType, keyType, valueType]) {
+                                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                                }
                             }
                         } else {
                             resultType = sema.types.anyType
@@ -2179,43 +2216,110 @@ extension CallTypeChecker {
                             ? [collectionElementType, keyType, valueElementType]
                             : [collectionElementType, keyType]
                     }
+                    let groupByTypeArgs: [TypeID] = args.count >= 2
+                        ? [collectionElementType, keyType, valueElementType]
+                        : [collectionElementType, keyType]
+                    if bindBundledListSourceFunction(typeArguments: groupByTypeArgs) {
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                        if args.count >= 2,
+                           let lambdaExpr = ast.arena.expr(args[1].expr),
+                           lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                        }
+                    }
                 } else {
                     resultType = sema.types.anyType
                 }
 
             case "associateByTo", "associateWithTo", "groupByTo":
-                // *To(destination, keySelector/valueSelector): returns the destination map
-                guard args.count == 2 else {
+                // *To(destination, keySelector/valueSelector, [valueTransform]): returns the destination map
+                guard args.count == 2 || args.count == 3 else {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
                 // Infer the destination map argument first
                 let destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-                // Extract K/V from destination MutableMap<K, V> for stronger lambda return type inference
-                let lambdaReturnType: TypeID
-                if let destClassType = resolveClassType(destType, sema: sema),
+                let nonNullableDestType = sema.types.makeNonNullable(destType)
+                let destKeyType: TypeID
+                let destValueType: TypeID
+                if let destClassType = resolveClassType(nonNullableDestType, sema: sema),
                    destClassType.args.count >= 2
                 {
-                    // For associateWithTo: lambda returns V (value type, args[1])
-                    // For associateByTo/groupByTo: lambda returns K (key type, args[0])
-                    let targetArgIndex = (calleeStr == "associateWithTo") ? 1 : 0
-                    lambdaReturnType = switch destClassType.args[targetArgIndex] {
+                    destKeyType = switch destClassType.args[0] {
+                    case let .invariant(id), let .out(id), let .in(id): id
+                    case .star: sema.types.anyType
+                    }
+                    destValueType = switch destClassType.args[1] {
                     case let .invariant(id), let .out(id), let .in(id): id
                     case .star: sema.types.anyType
                     }
                 } else {
-                    lambdaReturnType = sema.types.anyType
+                    destKeyType = sema.types.anyType
+                    destValueType = sema.types.anyType
                 }
-                let lambdaExpectedType2 = sema.types.make(.functionType(FunctionType(
+
+                // First lambda return type: value for associateWithTo, key otherwise.
+                let firstLambdaReturnType: TypeID = (calleeStr == "associateWithTo") ? destValueType : destKeyType
+                let firstLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: lambdaReturnType
+                    returnType: firstLambdaReturnType,
+                    isSuspend: false,
+                    nullability: .nonNull
                 )))
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
                 }
-                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType2)
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: firstLambdaExpectedType)
+                let firstLambdaReturn = inferredLambdaReturnType(
+                    argExpr: args[1].expr, ast: ast, sema: sema
+                )
+
+                var valueType: TypeID = destValueType
+                if args.count == 3 {
+                    // Second lambda provides the transformed value.
+                    // For groupByTo the destination stores MutableList<V>, so the lambda returns V.
+                    let secondLambdaExpectedReturn: TypeID
+                    if calleeStr == "groupByTo" {
+                        secondLambdaExpectedReturn = extractListElementType(destValueType, sema: sema, interner: interner)
+                    } else {
+                        secondLambdaExpectedReturn = destValueType
+                    }
+                    let secondLambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType],
+                        returnType: secondLambdaExpectedReturn,
+                        isSuspend: false,
+                        nullability: .nonNull
+                    )))
+                    if let lambdaExpr = ast.arena.expr(args[2].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[2].expr)
+                    }
+                    _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: secondLambdaExpectedType)
+                    valueType = inferredLambdaReturnType(
+                        argExpr: args[2].expr, ast: ast, sema: sema
+                    )
+                }
+
                 // Return type is the destination map type
                 resultType = destType
+
+                // Source-backed overloads:
+                //   associateByTo<T,K,M> / associateByTo<T,K,V,M> / associateWithTo<T,V,M>
+                //   groupByTo<T,K,M> / groupByTo<T,K,V,M>
+                let toTypeArgs: [TypeID] = args.count == 3
+                    ? [collectionElementType, firstLambdaReturn, valueType, nonNullableDestType]
+                    : [collectionElementType, firstLambdaReturn, nonNullableDestType]
+                if bindBundledListSourceFunction(typeArguments: toTypeArgs) {
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                    }
+                    if args.count == 3,
+                       let lambdaExpr = ast.arena.expr(args[2].expr),
+                       lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[2].expr)
+                    }
+                }
 
             case "groupingBy":
                 guard args.count == 1 else {
@@ -2508,6 +2612,11 @@ extension CallTypeChecker {
                 } else {
                     resultType = sema.types.anyType
                 }
+                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                }
 
             case "flatten":
                 // Sequence<Iterable<T>> / List<List<T>> etc.: one-level flatten → element type T
@@ -2695,6 +2804,11 @@ extension CallTypeChecker {
                         )
                     } else {
                         resultType = receiverType
+                    }
+                    if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                        }
                     }
                 } else if calleeStr == "filterIndexed" {
                     if isSequenceReceiver {

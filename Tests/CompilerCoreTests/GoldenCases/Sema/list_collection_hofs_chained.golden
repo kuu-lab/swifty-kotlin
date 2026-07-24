@@ -32,14 +32,14 @@ expr e@2:18#3 memberCall recv=e@2:18#2 callee=flatMap args=[_:e@4:18] type=kotli
 expr e@5:26 name(it) type=Int ref=s-4
 expr e@5:26#1 memberCall recv=e@5:26 callee=toString args=[] type=String
 expr e@5:24 lambda params=[] body=e@5:26#1 label=associateWith type=(Int) -> Any
-expr e@2:18#4 memberCall recv=e@2:18#3 callee=associateWith args=[_:e@5:24] type=kotlin.collections.Map<Int, String>
+expr e@2:18#4 memberCall recv=e@2:18#3 callee=associateWith args=[_:e@5:24] type=kotlin.collections.Map<Int, String> call=kotlin.collections.associateWith targs=[Int,String]
 expr e@2:5 localDecl result mutable=0 type=_ init=e@2:18#4 type=Unit ref=__local_0.result
 expr e@6:18 name(values) type=kotlin.collections.List<Int> ref=chained.$0.values
 expr e@6:35 name(it) type=Int ref=s-5
 expr e@6:40 int(3) type=Int
 expr e@6:35#1 binary(modulo) lhs=e@6:35 rhs=e@6:40 type=Int
 expr e@6:33 lambda params=[] body=e@6:35#1 label=groupBy type=(Int) -> Any
-expr e@6:18#1 memberCall recv=e@6:18 callee=groupBy args=[_:e@6:33] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>>
+expr e@6:18#1 memberCall recv=e@6:18 callee=groupBy args=[_:e@6:33] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>> call=kotlin.collections.groupBy#0 targs=[Int,Int]
 expr e@6:56 name(it) type=kotlin.collections.Map.Entry<out Int, out kotlin.collections.List<Int>> ref=s-6
 expr e@6:56#1 memberCall recv=e@6:56 callee=value args=[] type=kotlin.collections.List<Int> call=kotlin.collections.Map.Entry.value targs=[Int,kotlin.collections.List<Int>]
 expr e@6:56#2 memberCall recv=e@6:56#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
