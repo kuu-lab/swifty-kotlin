@@ -346,31 +346,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "startsWith",
-            externalLinkName: "kk_string_startsWith_flat",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "endsWith",
-            externalLinkName: "kk_string_endsWith_flat",
-            receiverType: stringType,
-            parameters: [
-                ("suffix", stringType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt).
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
@@ -1053,165 +1029,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "drop",
-            externalLinkName: "kk_string_drop_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+        // (StringTakeDrop.kt).
 
-        registerSyntheticStringExtensionFunction(
-            named: "take",
-            externalLinkName: "kk_string_take_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "dropLast",
-            externalLinkName: "kk_string_dropLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "takeLast",
-            externalLinkName: "kk_string_takeLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-185: removePrefix / removeSuffix / removeSurrounding ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix_flat",
-            receiverType: charSequenceType,
-            parameters: [
-                ("prefix", charSequenceType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix_flat",
-            receiverType: charSequenceType,
-            parameters: [
-                ("suffix", charSequenceType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_flat",
-            receiverType: charSequenceType,
-            parameters: [
-                ("delimiter", charSequenceType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair_flat",
-            receiverType: charSequenceType,
-            parameters: [
-                ("prefix", charSequenceType, false, false),
-                ("suffix", charSequenceType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix_flat",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix_flat",
-            receiverType: stringType,
-            parameters: [
-                ("suffix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair_flat",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-                ("suffix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin
+        // source (StringPrefixSuffix.kt).
 
         // --- STDLIB-186 / STDLIB-TEXT-FN-074..077 ---
         // Runtime helpers accept 0 (null raw) for missingDelimiterValue when the
@@ -2333,37 +2155,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "takeWhile",
-            externalLinkName: "kk_string_takeWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-TEXT-FN-081: CharSequence.takeLastWhile(predicate: (Char) -> Boolean): String ---
-        registerSyntheticStringExtensionFunction(
-            named: "takeLastWhile",
-            externalLinkName: "kk_string_takeLastWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "dropWhile",
-            externalLinkName: "kk_string_dropWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
+        // (StringTakeDrop.kt).
         // --- STDLIB-TEXT-FN-039: String.onEach(action: (Char) -> Unit): String ---
         let charToUnitType = types.make(.functionType(FunctionType(
             params: [charType],
