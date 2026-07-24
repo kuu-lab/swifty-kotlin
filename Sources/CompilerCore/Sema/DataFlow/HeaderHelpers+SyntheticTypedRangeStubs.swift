@@ -685,7 +685,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [],
             returnType: types.booleanType,
-            externalLinkName: "kk_long_range_isEmpty",
+            externalLinkName: "kk_range_isEmpty",
             symbols: symbols,
             interner: interner
         )
