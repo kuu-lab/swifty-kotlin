@@ -1,7 +1,6 @@
 @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
 
-import kotlin.concurrent.atomics.AtomicInt
-import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.*
 
 // KSP-671: fetchAndAdd/fetchAndIncrement/fetchAndDecrement reverse variants and
 // compareAndSet public layer on AtomicInt/AtomicLong.
