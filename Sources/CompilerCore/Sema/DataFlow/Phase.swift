@@ -115,7 +115,22 @@ final class DataFlowSemaPhase: CompilerPhase {
         symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
         ctx: CompilationContext
     ) {
-        for file in ast.sortedFiles {
+        // Collect bundled/residual stdlib headers before user headers so that
+        // source-backed stdlib declarations (e.g. `kotlin.experimental`
+        // annotation classes) are registered before user signatures that
+        // reference them are resolved inline during header collection. This
+        // keeps resolution independent of the order in which the SourceManager
+        // assigned file IDs (the driver injects bundled sources first, but test
+        // harnesses may add user sources first).
+        let orderedFiles = ast.sortedFiles.sorted { lhs, rhs in
+            let lhsBundled = ctx.sourceManager.origin(of: lhs.fileID)?.isBundledStdlib == true
+            let rhsBundled = ctx.sourceManager.origin(of: rhs.fileID)?.isBundledStdlib == true
+            if lhsBundled != rhsBundled {
+                return lhsBundled
+            }
+            return lhs.fileID.rawValue < rhs.fileID.rawValue
+        }
+        for file in orderedFiles {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             registerFileAnnotations(
                 file: file,
