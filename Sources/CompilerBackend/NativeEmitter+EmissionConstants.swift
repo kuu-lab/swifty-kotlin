@@ -256,6 +256,52 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
+        /// Emit a call to `kk_string_equals_flat` when at least one operand is a
+        /// String aggregate. This is required for `==`/`!=` on generic `K` that
+        /// is instantiated with `String`, because the inlined function body ends
+        /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
+        /// `icmp` a struct. Returns `nil` when neither operand is a String aggregate.
+        func emitStringAggregateEquality(
+            lhsValue: LLVMCAPIBindings.LLVMValueRef,
+            lhsType: TypeID?,
+            rhsValue: LLVMCAPIBindings.LLVMValueRef,
+            rhsType: TypeID?,
+            invert: Bool
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard isStringAggregateType(lhsType) || isStringAggregateType(rhsType),
+                  let lhsFields = stringAggregateFields(lhsValue, suffix: "eq_lhs_\(instructionIndex)"),
+                  let rhsFields = stringAggregateFields(rhsValue, suffix: "eq_rhs_\(instructionIndex)")
+            else {
+                return nil
+            }
+            let parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = [
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+                state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
+            ]
+            guard let equalsFunction = declareTypedExternalFunction(
+                named: "kk_string_equals_flat",
+                parameterTypes: parameterTypes,
+                returnType: state.int64Type
+            ),
+                  let eqResult = bindings.buildCall(
+                      state.builder,
+                      functionType: equalsFunction.type,
+                      callee: equalsFunction.value,
+                      arguments: lhsFields + rhsFields,
+                      name: "string_eq_\(instructionIndex)"
+                  )
+            else {
+                return nil
+            }
+            guard invert else { return eqResult }
+            guard let one = bindings.constInt(state.int64Type, value: 1),
+                  let inverted = bindings.buildXor(state.builder, lhs: eqResult, rhs: one, name: "string_ne_\(instructionIndex)")
+            else {
+                return nil
+            }
+            return inverted
+        }
+
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
         case "__string_struct_get_length", "kk_string_struct_get_length", "length":
@@ -336,13 +382,25 @@ extension NativeEmitter {
         // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
         // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
         case "kk_op_eq":
-            if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
+            if let stringEq = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: false
+            ) {
+                lowered = stringEq
+            } else if let compared = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: rhs, name: "eq_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "eq64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
         case "kk_op_ne":
-            if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
+            if let stringNe = emitStringAggregateEquality(
+                lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
+                rhsValue: rhs, rhsType: argumentTypes.indices.contains(1) ? argumentTypes[1] : nil,
+                invert: true
+            ) {
+                lowered = stringNe
+            } else if let compared = bindings.buildICmpNotEqual(state.builder, lhs: lhs, rhs: rhs, name: "ne_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "ne64_\(instructionIndex)")
             } else {
                 lowered = nil

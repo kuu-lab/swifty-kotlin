@@ -238,8 +238,9 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // map.count(predicate) on map literals
-        if callee == lookup.countName && (arguments.count == 2 || arguments.count == 3) {
+        // map.count(predicate) on map literals (skip when Map.count is source-backed)
+        if callee == lookup.countName && (arguments.count == 2 || arguments.count == 3),
+           !isSourceBackedBundledFunction(symbol: symbol, ctx: ctx) {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]
             if state.mapExprIDs.contains(receiverID.rawValue) {
@@ -789,5 +790,12 @@ extension CollectionLiteralConstructionLoweringPass {
             return arguments
         }
         return Array(arguments.dropFirst())
+    }
+
+    private func isSourceBackedBundledFunction(symbol: SymbolID?, ctx: KIRContext) -> Bool {
+        guard let symbol, let sema = ctx.sema, let semanticSymbol = sema.symbols.symbol(symbol) else {
+            return false
+        }
+        return semanticSymbol.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
     }
 }

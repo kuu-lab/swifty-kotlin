@@ -298,7 +298,9 @@ extension DataFlowSemaPhase {
         mapInterfaceSymbol: SymbolID,
         keyTypeParamSymbol: SymbolID,
         valueTypeParamSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
         let keyType = types.make(.typeParam(TypeParamType(symbol: keyTypeParamSymbol, nullability: .nonNull)))
@@ -357,6 +359,10 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = mapFQName + [memberName]
+            if bundledIndex.contains(ownerFQName: mapFQName, name: memberName, arity: parameterTypes.count) {
+                skipStats?.recordSkip(ownerFQName: mapFQName, name: memberName, arity: parameterTypes.count, interner: interner)
+                return
+            }
             if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
@@ -870,6 +876,10 @@ extension DataFlowSemaPhase {
                 let memberName = interner.intern(name)
                 let memberFQName = mapFQName + [memberName]
                 guard symbols.lookup(fqName: memberFQName) == nil else { return }
+                if bundledIndex.contains(ownerFQName: mapFQName, name: memberName, arity: 1) {
+                    skipStats?.recordSkip(ownerFQName: mapFQName, name: memberName, arity: 1, interner: interner)
+                    return
+                }
 
                 let selectorReturnType: TypeID
                 let extraTypeParamSymbols: [SymbolID]
