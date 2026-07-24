@@ -1321,14 +1321,9 @@ final class CallLowerer {
             } else {
                 sourceCalleeName
             }
-            if loweredCalleeName == interner.intern("kk_channel_create"), finalArgIDs.isEmpty {
-                let capacityExpr = arena.appendExpr(
-                    .intLiteral(0),
-                    type: sema.types.intType
-                )
-                instructions.append(.constValue(result: capacityExpr, value: .intLiteral(0)))
-                finalArgIDs.append(capacityExpr)
-            } else if loweredCalleeName == interner.intern("kk_coroutine_cancel_current"),
+            // KSP-678: `Channel()` supplies its default capacity (0) in bundled
+            // Kotlin source, so no default-argument injection is needed here.
+            if loweredCalleeName == interner.intern("kk_coroutine_cancel_current"),
                       finalArgIDs.count == 1
             {
                 // The synthetic one-argument `cancel(message)` overload lowers
