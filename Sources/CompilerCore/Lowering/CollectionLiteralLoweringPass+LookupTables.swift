@@ -831,12 +831,12 @@ struct CollectionLiteralLookupTables {
         linkedHashMapName = interner.intern("LinkedHashMap")
         linkedHashSetName = interner.intern("LinkedHashSet")
 
-        kkListOfName = interner.intern("kk_list_of")
+        kkListOfName = interner.intern("__kk_list_of")
         kkListOfNotNullName = interner.intern("kk_list_of_not_null")
-        kkEmptyListName = interner.intern("kk_emptyList")
+        kkEmptyListName = interner.intern("__kk_emptyList")
         kkEmptyArrayName = interner.intern("kk_empty_array")
-        kkEmptySetName = interner.intern("kk_emptySet")
-        kkEmptyMapName = interner.intern("kk_emptyMap")
+        kkEmptySetName = interner.intern("__kk_emptySet")
+        kkEmptyMapName = interner.intern("__kk_emptyMap")
         kkListSizeName = interner.intern("kk_list_size")
         kkListGetName = interner.intern("kk_list_get")
         kkListContainsName = interner.intern("kk_list_contains")
@@ -849,7 +849,7 @@ struct CollectionLiteralLookupTables {
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
         kkListToStringName = interner.intern("kk_list_to_string")
         kkCollectionToMutableListName = interner.intern("kk_collection_toMutableList")
-        kkSetOfName = interner.intern("kk_set_of")
+        kkSetOfName = interner.intern("__kk_set_of")
         kkSetOfNotNullName = interner.intern("kk_set_of_not_null")
         kkSetSizeName = interner.intern("kk_set_size")
         kkSetContainsName = interner.intern("kk_set_contains")
@@ -1072,7 +1072,7 @@ struct CollectionLiteralLookupTables {
         kkSequenceFilterNotNullToName = interner.intern("kk_sequence_filterNotNullTo")
         kkSequenceFilterIsInstanceToName = interner.intern("kk_sequence_filterIsInstanceTo")
 
-        kkMapOfName = interner.intern("kk_map_of")
+        kkMapOfName = interner.intern("__kk_map_of")
         kkMapSizeName = interner.intern("kk_map_size")
         kkMapGetName = interner.intern("kk_map_get")
         kkMapContainsKeyName = interner.intern("kk_map_contains_key")
@@ -1594,13 +1594,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_substring_flat"),
             interner.intern("kk_string_slice_range"),
             interner.intern("kk_string_slice_iterable"),
-            interner.intern("kk_string_take_flat"),
-            interner.intern("kk_string_drop_flat"),
-            interner.intern("kk_string_takeLast_flat"),
-            interner.intern("kk_string_dropLast_flat"),
-            interner.intern("kk_string_removePrefix_flat"),
-            interner.intern("kk_string_removeSuffix_flat"),
-            interner.intern("kk_string_removeSurrounding_flat"),
             interner.intern("kk_string_removeRange_flat"),
             interner.intern("kk_string_removeRange_range_flat"),
             interner.intern("kk_string_substringBefore_flat"),

@@ -26,7 +26,7 @@ expr e@4:27 name(it) type=Int ref=s-3
 expr e@4:31 name(it) type=Int ref=s-3
 expr e@4:36 int(2) type=Int
 expr e@4:31#1 binary(multiply) lhs=e@4:31 rhs=e@4:36 type=Int
-expr e@4:20 call callee=e@4:20#1 args=[_:e@4:27,_:e@4:31#1] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#3 targs=[Int]
+expr e@4:20 call callee=e@4:20#1 args=[_:e@4:27,_:e@4:31#1] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
 expr e@4:18 lambda params=[] body=e@4:20 label=flatMap type=(Int) -> Any
 expr e@2:18#3 memberCall recv=e@2:18#2 callee=flatMap args=[_:e@4:18] type=kotlin.collections.List<Int>
 expr e@5:26 name(it) type=Int ref=s-4

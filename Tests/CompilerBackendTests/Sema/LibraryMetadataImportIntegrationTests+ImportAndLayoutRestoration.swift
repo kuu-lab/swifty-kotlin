@@ -329,7 +329,8 @@ extension LibraryMetadataImportIntegrationTests {
                 inputs: [path],
                 moduleName: "DefaultImportApp",
                 emit: .kirDump,
-                searchPaths: [libDir.path]
+                searchPaths: [libDir.path],
+                includeStdlib: false
             )
             try runToKIR(ctx)
 

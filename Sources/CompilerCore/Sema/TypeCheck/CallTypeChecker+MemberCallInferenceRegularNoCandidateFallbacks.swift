@@ -492,36 +492,7 @@ extension CallTypeChecker {
                 }
             }
         }
-        // CharSequence stdlib: removePrefix / removeSuffix / removeSurrounding (STDLIB-185)
-        if args.count == 1 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            let calleeStr = interner.resolve(calleeName)
-            if ["removePrefix", "removeSuffix", "removeSurrounding"].contains(calleeStr),
-               isSyntheticStringLikeType(receiverTypeForCheck, sema: sema),
-               isSyntheticStringLikeType(arg0Type, sema: sema)
-            {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
+        // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source.
         // String stdlib: 1-arg methods (STDLIB-006)
         if args.count == 1 {
             let receiverTypeForCheck = safeCall
@@ -533,7 +504,7 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 let resultType: TypeID? = switch calleeStr {
-                case "startsWith", "endsWith", "contains":
+                case "contains":
                     sema.types.make(.primitive(.boolean, .nonNull))
                 case "indexOf", "lastIndexOf", "compareTo":
                     sema.types.make(.primitive(.int, .nonNull))
@@ -673,37 +644,7 @@ extension CallTypeChecker {
                 return finalType
             }
         }
-        // CharSequence stdlib: 2-arg removeSurrounding(prefix, suffix) (STDLIB-185)
-        if args.count == 2 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            let arg1Type = sema.types.makeNonNullable(argTypes[1])
-            if isSyntheticStringLikeType(receiverTypeForCheck, sema: sema),
-               isSyntheticStringLikeType(arg0Type, sema: sema),
-               isSyntheticStringLikeType(arg1Type, sema: sema),
-               interner.resolve(calleeName) == "removeSurrounding"
-            {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
+        // KSP-404: 2-arg removeSurrounding(prefix, suffix) is bundled Kotlin source.
         // String.replaceIndentByMargin(newIndent, marginPrefix)
         if args.count == 2 {
             let receiverTypeForCheck = safeCall

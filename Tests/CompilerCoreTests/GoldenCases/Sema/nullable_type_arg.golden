@@ -9,7 +9,7 @@ file fnullable_type_arg package=golden.sema
 expr e@4:38 string(a) type=String
 expr e@4:43 name(null) type=Nothing?
 expr e@4:49 string(b) type=String
-expr e@4:31 call callee=e@4:31#1 args=[_:e@4:38,_:e@4:43,_:e@4:49] type=kotlin.collections.List<String?> call=kotlin.collections.listOf#3 targs=[String?]
+expr e@4:31 call callee=e@4:31#1 args=[_:e@4:38,_:e@4:43,_:e@4:49] type=kotlin.collections.List<String?> call=kotlin.collections.listOf#1 targs=[String?]
 expr e@4:5 localDecl list mutable=0 type=List<String?> init=e@4:31 type=Unit ref=__local_0.list
 expr e@5:26 name(list) type=kotlin.collections.List<String?> ref=__local_0.list
 expr e@5:31 int(0) type=Int

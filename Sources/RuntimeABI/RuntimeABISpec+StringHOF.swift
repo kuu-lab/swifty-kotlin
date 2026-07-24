@@ -222,39 +222,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_takeWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_takeLastWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_dropWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
+        // (StringTakeDrop.kt); their raw ABI entries were removed.
         // STDLIB-TEXT-FN-039: onEach
         RuntimeABIFunctionSpec(
             name: "kk_string_onEach",
