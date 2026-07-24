@@ -517,7 +517,7 @@ public func kk_uShortArray_toList(_ arrayRaw: Int) -> Int {
 }
 
 /// ByteArray.asUByteArray(): UByteArray view
-@_cdecl("kk_byteArray_asUByteArray")
+@_cdecl("__kk_byteArray_asUByteArray")
 public func kk_byteArray_asUByteArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_byteArray_asUByteArray")
@@ -526,7 +526,7 @@ public func kk_byteArray_asUByteArray(_ arrayRaw: Int) -> Int {
 }
 
 /// ShortArray.asUShortArray(): UShortArray view
-@_cdecl("kk_shortArray_asUShortArray")
+@_cdecl("__kk_shortArray_asUShortArray")
 public func kk_shortArray_asUShortArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_shortArray_asUShortArray")
@@ -535,7 +535,7 @@ public func kk_shortArray_asUShortArray(_ arrayRaw: Int) -> Int {
 }
 
 /// IntArray.asUIntArray(): UIntArray view
-@_cdecl("kk_intArray_asUIntArray")
+@_cdecl("__kk_intArray_asUIntArray")
 public func kk_intArray_asUIntArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_intArray_asUIntArray")
@@ -544,7 +544,7 @@ public func kk_intArray_asUIntArray(_ arrayRaw: Int) -> Int {
 }
 
 /// LongArray.asULongArray(): ULongArray view
-@_cdecl("kk_longArray_asULongArray")
+@_cdecl("__kk_longArray_asULongArray")
 public func kk_longArray_asULongArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_longArray_asULongArray")
@@ -599,25 +599,25 @@ private func kk_unsignedArray_asSignedArrayView(_ arrayRaw: Int, functionName: S
 }
 
 /// UByteArray.asByteArray(): ByteArray
-@_cdecl("kk_uByteArray_asByteArray")
+@_cdecl("__kk_uByteArray_asByteArray")
 public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
     kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uByteArray_asByteArray")
 }
 
 /// UShortArray.asShortArray(): ShortArray
-@_cdecl("kk_uShortArray_asShortArray")
+@_cdecl("__kk_uShortArray_asShortArray")
 public func kk_uShortArray_asShortArray(_ arrayRaw: Int) -> Int {
     kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uShortArray_asShortArray")
 }
 
 /// UIntArray.asIntArray(): IntArray view
-@_cdecl("kk_uIntArray_asIntArray")
+@_cdecl("__kk_uIntArray_asIntArray")
 public func kk_uIntArray_asIntArray(_ arrayRaw: Int) -> Int {
     kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uIntArray_asIntArray")
 }
 
 /// ULongArray.asLongArray(): LongArray view
-@_cdecl("kk_uLongArray_asLongArray")
+@_cdecl("__kk_uLongArray_asLongArray")
 public func kk_uLongArray_asLongArray(_ arrayRaw: Int) -> Int {
     kk_unsignedArray_asSignedArrayView(arrayRaw, functionName: "kk_uLongArray_asLongArray")
 }
