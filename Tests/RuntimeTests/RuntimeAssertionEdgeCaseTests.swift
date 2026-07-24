@@ -12,9 +12,9 @@ import XCTest
 //  - message toString behavior (null sentinel, Int box, Bool box)
 //  - exception type discrimination
 //
-// NOTE: checkNotNull / requireNotNull runtime entry points (kk_check_not_null /
-// kk_require_not_null) are not yet implemented in Sources/Runtime/RuntimePreconditions.swift.
-// Those APIs are tracked as a known gap — see PR body for STDLIB-ASSERT-001.
+// NOTE: the old kk_check_not_null / kk_require_not_null runtime entry points were
+// removed as dead code (CLEANUP-STUB-101); new checkNotNull / requireNotNull APIs
+// are tracked separately as KSP-606.
 
 // Helpers for constructing runtime string boxes to pass as message arguments.
 private func makeRuntimeString(_ value: String) -> Int {
