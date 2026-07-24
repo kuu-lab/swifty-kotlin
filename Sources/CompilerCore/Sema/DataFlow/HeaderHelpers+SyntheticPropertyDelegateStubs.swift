@@ -5,7 +5,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinPkg: [InternedString],
-        kotlinPropertiesPkg: [InternedString]
+        kotlinPropertiesPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex
     ) {
         let anyType = types.anyType
         let knownNames = KnownCompilerNames(interner: interner)
@@ -223,25 +224,6 @@ extension DataFlowSemaPhase {
         let kMutablePropertySymbol = ensureInterfaceSymbol(
             named: "KMutableProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
-        let kProperty0Symbol = ensureInterfaceSymbol(
-            named: "KProperty0", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        let kProperty1Symbol = ensureInterfaceSymbol(
-            named: "KProperty1", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        let kMutableProperty0Symbol = ensureInterfaceSymbol(
-            named: "KMutableProperty0", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        let kMutableProperty1Symbol = ensureInterfaceSymbol(
-            named: "KMutableProperty1", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        registerSyntheticKProperty1Stub(
-            kPropertySymbol: kPropertySymbol,
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerSyntheticKMutablePropertyStub(
             kMutablePropertySymbol: kMutablePropertySymbol,
             kPropertySymbol: kPropertySymbol,
@@ -249,50 +231,79 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticKProperty0Stub(
-            kPropertySymbol: kPropertySymbol,
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticKProperty1Stub(
-            kPropertySymbol: kPropertySymbol,
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticKMutableProperty0Stub(
-            kMutableProperty0Symbol: kMutableProperty0Symbol,
-            kMutablePropertySymbol: kMutablePropertySymbol,
-            kProperty0Symbol: kProperty0Symbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticKMutableProperty1Stub(
-            kMutableProperty1Symbol: kMutableProperty1Symbol,
-            kMutablePropertySymbol: kMutablePropertySymbol,
-            kProperty1Symbol: kProperty1Symbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticKProperty2Stub(
-            kPropertySymbol: kPropertySymbol,
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticKMutableProperty2Stub(
-            kMutablePropertySymbol: kMutablePropertySymbol,
-            kotlinReflectPkg: kotlinReflectPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-682: KProperty0/1/2 and KMutableProperty0/1/2 are bundled Kotlin
+        // source (Stdlib/kotlin/reflect/KProperties.kt) when the stdlib is
+        // included; register the synthetic fallback shells only when the bundled
+        // source is absent (e.g. compilations without the stdlib).
+        if !bundledIndex.contains(
+            ownerFQName: kotlinReflectPkg + [interner.intern("KProperty0")],
+            name: interner.intern("get"),
+            arity: 0
+        ) {
+            let kProperty0Symbol = ensureInterfaceSymbol(
+                named: "KProperty0", in: kotlinReflectPkg, symbols: symbols, interner: interner
+            )
+            let kProperty1Symbol = ensureInterfaceSymbol(
+                named: "KProperty1", in: kotlinReflectPkg, symbols: symbols, interner: interner
+            )
+            let kMutableProperty0Symbol = ensureInterfaceSymbol(
+                named: "KMutableProperty0", in: kotlinReflectPkg, symbols: symbols, interner: interner
+            )
+            let kMutableProperty1Symbol = ensureInterfaceSymbol(
+                named: "KMutableProperty1", in: kotlinReflectPkg, symbols: symbols, interner: interner
+            )
+            registerSyntheticKProperty1Stub(
+                kPropertySymbol: kPropertySymbol,
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKProperty0Stub(
+                kPropertySymbol: kPropertySymbol,
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKProperty1Stub(
+                kPropertySymbol: kPropertySymbol,
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKMutableProperty0Stub(
+                kMutableProperty0Symbol: kMutableProperty0Symbol,
+                kMutablePropertySymbol: kMutablePropertySymbol,
+                kProperty0Symbol: kProperty0Symbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKMutableProperty1Stub(
+                kMutableProperty1Symbol: kMutableProperty1Symbol,
+                kMutablePropertySymbol: kMutablePropertySymbol,
+                kProperty1Symbol: kProperty1Symbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKProperty2Stub(
+                kPropertySymbol: kPropertySymbol,
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticKMutableProperty2Stub(
+                kMutablePropertySymbol: kMutablePropertySymbol,
+                kotlinReflectPkg: kotlinReflectPkg,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
 
         // Register kotlin.reflect.KFunction<out R> interface stub (STDLIB-REFLECT-063).
         // Store in TypeSystem so subtyping checks can recognise KFunction receivers.
@@ -2379,102 +2390,6 @@ extension DataFlowSemaPhase {
             [MetadataAnnotationRecord(annotationFQName: "kotlin.reflect.ExperimentalAssociatedObjects")],
             for: functionSymbol
         )
-    }
-
-    private func registerCreateInstanceFunction(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinReflectFullPkg = ensurePackage(
-            path: ["kotlin", "reflect", "full"],
-            symbols: symbols,
-            interner: interner
-        )
-        let functionName = interner.intern("createInstance")
-        let functionFQName = kotlinReflectFullPkg + [functionName]
-        guard symbols.lookupAll(fqName: functionFQName).isEmpty else { return }
-
-        let typeParamName = interner.intern("T")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: functionFQName + [typeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let kotlinReflectPkg = ensurePackage(
-            path: ["kotlin", "reflect"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kClassSymbol = ensureInterfaceSymbol(
-            named: "KClass",
-            in: kotlinReflectPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: kClassSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinReflectFullPkg), packageSymbol != .invalid {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setTypeParameterUpperBounds([types.anyType], for: typeParamSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: typeParamType,
-                typeParameterSymbols: [typeParamSymbol],
-                typeParameterUpperBoundsList: [[types.anyType]],
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
-
-        let kotlinReflectFQName = kotlinReflectPkg + [functionName]
-        if symbols.lookupAll(fqName: kotlinReflectFQName).isEmpty {
-            let reflectFunctionSymbol = symbols.define(
-                kind: .function,
-                name: functionName,
-                fqName: kotlinReflectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinReflectPkg), packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: reflectFunctionSymbol)
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: typeParamType,
-                    typeParameterSymbols: [typeParamSymbol],
-                    typeParameterUpperBoundsList: [[types.anyType]],
-                    classTypeParameterCount: 0
-                ),
-                for: reflectFunctionSymbol
-            )
-        }
     }
 
     /// Patches KFunction.parameters to `List<Any?>` (STDLIB-REFLECT-063).

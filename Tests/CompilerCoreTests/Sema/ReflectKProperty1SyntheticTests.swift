@@ -35,7 +35,8 @@ struct ReflectKProperty1SyntheticTests {
 
         let kProperty1Info = try #require(sema.symbols.symbol(kProperty1Symbol))
         #expect(kProperty1Info.kind == .interface)
-        #expect(kProperty1Info.flags.contains(.synthetic))
+        // KSP-682: KProperty1 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kProperty1Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kProperty1Symbol)
         #expect(typeParams.count == 2)
@@ -45,13 +46,13 @@ struct ReflectKProperty1SyntheticTests {
         let valueType = sema.types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
         let receiverType = sema.types.make(.classType(ClassType(
             classSymbol: kProperty1Symbol,
-            args: [.invariant(receiverParamType), .out(valueType)],
+            args: [.invariant(receiverParamType), .invariant(valueType)],
             nullability: .nonNull
         )))
 
         #expect(sema.symbols.directSupertypes(for: kProperty1Symbol).contains(kPropertySymbol))
         #expect(
-            sema.symbols.supertypeTypeArgs(for: kProperty1Symbol, supertype: kPropertySymbol) == [.out(valueType)]
+            sema.symbols.supertypeTypeArgs(for: kProperty1Symbol, supertype: kPropertySymbol) == [.invariant(valueType)]
         )
         #expect(sema.symbols.directSupertypes(for: kProperty1Symbol).contains(function1Symbol))
         #expect(

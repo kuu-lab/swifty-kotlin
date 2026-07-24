@@ -57,12 +57,24 @@ extension DataFlowSemaPhase {
             return
         }
 
+        // KSP-682: map the owner declaration's own type parameter names to
+        // their symbols so a bare name used in supertype position (e.g. `T`
+        // in `interface B<T> : A<T>`) resolves to that type parameter and the
+        // supertype's type arguments are bound for generic inheritance.
+        var ownerTypeParams: [InternedString: SymbolID] = [:]
+        for tpSymbolID in types.nominalTypeParameterSymbols(for: symbol) {
+            if let tpInfo = symbols.symbol(tpSymbolID) {
+                ownerTypeParams[tpInfo.name] = tpSymbolID
+            }
+        }
+
         var superSymbols: [SymbolID] = []
         for superTypeRef in superTypeRefs {
             if let resolved = resolveNominalSymbolAndTypeArgs(
                 superTypeRef,
                 currentPackage: currentPackage,
                 imports: imports,
+                ownerTypeParams: ownerTypeParams,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -135,6 +147,7 @@ extension DataFlowSemaPhase {
         _ typeRefID: TypeRefID,
         currentPackage: [InternedString],
         imports: [ImportDecl],
+        ownerTypeParams: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -149,7 +162,50 @@ extension DataFlowSemaPhase {
         case let .named(refPath, refs, _):
             path = refPath
             argRefs = refs
-        case .functionType, .intersection, .annotated:
+        case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, _):
+            // KSP-682 / KSP-CAP-009: a function-type supertype such as
+            // `KProperty0<V> : () -> V` resolves to the kotlin.Function{N}
+            // nominal interface so property references inherit invoke(...).
+            // Suspend and context-receiver function types have no nominal
+            // Function{N} equivalent here, so they are left unbound.
+            guard !isSuspend, contextReceiverRefIDs.isEmpty else {
+                return nil
+            }
+            var paramTypes: [TypeID] = []
+            if let receiverRefID {
+                guard let receiverType = resolveTypeRefForInheritance(
+                    receiverRefID, currentPackage: currentPackage,
+                    ownerTypeParams: ownerTypeParams, ast: ast,
+                    symbols: symbols, types: types, interner: interner
+                ) else { return nil }
+                paramTypes.append(receiverType)
+            }
+            for paramRef in paramRefIDs {
+                guard let paramType = resolveTypeRefForInheritance(
+                    paramRef, currentPackage: currentPackage,
+                    ownerTypeParams: ownerTypeParams, ast: ast,
+                    symbols: symbols, types: types, interner: interner
+                ) else { return nil }
+                paramTypes.append(paramType)
+            }
+            guard let returnType = resolveTypeRefForInheritance(
+                returnRefID, currentPackage: currentPackage,
+                ownerTypeParams: ownerTypeParams, ast: ast,
+                symbols: symbols, types: types, interner: interner
+            ) else { return nil }
+            let functionFQName = [
+                interner.intern("kotlin"), interner.intern("Function"),
+                interner.intern("Function\(paramTypes.count)"),
+            ]
+            guard let functionSymbol = symbols.lookupAll(fqName: functionFQName)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            else {
+                return nil
+            }
+            let functionArgs: [TypeArg] = [.out(returnType)] + paramTypes.map { .in($0) }
+            return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
+        case .intersection, .annotated:
             return nil
         }
         guard !path.isEmpty else {
@@ -189,6 +245,7 @@ extension DataFlowSemaPhase {
                 let resolvedArgs = resolveTypeArgRefsForInheritance(
                     argRefs,
                     currentPackage: currentPackage,
+                    ownerTypeParams: ownerTypeParams,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -203,6 +260,7 @@ extension DataFlowSemaPhase {
     private func resolveTypeArgRefsForInheritance(
         _ argRefs: [TypeArgRef],
         currentPackage: [InternedString],
+        ownerTypeParams: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -215,17 +273,17 @@ extension DataFlowSemaPhase {
         for argRef in argRefs {
             switch argRef {
             case let .invariant(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.invariant(resolved))
             case let .out(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.out(resolved))
             case let .in(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner) else {
                     return []
                 }
                 result.append(.in(resolved))
@@ -239,6 +297,7 @@ extension DataFlowSemaPhase {
     private func resolveTypeRefForInheritance(
         _ typeRefID: TypeRefID,
         currentPackage: [InternedString],
+        ownerTypeParams: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -253,6 +312,16 @@ extension DataFlowSemaPhase {
             guard !path.isEmpty else {
                 return nil
             }
+            // KSP-682: a bare single-segment name matching one of the owner
+            // declaration's type parameters (e.g. `T` in `interface B<T> :
+            // A<T>`) resolves to that type parameter, so the supertype's type
+            // arguments bind for generic-interface inheritance.
+            if path.count == 1, argRefs.isEmpty, let tpSymbol = ownerTypeParams[path[0]] {
+                return types.make(.typeParam(TypeParamType(
+                    symbol: tpSymbol,
+                    nullability: nullability
+                )))
+            }
             // Try both raw path and package-qualified path (same as resolveNominalSymbolAndTypeArgs)
             var candidatePaths: [[InternedString]] = [path]
             if path.count == 1, !currentPackage.isEmpty {
@@ -263,7 +332,7 @@ extension DataFlowSemaPhase {
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner)
+                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner)
                     return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                 }
             }
@@ -289,7 +358,7 @@ extension DataFlowSemaPhase {
                         .compactMap({ symbols.symbol($0) })
                         .first(where: { isNominalTypeSymbol($0.kind) })
                     {
-                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner)
+                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner)
                         return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                     }
                 }
@@ -299,16 +368,17 @@ extension DataFlowSemaPhase {
             return resolveFunctionTypeForInheritance(
                 contextReceiverRefIDs: contextReceiverRefIDs,
                 receiverRefID: receiverRefID, paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
-                currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+                currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner
             )
         case let .intersection(partRefs):
-            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner) }
+            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner) }
             guard partTypes.count == partRefs.count else { return nil }
             return types.make(.intersection(partTypes))
         case let .annotated(base, annotations):
             guard let baseType = resolveTypeRefForInheritance(
                 base,
                 currentPackage: currentPackage,
+                ownerTypeParams: ownerTypeParams,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -335,6 +405,7 @@ extension DataFlowSemaPhase {
         isSuspend: Bool,
         nullable: Bool,
         currentPackage: [InternedString],
+        ownerTypeParams: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -344,26 +415,26 @@ extension DataFlowSemaPhase {
         var contextReceiverTypes: [TypeID] = []
         for contextReceiverRef in contextReceiverRefIDs {
             guard let contextReceiverType = resolveTypeRefForInheritance(
-                contextReceiverRef, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+                contextReceiverRef, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
         var receiverType: TypeID?
         if let receiverRefID {
             guard let resolved = resolveTypeRefForInheritance(
-                receiverRefID, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+                receiverRefID, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             receiverType = resolved
         }
         var paramTypes: [TypeID] = []
         for paramRef in paramRefIDs {
             guard let paramType = resolveTypeRefForInheritance(
-                paramRef, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+                paramRef, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner
             ) else { return nil }
             paramTypes.append(paramType)
         }
         guard let returnType = resolveTypeRefForInheritance(
-            returnRefID, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+            returnRefID, currentPackage: currentPackage, ownerTypeParams: ownerTypeParams, ast: ast, symbols: symbols, types: types, interner: interner
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
@@ -532,6 +603,7 @@ extension DataFlowSemaPhase {
                         entry.typeRef,
                         currentPackage: file.packageFQName,
                         imports: file.imports,
+                        ownerTypeParams: [:],
                         ast: ast,
                         symbols: symbols,
                         types: types,

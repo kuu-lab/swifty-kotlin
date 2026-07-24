@@ -50,7 +50,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 types: types,
                 interner: interner,
                 kotlinPkg: context.kotlinPkg,
-                kotlinPropertiesPkg: context.kotlinPropertiesPkg
+                kotlinPropertiesPkg: context.kotlinPropertiesPkg,
+                bundledIndex: context.bundledIndex
             )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Random") { phase, symbols, types, interner, _ in
@@ -185,13 +186,32 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 skipStats: context.skipStats
             )
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KPropertyFunctionSupertypePatch") { phase, symbols, types, interner, _ in
+        // KSP-682: these patches attach the Function{N} supertypes for the
+        // synthetic KProperty fallback shells only. When the bundled Kotlin
+        // source is present, Sema inheritance binding resolves the `() -> V`
+        // supertypes to Function{N} directly, so the patches are skipped.
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KPropertyFunctionSupertypePatch") { phase, symbols, types, interner, context in
+            guard !context.bundledIndex.contains(
+                ownerFQName: context.kotlinPkg + [interner.intern("reflect"), interner.intern("KProperty0")],
+                name: interner.intern("get"),
+                arity: 0
+            ) else { return }
             phase.patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KMutableProperty0FunctionSupertypePatch") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KMutableProperty0FunctionSupertypePatch") { phase, symbols, types, interner, context in
+            guard !context.bundledIndex.contains(
+                ownerFQName: context.kotlinPkg + [interner.intern("reflect"), interner.intern("KProperty0")],
+                name: interner.intern("get"),
+                arity: 0
+            ) else { return }
             phase.patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KMutableProperty1FunctionSupertypePatch") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KMutableProperty1FunctionSupertypePatch") { phase, symbols, types, interner, context in
+            guard !context.bundledIndex.contains(
+                ownerFQName: context.kotlinPkg + [interner.intern("reflect"), interner.intern("KProperty0")],
+                name: interner.intern("get"),
+                arity: 0
+            ) else { return }
             phase.patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Closeable") { phase, symbols, types, interner, _ in
