@@ -22,31 +22,13 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite collection member calls ---
-        // Member calls are lowered as call(callee=memberName, args=[receiver, ...])
-        // any()/none()/first()/last() with no predicate: args=[receiver], pass fnPtr=0, closure=0
+        // Range first()/last()/endExclusive do not use the Kotlin stdlib source and
+        // continue to go through their runtime helpers.
         if callee == lookup.firstName || callee == lookup.lastName
             || callee == lookup.endExclusiveName
         {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    let kkName: InternedString = switch callee {
-                    case lookup.firstName: lookup.kkListFirstName
-                    case lookup.lastName: lookup.kkListLastName
-                    default: callee
-                    }
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: kkName,
-                        arguments: [receiverID, zeroExpr, zeroExpr],
-                        result: result,
-                        canThrow: callee == lookup.firstName || callee == lookup.lastName,
-                        thrownResult: thrownResult
-                    ))
-                    return true
-                }
                 if state.rangeExprIDs.contains(receiverID.rawValue),
                    callee == lookup.firstName || callee == lookup.lastName || callee == lookup.endExclusiveName
                 {

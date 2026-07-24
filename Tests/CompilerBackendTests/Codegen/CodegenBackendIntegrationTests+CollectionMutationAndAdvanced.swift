@@ -415,12 +415,12 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(callees.contains("kk_list_minBy"))
             XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minOrNull"))
-            XCTAssertTrue(callees.contains("find") || callees.contains("__kk_values_equal"))
             XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
             // The old runtime entry points for source-backed HOFs must not appear
             // after lowering; their bodies have been expanded inline.
             XCTAssertFalse(callees.contains("kk_list_flatMap"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_find"), "callees: \(callees.sorted())")
             XCTAssertFalse(callees.contains("kk_list_fold"), "callees: \(callees.sorted())")
             XCTAssertFalse(callees.contains("kk_list_foldIndexed"), "callees: \(callees.sorted())")
             XCTAssertFalse(callees.contains("kk_list_foldRightIndexed"), "callees: \(callees.sorted())")
