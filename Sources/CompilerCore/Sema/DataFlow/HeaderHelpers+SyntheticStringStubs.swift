@@ -3333,4 +3333,66 @@ extension DataFlowSemaPhase {
             for: ctorSymbol
         )
     }
+
+    /// KSP-664: `String.iterator()` / `CharSequence.iterator()` are registered
+    /// before bundled headers are collected, so their return type falls back to
+    /// `Iterable<Char>` because the source-backed `kotlin.collections.CharIterator`
+    /// symbol does not exist yet. Once the bundled headers are indexed this patch
+    /// rewrites those return types to the real `CharIterator` class type.
+    func patchSourceBackedCharIteratorReturnType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let charIteratorFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("CharIterator"),
+        ]
+        guard let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) else {
+            return
+        }
+        let charIteratorType = types.make(.classType(ClassType(
+            classSymbol: charIteratorSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let stringType = types.stringType
+        let charSequenceType: TypeID? = types.charSequenceInterfaceSymbol.map { charSequenceSymbol in
+            types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        let iteratorFQName = [interner.intern("kotlin"), interner.intern("text"), interner.intern("iterator")]
+        for functionSymbol in symbols.lookupAll(fqName: iteratorFQName) {
+            guard let signature = symbols.functionSignature(for: functionSymbol),
+                  signature.parameterTypes.isEmpty,
+                  let receiver = signature.receiverType,
+                  receiver == stringType || receiver == charSequenceType
+            else {
+                continue
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: signature.receiverType,
+                    parameterTypes: signature.parameterTypes,
+                    returnType: charIteratorType,
+                    isSuspend: signature.isSuspend,
+                    canThrow: signature.canThrow,
+                    valueParameterSymbols: signature.valueParameterSymbols,
+                    valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                    valueParameterIsVararg: signature.valueParameterIsVararg,
+                    typeParameterSymbols: signature.typeParameterSymbols,
+                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                    classTypeParameterCount: signature.classTypeParameterCount
+                ),
+                for: functionSymbol
+            )
+        }
+    }
 }

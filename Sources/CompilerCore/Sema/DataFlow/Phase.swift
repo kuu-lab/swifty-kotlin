@@ -79,6 +79,11 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner
             )
         }
+        patchSourceBackedCharIteratorReturnType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
