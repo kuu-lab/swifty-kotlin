@@ -192,24 +192,24 @@
 ### Runtime: 完全到達不能 export / legacy bridge
 
 - [ ] DEADCODE-RUNTIME-001: [E0] `RuntimeStringArray.swift:2120` の `kk_readln_from_syscall(_:)` を削除し、`RuntimeABISpec+IO.swift:28` の spec も消す。現行 IO は `kk_readline` / `kk_readln` / `kk_readlnOrNull`
-- [ ] DEADCODE-RUNTIME-002: [E0] `RuntimeStringStdlib.swift:117` の `kk_string_capitalize(_:)` を削除し、`RuntimeABISpec+String.swift:1007` も消す。source-backed 実装は既存で external link nil（KSP-412 の子タスク）
+- [x] DEADCODE-RUNTIME-002: [E0] `RuntimeStringStdlib.swift:117` の `kk_string_capitalize(_:)` を削除し、`RuntimeABISpec+String.swift:1007` も消す。source-backed 実装は既存で external link nil（KSP-412 の子タスク）— PR #5024, verified
 - [ ] DEADCODE-RUNTIME-003: [E0] `RuntimeStringHOF.swift:1355` の `kk_string_onEach_flat(...)` を削除する。raw `kk_string_onEach` は compiler emit + ABI spec ありのため残す
 - [ ] DEADCODE-RUNTIME-004: [E0] `RuntimeStringHOF.swift:1561` の `kk_string_onEachIndexed_flat(...)` を削除する。raw 版は残す
 - [ ] DEADCODE-RUNTIME-005: [E0] `RuntimeStringConversion.swift:603` の `__kk_string_toBigDecimalOrNull_flat(...)` を削除する。raw `__kk_string_toBigDecimalOrNull` は bundled source / compiler fallback / runtime test から到達するため残す
 - [ ] DEADCODE-RUNTIME-006: [E0] `RuntimeStringConversion.swift:644` の `__kk_string_toBigIntegerOrNull_flat(...)` を削除する。raw `__kk_string_toBigIntegerOrNull` は bundled source / compiler fallback / runtime test から到達するため残す
 - [ ] DEADCODE-RUNTIME-007: [E0] `RuntimeStringArray.swift:2113` の `kk_sys_write(_:_:_:)` を削除し、`RuntimeABISpec+System.swift:97` も消す。console IO は Swift `print` / `readLine` 経路
-- [ ] DEADCODE-RUNTIME-008: [E0] `RuntimeStringStdlib.swift:237` の raw `__kk_string_normalize` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す
-- [ ] DEADCODE-RUNTIME-009: [E0] `RuntimeStringStdlib.swift:262` の raw `__kk_string_isNormalized` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す
-- [ ] DEADCODE-RUNTIME-010: [E0] `RuntimeStringFormat.swift:694` の `__string_trimIndent` と `RuntimeABISpec+String.swift:3025` の spec を削除する（KSP-302 後始末）
-- [ ] DEADCODE-RUNTIME-011: [E0] `RuntimeStringFormat.swift:699` の `__string_trimMargin` と `RuntimeABISpec+String.swift:3033` の spec を削除する
-- [ ] DEADCODE-RUNTIME-012: [E0] `RuntimeStringFormat.swift:704` の `__string_prependIndent` と `RuntimeABISpec+String.swift:3042` の spec を削除する
-- [ ] DEADCODE-RUNTIME-013: [E0] `RuntimeStringFormat.swift:709` の `__string_replaceIndent` と `RuntimeABISpec+String.swift:3051` の spec を削除する
-- [ ] DEADCODE-RUNTIME-014: [E0] `RuntimeStringFormat.swift:714` の `__string_replaceIndentByMargin` と `RuntimeABISpec+String.swift:3060` の spec を削除する
-- [ ] DEADCODE-RUNTIME-015: [E0] `RuntimeStringFormat.swift:724` の `__string_format` と `RuntimeABISpec+String.swift:3071` の spec を削除する（KSP-418 の子タスク）
-- [ ] DEADCODE-RUNTIME-016: [E0] `RuntimeStringStdlib.swift:1044` の `__string_lowercase` を削除する。bundled source の同名記載はコメントのみ
-- [ ] DEADCODE-RUNTIME-017: [E0] `RuntimeStringStdlib.swift:1049` の `__string_uppercase` を削除する
-- [ ] DEADCODE-RUNTIME-018: [E0] `RuntimeStringStdlib.swift:1054` の `__string_lowercase_locale` を削除する。live bridge `__kk_lowercase_locale` とは別シンボル
-- [ ] DEADCODE-RUNTIME-019: [E0] `RuntimeStringStdlib.swift:1059` の `__string_uppercase_locale` を削除する。live bridge `__kk_uppercase_locale` とは別シンボル
+- [x] DEADCODE-RUNTIME-008: [E0] `RuntimeStringStdlib.swift:237` の raw `__kk_string_normalize` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す — PR #5024, verified
+- [x] DEADCODE-RUNTIME-009: [E0] `RuntimeStringStdlib.swift:262` の raw `__kk_string_isNormalized` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す — PR #5024, verified
+- [x] DEADCODE-RUNTIME-010: [E0] `RuntimeStringFormat.swift:694` の `__string_trimIndent` と `RuntimeABISpec+String.swift:3025` の spec を削除する（KSP-302 後始末）— PR #5024, verified
+- [x] DEADCODE-RUNTIME-011: [E0] `RuntimeStringFormat.swift:699` の `__string_trimMargin` と `RuntimeABISpec+String.swift:3033` の spec を削除する — PR #5024, verified
+- [x] DEADCODE-RUNTIME-012: [E0] `RuntimeStringFormat.swift:704` の `__string_prependIndent` と `RuntimeABISpec+String.swift:3042` の spec を削除する — PR #5024, verified
+- [x] DEADCODE-RUNTIME-013: [E0] `RuntimeStringFormat.swift:709` の `__string_replaceIndent` と `RuntimeABISpec+String.swift:3051` の spec を削除する — PR #5024, verified
+- [x] DEADCODE-RUNTIME-014: [E0] `RuntimeStringFormat.swift:714` の `__string_replaceIndentByMargin` と `RuntimeABISpec+String.swift:3060` の spec を削除する — PR #5024, verified
+- [x] DEADCODE-RUNTIME-015: [E0] `RuntimeStringFormat.swift:724` の `__string_format` と `RuntimeABISpec+String.swift:3071` の spec を削除する（KSP-418 の子タスク）— PR #5024, verified
+- [x] DEADCODE-RUNTIME-016: [E0] `RuntimeStringStdlib.swift:1044` の `__string_lowercase` を削除する。bundled source の同名記載はコメントのみ — PR #5024, verified
+- [x] DEADCODE-RUNTIME-017: [E0] `RuntimeStringStdlib.swift:1049` の `__string_uppercase` を削除する — PR #5024, verified
+- [x] DEADCODE-RUNTIME-018: [E0] `RuntimeStringStdlib.swift:1054` の `__string_lowercase_locale` を削除する。live bridge `__kk_lowercase_locale` とは別シンボル — PR #5024, verified
+- [x] DEADCODE-RUNTIME-019: [E0] `RuntimeStringStdlib.swift:1059` の `__string_uppercase_locale` を削除する。live bridge `__kk_uppercase_locale` とは別シンボル — PR #5024, verified
 
 ### Runtime / RuntimeABI: Swift helper・property・typealias
 
