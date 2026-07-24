@@ -210,7 +210,7 @@ extension BuildKIRRegressionTests {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
 
-                #expect(callees.contains("kk_op_contains"), "Expected range membership runtime call, got: \(callees)")
+                #expect(callees.contains("kk_range_contains"), "Expected range membership runtime call, got: \(callees)")
                 #expect(!callees.contains("contains"), "Range membership must not target an unlinked source symbol")
             }
         }
