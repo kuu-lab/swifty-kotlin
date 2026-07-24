@@ -11,17 +11,13 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-    // count/first/last with predicate: [receiver, lambda, closureRaw?]
-    if callee == lookup.countName || callee == lookup.firstName || callee == lookup.lastName {
+    // count with predicate: [receiver, lambda, closureRaw?]
+    if callee == lookup.countName {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]
             if state.listExprIDs.contains(receiverID.rawValue) {
-                let kkName: InternedString = switch callee {
-                case lookup.firstName: lookup.kkListFirstName
-                case lookup.lastName: lookup.kkListLastName
-                default: callee
-                }
+                let kkName: InternedString = callee
                 let closureRawID: KIRExprID
                 if arguments.count == 3 {
                     closureRawID = arguments[2]

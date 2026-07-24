@@ -183,31 +183,6 @@ public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThr
     return result
 }
 
-// MARK: - List getOrElse (STDLIB-212)
-
-@_cdecl("kk_list_getOrElse")
-public func kk_list_getOrElse(_ listRaw: Int, _ index: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    if list.elements.indices.contains(index) {
-        return list.elements[index]
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let result = lambda(closureRaw, index, &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    return result
-}
-
-// elementAtOrElse delegates to getOrElse — same semantics, distinct Kotlin stdlib name.
-@_cdecl("kk_list_elementAtOrElse")
-public func kk_list_elementAtOrElse(_ listRaw: Int, _ index: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    kk_list_getOrElse(listRaw, index, fnPtr, closureRaw, outThrown)
-}
-
-
-
 @_cdecl("kk_iterable_firstNotNullOf")
 public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
@@ -571,55 +546,6 @@ public func kk_list_sortedByDescending_primitive(_ listRaw: Int, _ fnPtr: Int, _
         return handleCollectionLambdaThrow(outThrown?.pointee ?? 0, outThrown)
     }
     return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
-}
-
-
-@_cdecl("kk_list_first")
-public func kk_list_first(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
-    }
-    if fnPtr == 0 {
-        return list.elements[0]
-    }
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return elem }
-    }
-    outThrown?.pointee = runtimeAllocateNoSuchElementException(
-        message: "Collection contains no element matching the predicate."
-    )
-    return handleCollectionLambdaThrow(outThrown!.pointee, outThrown)
-}
-
-@_cdecl("kk_list_last")
-public func kk_list_last(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    guard !list.elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
-    }
-    if fnPtr == 0 {
-        return list.elements.last!
-    }
-    var lastMatch: Int?
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { lastMatch = elem }
-    }
-    if let match = lastMatch { return match }
-    outThrown?.pointee = runtimeAllocateNoSuchElementException(
-        message: "Collection contains no element matching the predicate."
-    )
-    return handleCollectionLambdaThrow(outThrown!.pointee, outThrown)
 }
 
 
