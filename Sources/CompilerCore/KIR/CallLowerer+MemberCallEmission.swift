@@ -379,18 +379,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_array_binarySearch_compare")
-        {
-            materializeArrayBinarySearchDefaultArguments(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-        }
-        if normalized.defaultMask != 0,
            loweredCallee == interner.intern("kk_array_copyInto")
         {
             materializeArrayCopyIntoDefaultArguments(
@@ -830,32 +818,6 @@ extension CallLowerer {
                 finalArguments.append(kindExpr)
             }
         }
-        if isArrayBinarySearchRuntimeCallee(loweredCallee, interner: interner) {
-            let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-            let sizeRuntimeCallee = arraySizeRuntimeCallee(
-                for: receiverType,
-                sema: sema,
-                interner: interner
-            )
-            let memberArgumentCount = finalArguments.count - 1
-            if memberArgumentCount == 1 || memberArgumentCount == 2 {
-                let sizeExpr = arena.appendTemporary(type: sema.types.intType)
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: sizeRuntimeCallee,
-                    arguments: [receiver.loweredID],
-                    result: sizeExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if memberArgumentCount == 1 {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    finalArguments.append(zeroExpr)
-                }
-                finalArguments.append(sizeExpr)
-            }
-        }
         let comparatorOnlyCallees: Set<InternedString> = [
             interner.intern("kk_list_maxWith"),
             interner.intern("kk_list_maxWithOrNull"),
@@ -866,7 +828,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
             interner.intern("kk_list_sortedWith"),
-            interner.intern("kk_array_sortedArrayWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
            finalArguments.count == 2,
@@ -1269,8 +1230,6 @@ extension CallLowerer {
             interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),
             interner.intern("kk_list_binarySearch_comparator"),
-            interner.intern("kk_array_binarySearch_compare"),
-            interner.intern("kk_array_sortedArrayWith"),
             interner.intern("kk_list_binarySearchBy"),
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),

@@ -92,21 +92,6 @@ extension CallLowerer {
             return interner.intern("kk_comparable_compareTo")
         }
 
-        if memberName == "binarySearch",
-           let runtimeName = arrayBinarySearchRuntimeName(
-               for: nonNullReceiverType,
-               sema: sema,
-               interner: interner
-           )
-        {
-            if argumentCount == 5,
-               isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
-            return runtimeName
-        }
-
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "flatMapIndexed":
@@ -360,14 +345,6 @@ extension CallLowerer {
                 }
             case "fill":
                 return interner.intern("kk_array_fill")
-            case "binarySearch":
-                return arrayBinarySearchRuntimeName(
-                    for: nonNullReceiverType,
-                    sema: sema,
-                    interner: interner
-                )
-            case "sortedArrayWith":
-                return interner.intern("kk_array_sortedArrayWith")
             case "find":
                 return interner.intern("kk_array_find")
             case "findLast":
@@ -470,11 +447,6 @@ extension CallLowerer {
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         case "binarySearch":
-            if argumentCount == 5,
-               isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
             if hasHOFLambdaArg && argumentCount == 2 {
                 return interner.intern("kk_list_binarySearch_compare")
             }
