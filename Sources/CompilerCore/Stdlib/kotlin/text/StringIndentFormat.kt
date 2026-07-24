@@ -62,12 +62,13 @@ private fun String.leadingWhitespaceCount(): Int {
     return count
 }
 
-private fun List<String>.trimBlankEdges(): List<String> {
+private fun String.trimBlankEdges(): List<String> {
+    val lines = splitIntoLines()
     var start = 0
-    var end = size
-    while (start < end && this[start].isBlankLine()) start++
-    while (end > start && this[end - 1].isBlankLine()) end--
-    return subList(start, end)
+    var end = lines.size
+    while (start < end && lines[start].isBlankLine()) start++
+    while (end > start && lines[end - 1].isBlankLine()) end--
+    return lines.subList(start, end)
 }
 
 /**
@@ -82,7 +83,7 @@ public fun String.trimIndent(): String {
  * Detects indent (as in [trimIndent]), removes it, then prepends [newIndent] to every line.
  */
 public fun String.replaceIndent(newIndent: String = ""): String {
-    val lines = splitIntoLines().trimBlankEdges()
+    val lines = trimBlankEdges()
     if (lines.isEmpty()) return ""
 
     var minimumIndent = Int.MAX_VALUE
@@ -103,7 +104,9 @@ public fun String.replaceIndent(newIndent: String = ""): String {
     for (line in lines) {
         if (!first) sb.append('\n')
         sb.append(newIndent)
-        sb.append(line.drop(minimumIndent))
+        if (minimumIndent < line.length) {
+            sb.append(line.substring(minimumIndent))
+        }
         first = false
     }
     return sb.toString()
@@ -125,7 +128,7 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     if (marginPrefix.isBlankLine()) {
         throw IllegalArgumentException("marginPrefix must be non-blank string.")
     }
-    val lines = splitIntoLines().trimBlankEdges()
+    val lines = trimBlankEdges()
     if (lines.isEmpty()) return ""
 
     val sb = StringBuilder()
