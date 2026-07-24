@@ -50,7 +50,9 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.flattenName
             // KSP-430: Map higher-order functions have Kotlin source implementations.
             || callee == lookup.mapValuesName
+            || callee == lookup.mapValuesToName
             || callee == lookup.mapKeysName
+            || callee == lookup.mapKeysToName
             || callee == lookup.filterKeysName
             || callee == lookup.filterValuesName
             || callee == lookup.forEachName

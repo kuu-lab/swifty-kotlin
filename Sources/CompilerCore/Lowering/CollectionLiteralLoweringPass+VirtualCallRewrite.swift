@@ -50,7 +50,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
             || callee == lookup.mapValuesName
+            || callee == lookup.mapValuesToName
             || callee == lookup.mapKeysName
+            || callee == lookup.mapKeysToName
             || callee == lookup.filterKeysName
             || callee == lookup.filterValuesName
             || callee == lookup.forEachName
