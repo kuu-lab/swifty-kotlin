@@ -1569,9 +1569,12 @@ public func kk_coroutine_call_direct_suspend(
         entryPointRaw: entryPointRaw,
         continuation: childContinuation,
         onCompletion: { result, thrown in
-            if thrown != 0 {
-                callerState.thrownException = thrown
-            } else {
+            // Always publish the outcome, including clearing the thrown slot on
+            // success: the caller's state machine reads this slot at the resume
+            // label, and a stale exception from a previously caught throw would
+            // otherwise be re-observed (and re-thrown) at the next suspend point.
+            callerState.thrownException = thrown
+            if thrown == 0 {
                 callerState.completion = Int64(result)
             }
             if completion.record(result: result, thrown: thrown) {
@@ -2080,8 +2083,26 @@ public func kk_kxmini_run_blocking_with_cont(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
-    return result
+    // When this drives a `suspend () -> R` value invoked inside an active
+    // coroutine (see kk_suspend_function_invoke_0), the body runs on a fresh
+    // continuation. Seed it with the ambient scope so `launch`/`async` inside the
+    // invoked block register with the enclosing structured-concurrency scope
+    // (e.g. a Kotlin-level `coroutineScope { }`) rather than detaching. Only the
+    // scope is inherited, not the caller job: inheriting the caller job would
+    // re-parent a supervisor scope's children to the root job and break failure
+    // isolation. A genuine top-level `runBlocking` has no ambient scope,
+    // so this is a no-op there.
+    if let contState = runtimeContinuationState(from: continuation), contState.scope == nil {
+        contState.scope = RuntimeCoroutineScope.current
+    }
+    // Forward `outThrown` so an exception thrown by the blocking body reaches the
+    // caller. Callers (e.g. the `runBlocking`/suspend-value thunks) branch on this
+    // slot to rethrow; dropping it silently swallowed the exception.
+    return runSuspendEntryLoopWithContinuation(
+        entryPointRaw: entryPointRaw,
+        continuation: continuation,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_suspend_coroutine")
@@ -2531,6 +2552,19 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 
 // MARK: - Structured Concurrency C ABI (P5-89)
 
+/// Enters `scope` as the ambient scope for the coroutine running right now.
+///
+/// Besides the task-scope map (`RuntimeCoroutineScope.current`), the scope is
+/// stored on the running continuation. A `suspend` block invoked next runs on a
+/// *fresh* child continuation whose scope is seeded from its caller's
+/// continuation (see `kk_coroutine_call_direct_suspend`), so binding the scope
+/// here is what lets children launched inside a Kotlin-level `coroutineScope { }`
+/// block register with the freshly created scope rather than the outer one.
+private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?) {
+    RuntimeCoroutineScope.current = scope
+    RuntimeContinuationState.current?.scope = scope
+}
+
 /// Creates a new coroutine scope and installs it as the current scope in the
 /// task-scope registry (CORO-003: no TLS for the scope itself).
 @_cdecl("kk_coroutine_scope_new")
@@ -2543,7 +2577,7 @@ public func kk_coroutine_scope_new() -> Int {
 
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
+    enterScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -2582,15 +2616,19 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     }
     let firstFailure = scope.waitForChildren()
 
-    // Pop: restore parent scope in the task-scope map (CORO-003)
-    RuntimeCoroutineScope.current = scope.parent
+    // Pop: restore parent scope in the task-scope map (CORO-003) and on the
+    // running continuation, mirroring enterScopeOnCurrentContinuation.
+    enterScopeOnCurrentContinuation(scope.parent)
 
     // Release the scope
     runtimeStorage.withGCLock { state in
         state.objectPointers.remove(UInt(bitPattern: ptr))
     }
     Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).release()
-    return firstFailure
+    // The Kotlin ABI models this as `Throwable?`; absence of a failure must use
+    // the shared null sentinel (see runtimeResultExceptionOrNull) rather than raw
+    // 0, so a `!= null` check in bundled Kotlin resolves correctly.
+    return firstFailure == 0 ? runtimeNullSentinelInt : firstFailure
 }
 
 /// Returns 1 if the scope is active (not cancelled), 0 if cancelled.
@@ -2787,155 +2825,6 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
 @_cdecl("kk_job_await_completion")
 public func kk_job_await_completion(_ jobHandle: Int, _ continuation: Int) -> Int {
     kk_job_join(jobHandle, continuation)
-}
-
-/// Convenience: creates a scope, runs the block synchronously, waits for all children.
-/// Used as the lowering target for `coroutineScope { }` blocks.
-@_cdecl("kk_coroutine_scope_run")
-public func kk_coroutine_scope_run(
-    _ entryPointRaw: Int,
-    _ functionID: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let scopeHandle = kk_coroutine_scope_new()
-    // CORO-003: Create continuation externally and propagate the new scope into it
-    // so that runSuspendEntryLoopWithContinuation installs it under the fresh task key.
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
-        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
-    ).takeUnretainedValue()
-    let continuation = kk_coroutine_continuation_new(functionID)
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
-    var directThrow = 0
-    let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
-    )
-    if directThrow != 0 {
-        // The block itself threw (as opposed to a child failing) -- cancel any
-        // children it launched before failing, drain them, then propagate the
-        // original exception instead of silently discarding it.
-        scope.cancel()
-        _ = kk_coroutine_scope_wait(scopeHandle)
-        outThrown?.pointee = directThrow
-        return 0
-    }
-    let firstFailure = kk_coroutine_scope_wait(scopeHandle)
-    if firstFailure != 0 {
-        outThrown?.pointee = firstFailure
-        return 0
-    }
-    return result
-}
-
-/// Convenience with pre-built continuation.
-@_cdecl("kk_coroutine_scope_run_with_cont")
-public func kk_coroutine_scope_run_with_cont(
-    _ entryPointRaw: Int,
-    _ continuation: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let scopeHandle = kk_coroutine_scope_new()
-    // CORO-003: Propagate the new scope into the continuation so it is visible
-    // inside the entry loop (avoids task key overwrite orphaning the scope).
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
-        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
-    ).takeUnretainedValue()
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
-    var directThrow = 0
-    let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
-    )
-    if directThrow != 0 {
-        // See kk_coroutine_scope_run: propagate a direct throw from the block
-        // itself instead of letting it fall through as a plain return value.
-        scope.cancel()
-        _ = kk_coroutine_scope_wait(scopeHandle)
-        outThrown?.pointee = directThrow
-        return 0
-    }
-    let firstFailure = kk_coroutine_scope_wait(scopeHandle)
-    if firstFailure != 0 {
-        outThrown?.pointee = firstFailure
-        return 0
-    }
-    return result
-}
-
-/// Creates a supervisor scope, runs the block synchronously, waits for all children.
-/// Unlike `coroutineScope`, child failures do not cancel siblings (SupervisorJob semantics).
-/// Used as the lowering target for `supervisorScope { }` blocks.
-@_cdecl("kk_supervisor_scope_run")
-public func kk_supervisor_scope_run(
-    _ entryPointRaw: Int,
-    _ functionID: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let scopeHandle = kk_supervisor_scope_new()
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
-        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
-    ).takeUnretainedValue()
-    let continuation = kk_coroutine_continuation_new(functionID)
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
-    var directThrow = 0
-    let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
-    )
-    if directThrow != 0 {
-        // See kk_coroutine_scope_run: the block itself threw (as opposed to a
-        // child failing, which SupervisorJob semantics would otherwise isolate).
-        // The scope's own body failing still cancels children it already
-        // launched instead of leaving them orphaned.
-        scope.cancel()
-        _ = kk_coroutine_scope_wait(scopeHandle)
-        outThrown?.pointee = directThrow
-        return 0
-    }
-    let firstFailure = kk_coroutine_scope_wait(scopeHandle)
-    if firstFailure != 0 {
-        outThrown?.pointee = firstFailure
-        return 0
-    }
-    return result
-}
-
-/// Supervisor scope variant with pre-built continuation.
-@_cdecl("kk_supervisor_scope_run_with_cont")
-public func kk_supervisor_scope_run_with_cont(
-    _ entryPointRaw: Int,
-    _ continuation: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let scopeHandle = kk_supervisor_scope_new()
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
-        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
-    ).takeUnretainedValue()
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
-    var directThrow = 0
-    let result = runSuspendEntryLoopWithContinuation(
-        entryPointRaw: entryPointRaw, continuation: continuation, outThrown: &directThrow
-    )
-    if directThrow != 0 {
-        // See kk_coroutine_scope_run_with_cont / kk_supervisor_scope_run: propagate
-        // a direct throw from the block itself instead of letting it fall through
-        // as a plain return value.
-        scope.cancel()
-        _ = kk_coroutine_scope_wait(scopeHandle)
-        outThrown?.pointee = directThrow
-        return 0
-    }
-    let firstFailure = kk_coroutine_scope_wait(scopeHandle)
-    if firstFailure != 0 {
-        outThrown?.pointee = firstFailure
-        return 0
-    }
-    return result
 }
 
 // MARK: - Coroutine yield()
@@ -3566,53 +3455,28 @@ public func kk_suspend_function_invoke_0(
     _ functionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let continuationState = RuntimeContinuationState.current else {
-        // Not in a suspend context - this shouldn't happen for proper suspend functions
-        outThrown?.pointee = 0
+    guard functionRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
         return 0
     }
 
-    // Install continuation for the suspend point
-    var thrownException: Int = 0
-
-    continuationState.installResumeContinuation {
-        // When resumed, execute the suspend function
-        let functionPtr = UnsafeMutableRawPointer(bitPattern: functionRaw)
-        let callResult: Int
-        let thrownException: Int
-        if let functionPtr {
-            // Call the suspend function (this will be a generated function that takes continuation)
-            typealias SuspendFunctionType = @convention(c) (Int) -> Int
-            let suspendFunction = unsafeBitCast(functionPtr, to: SuspendFunctionType.self)
-            callResult = suspendFunction(Int(bitPattern: Unmanaged.passUnretained(continuationState).toOpaque()))
-            thrownException = 0
-        } else {
-            callResult = 0
-            thrownException = runtimeAllocateNullPointerException(message: "")
-        }
-
-        // Store results in continuation state
-        continuationState.resume(with: callResult)
-        if thrownException != 0 {
-            continuationState.resume(withException: thrownException)
-        }
-    }
-
-    // Kick the async body: otherwise waitForResumeSignal blocks with nothing to run the closure.
-    continuationState.signalResume()
-
-    // Suspend until the function completes
-    continuationState.waitForResumeSignal()
-
-    // Extract results
-    thrownException = continuationState.thrownException
-    if thrownException != 0 {
-        outThrown?.pointee = thrownException
-        return 0
-    }
-
-    return Int(continuationState.completion)
+    // STDLIB-CORO-BUG-01: a `suspend () -> R` value's invoke thunk has the
+    // `(outThrown) -> R` shape (boxed closure or raw thunk); dispatch through
+    // kk_function_invoke_0, which handles both with the correct arity, rather
+    // than bit-casting it to a continuation-taking suspend entry point.
+    // Capture the caller continuation first: the callee's nested run loop
+    // reinstalls the thread task key, so `.current` no longer resolves here
+    // after the call returns.
+    let callerState = RuntimeContinuationState.current
+    var thrown = 0
+    let result = kk_function_invoke_0(functionRaw, &thrown)
+    // Publish the outcome on the caller's continuation so the suspend-invocation
+    // lowering observes a thrown exception (and clears any stale one on success).
+    callerState?.thrownException = thrown
+    outThrown?.pointee = thrown
+    return result
 }
+
 /// Invoke a suspend function with 1 argument using continuation-passing style.
 /// This is the runtime implementation for `kk_suspend_function_invoke`.
 @_silgen_name("kk_suspend_function_invoke")
@@ -3621,49 +3485,22 @@ public func kk_suspend_function_invoke(
     _ arg: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let continuationState = RuntimeContinuationState.current else {
-        // Not in a suspend context - this shouldn't happen for proper suspend functions
-        outThrown?.pointee = 0
+    guard functionRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
         return 0
     }
 
-    // Install continuation for the suspend point
-    var thrownException: Int = 0
-
-    continuationState.installResumeContinuation {
-        // When resumed, execute the suspend function
-        let functionPtr = UnsafeMutableRawPointer(bitPattern: functionRaw)
-        let callResult: Int
-        let thrownException: Int
-        if let functionPtr {
-            // Call the suspend function (this will be a generated function that takes continuation)
-            typealias SuspendFunctionType = @convention(c) (Int, Int) -> Int
-            let suspendFunction = unsafeBitCast(functionPtr, to: SuspendFunctionType.self)
-            callResult = suspendFunction(arg, Int(bitPattern: Unmanaged.passUnretained(continuationState).toOpaque()))
-            thrownException = 0
-        } else {
-            callResult = 0
-            thrownException = runtimeAllocateNullPointerException(message: "")
-        }
-
-        // Store results in continuation state
-        continuationState.resume(with: callResult)
-        if thrownException != 0 {
-            continuationState.resume(withException: thrownException)
-        }
-    }
-
-    continuationState.signalResume()
-
-    // Suspend until the function completes
-    continuationState.waitForResumeSignal()
-
-    // Extract results
-    thrownException = continuationState.thrownException
-    if thrownException != 0 {
-        outThrown?.pointee = thrownException
-        return 0
-    }
-
-    return Int(continuationState.completion)
+    // STDLIB-CORO-BUG-01: the 1-argument counterpart of kk_suspend_function_invoke_0.
+    // A `suspend (T) -> R` value's invoke thunk has the `(arg, outThrown) -> R`
+    // shape (boxed closure or raw thunk); dispatch through kk_function_invoke,
+    // which handles both, rather than bit-casting it to a continuation-taking
+    // suspend entry point.
+    let callerState = RuntimeContinuationState.current
+    var thrown = 0
+    let result = kk_function_invoke(functionRaw, arg, &thrown)
+    // Publish the outcome on the caller's continuation so the suspend-invocation
+    // lowering observes a thrown exception (and clears any stale one on success).
+    callerState?.thrownException = thrown
+    outThrown?.pointee = thrown
+    return result
 }
