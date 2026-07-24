@@ -876,8 +876,12 @@ final class CodegenBackendIntegrationTests: CodegenBackendTestSupport {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             XCTAssertTrue(
+                callees.contains("flatMapIndexed"),
+                "Expected source flatMapIndexed in callees, got: \(callees.sorted())"
+            )
+            XCTAssertFalse(
                 callees.contains("kk_list_flatMapIndexed"),
-                "Expected kk_list_flatMapIndexed in callees, got: \(callees.sorted())"
+                "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())"
             )
         }
     }
