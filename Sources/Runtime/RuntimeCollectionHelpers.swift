@@ -442,6 +442,12 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return lhs == rhs
 }
 
+/// Kotlin stdlib bridge for structural equality of raw runtime values.
+@_cdecl("__kk_values_equal")
+public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
+    kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
+}
+
 /// Applies Kotlin's reference-equality default to RuntimeObjectBox values while
 /// retaining structural equality for data classes and collection/value boxes.
 /// Returns nil when either operand is not a nominal runtime object, allowing
@@ -640,7 +646,6 @@ typealias RuntimeCollectionLambda1 = @convention(c) (Int, Int, UnsafeMutablePoin
 typealias RuntimeCollectionLambda2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-typealias RuntimeCollectionLambda5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 /// Writes a thrown payload when the caller provided an out-thrown slot.
 func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value
@@ -722,29 +727,6 @@ func runtimeInvokeCollectionLambda4(
         maybeUnbox(arg2),
         maybeUnbox(arg3),
         maybeUnbox(arg4),
-        outThrown
-    )
-}
-
-@inline(__always)
-func runtimeInvokeCollectionLambda5(
-    fnPtr: Int,
-    closureRaw: Int,
-    arg1: Int,
-    arg2: Int,
-    arg3: Int,
-    arg4: Int,
-    arg5: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda5.self)
-    return fn(
-        maybeUnbox(closureRaw),
-        maybeUnbox(arg1),
-        maybeUnbox(arg2),
-        maybeUnbox(arg3),
-        maybeUnbox(arg4),
-        maybeUnbox(arg5),
         outThrown
     )
 }

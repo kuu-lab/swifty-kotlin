@@ -14,16 +14,13 @@ public final class Server {
     private let store = DocumentStore()
     private let analyzer: Analyzer
     private var shuttingDown = false
-    private let log: (String) -> Void
 
     public init(
         connection: JSONRPCConnection,
-        analyzer: Analyzer = Analyzer(),
-        log: @escaping (String) -> Void = { _ in }
+        analyzer: Analyzer = Analyzer()
     ) {
         self.connection = connection
         self.analyzer = analyzer
-        self.log = log
     }
 
     /// Creates a server bound to the process's standard input/output streams.

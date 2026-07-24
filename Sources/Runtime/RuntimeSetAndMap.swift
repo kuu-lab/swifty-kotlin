@@ -5,7 +5,7 @@
 
 // MARK: - Set Functions (STDLIB-001)
 
-@_cdecl("kk_set_of")
+@_cdecl("__kk_set_of")
 public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
@@ -27,7 +27,7 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
 
 // STDLIB-410: emptySet<T>() - allocates a fresh empty set each call to avoid
 // aliasing with mutable collection operations.
-@_cdecl("kk_emptySet")
+@_cdecl("__kk_emptySet")
 public func kk_emptySet() -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
@@ -328,7 +328,7 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
 
 // MARK: - Map Functions (STDLIB-001)
 
-@_cdecl("kk_map_of")
+@_cdecl("__kk_map_of")
 public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
@@ -345,7 +345,7 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
 
 // STDLIB-410: emptyMap<K,V>() - allocates a fresh empty map each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_map_put).
-@_cdecl("kk_emptyMap")
+@_cdecl("__kk_emptyMap")
 public func kk_emptyMap() -> Int {
     return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 }
@@ -435,7 +435,7 @@ public func kk_map_size(_ mapRaw: Int) -> Int {
     return map.keys.count
 }
 
-@_cdecl("kk_map_get")
+@_cdecl("__kk_map_get")
 public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
@@ -570,7 +570,7 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: entries))
 }
 
-@_cdecl("kk_map_iterator")
+@_cdecl("__kk_map_iterator")
 public func kk_map_iterator(_ mapRaw: Int) -> Int {
     let (keys, values): ([Int], [Int]) = if let map = runtimeMapBox(from: mapRaw) {
         (map.keys, map.values)
@@ -580,7 +580,7 @@ public func kk_map_iterator(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeMapIteratorBox(keys: keys, values: values))
 }
 
-@_cdecl("kk_map_iterator_hasNext")
+@_cdecl("__kk_map_iterator_hasNext")
 public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
     guard let iter = runtimeMapIteratorBox(from: iterRaw) else {
         return 0
@@ -589,7 +589,7 @@ public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
 }
 
 /// Returns the key at the current position, matching the C preamble behavior.
-@_cdecl("kk_map_iterator_next")
+@_cdecl("__kk_map_iterator_next")
 public func kk_map_iterator_next(_ iterRaw: Int) -> Int {
     guard let iter = runtimeMapIteratorBox(from: iterRaw) else {
         return 0

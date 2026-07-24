@@ -51,4 +51,40 @@ extension CodegenBackendIntegrationTests {
                 """
         )
     }
+
+    // DEBT-CORO-005 / BUG-041: `job.cancel()` runs synchronously right after
+    // `launch { }` returns, with no intervening suspension point. Under
+    // CoroutineStart.DEFAULT the child body never starts, so its `finally`
+    // block must not run -- only "done" is printed. A launch/cancel scheduling
+    // race that let the child start would additionally print "finally".
+    // Confirmed against the real kotlinc/JVM reference via
+    // `Scripts/diff_cases/coroutine_launch_cancel_before_start_finally.kt`.
+    func testCodegenLaunchCancelBeforeStartSkipsFinally() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            val job = launch {
+                try {
+                    delay(Long.MAX_VALUE)
+                } finally {
+                    println("finally")
+                }
+            }
+            job.cancel()
+            job.join()
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LaunchCancelBeforeStartSkipsFinally",
+            expected:
+                """
+                done
+
+                """
+        )
+    }
 }

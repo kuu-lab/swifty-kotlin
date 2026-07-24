@@ -1,8 +1,6 @@
 symbol fq=__local_0.prefix kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.takeWhile kind=function vis=public flags=synthetic sig=recv=String params=[(Char) -> Boolean] ret=String
-symbol fq=kotlin.text.takeWhile.predicate kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstring_take_while package=_
   decl main fun main sym=main

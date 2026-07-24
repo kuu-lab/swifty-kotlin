@@ -132,7 +132,9 @@ struct BuildKIRRegressionTests {
             // String.trim is source-backed after the KSP-403 migration.
             #expect(trimCallees.contains("trim"))
             #expect(!trimCallees.contains("kk_string_trim_flat"))
-            #expect(takeCallees.contains("kk_string_take_flat"))
+            // String.take is source-backed after the KSP-405 migration.
+            #expect(takeCallees.contains("take"))
+            #expect(!takeCallees.contains("kk_string_take_flat"))
         }
     }
 

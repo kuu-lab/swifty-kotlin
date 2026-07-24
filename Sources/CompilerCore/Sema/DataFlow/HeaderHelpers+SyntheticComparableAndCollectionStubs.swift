@@ -134,7 +134,8 @@ extension DataFlowSemaPhase {
         )
         registerIterableJoinToMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            skipStats: skipStats
         )
         registerIterableFirstNotNullOfMember(
             symbols: symbols, types: types, interner: interner,
@@ -168,7 +169,8 @@ extension DataFlowSemaPhase {
         )
         registerIterableJoinToStringMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            skipStats: skipStats
         )
         registerIterableReduceMember(
             symbols: symbols, types: types, interner: interner,
@@ -178,11 +180,15 @@ extension DataFlowSemaPhase {
         )
         registerIterableReduceRightMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableReduceRightIndexedMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         // STDLIB-021: Iterable mutable conversion members are registered later once
@@ -259,11 +265,15 @@ extension DataFlowSemaPhase {
         )
         registerIterableReduceRightIndexedOrNullMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableReduceRightOrNullMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableSumByMember(
             symbols: symbols, types: types, interner: interner,
@@ -449,11 +459,14 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticCollectionFactoryStubs(
             symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         registerSyntheticArrayStubs(
-            symbols: symbols, types: types, interner: interner
+            symbols: symbols, types: types, interner: interner,
+            skipStats: skipStats
         )
         registerCollectionToTypedArrayMember(
             symbols: symbols, types: types, interner: interner,

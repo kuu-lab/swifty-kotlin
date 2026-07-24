@@ -1,8 +1,8 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-081: Validates that `CharSequence.takeLastWhile(predicate)` resolves
-/// through Sema for `String` receivers. The synthetic stub links to `kk_string_takeLastWhile_flat`.
+/// STDLIB-TEXT-FN-081: Validates that `String.takeLastWhile(predicate)` resolves
+/// through Sema for `String` receivers. After KSP-405 it is bundled Kotlin source (StringTakeDrop.kt).
 @Suite
 struct StringTakeLastWhileFunctionTests {
     @Test func testTakeLastWhileWithSimpleLambda() throws {

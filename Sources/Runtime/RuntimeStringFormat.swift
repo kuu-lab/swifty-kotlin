@@ -145,10 +145,6 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "c", "C",
 ]
 
-private func runtimeFormatString(_ template: String, arguments: [Int], locale: Locale? = nil) -> String {
-    runtimeFormatString(template, values: arguments.map { RuntimeValue(raw: $0) }, locale: locale)
-}
-
 private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
     let characters = Array(template)
     var cursor = 0
@@ -514,10 +510,6 @@ public func kk_string_trimIndent(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeTrimIndent(source))
 }
 
-public func kk_string_trimMargin_default(_ strRaw: Int) -> Int {
-    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw, nil)
-}
-
 @_cdecl("__kk_string_trimMargin")
 public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -533,17 +525,6 @@ public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThr
 }
 
 // MARK: - STDLIB-191: prependIndent / replaceIndent
-
-private let runtimeDefaultPrependIndentRaw = runtimeMakeStringRaw(" ")
-private let runtimeDefaultReplaceIndentRaw = runtimeMakeStringRaw("")
-
-public func kk_string_prependIndent_default(_ strRaw: Int) -> Int {
-    kk_string_prependIndent(strRaw, runtimeDefaultPrependIndentRaw)
-}
-
-public func kk_string_replaceIndent_default(_ strRaw: Int) -> Int {
-    kk_string_replaceIndent(strRaw, runtimeDefaultReplaceIndentRaw)
-}
 
 @_cdecl("__kk_string_prependIndent")
 public func kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
@@ -581,106 +562,3 @@ public func kk_string_replaceIndentByMargin(
     )
 }
 
-// MARK: - Flat ABI wrappers
-
-@_cdecl("kk_string_trimIndent_flat")
-public func kk_string_trimIndent_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_trimIndent(kk_string_from_flat(data, length, byteCount, hash))
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_trimMargin_default_flat")
-public func kk_string_trimMargin_default_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_trimMargin_default(kk_string_from_flat(data, length, byteCount, hash))
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_trimMargin_flat")
-public func kk_string_trimMargin_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    var thrown = 0
-    let raw = kk_string_trimMargin(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
-        &thrown
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_prependIndent_default_flat")
-public func kk_string_prependIndent_default_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_prependIndent_default(kk_string_from_flat(data, length, byteCount, hash))
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_prependIndent_flat")
-public func kk_string_prependIndent_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ indentData: UnsafePointer<UInt8>?, _ indentLength: Int, _ indentByteCount: Int, _ indentHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_prependIndent(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(indentData, indentLength, indentByteCount, indentHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_replaceIndent_default_flat")
-public func kk_string_replaceIndent_default_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_replaceIndent_default(kk_string_from_flat(data, length, byteCount, hash))
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_replaceIndent_flat")
-public func kk_string_replaceIndent_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let raw = kk_string_replaceIndent(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash)
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}
-
-@_cdecl("kk_string_replaceIndentByMargin_flat")
-public func kk_string_replaceIndentByMargin_flat(
-    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
-    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
-    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    var thrown = 0
-    let raw = kk_string_replaceIndentByMargin(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash),
-        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
-        &thrown
-    )
-    guard let string = runtimeStringFromRaw(raw) else { return nil }
-    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-}

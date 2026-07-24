@@ -66,7 +66,7 @@ enum GoldenHarnessDump {
     ) throws -> String {
         let ctx = makeCompilationContext(inputs: [sourcePath], moduleName: "GoldenSema", emit: .kirDump)
         for (path, contents) in preInjectedFiles {
-            _ = ctx.sourceManager.addFile(path: path, contents: contents)
+            _ = ctx.sourceManager.addFile(path: path, contents: contents, origin: .bundledStdlib)
         }
         try runFrontend(ctx)
         try SemaPhase().run(ctx)
@@ -150,7 +150,7 @@ enum GoldenHarnessDump {
 
     private static func bundledStdlibFileIDs(in sourceManager: SourceManager) -> Set<Int32> {
         Set(sourceManager.fileIDs()
-            .filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .filter { sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
     }
 

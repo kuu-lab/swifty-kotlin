@@ -781,7 +781,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string_flat"),
+                callee: interner.intern("__kk_string_builder_new_from_string_flat"),
                 arguments: [superToStringResult],
                 result: builderExpr,
                 canThrow: false,
@@ -798,7 +798,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string_flat"),
+                callee: interner.intern("__kk_string_builder_new_from_string_flat"),
                 arguments: [prefixExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -817,7 +817,7 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
+                callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, labelExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -909,7 +909,7 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
+                callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, propStr],
                 result: builderExpr,
                 canThrow: false,
@@ -928,7 +928,7 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_append_obj"),
+                callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, suffixExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -940,7 +940,7 @@ extension DataEnumSealedSynthesisPass {
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_string_builder_toString"),
+            callee: interner.intern("__kk_string_builder_toString"),
             arguments: [builderExpr],
             result: resultExpr,
             canThrow: false,

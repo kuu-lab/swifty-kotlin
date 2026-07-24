@@ -26,9 +26,20 @@ public extension RuntimeABISpec {
     }
 
     static let collectionFunctions: [RuntimeABIFunctionSpec] = [
+        // Core helpers
+        RuntimeABIFunctionSpec(
+            name: "__kk_values_equal",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         // List
         RuntimeABIFunctionSpec(
-            name: "kk_list_of",
+            name: "__kk_list_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
@@ -39,13 +50,13 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptyList
         RuntimeABIFunctionSpec(
-            name: "kk_emptyList",
+            name: "__kk_emptyList",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_list_size",
+            name: "__kk_list_size",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
             ],
@@ -62,7 +73,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_list_get",
+            name: "__kk_list_get",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
@@ -82,16 +93,6 @@ public extension RuntimeABISpec {
     ]
     + listComponentFunctions
     + [
-        RuntimeABIFunctionSpec(
-            name: "kk_list_contains",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_list_is_empty",
             parameters: [
@@ -312,7 +313,7 @@ public extension RuntimeABISpec {
         ),
         // Set
         RuntimeABIFunctionSpec(
-            name: "kk_set_of",
+            name: "__kk_set_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
@@ -323,7 +324,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptySet
         RuntimeABIFunctionSpec(
-            name: "kk_emptySet",
+            name: "__kk_emptySet",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
@@ -635,7 +636,7 @@ public extension RuntimeABISpec {
     ] + Self.collectionHOFFunctions + [
         // Map
         RuntimeABIFunctionSpec(
-            name: "kk_map_of",
+            name: "__kk_map_of",
             parameters: [
                 RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
@@ -647,7 +648,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-410: emptyMap
         RuntimeABIFunctionSpec(
-            name: "kk_emptyMap",
+            name: "__kk_emptyMap",
             parameters: [],
             returnType: .intptr,
             section: "Collection"
@@ -662,7 +663,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_get",
+            name: "__kk_map_get",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "key", type: .intptr),
@@ -986,7 +987,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_iterator",
+            name: "__kk_map_iterator",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
@@ -995,7 +996,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_iterator_hasNext",
+            name: "__kk_map_iterator_hasNext",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],
@@ -1004,7 +1005,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_iterator_next",
+            name: "__kk_map_iterator_next",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
             ],

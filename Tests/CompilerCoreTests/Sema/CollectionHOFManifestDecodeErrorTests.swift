@@ -20,27 +20,33 @@ struct CollectionHOFManifestDecodeErrorTests {
         }
         """
         try withTemporaryFile(contents: source) { path in
-            // No searchPaths — purely relying on synthetic stubs.
+            // No searchPaths — purely relying on bundled stdlib / synthetic stubs.
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
 
-            // Verify that synthetic stubs exist for all target HOFs.
-            let listFQ: [InternedString] = [
+            let collectionsFQ: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
             ]
+            let listFQ: [InternedString] = collectionsFQ + [ctx.interner.intern("List")]
 
-            // Only mapIndexed and partition have explicit synthetic stubs.
-            // groupBy uses fallback inference (no symbol table entry).
-            for memberName in ["mapIndexed", "partition"] {
-                let symbolID = sema.symbols.lookup(
-                    fqName: listFQ + [ctx.interner.intern(memberName)]
-                )
-                #expect(symbolID != nil, "Synthetic stub for '\(memberName)' must exist without external metadata")
+            // mapIndexed is now provided by bundled Kotlin source (top-level extension).
+            let mapIndexedSource = sema.symbols.lookup(
+                fqName: collectionsFQ + [ctx.interner.intern("mapIndexed")]
+            )
+            #expect(mapIndexedSource != nil, "mapIndexed bundled source must exist without external metadata")
+            if let mapIndexedSource {
+                let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
+                #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
             }
+
+            // partition still uses a synthetic member stub.
+            let partitionSymbolID = sema.symbols.lookup(
+                fqName: listFQ + [ctx.interner.intern("partition")]
+            )
+            #expect(partitionSymbolID != nil, "Synthetic stub for 'partition' must exist without external metadata")
 
             // No type-constraint errors expected.
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
@@ -102,13 +108,18 @@ struct CollectionHOFManifestDecodeErrorTests {
             #expect(throws: Never.self) { try runSema(ctx) }
 
             let sema = try #require(ctx.sema)
+            // mapIndexed is provided by bundled Kotlin source (top-level extension),
+            // so it must resolve even when external library metadata is unavailable.
             let mapIndexedSym = sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
                 ctx.interner.intern("mapIndexed"),
             ])
-            #expect(mapIndexedSym != nil, "mapIndexed synthetic stub must exist despite invalid search path")
+            #expect(mapIndexedSym != nil, "mapIndexed bundled source must exist despite invalid search path")
+            if let mapIndexedSym {
+                let symbol = try #require(sema.symbols.symbol(mapIndexedSym))
+                #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
+            }
         }
     }
 

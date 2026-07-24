@@ -22,6 +22,69 @@ final class ControlFlowLowerer {
         return interner.intern(fallback)
     }
 
+    /// Emit a member call for a for-loop iterator/hasNext/next invocation.
+    /// Uses virtual dispatch when the chosen callee is a non-external member
+    /// of an interface or class, falling back to a direct `.call` otherwise.
+    private func emitForLoopMemberCall(
+        callBinding: CallBinding,
+        fallback: String,
+        receiverExpr: ExprID?,
+        receiverID: KIRExprID,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let calleeName = resolvedLoopCallee(for: callBinding, sema: sema, interner: interner, fallback: fallback)
+        // Virtual dispatch is only possible when we have a source expression
+        // whose static type can be used to resolve an itable/vtable slot.
+        // hasNext()/next() on the stdlib Iterator use runtime itable lookup,
+        // so they continue to use a direct .call when there is no receiver expr.
+        //
+        // Member functions (class/interface/object) receive their `this` through
+        // the virtual call receiver; extension functions receive it as the first
+        // explicit argument, so tryEmitVirtualDispatch strips it. Pass the
+        // argument list that matches this contract to avoid double receivers.
+        let isClassMember: Bool
+        let chosenCallee = callBinding.chosenCallee
+        if let parentSymbolID = sema.symbols.parentSymbol(for: chosenCallee),
+           let parentSymbol = sema.symbols.symbol(parentSymbolID) {
+            switch parentSymbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                isClassMember = true
+            default:
+                isClassMember = false
+            }
+        } else {
+            isClassMember = false
+        }
+        let virtualArguments: [KIRExprID] = isClassMember ? [] : [receiverID]
+        if let receiverExpr,
+           let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+               chosenCallee: callBinding.chosenCallee,
+               calleeName: calleeName,
+               receiverExpr: receiverExpr,
+               loweredReceiverID: receiverID,
+               isSuperCall: false,
+               finalArguments: virtualArguments,
+               result: result,
+               sema: sema,
+               interner: interner
+           ) {
+            instructions.append(virtualInstruction)
+        } else {
+            instructions.append(.call(
+                symbol: callBinding.chosenCallee,
+                callee: calleeName,
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+
     /// When true, no instructions should follow in the same linear block.
     func isTerminatedExpr(_ exprID: KIRExprID, arena: KIRArena, sema: SemaModule) -> Bool {
         arena.exprType(exprID) == sema.types.nothingType
@@ -397,14 +460,17 @@ final class ControlFlowLowerer {
         let iteratorID: KIRExprID
         if let iteratorCall = loopBinding.iteratorCall {
             let iteratorTemp = arena.appendTemporary(type: loopBinding.iteratorType)
-            instructions.append(.call(
-                symbol: iteratorCall.chosenCallee,
-                callee: resolvedLoopCallee(for: iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
-                arguments: [iterableID],
+            emitForLoopMemberCall(
+                callBinding: iteratorCall,
+                fallback: "iterator",
+                receiverExpr: iterableExpr,
+                receiverID: iterableID,
                 result: iteratorTemp,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             iteratorID = iteratorTemp
         } else {
             // The iterable value is itself an Iterator; no iterator() call is needed.
@@ -416,14 +482,17 @@ final class ControlFlowLowerer {
         instructions.append(.label(continueLabel))
 
         let hasNextID = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: loopBinding.hasNextCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.hasNextCall, sema: sema, interner: interner, fallback: "hasNext"),
-            arguments: [iteratorID],
+        emitForLoopMemberCall(
+            callBinding: loopBinding.hasNextCall,
+            fallback: "hasNext",
+            receiverExpr: nil,
+            receiverID: iteratorID,
             result: hasNextID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
@@ -431,14 +500,17 @@ final class ControlFlowLowerer {
         let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
         let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
         let nextValueID = arena.appendTemporary(type: loopBinding.elementType)
-        instructions.append(.call(
-            symbol: loopBinding.nextCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.nextCall, sema: sema, interner: interner, fallback: "next"),
-            arguments: [iteratorID],
+        emitForLoopMemberCall(
+            callBinding: loopBinding.nextCall,
+            fallback: "next",
+            receiverExpr: nil,
+            receiverID: iteratorID,
             result: nextValueID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
         }
@@ -578,6 +650,60 @@ final class ControlFlowLowerer {
         let nextSymbol: SymbolID
     }
 
+    /// Returns true when the class symbol is one of the built-in Range / Progression
+    /// classes in `kotlin.ranges` that now provide bundled Kotlin `iterator()`
+    /// operators. These synthetic classes are allowed to resolve a custom iterator
+    /// so that `for-in` over a range is lowered through `.iterator()` instead of
+    /// the legacy `kk_range_iterator` runtime path.
+    private func isRangeLikeClass(_ classSymbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard classSymbol.fqName.count >= 2,
+              interner.resolve(classSymbol.fqName[0]) == "kotlin",
+              interner.resolve(classSymbol.fqName[1]) == "ranges"
+        else {
+            return false
+        }
+        let shortName = interner.resolve(classSymbol.fqName.last!)
+        switch shortName {
+        case "IntRange", "LongRange", "CharRange",
+             "IntProgression", "LongProgression", "CharProgression":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Looks for a non-synthetic bundled `operator fun <Range>.iterator()` extension
+    /// declared in the same package as the range class. This is how KSP-312's
+    /// `RangeIterators.kt` functions are discovered for `for-in` lowering.
+    private func resolveBundledIteratorCandidate(
+        classSymbol: SemanticSymbol,
+        iterableType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard classSymbol.fqName.count >= 2 else {
+            return nil
+        }
+        let packageFQName = classSymbol.fqName.dropLast()
+        let iteratorName = interner.intern("iterator")
+        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [iteratorName]) {
+            guard let candidateSymbol = sema.symbols.symbol(candidate),
+                  candidateSymbol.kind == .function,
+                  candidateSymbol.flags.contains(.operatorFunction),
+                  !candidateSymbol.flags.contains(.synthetic),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  let receiverType = signature.receiverType
+            else {
+                continue
+            }
+            if sema.types.isSubtype(iterableType, receiverType) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
     /// Resolves user-defined `operator fun iterator()` on the iterable type,
     /// then resolves `hasNext()` and `next()` on the iterator return type.
     /// Returns nil if no custom iterator operator is defined.
@@ -587,16 +713,17 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        // Only resolve for user-defined class types, not primitives or built-in ranges.
+        // Only resolve for user-defined class types and the bundled Range/Progression
+        // classes whose `iterator()` operators are now supplied by Kotlin source.
         guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              !classSymbol.flags.contains(.synthetic)
+              !classSymbol.flags.contains(.synthetic) || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
         else {
             return nil
         }
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")
-        let iteratorCandidates = helpers.collectMemberFunctionCandidates(
+        var iteratorCandidates = helpers.collectMemberFunctionCandidates(
             named: iteratorName,
             receiverType: nonNullType,
             sema: sema,
@@ -604,12 +731,28 @@ final class ControlFlowLowerer {
         ).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.flags.contains(.operatorFunction),
+                  !symbol.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
                 return false
             }
             return true
+        }
+
+        // Built-in Range/Progression classes expose their `iterator()` as a bundled
+        // Kotlin extension rather than as a class member, so `collectMemberFunctionCandidates`
+        // will not find it through class-hierarchy lookup.
+        if iteratorCandidates.isEmpty,
+           isRangeLikeClass(classSymbol, sema: sema, interner: interner),
+           let bundledIterator = resolveBundledIteratorCandidate(
+               classSymbol: classSymbol,
+               iterableType: nonNullType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            iteratorCandidates = [bundledIterator]
         }
 
         guard let iteratorSymbol = iteratorCandidates.first,
@@ -1656,10 +1799,10 @@ final class ControlFlowLowerer {
                 // Map destructuring component1 = key, which is the iterator next value
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, componentIndex == 2 {
-                // Map destructuring component2 = value, obtained via kk_map_get(map, key)
+                // Map destructuring component2 = value, obtained via __kk_map_get(map, key)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_map_get"),
+                    callee: interner.intern("__kk_map_get"),
                     arguments: [iterableID, nextValueID],
                     result: componentResult,
                     canThrow: false,
@@ -1752,14 +1895,17 @@ final class ControlFlowLowerer {
         let iteratorID: KIRExprID
         if let iteratorCall = loopBinding.iteratorCall {
             let iteratorTemp = arena.appendTemporary(type: loopBinding.iteratorType)
-            instructions.append(.call(
-                symbol: iteratorCall.chosenCallee,
-                callee: resolvedLoopCallee(for: iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
-                arguments: [iterableID],
+            emitForLoopMemberCall(
+                callBinding: iteratorCall,
+                fallback: "iterator",
+                receiverExpr: iterableExpr,
+                receiverID: iterableID,
                 result: iteratorTemp,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             iteratorID = iteratorTemp
         } else {
             // The iterable value is itself an Iterator; no iterator() call is needed.
@@ -1771,27 +1917,33 @@ final class ControlFlowLowerer {
         instructions.append(.label(continueLabel))
 
         let hasNextID = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: loopBinding.hasNextCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.hasNextCall, sema: sema, interner: interner, fallback: "hasNext"),
-            arguments: [iteratorID],
+        emitForLoopMemberCall(
+            callBinding: loopBinding.hasNextCall,
+            fallback: "hasNext",
+            receiverExpr: nil,
+            receiverID: iteratorID,
             result: hasNextID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
 
         let nextValueID = arena.appendTemporary(type: loopBinding.elementType)
-        instructions.append(.call(
-            symbol: loopBinding.nextCall.chosenCallee,
-            callee: resolvedLoopCallee(for: loopBinding.nextCall, sema: sema, interner: interner, fallback: "next"),
-            arguments: [iteratorID],
+        emitForLoopMemberCall(
+            callBinding: loopBinding.nextCall,
+            fallback: "next",
+            receiverExpr: nil,
+            receiverID: iteratorID,
             result: nextValueID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         let nonNullElementType = sema.types.makeNonNullable(loopBinding.elementType)
         var previousValues: [(SymbolID, KIRExprID?)] = []

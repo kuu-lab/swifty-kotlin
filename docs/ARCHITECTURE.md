@@ -193,10 +193,34 @@ Tests/
 対応する stdlib API を Kotlin source へ移行して合成スタブを削除する PR では、同じ PR で該当 synthetic member link test も削除または source-backed assertion へ置換する。
 この群は migration progress を測るための一時的な安全網なので、単独の大規模リファクタ・分割・命名整理の対象にしない。
 
+### Codegen 実行テスト資産 (fixture 駆動)
+
+Codegen 統合テスト（`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+*`）は、
+Kotlin ソースを `kswiftc` でコンパイル・実行し stdout を突き合わせるものが大半で、
+1 ケースにつき同型のボイラープレート（`let source = ...` / `assertKotlinOutput(...)`）が重複していた。
+これを削減するため fixture 駆動ハーネス `CodegenBackendFixtureTests`
+（[`../Tests/CompilerBackendTests/Codegen/CodegenBackendFixtureTests.swift`](../Tests/CompilerBackendTests/Codegen/CodegenBackendFixtureTests.swift)）を用意している。
+
+- fixture の実体は [`../Tests/CompilerBackendTests/Fixtures/`](../Tests/CompilerBackendTests/Fixtures/) 以下に置く。
+  1 fixture = 1 ディレクトリで、単一の `*.kt`（`fun main()` を持つ実行可能ソース）と
+  期待 stdout の `expected.txt` を含む。領域単位でネストしてよい（例: `collections/list_sum/`）。
+- ハーネスは実行時に `Fixtures/` を再帰的に走査し、`expected.txt` を持つ全ディレクトリを
+  自動的に fixture として検出・実行する。`Scripts/diff_cases` と同じく「ファイルを置くだけ」で追加できる。
+- `Fixtures/` は `Package.swift` の `CompilerBackendTests` ターゲットで `exclude` 指定している
+  （ソース/リソースとして扱わせないため）。
+
+> **ガイドライン: 新規 Codegen 実行テストは fixture 必須。**
+> `.kt` をコンパイル・実行して stdout を比較する新規 Codegen テストは、原則として
+> 個別の `CodegenBackendIntegrationTests+*.swift` を新設せず、`Fixtures/` に
+> `<領域>/<ケース名>/<ケース名>.kt` + `expected.txt` を追加して `CodegenBackendFixtureTests`
+> に検出させる。stdout 比較に収まらない検証（KIR ダンプ・callee 検査・診断など）が必要な場合に限り
+> 従来の XCTest メソッドを書く。既存ケースの fixture 化は領域単位で順次進める（RF-TEST-002）。
+
 ### テスト実行コマンド
 
 ```bash
 bash Scripts/swift_test.sh                        # 全テスト (並列)
+bash Scripts/swift_test.sh --filter CodegenBackendFixtureTests  # Codegen fixture ハーネスのみ
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # kotlinc 差分回帰テスト
 ```
 
@@ -393,6 +417,7 @@ LLVM 必要: `build`, `smoke-tests`, `CompilerBackendTests`, `KSwiftKCLITests`, 
 | フェーズ単体テスト | `Tests/CompilerCoreTests/{Phase}/` | `bash Scripts/swift_test.sh --filter {TestClass}` |
 | ゴールデンテスト | `Tests/CompilerCoreTests/GoldenCases/` | `bash Scripts/swift_test.sh --filter Golden` |
 | kotlinc 回帰テスト | `Scripts/diff_cases/*.kt` | `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` |
+| Codegen 実行テスト (fixture) | `Tests/CompilerBackendTests/Fixtures/<領域>/<ケース>/{*.kt,expected.txt}` | `bash Scripts/swift_test.sh --filter CodegenBackendFixtureTests` |
 | E2E スモークテスト | `Tests/CompilerCoreTests/Integration/SmokeTests.swift` | `bash Scripts/swift_test.sh --filter SmokeTests` |
 
 ---

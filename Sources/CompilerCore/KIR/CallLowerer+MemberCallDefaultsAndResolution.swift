@@ -61,7 +61,7 @@ extension CallLowerer {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
-            ) ?? interner.intern("kk_list_size")
+            ) ?? interner.intern("__kk_list_size")
             let sizeExpr = arena.appendTemporary(type: intType
             )
             instructions.append(.call(

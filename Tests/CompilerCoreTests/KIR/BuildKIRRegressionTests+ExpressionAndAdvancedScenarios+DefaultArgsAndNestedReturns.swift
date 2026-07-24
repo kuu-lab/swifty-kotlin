@@ -9,7 +9,6 @@ extension BuildKIRRegressionTests {
         fun main() {
             val parts = "1,2,3".split(",")
             println(parts)
-            println("abc".startsWith("a"))
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -24,8 +23,7 @@ extension BuildKIRRegressionTests {
                 callees.contains("split") || callees.contains("__kk_string_split"),
                 "Expected source-backed String.split path, got: \(callees)"
             )
-            #expect(callees.contains("kk_string_startsWith_flat"), "Expected direct kk_string_startsWith_flat call, got: \(callees)")
-            #expect(!(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") }),
+            #expect(!(callees.contains { $0.contains("split$default") }),
                            "External string stubs must not route through $default: \(callees)")
         }
     }

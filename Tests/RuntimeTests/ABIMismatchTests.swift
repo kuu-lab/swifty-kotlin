@@ -267,17 +267,28 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringRemovePrefixSuffixSurroundingPointerABIRemoved() {
-        let legacyNames = [
+    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+    // bundled Kotlin source (StringPrefixSuffix.kt); neither the raw pointer nor
+    // the flattened runtime ABI remains.
+    func testKKStringPrefixSuffixABIRemoved() {
+        let removedNames = [
+            "kk_string_startsWith",
+            "kk_string_startsWith_flat",
+            "kk_string_endsWith",
+            "kk_string_endsWith_flat",
             "kk_string_removePrefix",
+            "kk_string_removePrefix_flat",
             "kk_string_removeSuffix",
+            "kk_string_removeSuffix_flat",
             "kk_string_removeSurrounding",
+            "kk_string_removeSurrounding_flat",
             "kk_string_removeSurrounding_pair",
+            "kk_string_removeSurrounding_pair_flat",
         ]
-        for legacyName in legacyNames {
+        for removedName in removedNames {
             XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+                RuntimeABISpec.allFunctions.contains { $0.name == removedName },
+                "\(removedName) should be removed in favor of bundled Kotlin source (StringPrefixSuffix.kt)"
             )
         }
     }
@@ -703,71 +714,23 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringIndentFlatSignatures() throws {
-        let receiverOnlyNames = [
+    func testKKStringIndentFlatABIRemoved() {
+        let flatNames = [
             "kk_string_trimIndent_flat",
             "kk_string_trimMargin_default_flat",
-            "kk_string_prependIndent_default_flat",
-            "kk_string_replaceIndent_default_flat",
-        ]
-        let receiverOnlyTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in receiverOnlyNames {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), receiverOnlyTypes)
-        }
-
-        let oneStringArgumentNames = [
             "kk_string_trimMargin_flat",
+            "kk_string_prependIndent_default_flat",
             "kk_string_prependIndent_flat",
+            "kk_string_replaceIndent_default_flat",
             "kk_string_replaceIndent_flat",
+            "kk_string_replaceIndentByMargin_flat",
         ]
-        let oneStringArgumentTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in oneStringArgumentNames {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), oneStringArgumentTypes)
+        for name in flatNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be provided by bundled Kotlin source, not the flattened runtime ABI"
+            )
         }
-
-        let replaceIndentByMargin = try requireSpec("kk_string_replaceIndentByMargin_flat")
-        XCTAssertEqual(replaceIndentByMargin.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(replaceIndentByMargin.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
     }
 
     func testKKPrintlnAnySignature() throws {

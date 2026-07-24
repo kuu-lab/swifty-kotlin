@@ -72,7 +72,6 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         child.markStarted()
 
         // Establish parent-child relationship
-        child.setParent(parent)
         let childHandle = Int(bitPattern: Unmanaged.passUnretained(child).toOpaque())
         parent.registerChild(childHandle)
 
@@ -93,7 +92,6 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(parent.cancel())
 
         // Then register child - should be cancelled immediately
-        child.setParent(parent)
         let childHandle = Int(bitPattern: Unmanaged.passUnretained(child).toOpaque())
         parent.registerChild(childHandle)
 

@@ -597,24 +597,6 @@ func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
     }
 }
 
-/// Maps a dispatcher tag to the corresponding GCD dispatch queue.
-/// - `Dispatchers.Default` -> global queue (concurrent, default QoS)
-/// - `Dispatchers.IO`      -> global queue (concurrent, utility QoS — I/O-appropriate)
-/// - `Dispatchers.Main`    -> main queue (serial)
-/// Unknown tags fall back to `Dispatchers.Default`.
-func dispatchQueue(for dispatcherTag: Int) -> DispatchQueue {
-    switch dispatcherTag {
-    case RuntimeDispatcherTag.ioDispatcher:
-        return DispatchQueue.global(qos: .utility)
-    case RuntimeDispatcherTag.mainDispatcher:
-        return DispatchQueue.main
-    case RuntimeDispatcherTag.defaultDispatcher:
-        return DispatchQueue.global()
-    default:
-        return DispatchQueue.global()
-    }
-}
-
 @_cdecl("kk_dispatcher_default")
 public func kk_dispatcher_default() -> Int {
     RuntimeDispatcherTag.defaultDispatcher

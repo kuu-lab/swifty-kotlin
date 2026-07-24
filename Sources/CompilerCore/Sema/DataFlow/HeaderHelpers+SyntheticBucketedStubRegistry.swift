@@ -176,8 +176,14 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsNumber") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "TODOAndIO") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "TODOAndIO") { phase, symbols, types, interner, context in
+            phase.registerSyntheticTODOAndIOStubs(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                bundledIndex: context.bundledIndex,
+                skipStats: context.skipStats
+            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KPropertyFunctionSupertypePatch") { phase, symbols, types, interner, _ in
             phase.patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)

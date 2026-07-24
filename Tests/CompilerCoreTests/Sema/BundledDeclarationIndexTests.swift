@@ -51,7 +51,7 @@ struct BundledDeclarationIndexTests {
     @Test
     func symbolTableBuildUsesInterfaceReceiverFQName() throws {
         let sourceManager = SourceManager()
-        let fileID = sourceManager.addFile(path: "__bundled_interface.kt", contents: Data("".utf8))
+        let fileID = sourceManager.addFile(path: "__bundled_interface.kt", contents: Data("".utf8), origin: .bundledStdlib)
         let range = SourceRange(
             start: SourceLocation(file: fileID, offset: 0),
             end: SourceLocation(file: fileID, offset: 0)
@@ -101,9 +101,11 @@ struct BundledDeclarationIndexTests {
         let ctx = makeContextFromSource(
             """
             fun useBundledListHOFs(values: List<Int>): Boolean {
+                val joined = values.joinToString(",") { it.toString() }
                 return values.count { it > 0 } > 0 &&
                     values.any { it > 1 } &&
-                    values.all { it >= 0 }
+                    values.all { it >= 0 } &&
+                    joined.isNotEmpty()
             }
             """
         )
@@ -117,7 +119,7 @@ struct BundledDeclarationIndexTests {
         let listOwner = intern(["kotlin", "collections", "List"], ctx.interner)
         let iterableOwner = intern(["kotlin", "collections", "Iterable"], ctx.interner)
         let collectionsPackage = intern(["kotlin", "collections"], ctx.interner)
-        let bundledPath = "__bundled_kotlin_collections_stdlib.kt"
+        let bundledPath = "__bundled_kotlin/collections/ListSearchHOF.kt"
 
         for member in ["count", "any", "all"] {
             let name = ctx.interner.intern(member)
@@ -187,6 +189,50 @@ struct BundledDeclarationIndexTests {
             return linkName == "kk_iterable_count" || linkName == "kk_list_count"
         }
         #expect(syntheticCountLinks.isEmpty, "Expected no synthetic collection count stub link")
+
+        let joinToStringName = ctx.interner.intern("joinToString")
+
+        let listJoinDefaults = matchingFunctions(
+            owner: listOwner,
+            name: joinToStringName,
+            arity: 3,
+            sema: sema
+        ).filter {
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
+                sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString"
+        }
+        #expect(
+            listJoinDefaults.isEmpty,
+            "Expected bundled List.joinToString to suppress the synthetic default stub"
+        )
+
+        let iterableJoinDefaults = matchingFunctions(
+            owner: iterableOwner,
+            name: joinToStringName,
+            arity: 3,
+            sema: sema
+        ).filter {
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
+                sema.symbols.externalLinkName(for: $0) == "kk_iterable_joinToString"
+        }
+        #expect(
+            iterableJoinDefaults.isEmpty,
+            "Expected bundled List.joinToString alias to suppress Iterable.joinToString synthetic default stub"
+        )
+
+        let listJoinTransforms = matchingFunctions(
+            owner: listOwner,
+            name: joinToStringName,
+            arity: 4,
+            sema: sema
+        ).filter {
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
+                sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString_transform"
+        }
+        #expect(
+            !listJoinTransforms.isEmpty,
+            "Expected synthetic List.joinToString transform overloads to remain available"
+        )
     }
 
     @Test
@@ -256,10 +302,51 @@ struct BundledDeclarationIndexTests {
         #expect(warnings.first?.message.contains("'kotlin.collections.List' (arity 1)") == true)
     }
 
+    @Test
+    func astBuildResolvesDefaultImportedReceiverTypes() throws {
+        let (ast, ctx) = try buildBundledAST(sources: [
+            "package kotlin.collections\n\ninterface List<T>",
+            """
+            package kotlin.text
+
+            fun <T> List<T>.joinToString(
+                separator: String = ", ",
+                prefix: String = "",
+                postfix: String = ""
+            ): String = TODO()
+            """
+        ])
+
+        let index = BundledDeclarationIndex.build(
+            ast: ast,
+            sourceManager: ctx.sourceManager,
+            interner: ctx.interner
+        )
+
+        let listOwner = intern(["kotlin", "collections", "List"], ctx.interner)
+        let iterableOwner = intern(["kotlin", "collections", "Iterable"], ctx.interner)
+        let joinToString = ctx.interner.intern("joinToString")
+
+        #expect(index.contains(owner: listOwner, name: joinToString, arity: 3))
+        #expect(index.contains(owner: iterableOwner, name: joinToString, arity: 3))
+    }
+
     private func buildBundledAST(_ source: String) throws -> (ASTModule, CompilationContext) {
         let path = "__bundled_test.kt"
         let ctx = makeCompilationContext(inputs: [path])
-        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .bundledStdlib)
+        try LexPhase().run(ctx)
+        try ParsePhase().run(ctx)
+        try BuildASTPhase().run(ctx)
+        return (try #require(ctx.ast), ctx)
+    }
+
+    private func buildBundledAST(sources: [String]) throws -> (ASTModule, CompilationContext) {
+        let ctx = makeCompilationContext(inputs: [])
+        for (index, source) in sources.enumerated() {
+            let path = "__bundled_test_\(index).kt"
+            _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .bundledStdlib)
+        }
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
         try BuildASTPhase().run(ctx)

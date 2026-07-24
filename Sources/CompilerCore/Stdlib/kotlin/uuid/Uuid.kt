@@ -2,6 +2,7 @@ package kotlin.uuid
 
 @file:OptIn(ExperimentalUuidApi::class)
 
+import java.nio.ByteBuffer
 import kotlin.internal.KsSymbolName
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
@@ -11,9 +12,11 @@ private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
  */
 @ExperimentalUuidApi
 public class Uuid private constructor(
-    public val mostSignificantBits: Long,
-    public val leastSignificantBits: Long,
+    msb: Long,
+    lsb: Long,
 ) : Comparable<Uuid> {
+    @PublishedApi internal val mostSignificantBits: Long = msb
+    @PublishedApi internal val leastSignificantBits: Long = lsb
     public companion object {
         public const val SIZE_BITS: Int = 128
         public const val SIZE_BYTES: Int = 16
@@ -64,6 +67,9 @@ public class Uuid private constructor(
         public fun fromLongs(mostSignificantBits: Long, leastSignificantBits: Long): Uuid =
             __kk_uuid_fromLongs(mostSignificantBits, leastSignificantBits)
 
+        public fun fromULongs(mostSignificantBits: ULong, leastSignificantBits: ULong): Uuid =
+            fromLongs(mostSignificantBits.toLong(), leastSignificantBits.toLong())
+
         public fun fromByteArray(byteArray: ByteArray): Uuid {
             if (byteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("byteArray.size must be 16, was ${byteArray.size}")
@@ -81,6 +87,26 @@ public class Uuid private constructor(
             }
             return Uuid(msb, lsb)
         }
+
+        public fun fromUByteArray(ubyteArray: UByteArray): Uuid {
+            if (ubyteArray.size != SIZE_BYTES) {
+                throw IllegalArgumentException("ubyteArray.size must be 16, was ${ubyteArray.size}")
+            }
+            var msb = 0L
+            var lsb = 0L
+            var i = 0
+            while (i < 8) {
+                msb = (msb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            while (i < 16) {
+                lsb = (lsb shl 8) or (ubyteArray[i].toLong() and 0xffL)
+                i += 1
+            }
+            return Uuid(msb, lsb)
+        }
+
+        public fun generateV4(): Uuid = random()
 
         private fun parseStringOrNull(uuidString: String): Uuid? {
             if (uuidString.length == 36) {
@@ -163,8 +189,13 @@ public class Uuid private constructor(
         return sb.toString()
     }
 
+    public fun toHexDashString(): String = toString()
+
     public inline fun <T> toLongs(action: (Long, Long) -> T): T =
         action(mostSignificantBits, leastSignificantBits)
+
+    public inline fun <T> toULongs(action: (ULong, ULong) -> T): T =
+        action(mostSignificantBits.toULong(), leastSignificantBits.toULong())
 
     public fun toByteArray(): ByteArray {
         val bytes = ByteArray(SIZE_BYTES) { 0 }
@@ -180,6 +211,16 @@ public class Uuid private constructor(
             i += 1
         }
         return bytes
+    }
+
+    public fun toUByteArray(): UByteArray {
+        val msb = mostSignificantBits
+        val lsb = leastSignificantBits
+        return UByteArray(SIZE_BYTES) { i ->
+            val shift = 56 - (if (i < 8) i else i - 8) * 8
+            val value = if (i < 8) (msb ushr shift) and 0xffL else (lsb ushr shift) and 0xffL
+            value.toUByte()
+        }
     }
 
     public override fun compareTo(other: Uuid): Int {
@@ -217,53 +258,76 @@ private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
 @KsSymbolName("__kk_uuid_toKotlinUuid")
 private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
 
-private fun readUuidFromBytes(array: ByteArray, offset: Int): Uuid {
-    if (offset < 0 || offset + 16 > array.size) {
+@kotlin.uuid.ExperimentalUuidApi
+public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
+
+private fun readUuidFromByteBuffer(buffer: ByteBuffer, offset: Int): Uuid {
+    if (offset < 0 || offset + 15 >= buffer.limit()) {
         throw IndexOutOfBoundsException(
-            "offset $offset is out of bounds for array of size ${array.size}"
+            "offset $offset is out of bounds for buffer of limit ${buffer.limit()}"
         )
     }
     var msb = 0L
     var i = 0
     while (i < 8) {
-        msb = (msb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        msb = (msb shl 8) or (buffer.get(offset + i).toLong() and 0xFFL)
         i += 1
     }
     var lsb = 0L
     i = 8
     while (i < 16) {
-        lsb = (lsb shl 8) or (array[offset + i].toLong() and 0xFFL)
+        lsb = (lsb shl 8) or (buffer.get(offset + i).toLong() and 0xFFL)
         i += 1
     }
     return Uuid.fromLongs(msb, lsb)
 }
 
-@kotlin.uuid.ExperimentalUuidApi
-public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.getUuid(offset: Int): Uuid = readUuidFromBytes(this, offset)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.uuid(at: Int): Uuid = readUuidFromBytes(this, at)
-
-@kotlin.uuid.ExperimentalUuidApi
-public fun ByteArray.putUuid(at: Int, uuid: Uuid) {
-    if (at < 0 || at + 16 > this.size) {
-        throw IndexOutOfBoundsException(
-            "at $at is out of bounds for array of size ${this.size}"
-        )
-    }
+private fun writeUuidToByteBuffer(buffer: ByteBuffer, offset: Int, uuid: Uuid) {
     val msb = uuid.mostSignificantBits
     val lsb = uuid.leastSignificantBits
     var i = 0
     while (i < 8) {
-        this[at + i] = ((msb ushr (56 - i * 8)) and 0xFFL).toByte()
+        buffer.put(offset + i, ((msb ushr (56 - i * 8)) and 0xFFL).toByte())
         i += 1
     }
     i = 0
     while (i < 8) {
-        this[at + 8 + i] = ((lsb ushr (56 - i * 8)) and 0xFFL).toByte()
+        buffer.put(offset + 8 + i, ((lsb ushr (56 - i * 8)) and 0xFFL).toByte())
         i += 1
     }
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.getUuid(): Uuid {
+    val p = position()
+    if (p + 15 >= limit()) {
+        throw IndexOutOfBoundsException(
+            "position $p is out of bounds for buffer of limit ${limit()}"
+        )
+    }
+    val uuid = readUuidFromByteBuffer(this, p)
+    position(p + 16)
+    return uuid
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.getUuid(index: Int): Uuid = readUuidFromByteBuffer(this, index)
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer {
+    val p = position()
+    if (p + 15 >= limit()) {
+        throw IndexOutOfBoundsException(
+            "position $p is out of bounds for buffer of limit ${limit()}"
+        )
+    }
+    writeUuidToByteBuffer(this, p, uuid)
+    position(p + 16)
+    return this
+}
+
+@kotlin.uuid.ExperimentalUuidApi
+public fun ByteBuffer.putUuid(index: Int, uuid: Uuid): ByteBuffer {
+    writeUuidToByteBuffer(this, index, uuid)
+    return this
 }
