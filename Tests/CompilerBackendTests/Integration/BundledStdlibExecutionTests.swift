@@ -143,4 +143,69 @@ struct BundledStdlibExecutionTests {
             expectedOutput: "7-8-9\n"
         )
     }
+
+    // KSP-677 regression: a generic higher-order function `fun <T> f(action: () -> T): T`
+    // must infer `T` from the lambda body, including a Unit-valued body. The type checker
+    // previously pushed the unresolved type parameter down as the body's expected type,
+    // which made a Unit-bodied lambda produce an error type and fail overload resolution.
+    @Test
+    func testGenericHigherOrderFunctionInfersUnitAndValueLambdaReturnType() throws {
+        try compileAndRunKotlin(
+            """
+            class Box
+            fun <T> Box.run2(action: () -> T): T = action()
+            fun main() {
+                Box().run2 { println("unit") }
+                val n: Int = Box().run2 { 40 + 2 }
+                println(n)
+            }
+            """,
+            expectedOutput: "unit\n42\n"
+        )
+    }
+
+    // KSP-677 regression: Mutex.withLock is bundled Kotlin source (a generic suspend
+    // extension composing the c-soft lock/unlock kernel). Repeated Unit-bodied calls and
+    // a value-returning call must all type-check and run.
+    @Test
+    func testMutexWithLockMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.sync.Mutex
+            import kotlinx.coroutines.sync.withLock
+            fun main() = runBlocking {
+                val m = Mutex()
+                var counter = 0
+                m.withLock { counter++ }
+                m.withLock { counter++ }
+                val label: String = m.withLock { "done" }
+                println(counter)
+                println(label)
+            }
+            """,
+            expectedOutput: "2\ndone\n"
+        )
+    }
+
+    // KSP-677 regression: Semaphore.withPermit is bundled Kotlin source (a generic suspend
+    // extension composing the c-soft acquire/release kernel).
+    @Test
+    func testSemaphoreWithPermitMigratedToKotlinSource() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.sync.Semaphore
+            import kotlinx.coroutines.sync.withPermit
+            fun main() = runBlocking {
+                val s = Semaphore(2)
+                var n = 0
+                s.withPermit { n += 10 }
+                s.withPermit { n += 5 }
+                println(n)
+            }
+            """,
+            expectedOutput: "15\n"
+        )
+    }
 }

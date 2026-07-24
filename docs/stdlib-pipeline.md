@@ -401,10 +401,35 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 | builder・Job・構造化並行の内部プリミティブ | `kk_kxmini_{launch,launch_with_cont,launch_with_dispatcher,launch_with_dispatcher_and_cont,launch_with_exception_handler,async,async_await,async_with_cont,run_blocking,run_blocking_with_cont,produce_with_cont}`, `kk_produce`, `kk_job_{join,await_completion,cancel,cancel_with_cause,complete,complete_exceptionally,is_active,is_cancelled,is_completed,is_failed}`, `kk_coroutine_scope_*`(8), `kk_supervisor_scope_*`(3), `kk_coroutine_launcher_arg_{get,set}` | 35 | Coroutine |
 | Channel | `kk_channel_{send,receive,create,close,is_closed_for_send,is_closed_for_receive,is_closed_token,iterator,iterator_hasNext,iterator_next}` | 10 | Channel（全関数） |
 | timing | `kk_kxmini_delay`, `kk_with_timeout`, `kk_with_timeout_or_null`, `kk_coroutine_yield` | 4 | Coroutine |
-| 同期プリミティブ | `kk_mutex_*`(7), `kk_lock_withLock`, `kk_semaphore_*`(5), `kk_{read_write_lock,reentrant_read_write_lock}_*`(3) | 16 | Sync（全関数） |
+| 同期プリミティブ（カーネルコア c-soft 残留） | `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`, `kk_read_write_lock_{read,write}` | 6 | Sync | KSP-677 再監査で (b) 9 関数を分離（下記） |
 | context | `kk_context_*`(9), `kk_coroutine_name_{create,get}`, `kk_dispatcher_{default,io,main}`, `kk_with_context{,_full}`, `kk_coroutine_{current_context,cancel,cancel_current,check_cancellation}` | 20 | Context / Coroutine |
 | Flow ブリッジ（cold Flow の最小核） | `kk_flow_create`, `kk_flow_emit`, `kk_flow_collect` | 3 | Flow |
 | （参考・別系統だが同性質）GC root 登録 | `kk_register_coroutine_root`, `kk_unregister_coroutine_root` | 2 | GC |
+
+##### 同期プリミティブ 再監査記録（KSP-677, 2026-07-24）
+
+当初の棚卸しは Mutex/Semaphore/Lock/ReadWriteLock の同期系 16 関数をすべて (c) に計上していたが、KSP-677 で再監査し
+**(b) 9 / c-soft コア 6 / (a) cleanup 候補 1** に分離した。ラッパー層（factory・accessor・try・`withLock`/`withPermit`）は
+純ロジックで、c-soft カーネルプリミティブ（lock/unlock・acquire/release）の合成として Kotlin source で表現できる。
+
+- **(b) Kotlin 移行済み（9）** — `Sources/CompilerCore/Stdlib/kotlinx/coroutines/sync/Sync.kt` および
+  `Sources/CompilerCore/Stdlib/kotlin/concurrent/Lock.kt`:
+  - Mutex: `Mutex()`（旧 `kk_mutex_create`）, `Mutex.isLocked`（旧 `kk_mutex_isLocked`）, `Mutex.tryLock`（旧 `kk_mutex_tryLock`）, `Mutex.withLock`（旧 `kk_mutex_withLock`）
+  - Semaphore: `Semaphore(permits)`（旧 `kk_semaphore_create`）, `Semaphore.availablePermits`（旧 `kk_semaphore_availablePermits`）, `Semaphore.tryAcquire`（旧 `kk_semaphore_tryAcquire`）, `Semaphore.withPermit`（旧 `kk_semaphore_withPermit`）
+  - Lock: `Lock.withLock`（旧 `kk_lock_withLock`）
+  - factory/accessor/try 系は demoted `__kk_*` bridge へ委譲（`__kk_mutex_create` 等）。`withLock`/`withPermit` は
+    canonical generic `suspend fun <T> ...(action: () -> T): T` で lock/unlock・acquire/release を try/finally 合成し、
+    専用 runtime entry（`kk_mutex_withLock`/`kk_semaphore_withPermit`）は削除。`Lock.withLock` は general closure ABI の
+    `__kk_lock_withLock` bridge（fnPtr + closure env + `outThrown`）へ委譲する。
+- **c-soft コア残留（6）**: `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`,
+  `kk_read_write_lock_read`, `kk_read_write_lock_write`。suspend 継続・待機解放・pthread rwlock コアと不可分のため (c) 残置。
+- **(a) cleanup 候補（scope 外）**: `kk_read_write_lock_create` は CLEANUP-STUB-100（未使用重複）として別途整理。
+  `kk_reentrant_read_write_lock_new` と `HeaderHelpers+SyntheticReadWriteLockStubs.swift` の compatibility stub も本 PR 対象外。
+
+移行に伴い generic 高階関数 `fun <T> f(action: () -> T): T` が Unit 本体ラムダから `T` を推論できないコンパイラバグ
+（`KSWIFTK-TYPE-0001`/`KSWIFTK-SEMA-0002`）を同 PR で修正した。ただし `launch { }` 本体からキャプチャ付き suspend 呼び出しを
+行う経路は coroutine lowering の feature gap（`KSWIFTK-CORO-0003`, BUG-049）が残るため、`Scripts/diff_cases/coroutine_mutex_semaphore.kt`
+は引き続き SKIP-DIFF（DEBT-DIFF-003）。
 
 #### (b) 候補（KSP-499 以降で移行）— 103 関数 + 新規実装分
 
