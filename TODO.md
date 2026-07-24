@@ -762,7 +762,7 @@
 - [ ] KSP-664: AbstractIterator + プリミティブ Iterator 殻を .kt 化する（本家同型の純 Kotlin・ブリッジゼロ。`HeaderHelpers+SyntheticIteratorStubs.swift`（272行）削除）
 - [ ] KSP-665: `HeaderHelpers+SyntheticStringTypeHelpers.swift`（299行）を撤去する（Sequence/Iterable/Collection/List の型シェル取得ヘルパー — interface の .kt 化で自然不要化。`+SyntheticIterableRegistry.swift` との並行実装解消）
 - [ ] KSP-666: 注釈を .kt 化する（第1弾: kotlin 直下の共通 opt-in マーカー — ExperimentalUnsignedTypes/ExperimentalMultiplatform/ExperimentalSubclassOptIn 等 + uuid/encoding/reflect の Experimental マーカー。コンパイラの FQName 認識は宣言出自と無関係のため移設可能 — golden `native_annotations.kt` の実使用パターンで検証）
-- [ ] KSP-667: 注釈を .kt 化する（第2弾: kotlin.native + ObjC 系 — ObjCName/CName/HiddenFromObjC/ShouldRefineInSwift/FreezingIsDeprecated 等 15種）
+- [x] KSP-667: 注釈を .kt 化する（第2弾: kotlin.native + ObjC 系 — ObjCName/CName/HiddenFromObjC/ShouldRefineInSwift/FreezingIsDeprecated 等 15種）
 - [ ] KSP-668: 注釈を .kt 化する（第3弾: kotlin.experimental 系 + `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` の b-reclass 分。JVM 固有注釈は (a) 分割してから）
 - [ ] KSP-669: Comparable/RandomAccess の interface 宣言を .kt 化する（`HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` の自己登録分のみ。プリミティブ型への Comparable 適合付与は c-hard 残留。死コード `compareToOrNull` は CLEANUP-STUB-098 側）
 

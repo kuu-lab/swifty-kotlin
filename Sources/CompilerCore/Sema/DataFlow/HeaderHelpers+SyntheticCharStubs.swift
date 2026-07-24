@@ -785,20 +785,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> String {
-        let experimentalPkg = ensurePackage(
-            path: ["kotlin", "experimental"],
-            symbols: symbols,
-            interner: interner
-        )
-        let markerSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalNativeApi",
-            in: experimentalPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let experimentalPkgSymbol = symbols.lookup(fqName: experimentalPkg) {
-            symbols.setParentSymbol(experimentalPkgSymbol, for: markerSymbol)
-        }
+        // `kotlin.experimental.ExperimentalNativeApi` is declared by bundled
+        // Kotlin source; only reference it here by fully-qualified name.
         return "kotlin.experimental.ExperimentalNativeApi"
     }
 
