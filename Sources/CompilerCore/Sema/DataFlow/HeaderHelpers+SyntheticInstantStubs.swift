@@ -1,11 +1,10 @@
 /// Synthetic stubs for kotlin.time.Instant class (STDLIB-TIME-083).
 ///
-/// Registers the `Instant.now()` / `Instant.fromEpochMilliseconds(Long)`
-/// companion factories as direct native bridges. KSP-CAP-003 (the compiler
-/// gap blocking `ClassName.member()` shorthand calls against a Kotlin-source
-/// extension on `ClassName.Companion`) is now fixed, so these factories could
-/// be re-expressed in Kotlin source; doing so is tracked as the remaining
-/// KSP-472 wiring, not attempted here.
+/// Creates the `Instant.Companion` synthetic object so that bundled Kotlin
+/// source extensions on the companion (`Instant.now()`, `fromEpochMilliseconds`)
+/// can resolve. The factories themselves are implemented in
+/// `Stdlib/kotlin/time/Instant.kt` and delegate to `kk_instant_now` /
+/// `kk_instant_from_epoch_millis` via `@KsSymbolName` external declarations.
 ///
 /// Also registers `__kk_instant_*` bridge methods used by
 /// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,
@@ -58,31 +57,12 @@ extension DataFlowSemaPhase {
         let intType = types.intType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
-        // --- Companion object for factory methods ---
-        let companionFQName = ensureInstantCompanionSymbol(
+        // --- Companion object for bundled Kotlin-source extensions ---
+        // Instant.now() / fromEpochMilliseconds() are implemented in
+        // Stdlib/kotlin/time/Instant.kt. The companion object must exist so
+        // extension functions on Instant.Companion can resolve.
+        _ = ensureInstantCompanionSymbol(
             ownerSymbol: instantSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Instant.now() companion factory ---
-        registerInstantCompanionMethod(
-            named: "now",
-            externalLinkName: "kk_instant_now",
-            returnType: instantType,
-            parameters: [],
-            companionFQName: companionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Instant.fromEpochMilliseconds(Long) companion factory ---
-        registerInstantCompanionMethod(
-            named: "fromEpochMilliseconds",
-            externalLinkName: "kk_instant_from_epoch_millis",
-            returnType: instantType,
-            parameters: [(name: "epochMilliseconds", type: longType)],
-            companionFQName: companionFQName,
             symbols: symbols,
             interner: interner
         )
@@ -210,69 +190,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
         return companionFQName
-    }
-
-    private func registerInstantCompanionMethod(
-        named name: String,
-        externalLinkName: String,
-        returnType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        companionFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let memberName = interner.intern(name)
-        let memberFQName = companionFQName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameters.map { $0.type } &&
-                existingSignature.returnType == returnType
-        }) == nil else {
-            return
-        }
-
-        guard let companionSymbol = symbols.lookup(fqName: companionFQName) else {
-            return
-        }
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(companionSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map { $0.type },
-                returnType: returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: memberSymbol
-        )
     }
 
     private func registerInstantInstanceMethod(
