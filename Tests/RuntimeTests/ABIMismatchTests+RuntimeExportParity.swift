@@ -96,7 +96,6 @@ extension ABIMismatchTests {
             "kk_annotation_get_arguments",
             "kk_annotation_simple_class_name",
             "kk_any_javaClass",
-            "kk_array_isArrayOf",
             "kk_callable_ref_call_0",
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
