@@ -265,16 +265,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_char_isTitleCase", parameters: [
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_check_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_check_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_cname_lookup", parameters: [
             p("externNameRaw", .intptr),
         ]),
@@ -831,16 +822,7 @@ public extension RuntimeABISpec {
             p("byteCount", .intptr),
             p("hash", .intptr),
         ]),
-        abiParitySpec("kk_require_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_require_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),

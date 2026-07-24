@@ -238,9 +238,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
 
 private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
     [
-        SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalBitwise") { phase, symbols, types, interner in
-            phase.registerSyntheticExperimentalBitwiseStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "Enum") { phase, symbols, types, interner in
             phase.registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         },
