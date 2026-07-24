@@ -63,15 +63,7 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_asJavaAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndAdd",
             parameters: [
@@ -210,15 +202,7 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_asJavaAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_fetchAndAdd",
             parameters: [
@@ -369,24 +353,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Atomic"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_asJavaAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_long_array_asKotlinAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
+
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_array_fetchAndUpdateAt",
             parameters: [
@@ -533,15 +501,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Atomic"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_asJavaAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_array_fetchAndUpdateAt",
             parameters: [
@@ -628,15 +588,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // AtomicArray
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_ref_array_asJavaAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         // AtomicBoolean
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_create",
@@ -698,15 +650,7 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_bool_asJavaAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_getAndUpdate",
             parameters: [
@@ -818,15 +762,7 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_ref_asJavaAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
+
         // AtomicArray<T>
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_array_compareAndSetAt",
