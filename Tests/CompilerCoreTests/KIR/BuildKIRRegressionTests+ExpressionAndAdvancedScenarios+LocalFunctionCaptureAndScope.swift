@@ -337,6 +337,26 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testLocalFunctionShadowsTopLevelExtensionOfSameName() throws {
+        let source = """
+        fun String.shadowName(): String = "extension"
+        fun main(): String {
+            fun shadowName(): String = "local"
+            return shadowName()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Local function should shadow top-level extension of the same name: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 2)
+        }
+    }
+
     func firstExprID(
         in ast: ASTModule,
         where predicate: (ExprID, Expr) -> Bool
