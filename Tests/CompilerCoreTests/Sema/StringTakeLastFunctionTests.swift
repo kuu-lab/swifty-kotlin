@@ -1,8 +1,8 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-080: Validates that `CharSequence.takeLast(n)` resolves through Sema for
-/// `String` receivers. The synthetic stub links to `kk_string_takeLast_flat`.
+/// STDLIB-TEXT-FN-080: Validates that `String.takeLast(n)` resolves through Sema for
+/// `String` receivers. After KSP-405 it is bundled Kotlin source (StringTakeDrop.kt).
 @Suite
 struct StringTakeLastFunctionTests {
     @Test func testTakeLastWithLiteralCount() throws {

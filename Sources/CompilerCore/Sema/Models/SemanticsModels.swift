@@ -311,6 +311,12 @@ public struct NominalLayoutHint: Equatable, Sendable {
 
 public protocol Scope: AnyObject {
     func lookup(_ name: InternedString) -> [SymbolID]
+    /// Like `lookup`, but merges bindings from every scope in the parent chain
+    /// instead of stopping at the innermost scope that binds `name`. Used as a
+    /// resolution fallback to recover candidates that ordinary (shadowing)
+    /// lookup hides — e.g. a `kotlin.text` String extension shadowed by a
+    /// same-named extension declared in the current package.
+    func lookupMergingChain(_ name: InternedString) -> [SymbolID]
     func insert(_ sym: SymbolID)
 }
 
@@ -329,6 +335,19 @@ open class BaseScope: Scope {
             return local
         }
         return parent?.lookup(name) ?? []
+    }
+
+    open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
+        var result: [SymbolID] = []
+        var seen: Set<SymbolID> = []
+        var current: Scope? = self
+        while let scope = current as? BaseScope {
+            for sym in scope.locals[name] ?? [] where seen.insert(sym).inserted {
+                result.append(sym)
+            }
+            current = scope.parent
+        }
+        return result
     }
 
     open func insert(_ sym: SymbolID) {
