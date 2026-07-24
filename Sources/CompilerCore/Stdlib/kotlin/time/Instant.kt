@@ -12,10 +12,8 @@ package kotlin.time
 // functions. Bridge stubs are registered in
 // HeaderHelpers+SyntheticInstantStubs.swift.
 //
-// Instant.now() / Instant.fromEpochMilliseconds() stay as direct native
-// bridges (kk_instant_now / kk_instant_from_epoch_millis): they are
-// companion factory methods, and Kotlin source cannot declare an extension
-// whose receiver is Instant.Companion.
+// Instant.now() / Instant.fromEpochMilliseconds() are now Kotlin-source
+// companion-object extensions that delegate to __kk_instant_* bridges.
 
 public val Instant.epochSeconds: Long
     get() = this.__kk_instant_epoch_seconds()
@@ -46,3 +44,18 @@ public operator fun Instant.minus(other: Instant): Duration =
 
 public fun Instant.elapsed(): Duration =
     this.__kk_instant_until(Instant.now())
+
+// KSP-472: companion factories
+
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("kk_instant_now")
+private external fun __kk_instant_now(): Instant
+
+@KsSymbolName("kk_instant_from_epoch_millis")
+private external fun __kk_instant_from_epoch_millis(epochMilliseconds: Long): Instant
+
+public fun Instant.Companion.now(): Instant = __kk_instant_now()
+
+public fun Instant.Companion.fromEpochMilliseconds(epochMilliseconds: Long): Instant =
+    __kk_instant_from_epoch_millis(epochMilliseconds)
