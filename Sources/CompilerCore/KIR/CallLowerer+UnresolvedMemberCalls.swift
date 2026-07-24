@@ -114,16 +114,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
-            case "first":
-                return interner.intern("kk_list_first")
-            case "firstOrNull":
-                return interner.intern("kk_list_firstOrNull")
-            case "lastOrNull":
-                return interner.intern("kk_list_lastOrNull")
-            case "single":
-                return interner.intern("kk_list_single")
-            case "singleOrNull":
-                return interner.intern("kk_list_singleOrNull")
             case "sortedWith":
                 return interner.intern("kk_list_sortedWith")
 
@@ -165,16 +155,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_onEachIndexed")
             case "partition":
                 return interner.intern("kk_list_partition")
-            case "getOrNull":
-                return interner.intern("kk_list_getOrNull")
-            case "elementAtOrNull":
-                return interner.intern("kk_list_elementAtOrNull")
-            case "elementAt":
-                return interner.intern("kk_list_elementAt")
-            case "elementAtOrElse":
-                return interner.intern("kk_list_elementAtOrElse")
-            case "getOrElse":
-                return interner.intern("kk_list_getOrElse")
             case "subList":
                 return interner.intern("kk_list_subList")
             case "toTypedArray":
@@ -464,26 +444,8 @@ extension CallLowerer {
             return interner.intern("kk_list_onEach")
         case "onEachIndexed":
             return interner.intern("kk_list_onEachIndexed")
-        case "firstOrNull":
-            return interner.intern("kk_list_firstOrNull")
-        case "lastOrNull":
-            return interner.intern("kk_list_lastOrNull")
-        case "single":
-            return interner.intern("kk_list_single")
-        case "singleOrNull":
-            return interner.intern("kk_list_singleOrNull")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
-        case "getOrNull":
-            return interner.intern("kk_list_getOrNull")
-        case "elementAtOrNull":
-            return interner.intern("kk_list_elementAtOrNull")
-        case "elementAt":
-            return interner.intern("kk_list_elementAt")
-        case "elementAtOrElse":
-            return interner.intern("kk_list_elementAtOrElse")
-        case "getOrElse":
-            return interner.intern("kk_list_getOrElse")
         case "binarySearch":
             if hasHOFLambdaArg && argumentCount == 2 {
                 return interner.intern("kk_list_binarySearch_compare")
