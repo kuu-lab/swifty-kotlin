@@ -112,13 +112,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerArrayIsArrayOfJvmExtension(
-            arraySymbol: arraySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
