@@ -506,7 +506,7 @@
   - 削除 kk_*: 該当 19 関数（`rg -o '@_cdecl\("kk_list_(fold|reduce|running|scan)[a-zA-Z]*"\)' Sources/Runtime` で列挙）/ 既存 `ListAggregateHOF.kt` に追記
 - [ ] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
   - 削除 kk_*: `kk_list_find`, `kk_list_findLast`, `kk_list_indexOf`, `kk_list_indexOfFirst`, `kk_list_indexOfLast`, `kk_list_lastIndexOf`, `kk_list_contains`, `kk_list_containsAll`, `kk_list_any`, `kk_list_all`, `kk_list_none`, `kk_list_count`, `kk_list_binarySearch(_comparator/_compare)`, `kk_list_binarySearchBy(_fromIndex/_range)` / 既存 `ListSearchHOF.kt` に追記。等値判定コアは `__kk_values_equal`（新設）へ降格
-- [x] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`） (PR #5015)
+- [ ] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`）
   - ブリッジ残留: `kk_list_get`, `kk_list_size` は `__kk_` 降格（ストレージ直アクセス）。他は Kotlin 化して削除
 - [ ] KSP-425: List associate/group/zip 系を Kotlin 化（`associate(By/With)(To)`, `groupBy(To)`, `withIndex`, `onEach(Indexed)`, `partition`, `unzip`）
   - 削除 kk_*: `rg -o '@_cdecl\("kk_list_(associate|group|withIndex|onEach|partition|unzip)[a-zA-Z]*"\)' Sources/Runtime` で列挙（約 19 関数）
@@ -789,12 +789,11 @@
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
 
-- [~] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する — PR 作成中
-  - 対象: `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` から Legacy AtomicInt/AtomicLong/AtomicNativePtr, FreezableAtomicReference 公開層, kotlin.native.concurrent.AtomicReference, MutableData, DetachedObjectGraph, WorkerBoundReference, atomicLazy, ObsoleteWorkersApi 系 3 (`waitForMultipleFutures`/`waitWorkerTermination`/`withWorker`), ensureNeverFrozen, freeze/isFrozen 公開層を削除
-  - 残留: `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留
-  - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小
-  - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `--filter NativeConcurrent` / `--filter RuntimeABIExternalLinkValidationTests` pass。`bash Scripts/validate_runtime_abi_links.sh` pass
-- [ ] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する（`HeaderHelpers+SyntheticNativeDataStubs.swift` の約69%: BitSet（`@ObsoleteNativeApi`+未実装・325行）/ ImmutableBlob（ERROR-deprecated+未実装・169行）/ Vector128+vectorOf（同・74行））
+- [x] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する — PR #5029
+- [~] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する — PR 作成中
+  - 対象: `HeaderHelpers+SyntheticNativeDataStubs.swift` から `registerSyntheticNativeBitSetStubs` / `registerSyntheticNativeImmutableBlobStubs` / `registerSyntheticNativeVector128Stubs`（`Vector128` 型エイリアス + `vectorOf`）を削除
+  - 追随削除: `HeaderHelpers+SyntheticNativeInteropStubs.swift` から上記関数の呼び出しを削除。`HeaderHelpers+SyntheticNativeInteropHelpers.swift` から `cPointerType` / `deprecatedImmutableBlobAnnotations` / `deprecatedImmutableBlobFactoryAnnotations` / `deprecatedImmutableBlobPointerAnnotations` / `appendDeprecatedImmutableBlobAnnotations` / `deprecatedNativeVector128TypeAliasAnnotations` / `deprecatedNativeVectorOfAnnotations` を削除
+  - テスト削除: `NativeBitSetSurfaceTests.swift` / `NativeImmutableBlobSurfaceTests.swift` / `NativeVector128SurfaceTests.swift` / `GoldenCases/Sema/cinterop_vectorof_int.kt` + `.golden` を削除
 - [ ] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`）
 - [ ] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する（ExperimentalJsCollectionsApi/ExperimentalJsExport/ExperimentalJsReflectionCreateInstance/ExperimentalJsStatic/ExperimentalWasmJsInterop + ExperimentalWasmInterop — `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` 内）
 - [ ] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`）
