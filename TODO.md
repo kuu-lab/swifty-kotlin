@@ -768,7 +768,7 @@
 
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
-- [ ] KSP-670: AtomicBoolean を Kotlin 委譲化する（`AtomicMigration.kt` の委譲パターンで get/set/getAndSet 等 — CAS ループ非依存分のみ。`kk_atomic_bool_*` のうち load/store/exchange はブリッジ残留）
+- [x] KSP-670: AtomicBoolean を Kotlin 委譲化する（`AtomicMigration.kt` の委譲パターンで get/set/getAndSet 等 — CAS ループ非依存分のみ。`kk_atomic_bool_*` のうち load/store/exchange はブリッジ残留）
 - [ ] KSP-671: Atomic reverse 変種と compareAndSet 公開層を Kotlin 化する（fetchAndAdd/fetchAndIncrement/fetchAndDecrement + compareAndSet/compareAndExchange の公開層委譲。CPU 命令コアはブリッジ残留。前提: KSP-670 でパターン確立）
 - [ ] KSP-672: Atomic 配列 *At 系の委譲分を Kotlin 化する（loadAt/storeAt 等の公開層 + 境界検査を Kotlin 側へ。コア CAS 命令はブリッジ残留。39関数中の委譲可能分を着手時固定）
 - [ ] KSP-673: Atomic CAS ループ系 13 関数を Kotlin 化する（getAndUpdate/updateAndGet/fetchAndUpdate + 配列版 fetchAndUpdateAt/updateAt/updateAndFetchAt。前提: **KSP-CAP-004**（`AtomicMigration.kt` コメントの保留解除））
