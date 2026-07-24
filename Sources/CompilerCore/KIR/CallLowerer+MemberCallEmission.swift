@@ -350,14 +350,6 @@ extension CallLowerer {
                 sourceArgLabels: sourceArgLabels
             )
         }
-        if loweredCallee == interner.intern("kk_list_first"),
-           finalArguments.count == 1
-        {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            finalArguments.append(zeroExpr)
-            finalArguments.append(zeroExpr)
-        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {
@@ -1102,7 +1094,6 @@ extension CallLowerer {
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
             interner.intern("kk_list_random"),
-            interner.intern("kk_list_elementAt"),
             interner.intern("kk_list_take"),
             interner.intern("kk_list_takeLast"),
             interner.intern("kk_sequence_takeLast"),

@@ -664,18 +664,6 @@ public extension RuntimeABISpec {
             p("count", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_list_elementAt", parameters: [
-            p("listRaw", .intptr),
-            p("index", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_list_elementAtOrElse", parameters: [
-            p("listRaw", .intptr),
-            p("index", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_list_foldRight", parameters: [
             p("listRaw", .intptr),
             p("initial", .intptr),
