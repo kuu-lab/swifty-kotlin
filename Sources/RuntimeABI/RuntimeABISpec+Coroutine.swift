@@ -1045,12 +1045,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_reentrant_read_write_lock_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_mutex_lock",
             parameters: [

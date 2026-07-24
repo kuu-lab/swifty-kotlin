@@ -74,21 +74,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntCASSuccess", expected: "true\n20\n")
     }
 
-    func testCodegenAtomicIntAsJavaAtomic() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicInt
-        import kotlin.concurrent.atomics.asJavaAtomic
-
-        fun main() {
-            val atomic = AtomicInt(42)
-            val javaAtomic: java.util.concurrent.atomic.AtomicInteger = atomic.asJavaAtomic()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicIntAsJavaAtomic", expected: "ok\n")
-    }
-
     func testCodegenJavaAtomicIntegerDirectConstruction() throws {
         let source = """
         import java.util.concurrent.atomic.AtomicInteger
@@ -187,21 +172,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntStoreLoad", expected: "0\n42\n")
-    }
-
-    func testCodegenAtomicLongAsJavaAtomic() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicLong
-        import kotlin.concurrent.atomics.asJavaAtomic
-
-        fun main() {
-            val atomic = AtomicLong(42L)
-            val javaAtomic: java.util.concurrent.atomic.AtomicLong = atomic.asJavaAtomic()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicLongAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAtomicLongBasicOperations() throws {
@@ -307,21 +277,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanBasic", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
-    func testCodegenAtomicBooleanAsJavaAtomic() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicBoolean
-        import kotlin.concurrent.atomics.asJavaAtomic
-
-        fun main() {
-            val atomic = AtomicBoolean(true)
-            val javaAtomic: java.util.concurrent.atomic.AtomicBoolean = atomic.asJavaAtomic()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicBooleanAsJavaAtomic", expected: "ok\n")
-    }
-
     func testCodegenAtomicBooleanCASSuccessAndFailure() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -354,21 +309,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicBooleanCAE", expected: "false\ntrue\ntrue\ntrue\n")
-    }
-
-    func testCodegenAtomicReferenceAsJavaAtomic() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicReference
-        import kotlin.concurrent.atomics.asJavaAtomic
-
-        fun main() {
-            val atomic = AtomicReference("value")
-            val javaAtomic: java.util.concurrent.atomic.AtomicReference<String> = atomic.asJavaAtomic()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicReferenceAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAtomicReferenceIdentityVsEqualityCAS() throws {
@@ -431,21 +371,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicRefExchangeStore", expected: "v1\nv2\nv3\n")
-    }
-
-    func testCodegenAtomicArrayAsJavaAtomicArray() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.atomicArrayOfNulls
-        import kotlin.concurrent.atomics.asJavaAtomicArray
-
-        fun main() {
-            val atomic = atomicArrayOfNulls<String>(1)
-            val javaAtomic: java.util.concurrent.atomic.AtomicReferenceArray<String?> = atomic.asJavaAtomicArray()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicArrayFetchAndUpdateAt() throws {
@@ -554,21 +479,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicArrayUpdateAndFetchAt", expected: "ab\nab\n")
-    }
-
-    func testCodegenAtomicIntArrayAsJavaAtomicArray() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicIntArray
-        import kotlin.concurrent.atomics.asJavaAtomicArray
-
-        fun main() {
-            val atomic = AtomicIntArray(1)
-            val javaAtomic: java.util.concurrent.atomic.AtomicIntegerArray = atomic.asJavaAtomicArray()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicIntArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicIntArrayBasicOperations() throws {
@@ -680,21 +590,6 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayIndexOp", expected: "7\n13\n")
-    }
-
-    func testCodegenAtomicLongArrayAsJavaAtomicArray() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicLongArray
-        import kotlin.concurrent.atomics.asJavaAtomicArray
-
-        fun main() {
-            val atomic = AtomicLongArray(1)
-            val javaAtomic: java.util.concurrent.atomic.AtomicLongArray = atomic.asJavaAtomicArray()
-            println("ok")
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicLongArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicLongArrayBasicOperations() throws {
