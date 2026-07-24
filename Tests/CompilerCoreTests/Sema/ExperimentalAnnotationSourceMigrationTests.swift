@@ -10,6 +10,55 @@ import Testing
 /// `@RequiresOptIn` opt-in behavior.
 @Suite
 struct ExperimentalAnnotationSourceMigrationTests {
+    @Test func testExperimentalTypeInferenceResolvesAsTypeViaImport() throws {
+        let source = """
+        import kotlin.experimental.ExperimentalTypeInference
+
+        fun marker(x: ExperimentalTypeInference?): Int = 0
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected ExperimentalTypeInference to resolve as a type via import, got: \(diagnostics)"
+        )
+    }
+
+    @Test func testExperimentalTypeInferenceResolvesAsTypeViaFQN() throws {
+        let source = """
+        fun marker(x: kotlin.experimental.ExperimentalTypeInference?): Int = 0
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected ExperimentalTypeInference to resolve as a type via FQN, got: \(diagnostics)"
+        )
+    }
+
+    @Test func testExperimentalNativeApiResolvesAsType() throws {
+        let source = """
+        import kotlin.experimental.ExperimentalNativeApi
+
+        fun marker(x: ExperimentalNativeApi?): Int = 0
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected ExperimentalNativeApi to resolve as a type via import, got: \(diagnostics)"
+        )
+    }
+
     @Test func testExperimentalNativeApiResolvesFromBundledSource() throws {
         let source = """
         @kotlin.experimental.ExperimentalNativeApi
