@@ -41,7 +41,9 @@ extension CallLowerer {
         "cancel", "complete", "completeExceptionally",
         "isActive", "isCompleted", "isCancelled"
     ]
-    static let unresolvedChannelMemberNames: Set<String> = ["send", "receive", "close", "isClosedForReceive", "isClosedForSend"]
+    // KSP-678: close / isClosedForReceive / isClosedForSend migrated to bundled
+    // Kotlin source; only the suspension core send / receive remain here.
+    static let unresolvedChannelMemberNames: Set<String> = ["send", "receive"]
     // Flow operators beyond map/filter/take/collect (already covered by
     // unresolvedCollectionMemberNames because those names also exist on
     // collections). These names are Flow-specific, so a Flow receiver with an

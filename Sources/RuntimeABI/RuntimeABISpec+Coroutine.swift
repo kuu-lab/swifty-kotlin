@@ -715,7 +715,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
+            // Int-returning residual; it does not use the outThrown ABI path.
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_channel_is_closed_token",
