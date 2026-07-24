@@ -74,7 +74,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 }
 
 public enum RuntimeABISpec {
-    public static let specVersion = "670799949b38ec6d4a28ac690c39343ea5c8e5e705abbcc7019167e1b7509aab"
+    public static let specVersion = "99ac641e3525c251064dc0b16b38040d1861c945808b13a9c40020ff7e4d1090"
 
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///

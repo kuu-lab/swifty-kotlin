@@ -234,6 +234,37 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
+            // KSP-674: resolve to the bundled `Iterable<T>.asFlow()` Kotlin
+            // source (kotlinx.coroutines.flow) when present, so Lowering runs the
+            // real `flow { }`-composed body instead of the removed
+            // `kk_flow_as_flow` bridge. Fall back to type-only binding otherwise.
+            let asFlowFQName = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("flow"),
+                calleeName,
+            ]
+            if isCollectionReceiver,
+               let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
+                   guard let symbol = sema.symbols.symbol(candidate),
+                         symbol.kind == .function,
+                         !symbol.flags.contains(.synthetic),
+                         let signature = sema.symbols.functionSignature(for: candidate),
+                         signature.parameterTypes.isEmpty,
+                         signature.receiverType != nil
+                   else {
+                       return false
+                   }
+                   return true
+               })
+            {
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: [elementType],
+                    parameterMapping: [:]
+                ))
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            }
             sema.bindings.markFlowExpr(id)
             sema.bindings.bindFlowElementType(elementType, forExpr: id)
             let resultType = driver.helpers.makeFlowType(

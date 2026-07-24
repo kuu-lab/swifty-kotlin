@@ -378,32 +378,9 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // Flow terminal operators & builders (STDLIB-088 / STDLIB-FLOW-178)
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayHandle", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_empty",
-            parameters: [
-                RuntimeABIParameter(name: "reserved", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_as_flow",
-            parameters: [
-                RuntimeABIParameter(name: "sourceHandle", type: .intptr),
-                RuntimeABIParameter(name: "reserved", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        // KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed —
+        // flowOf / emptyFlow / Iterable.asFlow are now Kotlin source composed
+        // from kk_flow_create + kk_flow_emit.
         RuntimeABIFunctionSpec(
             name: "kk_flow_to_list",
             parameters: [

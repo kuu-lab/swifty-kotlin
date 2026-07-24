@@ -1852,36 +1852,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "flowOf",
-            packageFQName: flowPkg,
-            parameters: [(name: "values", type: types.anyType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_of",
-            syntheticTypeParameterNames: ["T"],
-            syntheticVarargParameterIndices: [0],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "emptyFlow",
-            packageFQName: flowPkg,
-            parameters: [],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_empty",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "asFlow",
-            externalLinkName: "kk_flow_as_flow",
-            returnType: flowRawType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
+        // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
+        // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
         // withContext overload accepting CoroutineContext (not just dispatcher)
         registerSyntheticCoroutineTopLevelFunction(

@@ -231,6 +231,15 @@ extension CoroutineLoweringPass {
                 continue
             }
 
+            if let flowCreateInstructions = rewriteFlowCreateCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(contentsOf: flowCreateInstructions)
+                continue
+            }
+
             if let withContextInstructions = rewriteWithContextCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
@@ -550,6 +559,76 @@ extension CoroutineLoweringPass {
             isSuperCall: call.isSuperCall
         ))
         return prefixInstructions
+    }
+
+    /// Threads a capturing `flow { }` builder's captured values into its emitter.
+    ///
+    /// `lowerFlowExpressions` rewrites `flow { }` to `kk_flow_create(emitter, 0)`
+    /// before suspend lowering exists, so the second argument is a placeholder and
+    /// the emitter's captured values are dropped (the runtime invoked it with a
+    /// null environment). By this point the emitter lambda has been lowered to a
+    /// suspend state machine with a launcher thunk that reads its captures from a
+    /// continuation's launcher-arg slots — the same mechanism `launch { }` uses.
+    /// Populate such a continuation and route `kk_flow_create` through the thunk.
+    /// Non-capturing builders keep the direct-emitter ABI and are left untouched.
+    func rewriteFlowCreateCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction]? {
+        guard call.callee == rewrite.ctx.interner.intern("kk_flow_create"),
+              call.arguments.count == 2,
+              let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0]),
+              !callableInfo.captureArguments.isEmpty,
+              let loweredTarget = rewrite.loweredBySymbol[callableInfo.symbol],
+              let thunk = rewrite.launcherThunkByOriginalSymbol[callableInfo.symbol]
+        else {
+            return nil
+        }
+
+        let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType)
+        var rewritten: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: rewrite.continuationFactory,
+                arguments: [loweredFunctionIDExpr],
+                result: continuationExpr,
+                canThrow: false,
+                thrownResult: nil
+            ),
+        ]
+
+        for (index, argExpr) in callableInfo.captureArguments.enumerated() {
+            let slotExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(index)),
+                type: rewrite.intType
+            )
+            rewritten.append(.call(
+                symbol: nil,
+                callee: rewrite.launcherArgSetCallee,
+                arguments: [continuationExpr, slotExpr, argExpr],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType)
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(.call(
+            symbol: call.symbol,
+            callee: call.callee,
+            arguments: [thunkRefExpr, continuationExpr],
+            result: call.result,
+            canThrow: call.canThrow,
+            thrownResult: call.thrownResult,
+            isSuperCall: call.isSuperCall
+        ))
+        return rewritten
     }
 
     /// Recovers the closure-capture environment pointer for a Flow collector
