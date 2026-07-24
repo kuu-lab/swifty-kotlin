@@ -91,12 +91,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Comparator") { phase, symbols, types, interner, _ in
             phase.registerSyntheticComparatorStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ArrayBinarySearchComparatorPatch") { phase, symbols, types, interner, _ in
-            phase.patchArrayBinarySearchComparatorStub(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ArraySortedArrayComparatorPatch") { phase, symbols, types, interner, _ in
-            phase.patchArraySortedArrayWithComparatorStub(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Comparison") { phase, symbols, types, interner, _ in
             phase.registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
         },

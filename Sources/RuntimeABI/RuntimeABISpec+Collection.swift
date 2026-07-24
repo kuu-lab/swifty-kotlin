@@ -1858,17 +1858,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArrayWith",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
         // Array utility functions (STDLIB-089)
         RuntimeABIFunctionSpec(
             name: "kk_array_copyOf",
@@ -1922,15 +1911,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArray",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_array_sliceArray_range",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
@@ -1945,15 +1925,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "indicesRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArrayDescending",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",

@@ -23,26 +23,6 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
-        if memberName == "binarySearch" {
-            if isBooleanArrayReceiver(receiverID: receiverID, sema: sema, interner: interner) {
-                return nil
-            }
-            if !isGenericArrayReceiver(receiverID: receiverID, sema: sema, interner: interner) {
-                if args.indices.contains(1) {
-                    let secondArgumentType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
-                    if !sema.types.isSubtype(secondArgumentType, sema.types.intType) {
-                        ctx.semaCtx.diagnostics.error(
-                            "KSWIFTK-SEMA-0002",
-                            "No viable overload found for call.",
-                            range: ctx.ast.arena.exprRange(id)
-                        )
-                        sema.bindings.bindExprType(id, type: sema.types.errorType)
-                        return sema.types.errorType
-                    }
-                }
-                return nil
-            }
-        }
         guard isSupportedArrayMember(memberName),
               isValidArrayMemberArity(memberName, argCount: args.count)
         else {
@@ -51,124 +31,40 @@ extension CallTypeChecker {
 
         // Extract the actual element type from the Array<T> receiver (TYPE-103).
         let receiverElementType = arrayFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
-        if memberName == "binarySearch" {
-            if isGenericArrayReceiver(receiverID: receiverID, sema: sema, interner: interner),
-               (2...4).contains(args.count),
-               args.indices.contains(1)
-            {
-                let comparatorArgExpr = args[1].expr
-                let comparatorArg = ctx.ast.arena.expr(comparatorArgExpr)
-                let comparatorExpectedType: TypeID
-                if comparatorArg?.isLambdaOrCallableRef ?? false {
-                    sema.bindings.markCollectionHOFLambdaExpr(comparatorArgExpr)
-                    comparatorExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [receiverElementType, receiverElementType],
-                        returnType: sema.types.intType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                } else if let comparatorSymbol = sema.symbols.lookupByShortName(interner.intern("Comparator")).first {
-                    comparatorExpectedType = sema.types.make(.classType(ClassType(
-                        classSymbol: comparatorSymbol,
-                        args: [.invariant(receiverElementType)],
-                        nullability: .nonNull
-                    )))
-                } else {
-                    comparatorExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [receiverElementType, receiverElementType],
-                        returnType: sema.types.intType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                }
-                _ = driver.inferExpr(
-                    comparatorArgExpr,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: comparatorExpectedType
-                )
-            } else {
-                if args.indices.contains(0) {
-                    let firstArgExpr = args[0].expr
-                    if let lambdaExpr = ctx.ast.arena.expr(firstArgExpr), lambdaExpr.isLambdaOrCallableRef {
-                        return nil
-                    }
-                    _ = driver.inferExpr(
-                        firstArgExpr,
-                        ctx: ctx,
-                        locals: &locals,
-                        expectedType: receiverElementType
-                    )
-                }
-                if args.indices.contains(1) {
-                    _ = driver.inferExpr(
-                        args[1].expr,
-                        ctx: ctx,
-                        locals: &locals,
-                        expectedType: sema.types.intType
-                    )
-                }
-                if args.indices.contains(2) {
-                    _ = driver.inferExpr(
-                        args[2].expr,
-                        ctx: ctx,
-                        locals: &locals,
-                        expectedType: sema.types.intType
-                    )
-                }
+        if memberName == "copyOf", args.indices.contains(0) {
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: sema.types.intType
+            )
+        }
+        if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: sema.types.anyType
+            )
+        }
+        if let expectation = arrayMemberLambdaExpectation(
+            memberName: memberName,
+            argCount: args.count,
+            receiverElementType: receiverElementType,
+            sema: sema
+        ),
+            args.indices.contains(expectation.argumentIndex)
+        {
+            let lambdaArgExpr = args[expectation.argumentIndex].expr
+            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
+                sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
             }
-        } else {
-            if memberName == "copyOf", args.indices.contains(0) {
-                _ = driver.inferExpr(
-                    args[0].expr,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: sema.types.intType
-                )
-            }
-            if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
-                _ = driver.inferExpr(
-                    args[0].expr,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: sema.types.anyType
-                )
-            }
-            if let expectation = arrayMemberLambdaExpectation(
-                memberName: memberName,
-                argCount: args.count,
-                receiverElementType: receiverElementType,
-                sema: sema
-            ),
-                args.indices.contains(expectation.argumentIndex)
-            {
-                let lambdaArgExpr = args[expectation.argumentIndex].expr
-                if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
-                }
-                _ = driver.inferExpr(
-                    lambdaArgExpr,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: expectation.expectedType
-                )
-            }
-            if memberName == "binarySearch", args.count == 4,
-               let comparatorSymbol = sema.symbols.lookup(fqName: [
-                   interner.intern("kotlin"),
-                   interner.intern("Comparator"),
-               ])
-            {
-                let comparatorExpectedType = sema.types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(receiverElementType)],
-                    nullability: .nonNull
-                )))
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: receiverElementType)
-                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-            }
+            _ = driver.inferExpr(
+                lambdaArgExpr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectation.expectedType
+            )
         }
 
         // Mark result as collection if it returns a List
@@ -198,7 +94,6 @@ extension CallTypeChecker {
             "count",
             "copyOf", "copyOfRange", "fill",
             "size", "get", "contains", "isEmpty",
-            "binarySearch",
             "concatToString",
         ]
         return arrayMembers.contains(memberName)
@@ -217,8 +112,6 @@ extension CallTypeChecker {
             argCount == 2
         case "count":
             (0...1).contains(argCount)
-        case "binarySearch":
-            (1...4).contains(argCount)
         case "copyOfRange":
             argCount == 2
         default:
@@ -239,8 +132,6 @@ extension CallTypeChecker {
     ) -> TypeID {
         switch memberName {
         case "size":
-            return sema.types.intType
-        case "binarySearch":
             return sema.types.intType
         case "isEmpty", "contains", "any", "all", "none":
             return sema.types.booleanType
@@ -286,19 +177,6 @@ extension CallTypeChecker {
         default:
             return sema.types.anyType
         }
-    }
-
-    private func isGenericArrayReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        let knownNames = KnownCompilerNames(interner: interner)
-        return symbol.name == knownNames.array && classType.args.count == 1
     }
 
     private func arrayMemberLambdaExpectation(
@@ -364,22 +242,6 @@ extension CallTypeChecker {
     /// For generic `Array<T>`, returns `T`; for primitive arrays (IntArray, etc.)
     /// returns the corresponding primitive type.  Falls back to `Any` when the
     /// element type cannot be determined.
-    private func isBooleanArrayReceiver(
-        receiverID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let receiverType = sema.bindings.exprTypes[receiverID]
-            ?? sema.bindings.identifierSymbol(for: receiverID).flatMap { sema.symbols.propertyType(for: $0) }
-            ?? sema.types.anyType
-        let nonNull = sema.types.makeNonNullable(receiverType)
-        guard let (_, symbol) = resolveClassTypeSymbol(nonNull, sema: sema) else {
-            return false
-        }
-        let knownNames = KnownCompilerNames(interner: interner)
-        return symbol.name == knownNames.booleanArray
-    }
-
     private func arrayFallbackElementType(
         receiverID: ExprID,
         sema: SemaModule,

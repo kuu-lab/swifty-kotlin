@@ -21,7 +21,6 @@ extension CallLowerer {
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed",
             "sortedByDescending", "sortedWith", "partition", "zip", "zipWithNext",
-            "sortedArrayWith",
             "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast", "replaceAll", "removeIf",
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
@@ -241,7 +240,6 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
-            interner.intern("kk_array_sortedArrayWith"),
             interner.intern("kk_mutable_list_sortWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
@@ -273,27 +271,6 @@ extension CallLowerer {
             var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
             adapted.append(contentsOf: comparatorArgs)
             adapted.append(contentsOf: finalArguments[3...])
-            return adapted
-        }
-
-        let arrayBinarySearchCallee = interner.intern("kk_array_binarySearch_compare")
-        if loweredCallee == arrayBinarySearchCallee,
-           finalArguments.count >= 3,
-           sourceArgExprs.count >= 2,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: sourceArgExprs[1],
-               loweredComparatorID: finalArguments[2],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
-        {
-            var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
-            adapted.append(contentsOf: comparatorArgs)
-            if finalArguments.count > 3 {
-                adapted.append(contentsOf: finalArguments.dropFirst(3))
-            }
             return adapted
         }
 
@@ -329,27 +306,6 @@ extension CallLowerer {
             }
             adapted.append(contentsOf: comparatorArgs)
             adapted.append(contentsOf: finalArguments[selectorStartIndex...])
-            return adapted
-        }
-
-        let arrayBinarySearchComparatorCallees: Set<InternedString> = [
-            interner.intern("kk_array_binarySearch_compare"),
-        ]
-        if arrayBinarySearchComparatorCallees.contains(loweredCallee),
-           sourceArgExprs.count == 4,
-           finalArguments.count >= 5,
-           let comparatorArgs = makeComparatorTrampolineArgument(
-               comparatorExprID: sourceArgExprs[1],
-               loweredComparatorID: finalArguments[2],
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               instructions: &instructions
-           )
-        {
-            var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
-            adapted.append(contentsOf: comparatorArgs)
-            adapted.append(contentsOf: finalArguments.dropFirst(3))
             return adapted
         }
 

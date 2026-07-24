@@ -201,6 +201,28 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
     }
 
+    // Regression (KSP-659): a boxed zero can reach compareValues as the raw
+    // value 0 (e.g. the generic element argument of `Array<Int>.binarySearch(0)`).
+    // It must compare as the integer zero and must not be mistaken for `null`.
+    func testCompareValuesBoxedZeroIsNotNull() {
+        var thrown = 0
+        XCTAssertEqual(kk_unbox_int(kk_compareValues(kk_box_int(0), 0, &thrown)), 0)
+        XCTAssertEqual(kk_unbox_int(kk_compareValues(0, kk_box_int(0), &thrown)), 0)
+        XCTAssertEqual(kk_unbox_int(kk_compareValues(0, 0, &thrown)), 0)
+        XCTAssertLessThan(kk_unbox_int(kk_compareValues(0, kk_box_int(5), &thrown)), 0)
+        XCTAssertGreaterThan(kk_unbox_int(kk_compareValues(kk_box_int(5), 0, &thrown)), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    // Regression (KSP-659): only the null sentinel counts as `null`, so a real
+    // null orders strictly below a boxed zero (previously they compared equal).
+    func testCompareValuesNullOrdersBelowBoxedZero() {
+        var thrown = 0
+        XCTAssertLessThan(kk_unbox_int(kk_compareValues(runtimeNullSentinelInt, 0, &thrown)), 0)
+        XCTAssertGreaterThan(kk_unbox_int(kk_compareValues(0, runtimeNullSentinelInt, &thrown)), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
     func testCompareValuesByVarargSelectors() {
         let selectors = makeArray([
             selectorPtr(selectModTen), 0,
@@ -393,26 +415,6 @@ final class RuntimeComparatorTests: XCTestCase {
         }
     }
 
-    func testArrayBinarySearchCompareWithComparatorObjectAndRange() {
-        let source = makeArray([1, 3, 5, 7, 9])
-
-        withComparatorObject(mode: 0) { comparatorRaw in
-            var thrown = 0
-
-            let found = kk_array_binarySearch_compare(source, 5, comparatorRaw, 0, 0, 5, &thrown)
-            XCTAssertEqual(found, 2)
-            XCTAssertEqual(thrown, 0)
-
-            let missing = kk_array_binarySearch_compare(source, 4, comparatorRaw, 0, 0, 5, &thrown)
-            XCTAssertEqual(missing, -3)
-            XCTAssertEqual(thrown, 0)
-
-            let ranged = kk_array_binarySearch_compare(source, 7, comparatorRaw, 0, 2, 5, &thrown)
-            XCTAssertEqual(ranged, 3)
-            XCTAssertEqual(thrown, 0)
-        }
-    }
-
     func testBinarySearchComparatorWithExplicitRange() {
         let source = makeList([1, 3, 5, 7, 9])
         var thrown = 0
@@ -491,18 +493,6 @@ final class RuntimeComparatorTests: XCTestCase {
         )
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testArrayBinarySearchCompareObjectDispatchesThroughVtable() {
-        let source = makeArray([1, 3, 4, 9])
-
-        withComparatorObject(mode: 0) { comparatorRaw in
-            let hit = kk_array_binarySearch_compare(source, 4, comparatorRaw, 0, 0, 4, nil)
-            XCTAssertEqual(hit, 2)
-
-            let miss = kk_array_binarySearch_compare(source, 5, comparatorRaw, 0, 1, 3, nil)
-            XCTAssertEqual(miss, -4)
-        }
     }
 
     func testMutableListPrimitiveSortAscending() {
