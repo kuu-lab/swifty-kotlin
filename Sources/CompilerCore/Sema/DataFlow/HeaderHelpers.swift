@@ -1502,41 +1502,9 @@ extension DataFlowSemaPhase {
         }
         symbols.setAnnotations(existingExtendedAnnotations, for: experimentalExtendedContractsSymbol)
 
-        let experimentalFQName = ensurePackage(
-            path: ["kotlin", "experimental"],
-            symbols: symbols,
-            interner: interner
-        )
-        let experimentalPkg = symbols.lookup(fqName: experimentalFQName) ?? SymbolID.invalid
-        let experimentalTypeInferenceSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalTypeInference",
-            in: experimentalFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if experimentalPkg != SymbolID.invalid {
-            symbols.setParentSymbol(experimentalPkg, for: experimentalTypeInferenceSymbol)
-        }
-        let experimentalTypeInferenceAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.TYPE",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var experimentalTypeInferenceExisting = symbols.annotations(for: experimentalTypeInferenceSymbol)
-        for annotation in experimentalTypeInferenceAnnotations where !experimentalTypeInferenceExisting.contains(annotation) {
-            experimentalTypeInferenceExisting.append(annotation)
-        }
-        symbols.setAnnotations(experimentalTypeInferenceExisting, for: experimentalTypeInferenceSymbol)
+        // kotlin.experimental.ExperimentalTypeInference is now provided by the
+        // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
+        // (KSP-668). No synthetic registration is needed here.
 
         let builderType = types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
         let contractEffectType = types.make(.classType(ClassType(classSymbol: contractEffectSymbol, args: [], nullability: .nonNull)))

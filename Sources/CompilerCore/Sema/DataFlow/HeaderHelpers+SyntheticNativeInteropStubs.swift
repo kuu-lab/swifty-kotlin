@@ -67,24 +67,10 @@ extension DataFlowSemaPhase {
         )
         let experimentalPkgSymbol = symbols.lookup(fqName: experimentalPkg)
 
+        // kotlin.experimental.ExperimentalNativeApi is now provided by the
+        // bundled Kotlin source `Stdlib/kotlin/experimental/ExperimentalNativeApi.kt`
+        // (KSP-668). Only the ObjC-specific markers remain synthetic here.
         let annotations: [(String, [String], String)] = [
-            (
-                "ExperimentalNativeApi",
-                [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.ANNOTATION_CLASS",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.FIELD",
-                    "AnnotationTarget.LOCAL_VARIABLE",
-                    "AnnotationTarget.VALUE_PARAMETER",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.TYPEALIAS",
-                ],
-                "AnnotationRetention.BINARY"
-            ),
             (
                 "ExperimentalObjCName",
                 ["AnnotationTarget.ANNOTATION_CLASS"],

@@ -307,32 +307,9 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let kotlinExperimentalPkg = ensurePackage(
-            path: ["kotlin", "experimental"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kotlinExperimentalPkgSymbol = symbols.lookup(fqName: kotlinExperimentalPkg) ?? .invalid
-        registerSyntheticAnnotationClass(
-            named: "ExperimentalTypeInference",
-            packageFQName: kotlinExperimentalPkg,
-            packageSymbol: kotlinExperimentalPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let experimentalSymbol = symbols.lookup(
-            fqName: kotlinExperimentalPkg + [interner.intern("ExperimentalTypeInference")]
-        ) {
-            let record = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-            )
-            var annotations = symbols.annotations(for: experimentalSymbol)
-            if !annotations.contains(record) {
-                annotations.append(record)
-            }
-            symbols.setAnnotations(annotations, for: experimentalSymbol)
-        }
+        // kotlin.experimental.ExperimentalTypeInference is now provided by the
+        // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
+        // (KSP-668). No synthetic registration is needed here.
 
         // kotlin.annotation package — provides @Target and AnnotationTarget.
         let kotlinAnnotationPkg = ensurePackage(
