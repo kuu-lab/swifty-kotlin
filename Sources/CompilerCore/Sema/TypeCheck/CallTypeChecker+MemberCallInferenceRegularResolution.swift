@@ -602,13 +602,33 @@ extension CallTypeChecker {
                     interner: interner
                 )
             } ?? []
-            let memberCandidates = rangeSourceCandidates.isEmpty ? driver.helpers.collectMemberFunctionCandidates(
-                named: calleeName,
-                receiverType: memberLookupType,
-                sema: sema,
-                allowedOwnerSymbols: allowedOwnerSymbols,
-                interner: interner
-            ) : rangeSourceCandidates
+            let atomicSourceCandidates: [SymbolID] = if rangeSourceCandidates.isEmpty,
+                isBundledAtomicSourceMember(calleeName, interner: interner),
+                isBundledAtomicSourceReceiver(memberLookupType, sema: sema, interner: interner)
+            {
+                collectAtomicSourceExtensionCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    sema: sema,
+                    interner: interner
+                )
+            } else {
+                []
+            }
+            let memberCandidates: [SymbolID]
+            if !rangeSourceCandidates.isEmpty {
+                memberCandidates = rangeSourceCandidates
+            } else if !atomicSourceCandidates.isEmpty {
+                memberCandidates = atomicSourceCandidates
+            } else {
+                memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    sema: sema,
+                    allowedOwnerSymbols: allowedOwnerSymbols,
+                    interner: interner
+                )
+            }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -1584,6 +1604,94 @@ extension CallTypeChecker {
                 )
             }
             .sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// The CAS-loop update operators migrated to bundled Kotlin source
+    /// (`AtomicMigration.kt`).  Like the range-source members these live as
+    /// package-scoped extension functions in `kotlin.concurrent`, so they must
+    /// be recovered by an explicit source lookup rather than ordinary
+    /// member-call resolution.
+    private func isBundledAtomicSourceMember(
+        _ calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        switch interner.resolve(calleeName) {
+        case "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
+             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// True when `receiverType` is one of the atomic box types whose CAS-loop
+    /// update operators are provided by bundled Kotlin source.
+    private func isBundledAtomicSourceReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let nominal = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
+              let symbol = sema.symbols.symbol(nominal)
+        else {
+            return false
+        }
+        let fqName = symbol.fqName
+        guard fqName.count >= 2 else { return false }
+        let name = interner.resolve(fqName[fqName.count - 1])
+        switch name {
+        case "AtomicInt", "AtomicLong", "AtomicBoolean", "AtomicReference",
+             "AtomicArray", "AtomicIntArray", "AtomicLongArray", "AtomicInteger":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Recover bundled `kotlin.concurrent` extension functions (the migrated CAS
+    /// loops in `AtomicMigration.kt`) as member candidates for atomic receivers.
+    private func collectAtomicSourceExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let kotlin = interner.intern("kotlin")
+        let concurrent = interner.intern("concurrent")
+        let atomics = interner.intern("atomics")
+        let packageFQNames: [[InternedString]] = [
+            [kotlin, concurrent],
+            [kotlin, concurrent, atomics],
+        ]
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        var candidates: [SymbolID] = []
+        for packageFQName in packageFQNames {
+            let memberFQName = packageFQName + [calleeName]
+            candidates.append(contentsOf: sema.symbols.lookupAll(fqName: memberFQName)
+                .filter { candidate in
+                    // Top-level bundled extension functions declared directly in
+                    // the package (identified by their exact FQ name so class
+                    // members with the same short name are excluded). The
+                    // package symbol identity cannot be used because synthetic
+                    // atomic stubs create a distinct package symbol from the one
+                    // owning the bundled source declarations.
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          symbol.fqName == memberFQName,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                })
+        }
+        return candidates.sorted { $0.rawValue < $1.rawValue }
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

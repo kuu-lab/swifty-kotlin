@@ -3539,7 +3539,11 @@ struct SemanticsAndUtilitiesRegressionTests {
 
         #expect(types.lub([]) == types.errorType)
         #expect(types.lub([intNN, intNN]) == intNN)
-        #expect(types.lub([intNN, intNullable]) == types.nullableAnyType)
+        // KSP-673: lub of a type and its nullable form is the shared nullable
+        // base (Int?), not Any?. Previously this widened all the way to Any?,
+        // which broke generic inference of (T?) -> T? lambdas (e.g. bundled
+        // source-backed AtomicArray<T> CAS loops).
+        #expect(types.lub([intNN, intNullable]) == intNullable)
 
         #expect(types.glb([]) == types.errorType)
         #expect(types.glb([intNN, intNN]) == intNN)

@@ -33,8 +33,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_int",
             includeArithmetic: true,
-            includeGetAndUpdate: true,
-            includeFetchAndUpdateAlias: true,
             includeIncrementAndGetAlias: true,
             includeGetAndIncrementAlias: true,
             includeGetAndDecrementAlias: true,
@@ -56,8 +54,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_long",
             includeArithmetic: true,
-            includeGetAndUpdate: true,
-            includeFetchAndUpdateAlias: true,
             includeIncrementAndGetAlias: true,
             includeGetAndIncrementAlias: true,
             includeGetAndDecrementAlias: true,
@@ -79,8 +75,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_bool",
             includeArithmetic: false,
-            includeGetAndUpdate: true,
-            includeFetchAndUpdateAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -203,8 +197,6 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_int",
             includeArithmetic: true,
-            includeGetAndUpdate: true,
-            includeFetchAndUpdateAlias: true,
             includeIncrementAndGetAlias: true,
             includeGetAndIncrementAlias: true,
             includeGetAndDecrementAlias: true,
@@ -270,7 +262,6 @@ extension DataFlowSemaPhase {
             includeGetAndAddAlias: true,
             includeDecrementAndGetAlias: true,
             includeAddAndGetAlias: true,
-            includeFetchAndUpdate: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -301,7 +292,6 @@ extension DataFlowSemaPhase {
             includeGetAndAddAlias: true,
             includeDecrementAndGetAlias: true,
             includeAddAndGetAlias: true,
-            includeFetchAndUpdate: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -511,9 +501,6 @@ extension DataFlowSemaPhase {
         unitType: TypeID,
         prefix: String,
         includeArithmetic: Bool,
-        includeGetAndUpdate: Bool,
-        includeFetchAndUpdateAlias: Bool = false,
-        includeUpdateAndFetchAlias: Bool = false,
         includeIncrementAndGetAlias: Bool = false,
         includeGetAndIncrementAlias: Bool = false,
         includeGetAndDecrementAlias: Bool = false,
@@ -581,20 +568,6 @@ extension DataFlowSemaPhase {
                 includeAddAndGetAlias: includeAddAndGetAlias,
                 symbols: symbols,
                 interner: interner
-            )
-        }
-
-        if includeGetAndUpdate {
-            registerAtomicGetAndUpdateMethods(
-                ownerSymbol: symbol,
-                ownerType: ownerType,
-                valueType: valueType,
-                prefix: prefix,
-                includeFetchAndUpdateAlias: includeFetchAndUpdateAlias,
-                includeUpdateAndFetchAlias: includeUpdateAndFetchAlias,
-                symbols: symbols,
-                interner: interner,
-                types: types
             )
         }
     }
@@ -747,49 +720,6 @@ extension DataFlowSemaPhase {
                 (name: "expect", type: typeParamType),
                 (name: "update", type: typeParamType),
             ],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-
-        let transformType = types.make(.functionType(FunctionType(
-            params: [typeParamType],
-            returnType: typeParamType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "fetchAndUpdateAt",
-            externalLinkName: "kk_atomic_ref_array_fetchAndUpdateAt",
-            returnType: typeParamType,
-            parameters: [(name: "index", type: types.intType), (name: "transform", type: transformType)],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "updateAt",
-            externalLinkName: "kk_atomic_ref_array_updateAt",
-            returnType: unitType,
-            parameters: [(name: "index", type: types.intType), (name: "transform", type: transformType)],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "updateAndFetchAt",
-            externalLinkName: "kk_atomic_ref_array_updateAndFetchAt",
-            returnType: typeParamType,
-            parameters: [(name: "index", type: types.intType), (name: "transform", type: transformType)],
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
             symbols: symbols,
@@ -986,7 +916,6 @@ extension DataFlowSemaPhase {
         includeGetAndAddAlias: Bool = false,
         includeDecrementAndGetAlias: Bool = false,
         includeAddAndGetAlias: Bool = false,
-        includeFetchAndUpdate: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
@@ -1114,25 +1043,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        if includeFetchAndUpdate {
-            let transformType = types.make(.functionType(FunctionType(
-                params: [valueType],
-                returnType: valueType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            registerAtomicMember(
-                ownerSymbol: symbol,
-                ownerType: ownerType,
-                name: "fetchAndUpdateAt",
-                externalLinkName: "\(prefix)_fetchAndUpdateAt",
-                returnType: valueType,
-                parameters: [(name: "index", type: types.intType), (name: "transform", type: transformType)],
-                symbols: symbols,
-                interner: interner
-            )
-        }
 
         if includeArithmetic {
             registerAtomicMember(
@@ -2271,67 +2181,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func registerAtomicGetAndUpdateMethods(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        valueType: TypeID,
-        prefix: String,
-        typeParameterSymbols: [SymbolID] = [],
-        classTypeParameterCount: Int = 0,
-        includeFetchAndUpdateAlias: Bool = false,
-        includeUpdateAndFetchAlias: Bool = false,
-        symbols: SymbolTable,
-        interner: StringInterner,
-        types: TypeSystem
-    ) {
-        let transformType = types.make(.functionType(FunctionType(
-            params: [valueType],
-            returnType: valueType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        // getAndUpdate(transform: (T) -> T) -> T
-        registerAtomicMember(
-            ownerSymbol: ownerSymbol, ownerType: ownerType,
-            name: "getAndUpdate", externalLinkName: "\(prefix)_getAndUpdate",
-            returnType: valueType, parameters: [(name: "transform", type: transformType)],
-            typeParameterSymbols: typeParameterSymbols,
-            classTypeParameterCount: classTypeParameterCount,
-            symbols: symbols, interner: interner
-        )
-        if includeFetchAndUpdateAlias {
-            // fetchAndUpdate has the same old-value return contract as getAndUpdate.
-            registerAtomicMember(
-                ownerSymbol: ownerSymbol, ownerType: ownerType,
-                name: "fetchAndUpdate", externalLinkName: "\(prefix)_getAndUpdate",
-                returnType: valueType, parameters: [(name: "transform", type: transformType)],
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: classTypeParameterCount,
-                symbols: symbols, interner: interner
-            )
-        }
-        // updateAndGet(transform: (T) -> T) -> T
-        registerAtomicMember(
-            ownerSymbol: ownerSymbol, ownerType: ownerType,
-            name: "updateAndGet", externalLinkName: "\(prefix)_updateAndGet",
-            returnType: valueType, parameters: [(name: "transform", type: transformType)],
-            typeParameterSymbols: typeParameterSymbols,
-            classTypeParameterCount: classTypeParameterCount,
-            symbols: symbols, interner: interner
-        )
-        if includeUpdateAndFetchAlias {
-            // updateAndFetch has the same new-value return contract as updateAndGet.
-            registerAtomicMember(
-                ownerSymbol: ownerSymbol, ownerType: ownerType,
-                name: "updateAndFetch", externalLinkName: "\(prefix)_updateAndGet",
-                returnType: valueType, parameters: [(name: "transform", type: transformType)],
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: classTypeParameterCount,
-                symbols: symbols, interner: interner
-            )
-        }
-    }
-
     private func registerAtomicReferenceStubs(
         ownerPackage: [InternedString],
         ownerPackageSymbol: SymbolID,
@@ -2408,20 +2257,6 @@ extension DataFlowSemaPhase {
             includeGetAndSetAlias: true,
             symbols: symbols,
             interner: interner
-        )
-
-        registerAtomicGetAndUpdateMethods(
-            ownerSymbol: atomicRefSymbol,
-            ownerType: atomicRefType,
-            valueType: typeParamType,
-            prefix: externalLinkPrefix,
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            includeFetchAndUpdateAlias: true,
-            includeUpdateAndFetchAlias: true,
-            symbols: symbols,
-            interner: interner,
-            types: types
         )
     }
 

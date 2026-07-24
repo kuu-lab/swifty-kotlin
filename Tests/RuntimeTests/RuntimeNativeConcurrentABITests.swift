@@ -12,16 +12,13 @@ import XCTest
 //
 // Implemented APIs tested here:
 //   AtomicBoolean  : kk_atomic_bool_create / load / store / exchange /
-//                    compareAndSet / compareAndExchange / getAndUpdate / updateAndGet
+//                    compareAndSet / compareAndExchange
 //   AtomicIntArray : kk_atomic_int_array_create / size / loadAt / storeAt /
 //                    exchangeAt / compareAndSetAt / compareAndExchangeAt /
 //                    fetchAndAddAt / addAndFetchAt / fetchAndIncrementAt /
 //                    incrementAndFetchAt / fetchAndDecrementAt /
 //                    decrementAndFetchAt
 //   AtomicLongArray: kk_atomic_long_array_* (same shape as AtomicIntArray)
-//   AtomicInt      : getAndUpdate / updateAndGet (higher-order variants)
-//   AtomicLong     : getAndUpdate / updateAndGet (higher-order variants)
-//   AtomicReference: getAndUpdate / updateAndGet (higher-order variants)
 //   CPointer       : kk_cpointer_new / kk_cpointer_address
 //   COpaquePointer : kk_copaque_pointer_new / kk_copaque_pointer_address
 //   Pinned<T>      : kk_pin_object / kk_unpin_object / kk_pinned_get
@@ -95,102 +92,6 @@ final class RuntimeAtomicBooleanTests: XCTestCase {
         XCTAssertEqual(kk_atomic_bool_exchange(0, 1), 0)
         XCTAssertEqual(kk_atomic_bool_compareAndSet(0, 0, 1), 0)
         XCTAssertEqual(kk_atomic_bool_compareAndExchange(0, 0, 1), 0)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - AtomicInt higher-order variants (getAndUpdate / updateAndGet)
-// ---------------------------------------------------------------------------
-
-/// A C-callable doubling function for use in getAndUpdate / updateAndGet tests.
-private let doubleIntThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { value, _ in
-    value * 2
-}
-private let doubleIntThunkPtr = unsafeBitCast(doubleIntThunk, to: Int.self)
-
-private let negateIntThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { value, _ in
-    -value
-}
-private let negateIntThunkPtr = unsafeBitCast(negateIntThunk, to: Int.self)
-
-final class RuntimeAtomicIntHigherOrderTests: XCTestCase {
-
-    func testGetAndUpdateReturnsOldValue() {
-        let handle = kk_atomic_int_create(3)
-        let old = kk_atomic_int_getAndUpdate(handle, doubleIntThunkPtr, nil)
-        XCTAssertEqual(old, 3, "getAndUpdate must return the old value")
-        XCTAssertEqual(kk_atomic_int_load(handle), 6, "getAndUpdate must store the transformed value")
-    }
-
-    func testUpdateAndGetReturnsNewValue() {
-        let handle = kk_atomic_int_create(5)
-        let new = kk_atomic_int_updateAndGet(handle, doubleIntThunkPtr, nil)
-        XCTAssertEqual(new, 10, "updateAndGet must return the new (transformed) value")
-        XCTAssertEqual(kk_atomic_int_load(handle), 10)
-    }
-
-    func testGetAndUpdateWithNegation() {
-        let handle = kk_atomic_int_create(7)
-        let old = kk_atomic_int_getAndUpdate(handle, negateIntThunkPtr, nil)
-        XCTAssertEqual(old, 7)
-        XCTAssertEqual(kk_atomic_int_load(handle), -7)
-    }
-
-    func testUpdateAndGetWithNegation() {
-        let handle = kk_atomic_int_create(-4)
-        let new = kk_atomic_int_updateAndGet(handle, negateIntThunkPtr, nil)
-        XCTAssertEqual(new, 4)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - AtomicLong higher-order variants
-// ---------------------------------------------------------------------------
-
-final class RuntimeAtomicLongHigherOrderTests: XCTestCase {
-
-    func testGetAndUpdateReturnsOldValue() {
-        let handle = kk_atomic_long_create(10)
-        let old = kk_atomic_long_getAndUpdate(handle, doubleIntThunkPtr, nil)
-        XCTAssertEqual(old, 10)
-        XCTAssertEqual(kk_atomic_long_load(handle), 20)
-    }
-
-    func testUpdateAndGetReturnsNewValue() {
-        let handle = kk_atomic_long_create(8)
-        let new = kk_atomic_long_updateAndGet(handle, doubleIntThunkPtr, nil)
-        XCTAssertEqual(new, 16)
-        XCTAssertEqual(kk_atomic_long_load(handle), 16)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - AtomicReference higher-order variants
-// ---------------------------------------------------------------------------
-
-// C-callable thunks that return fixed sentinel values used as stand-in references.
-// These must be non-capturing so they can be formed as @convention(c) pointers.
-private let refHighOrderThunkReturn42: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in 42 }
-private let refHighOrderThunkReturn99: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in 99 }
-private let refHighOrderThunkReturn42Ptr = unsafeBitCast(refHighOrderThunkReturn42, to: Int.self)
-private let refHighOrderThunkReturn99Ptr = unsafeBitCast(refHighOrderThunkReturn99, to: Int.self)
-
-final class RuntimeAtomicReferenceHigherOrderTests: XCTestCase {
-
-    func testGetAndUpdateReturnsOldReference() {
-        // Store an initial value of 10 (arbitrary sentinel) and use the
-        // thunk to transform it to 42.  getAndUpdate returns the old value.
-        let atomicRef = kk_atomic_ref_create(10)
-        let old = kk_atomic_ref_getAndUpdate(atomicRef, refHighOrderThunkReturn42Ptr, nil)
-        XCTAssertEqual(old, 10, "getAndUpdate must return the old reference")
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), 42)
-    }
-
-    func testUpdateAndGetReturnsNewReference() {
-        let atomicRef = kk_atomic_ref_create(10)
-        let new = kk_atomic_ref_updateAndGet(atomicRef, refHighOrderThunkReturn99Ptr, nil)
-        XCTAssertEqual(new, 99, "updateAndGet must return the new reference")
-        XCTAssertEqual(kk_atomic_ref_load(atomicRef), 99)
     }
 }
 
