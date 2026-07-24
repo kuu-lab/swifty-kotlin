@@ -31,8 +31,9 @@ struct CharIsUpperCaseFunctionTests {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == sema.types.booleanType
         }
-        let symbol = try #require(charReceiverSymbol, "Char.isUpperCase synthetic stub should be registered")
-        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_isUpperCase")
+        let symbol = try #require(charReceiverSymbol, "Char.isUpperCase should resolve to a bundled Kotlin extension")
+        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
     }
 
     @Test func testCharIsUpperCaseResolvesAtCallSite() throws {
@@ -56,7 +57,7 @@ struct CharIsUpperCaseFunctionTests {
 
         let chosen = sema.bindings.callBinding(for: callExpr)?.chosenCallee
             ?? sema.bindings.identifierSymbol(for: callExpr)
-        #expect(chosen.flatMap { sema.symbols.externalLinkName(for: $0) } == "kk_char_isUpperCase")
+        #expect(chosen.flatMap { sema.symbols.externalLinkName(for: $0) } == nil)
     }
 }
 #endif

@@ -756,7 +756,7 @@
 - [ ] KSP-658: Array contentEquals/contentToString/copyOf/copyOfRange を Kotlin 化する
 - [ ] KSP-659: Array sorted*/binarySearch を Kotlin 化する（比較コアは KSP-309 の Comparator Kotlin 実装を利用）
 - [ ] KSP-660: Array 符号なしビュー変換を Kotlin 化する（**併せて BUG-019（ByteArray.joinToString/contentEquals 未スタブ）を吸収**。`kotlin.jvm.isArrayOf` は CLEANUP-STUB-098 側で削除）
-- [ ] KSP-661: Char 判定系を Kotlin 化する（isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/isLowerCase 等。残留: `__kk_char_unicode_category` 等テーブル参照ブリッジ新設）
+- [x] KSP-661: Char 判定系を Kotlin 化する（isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/isLowerCase/isDefined を bundled Kotlin `kotlin.text.CharPredicates` へ移行。残留: `__kk_char_unicode_category`/`__kk_char_is_uppercase`/`__kk_char_is_lowercase` テーブル参照ブリッジ）
 - [ ] KSP-662: Char 変換系を Kotlin 化する（uppercaseChar/lowercaseChar/titlecase/digitToInt(OrNull)/digitToChar。ロケール依存 2 関数は `__kk_*_locale` ブリッジ残留（`java.util.Locale` interop 自体は (a) 削除方針）。前提: KSP-661）
 - [ ] KSP-663: Char サロゲート演算を Kotlin 化する（isSurrogate 系/code 変換。前提: KSP-661）
 - [ ] KSP-664: AbstractIterator + プリミティブ Iterator 殻を .kt 化する（本家同型の純 Kotlin・ブリッジゼロ。`HeaderHelpers+SyntheticIteratorStubs.swift`（272行）削除）

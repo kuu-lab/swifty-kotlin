@@ -143,4 +143,46 @@ struct BundledStdlibExecutionTests {
             expectedOutput: "7-8-9\n"
         )
     }
+
+    // KSP-661: Char 判定系は bundled Kotlin (kotlin.text.CharPredicates) で実装され、
+    // Unicode テーブル参照だけを __kk_char_* ブリッジ経由で行う。移行後の述語が
+    // 実際にコンパイル・実行され正しい結果を返すことを end-to-end で検証する。
+    @Test
+    func testCharPredicatesExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println('A'.isLetter())
+                println('1'.isDigit())
+                println(' '.isWhitespace())
+                println('\\t'.isWhitespace())
+                println('7'.isLetterOrDigit())
+                println('!'.isLetterOrDigit())
+                println('A'.isUpperCase())
+                println('a'.isLowerCase())
+                println('\\u2160'.isUpperCase())
+                println('\\u2170'.isLowerCase())
+                println('A'.isDefined())
+                println('\\u0378'.isDefined())
+                println('\\uD800'.isDefined())
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            true
+            true
+            false
+            true
+            true
+            true
+            true
+            true
+            false
+            true
+
+            """
+        )
+    }
 }

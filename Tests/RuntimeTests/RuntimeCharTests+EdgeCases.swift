@@ -13,6 +13,37 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         kk_unbox_bool(raw) != 0
     }
 
+    // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isDefined は bundled
+    // Kotlin (kotlin.text.CharPredicates) へ移行済み。以下のヘルパは、残存する
+    // Unicode カテゴリブリッジ (__kk_char_unicode_category) が移行後の Kotlin 実装
+    // と同じ結果を生む序数を返すことを、これらの境界入力で検証するために、Kotlin
+    // 側と同じ合成ロジックを再現する。
+    private func bridgeIsLetter(_ value: Int) -> Int {
+        let category = __kk_char_unicode_category(value)
+        return kk_box_bool((category >= 1 && category <= 5) ? 1 : 0)
+    }
+
+    private func bridgeIsDigit(_ value: Int) -> Int {
+        kk_box_bool(__kk_char_unicode_category(value) == 9 ? 1 : 0)
+    }
+
+    private func bridgeIsLetterOrDigit(_ value: Int) -> Int {
+        kk_box_bool((boolValue(bridgeIsLetter(value)) || boolValue(bridgeIsDigit(value))) ? 1 : 0)
+    }
+
+    private func bridgeIsWhitespace(_ value: Int) -> Int {
+        let category = __kk_char_unicode_category(value)
+        if category == 12 || category == 13 || category == 14 {
+            return kk_box_bool(1)
+        }
+        let isControlWhitespace = (0x09 ... 0x0D).contains(value) || (0x1C ... 0x1F).contains(value)
+        return kk_box_bool(isControlWhitespace ? 1 : 0)
+    }
+
+    private func bridgeIsDefined(_ value: Int) -> Int {
+        kk_box_bool(__kk_char_unicode_category(value) != 0 ? 1 : 0)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
@@ -65,31 +96,31 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     }
 
     func testNulCharIsNotLetter() {
-        XCTAssertFalse(boolValue(kk_char_isLetter(0)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0)))
     }
 
     func testNulCharIsNotDigit() {
-        XCTAssertFalse(boolValue(kk_char_isDigit(0)))
+        XCTAssertFalse(boolValue(bridgeIsDigit(0)))
     }
 
     func testNulCharIsNotWhitespace() {
-        XCTAssertFalse(boolValue(kk_char_isWhitespace(0)))
+        XCTAssertFalse(boolValue(bridgeIsWhitespace(0)))
     }
 
     func testDefinedAsciiChar() {
-        XCTAssertTrue(boolValue(kk_char_isDefined(Int(("A" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsDefined(Int(("A" as UnicodeScalar).value))))
     }
 
     func testUnassignedCodePointIsNotDefined() {
-        XCTAssertFalse(boolValue(kk_char_isDefined(0x0378)))
+        XCTAssertFalse(boolValue(bridgeIsDefined(0x0378)))
     }
 
     func testSurrogateCodeUnitIsDefined() {
-        XCTAssertTrue(boolValue(kk_char_isDefined(0xD800)))
+        XCTAssertTrue(boolValue(bridgeIsDefined(0xD800)))
     }
 
     func testOutOfRangeCodePointIsNotDefined() {
-        XCTAssertFalse(boolValue(kk_char_isDefined(0x110000)))
+        XCTAssertFalse(boolValue(bridgeIsDefined(0x110000)))
     }
 
     func testSupplementaryCodePointBoundaries() {
@@ -187,28 +218,28 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     // MARK: - isUpperCase / isLowerCase on chars with no case mapping
 
     func testDigitHasNoCase() {
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(Int(("5" as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(Int(("5" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(Int(("5" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(Int(("5" as UnicodeScalar).value))))
     }
 
     func testPunctuationHasNoCase() {
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(Int(("!" as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(Int(("!" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(Int(("!" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(Int(("!" as UnicodeScalar).value))))
     }
 
     func testSpaceHasNoCase() {
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(Int((" " as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(Int((" " as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(Int((" " as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(Int((" " as UnicodeScalar).value))))
     }
 
     func testUpperCaseAsciiLetter() {
-        XCTAssertTrue(boolValue(kk_char_isUpperCase(Int(("A" as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(Int(("A" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(__kk_char_is_uppercase(Int(("A" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(Int(("A" as UnicodeScalar).value))))
     }
 
     func testLowerCaseAsciiLetter() {
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(Int(("a" as UnicodeScalar).value))))
-        XCTAssertTrue(boolValue(kk_char_isLowerCase(Int(("a" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(Int(("a" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(__kk_char_is_lowercase(Int(("a" as UnicodeScalar).value))))
     }
 
     // MARK: - uppercaseChar() / lowercaseChar() on chars with no case mapping
@@ -355,53 +386,53 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     // MARK: - isWhitespace edge cases
 
     func testTabIsWhitespace() {
-        XCTAssertTrue(boolValue(kk_char_isWhitespace(Int(("\t" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsWhitespace(Int(("\t" as UnicodeScalar).value))))
     }
 
     func testNewlineIsWhitespace() {
-        XCTAssertTrue(boolValue(kk_char_isWhitespace(Int(("\n" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsWhitespace(Int(("\n" as UnicodeScalar).value))))
     }
 
     func testCarriageReturnIsWhitespace() {
-        XCTAssertTrue(boolValue(kk_char_isWhitespace(Int(("\r" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsWhitespace(Int(("\r" as UnicodeScalar).value))))
     }
 
     func testNoBreakSpaceIsWhitespace() {
         // U+00A0 NO-BREAK SPACE — isWhitespace in Kotlin returns true
-        XCTAssertTrue(boolValue(kk_char_isWhitespace(0x00A0)))
+        XCTAssertTrue(boolValue(bridgeIsWhitespace(0x00A0)))
     }
 
     func testUnitSeparatorIsWhitespace() {
         // U+001F is in Kotlin's CONTROL whitespace range.
-        XCTAssertTrue(boolValue(kk_char_isWhitespace(0x001F)))
+        XCTAssertTrue(boolValue(bridgeIsWhitespace(0x001F)))
     }
 
     func testNextLineIsNotWhitespace() {
         // U+0085 is whitespace in Unicode, but not in Kotlin's Char.isWhitespace().
-        XCTAssertFalse(boolValue(kk_char_isWhitespace(0x0085)))
+        XCTAssertFalse(boolValue(bridgeIsWhitespace(0x0085)))
     }
 
     func testLetterIsNotWhitespace() {
-        XCTAssertFalse(boolValue(kk_char_isWhitespace(Int(("A" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(bridgeIsWhitespace(Int(("A" as UnicodeScalar).value))))
     }
 
     // MARK: - isLetterOrDigit
 
     func testLetterOrDigitForLetter() {
-        XCTAssertTrue(boolValue(kk_char_isLetterOrDigit(Int(("Z" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsLetterOrDigit(Int(("Z" as UnicodeScalar).value))))
     }
 
     func testLetterOrDigitForDigit() {
-        XCTAssertTrue(boolValue(kk_char_isLetterOrDigit(Int(("3" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsLetterOrDigit(Int(("3" as UnicodeScalar).value))))
     }
 
     func testLetterOrDigitForSpace() {
-        XCTAssertFalse(boolValue(kk_char_isLetterOrDigit(Int((" " as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(bridgeIsLetterOrDigit(Int((" " as UnicodeScalar).value))))
     }
 
     func testLetterOrDigitForUnicodeLetter() {
         // U+00E9 'é' is a letter
-        XCTAssertTrue(boolValue(kk_char_isLetterOrDigit(0x00E9)))
+        XCTAssertTrue(boolValue(bridgeIsLetterOrDigit(0x00E9)))
     }
 
     // MARK: - category mapping
@@ -429,28 +460,28 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     // MARK: - ASCII vs Unicode letter categorization
 
     func testAsciiLetterIsLetter() {
-        XCTAssertTrue(boolValue(kk_char_isLetter(Int(("a" as UnicodeScalar).value))))
-        XCTAssertTrue(boolValue(kk_char_isLetter(Int(("Z" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsLetter(Int(("a" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(bridgeIsLetter(Int(("Z" as UnicodeScalar).value))))
     }
 
     func testUnicodeLetterIsLetter() {
         // U+00E9 'é'
-        XCTAssertTrue(boolValue(kk_char_isLetter(0x00E9)))
+        XCTAssertTrue(boolValue(bridgeIsLetter(0x00E9)))
         // U+4E2D '中' (CJK unified ideograph)
-        XCTAssertTrue(boolValue(kk_char_isLetter(0x4E2D)))
+        XCTAssertTrue(boolValue(bridgeIsLetter(0x4E2D)))
     }
 
     func testAsciiDigitIsNotLetter() {
-        XCTAssertFalse(boolValue(kk_char_isLetter(Int(("9" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(bridgeIsLetter(Int(("9" as UnicodeScalar).value))))
     }
 
     func testSurrogateCharacterIsNotLetter() {
         // Surrogates are not valid Unicode scalars, so isLetter should be false
-        XCTAssertFalse(boolValue(kk_char_isLetter(0xD800)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0xD800)))
     }
 
     func testSurrogateCharacterIsNotDigit() {
-        XCTAssertFalse(boolValue(kk_char_isDigit(0xD800)))
+        XCTAssertFalse(boolValue(bridgeIsDigit(0xD800)))
     }
 
     // MARK: - isIdentifierIgnorable
@@ -560,33 +591,33 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
 
     func testCombiningMarkIsNotLetter() {
         // U+0301 COMBINING ACUTE ACCENT (Mn)
-        XCTAssertFalse(boolValue(kk_char_isLetter(0x0301)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0x0301)))
         // U+0300 COMBINING GRAVE ACCENT (Mn)
-        XCTAssertFalse(boolValue(kk_char_isLetter(0x0300)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0x0300)))
         // U+0903 DEVANAGARI SIGN VISARGA (Mc, spacing combining mark)
-        XCTAssertFalse(boolValue(kk_char_isLetter(0x0903)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0x0903)))
         // U+20DD COMBINING ENCLOSING CIRCLE (Me)
-        XCTAssertFalse(boolValue(kk_char_isLetter(0x20DD)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0x20DD)))
     }
 
     func testCombiningMarkIsNotLetterOrDigit() {
-        XCTAssertFalse(boolValue(kk_char_isLetterOrDigit(0x0301)))
-        XCTAssertFalse(boolValue(kk_char_isLetterOrDigit(0x20DD)))
+        XCTAssertFalse(boolValue(bridgeIsLetterOrDigit(0x0301)))
+        XCTAssertFalse(boolValue(bridgeIsLetterOrDigit(0x20DD)))
     }
 
     func testModifierLetterIsLetter() {
         // U+02B0 MODIFIER LETTER SMALL H (Lm) is a letter.
-        XCTAssertTrue(boolValue(kk_char_isLetter(0x02B0)))
+        XCTAssertTrue(boolValue(bridgeIsLetter(0x02B0)))
     }
 
     func testTitlecaseLetterIsLetter() {
         // U+01C5 'ǅ' (Lt) is a letter.
-        XCTAssertTrue(boolValue(kk_char_isLetter(0x01C5)))
+        XCTAssertTrue(boolValue(bridgeIsLetter(0x01C5)))
     }
 
     func testLetterNumberIsNotLetter() {
         // U+2160 ROMAN NUMERAL ONE (Nl) is NOT a letter (it is a number).
-        XCTAssertFalse(boolValue(kk_char_isLetter(0x2160)))
+        XCTAssertFalse(boolValue(bridgeIsLetter(0x2160)))
     }
 
     // MARK: - isUpperCase / isLowerCase follow Unicode Uppercase/Lowercase
@@ -595,37 +626,37 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
 
     func testTitlecaseLetterIsNeitherUpperNorLower() {
         // U+01C5 'ǅ' (Lt) — titlecase is not upper case nor lower case.
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(0x01C5)))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(0x01C5)))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(0x01C5)))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(0x01C5)))
     }
 
     func testRomanNumeralUpperLowerCase() {
         // U+2160 ROMAN NUMERAL ONE has Other_Uppercase -> isUpperCase true.
-        XCTAssertTrue(boolValue(kk_char_isUpperCase(0x2160)))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(0x2160)))
+        XCTAssertTrue(boolValue(__kk_char_is_uppercase(0x2160)))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(0x2160)))
         // U+2170 SMALL ROMAN NUMERAL ONE has Other_Lowercase -> isLowerCase true.
-        XCTAssertTrue(boolValue(kk_char_isLowerCase(0x2170)))
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(0x2170)))
+        XCTAssertTrue(boolValue(__kk_char_is_lowercase(0x2170)))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(0x2170)))
     }
 
     func testCircledLatinLettersUpperLowerCase() {
         // U+24B6 CIRCLED LATIN CAPITAL LETTER A has Other_Uppercase.
-        XCTAssertTrue(boolValue(kk_char_isUpperCase(0x24B6)))
+        XCTAssertTrue(boolValue(__kk_char_is_uppercase(0x24B6)))
         // U+24D0 CIRCLED LATIN SMALL LETTER A has Other_Lowercase.
-        XCTAssertTrue(boolValue(kk_char_isLowerCase(0x24D0)))
+        XCTAssertTrue(boolValue(__kk_char_is_lowercase(0x24D0)))
     }
 
     func testModifierLetterIsLowerCase() {
         // U+02B0 MODIFIER LETTER SMALL H has Other_Lowercase -> isLowerCase true.
-        XCTAssertTrue(boolValue(kk_char_isLowerCase(0x02B0)))
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(0x02B0)))
+        XCTAssertTrue(boolValue(__kk_char_is_lowercase(0x02B0)))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(0x02B0)))
     }
 
     func testAsciiCaseClassificationUnaffected() {
         // Sanity: the common ASCII path is still correct after the fix.
-        XCTAssertTrue(boolValue(kk_char_isUpperCase(Int(("A" as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isLowerCase(Int(("A" as UnicodeScalar).value))))
-        XCTAssertTrue(boolValue(kk_char_isLowerCase(Int(("z" as UnicodeScalar).value))))
-        XCTAssertFalse(boolValue(kk_char_isUpperCase(Int(("z" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(__kk_char_is_uppercase(Int(("A" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_lowercase(Int(("A" as UnicodeScalar).value))))
+        XCTAssertTrue(boolValue(__kk_char_is_lowercase(Int(("z" as UnicodeScalar).value))))
+        XCTAssertFalse(boolValue(__kk_char_is_uppercase(Int(("z" as UnicodeScalar).value))))
     }
 }
