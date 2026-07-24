@@ -61,7 +61,10 @@ public fun String?.orEmpty(): String {
 
 private fun ksp401Lines(source: String): List<String> {
     val result = mutableListOf<String>()
-    if (source.length == 0) return result
+    if (source.length == 0) {
+        result.add("")
+        return result
+    }
     var start = 0
     while (true) {
         val index = source.indexOf("\n", start)
