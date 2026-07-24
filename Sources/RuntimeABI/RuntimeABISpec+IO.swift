@@ -25,14 +25,6 @@ public extension RuntimeABISpec {
             section: "IO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_readln_from_syscall",
-            parameters: [
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_readlnOrNull",
             parameters: [],
             returnType: .intptr,
