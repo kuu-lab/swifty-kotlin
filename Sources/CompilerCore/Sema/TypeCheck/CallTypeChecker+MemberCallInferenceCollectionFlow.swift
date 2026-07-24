@@ -1286,6 +1286,9 @@ extension CallTypeChecker {
                         }
                     }
                 }
+                if calleeStr == "mapKeysTo" || calleeStr == "mapValuesTo" {
+                    _ = bindBundledMapSourceFunction()
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
