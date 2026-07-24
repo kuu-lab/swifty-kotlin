@@ -214,23 +214,46 @@ struct ArraySyntheticMemberLinkTests {
         }
     }
 
-    @Test func testArrayContentToStringUsesRuntimeExternalLink() throws {
+    @Test func testArrayContentToStringIsBundledSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(
+
+            // KSP-658: generic Array<T>.contentToString migrated to bundled Kotlin
+            // source (kotlin.collections.contentToString); the synthetic Array member
+            // stub linking to kk_array_contentToString was removed.
+            #expect(
                 sema.symbols.lookup(
                     fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("Array"),
                         ctx.interner.intern("contentToString"),
                     ]
-                ),
-                "Expected synthetic Array.contentToString to be registered"
+                ) == nil,
+                "Generic Array.contentToString synthetic stub should be removed"
             )
-            #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentToString")
+
+            let symbolID = try #require(
+                sema.symbols.lookupAll(
+                    fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("collections"),
+                        ctx.interner.intern("contentToString"),
+                    ]
+                ).first(where: { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.declSite != nil
+                    else {
+                        return false
+                    }
+                    return true
+                }),
+                "Expected bundled source Array.contentToString extension"
+            )
+            #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
 
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes == [])

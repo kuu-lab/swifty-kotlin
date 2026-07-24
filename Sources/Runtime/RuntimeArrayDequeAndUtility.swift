@@ -357,31 +357,6 @@ public func kk_array_fill(_ arrayRaw: Int, _ value: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_array_contentEquals")
-public func kk_array_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return kk_box_bool(0)
-    }
-    guard let other = runtimeArrayBox(from: otherRaw) else {
-        return kk_box_bool(0)
-    }
-
-    // Quick size check
-    if array.elements.count != other.elements.count {
-        return kk_box_bool(0)
-    }
-
-    // Element-by-element comparison
-    for i in 0 ..< array.elements.count {
-        // swiftlint:disable:next for_where
-        if !runtimeValuesEqual(array.elements[i], other.elements[i]) {
-            return kk_box_bool(0)
-        }
-    }
-
-    return kk_box_bool(1)
-}
-
 @_cdecl("kk_byteArray_contentEquals")
 public func kk_byteArray_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw), let other = runtimeArrayBox(from: otherRaw) else {
@@ -415,11 +390,6 @@ private func runtimeArrayContentToString(
     }
     let rendered = array.elements.map(renderElement).joined(separator: ", ")
     return runtimeCollectionStringPointer("[\(rendered)]")
-}
-
-@_cdecl("kk_array_contentToString")
-public func kk_array_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw, renderElement: runtimeElementToString)
 }
 
 @_cdecl("kk_intArray_contentToString")

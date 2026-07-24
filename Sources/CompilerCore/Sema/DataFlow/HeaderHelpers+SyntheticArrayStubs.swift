@@ -281,76 +281,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- Array extension functions: contentEquals, contentDeepEquals, contentDeepToString, contentDeepHashCode, contentHashCode, copyInto, sliceArray, reversedArray ---
-
-        // contentEquals(other: Array<T>): Boolean
-        let contentEqualsName = interner.intern("contentEquals")
-        let contentEqualsFQName = arrayFQName + [contentEqualsName]
-        if symbols.lookup(fqName: contentEqualsFQName) == nil {
-            let contentEqualsSymbol = symbols.define(
-                kind: .function,
-                name: contentEqualsName,
-                fqName: contentEqualsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentEqualsSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            let otherArrayType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [otherArrayType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentEqualsSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentEquals", for: contentEqualsSymbol)
-        }
-
-        // contentToString(): String
-        let contentToStringName = interner.intern("contentToString")
-        let contentToStringFQName = arrayFQName + [contentToStringName]
-        if symbols.lookup(fqName: contentToStringFQName) == nil {
-            let contentToStringSymbol = symbols.define(
-                kind: .function,
-                name: contentToStringName,
-                fqName: contentToStringFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentToStringSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.stringType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentToStringSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentToString", for: contentToStringSymbol)
-        }
+        // --- Array extension functions: contentDeepEquals, contentDeepToString, contentDeepHashCode, contentHashCode, copyInto, sliceArray, reversedArray ---
+        //
+        // KSP-658: generic Array<T>.contentEquals / contentToString / copyOf /
+        // copyOfRange are bundled Kotlin source
+        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt); their synthetic
+        // stubs were removed so source resolution takes precedence.
 
         // contentDeepEquals(other: Array<T>): Boolean
         let contentDeepEqualsName = interner.intern("contentDeepEquals")
@@ -1537,7 +1473,7 @@ extension DataFlowSemaPhase {
                 case "CharArray": "kk_charArray_contentToString"
                 case "UByteArray": "kk_uByteArray_contentToString"
                 case "UShortArray": "kk_uShortArray_contentToString"
-                default: "kk_array_contentToString"
+                default: fatalError("unhandled primitive array \(name) for contentToString")
                 }
                 symbols.setExternalLinkName(externalLinkName, for: contentToStringSym)
 
