@@ -675,7 +675,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [types.longType],
             returnType: types.booleanType,
-            externalLinkName: "kk_long_range_contains",
+            externalLinkName: "kk_range_contains",
             symbols: symbols,
             interner: interner
         )
@@ -705,7 +705,7 @@ extension DataFlowSemaPhase {
             receiverType: longRangeType,
             parameterTypes: [],
             returnType: progressionType,
-            externalLinkName: "kk_long_range_reversed",
+            externalLinkName: "kk_range_reversed",
             symbols: symbols,
             interner: interner
         )
@@ -934,7 +934,7 @@ extension DataFlowSemaPhase {
             receiverType: charRangeType,
             parameterTypes: [types.charType],
             returnType: types.booleanType,
-            externalLinkName: "kk_op_contains",
+            externalLinkName: "kk_range_contains",
             flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             interner: interner

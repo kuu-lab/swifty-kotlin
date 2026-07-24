@@ -2098,7 +2098,7 @@ extension ExprLowerer {
                       sema.bindings.isRangeExpr(rhsExpr) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_long_range_contains"),
+                    callee: interner.intern("kk_range_contains"),
                     arguments: [rhsID, lhsID],
                     result: result,
                     canThrow: false,
@@ -2138,12 +2138,12 @@ extension ExprLowerer {
             } else if let notInRhsType = notInRhsType,
                       sema.types.makeNonNullable(notInRhsType) == sema.types.longType,
                       sema.bindings.isRangeExpr(rhsExpr) {
-                notInContainsCallee = "kk_long_range_contains"
+                notInContainsCallee = "kk_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" || notInContainsCallee == "kk_long_range_contains" {
+            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" || notInContainsCallee == "kk_range_contains" {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(notInContainsCallee),
@@ -2258,11 +2258,21 @@ extension ExprLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // Range membership remains on the dedicated runtime path while explicit
-        // range.contains(...) calls migrate to bundled Kotlin source.
-        // Otherwise, dispatch to a user-defined operator fun contains (STDLIB-OP-032).
-        if !forceRuntimeFallback,
-           let callBinding = sema.bindings.callBindings[exprID],
+        // Range membership is emitted through the bundled Kotlin kk_range_contains.
+        // Generic collection membership still falls back to kk_op_contains.
+        if forceRuntimeFallback {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_range_contains"),
+                arguments: [containerID, elementID],
+                result: resultID,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
+
+        if let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil

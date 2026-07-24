@@ -615,7 +615,7 @@ extension DataFlowSemaPhase {
             reversedRuntime = "kk_ulong_range_reversed"
             toListRuntime = "kk_ulong_range_toList"
         case "LongProgression":
-            reversedRuntime = "kk_long_range_reversed"
+            reversedRuntime = "kk_range_reversed"
             toListRuntime = "kk_long_range_toList"
         case "CharProgression":
             reversedRuntime = "kk_range_reversed"
