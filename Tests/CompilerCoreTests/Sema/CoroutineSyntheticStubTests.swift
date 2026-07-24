@@ -315,7 +315,7 @@ struct CoroutineSyntheticStubTests {
         let causeConstructor = try #require(constructors.first { symbol in
             sema.symbols.functionSignature(for: symbol)?.parameterTypes == [sema.types.stringType, nullableThrowableType]
         })
-        #expect(sema.symbols.externalLinkName(for: causeConstructor) == "kk_throwable_new_with_cause")
+        #expect(sema.symbols.externalLinkName(for: causeConstructor) == "__kk_throwable_new_with_cause")
     }
 
     @Test

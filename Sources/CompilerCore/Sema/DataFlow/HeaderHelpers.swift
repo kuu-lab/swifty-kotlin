@@ -118,7 +118,8 @@ extension DataFlowSemaPhase {
                     range: declRange
                 )
             }
-            if symbols.symbol(symbol)?.kind == .function,
+            let symbolKind = symbols.symbol(symbol)?.kind
+            if (symbolKind == .function || symbolKind == .constructor),
                let linkName = ksSymbolName.arguments.first.map(annotationStringArgumentValue(_:)),
                !linkName.isEmpty
             {

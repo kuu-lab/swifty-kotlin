@@ -533,7 +533,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         defer { RuntimeContinuationState.removeCurrent(forTask: taskKey) }
 
         let messageRaw = makeRuntimeString("custom stop")
-        let causeRaw = kk_throwable_new(UnsafeMutableRawPointer(bitPattern: makeRuntimeString("root cause")))
+        let causeRaw = __kk_throwable_new(UnsafeMutableRawPointer(bitPattern: makeRuntimeString("root cause")))
 
         _ = kk_coroutine_cancel_current(messageRaw, Int(bitPattern: causeRaw))
         XCTAssertTrue(job.cancellationSnapshot(), "Current job should be cancelled")
@@ -547,7 +547,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
     }
 
     func testIsCancellationExceptionReturnsFalseForRegularThrowable() {
-        let throwablePtr = kk_throwable_new(nil)
+        let throwablePtr = __kk_throwable_new(nil)
         let throwableInt = Int(bitPattern: throwablePtr)
         let result = kk_is_cancellation_exception(throwableInt)
         XCTAssertEqual(result, 0, "Regular throwable should not be CancellationException")

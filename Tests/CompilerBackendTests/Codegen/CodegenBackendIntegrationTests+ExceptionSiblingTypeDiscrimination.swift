@@ -6,8 +6,8 @@ import XCTest
 // Regression coverage for the catch-clause / `is` sibling-exception discrimination
 // bug: `catch (e: T)` (and the `is` operator) must only match `T` or one of its real
 // subtypes, never an unrelated sibling built-in exception. Before the fix, every
-// built-in exception constructed via the shared, type-erased kk_throwable_new /
-// kk_throwable_new_with_cause runtime entry points (and kk_op_cast's
+// built-in exception constructed via the shared, type-erased __kk_throwable_new /
+// __kk_throwable_new_with_cause runtime entry points (and kk_op_cast's
 // ClassCastException) carried no runtime type identity, so kk_op_is's nominal-type
 // fallback treated any non-exact-match as a match.
 private func runExceptionDiscriminationCodegenPipeline(

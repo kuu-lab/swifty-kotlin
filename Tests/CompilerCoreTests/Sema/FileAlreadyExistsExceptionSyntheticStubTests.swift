@@ -5,7 +5,7 @@ import Testing
 /// STDLIB-IO-TYPE-002: Validates that `kotlin.io.FileAlreadyExistsException`
 /// is registered as a synthetic class with the expected `Exception` supertype,
 /// File-based constructor overloads, and routes to the shared
-/// `kk_throwable_new` runtime entry point.
+/// `__kk_throwable_new` runtime entry point.
 @Suite
 struct FileAlreadyExistsExceptionSyntheticStubTests {
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
@@ -73,7 +73,7 @@ struct FileAlreadyExistsExceptionSyntheticStubTests {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
             #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
-            #expect(sema.symbols.externalLinkName(for: constructor) == "kk_throwable_new")
+            #expect(sema.symbols.externalLinkName(for: constructor) == "__kk_throwable_new")
         }
     }
 

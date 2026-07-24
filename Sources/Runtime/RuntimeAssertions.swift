@@ -205,7 +205,7 @@ final class RuntimeNegativeArraySizeExceptionBox: RuntimeThrowableBox {
 
 // KSP-467-adjacent (catch-clause sibling-type discrimination fix): typed boxes for
 // the remaining built-in exception classes that were previously constructed via the
-// generic, type-erased `kk_throwable_new`/`kk_throwable_new_with_cause` external
+// generic, type-erased `__kk_throwable_new`/`__kk_throwable_new_with_cause` external
 // functions. Without a distinct RuntimeThrowableBox subclass + hierarchy, `kk_op_is`
 // cannot tell these apart from any other built-in exception, so a `catch (e: T)`
 // clause for one of these types would incorrectly match an unrelated sibling
@@ -624,8 +624,8 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // MARK: - Explicit constructor entry points (catch-clause sibling-type discrimination fix)
 //
 // Each of these gives a user-facing `SomeBuiltinException(...)` constructor call its
-// own external symbol (instead of sharing the type-erased `kk_throwable_new`/
-// `kk_throwable_new_with_cause`), so the allocated box carries the correct
+// own external symbol (instead of sharing the type-erased `__kk_throwable_new`/
+// `__kk_throwable_new_with_cause`), so the allocated box carries the correct
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
 // exception types apart. See HeaderHelpers+SyntheticExceptionStubs.swift for the
 // constructor registrations that reference these link names.

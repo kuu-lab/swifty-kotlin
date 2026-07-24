@@ -8,7 +8,7 @@
 /// The exception classes are registered as subclasses of `kotlin.Exception`
 /// so that `try/catch` and `throw` sites can be type-checked. Constructors
 /// mirror the Kotlin stdlib shape `(file: File, other: File? = null, reason: String? = null)`
-/// and route through the shared `kk_throwable_new` runtime entry point so no
+/// and route through the shared `__kk_throwable_new` runtime entry point so no
 /// dedicated runtime hook is required.
 ///
 /// This stub must run after `registerSyntheticFileIOStubs` (which defines
@@ -82,7 +82,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: accessDeniedSymbol,
                 ownerType: accessDeniedType,
                 parameters: parameters,
-                externalLinkName: "kk_throwable_new",
+                externalLinkName: "__kk_throwable_new",
                 symbols: symbols,
                 interner: interner
             )
@@ -111,7 +111,7 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(fileAlreadyExistsType, for: fileAlreadyExistsSymbol)
 
         // Mirror the Kotlin stdlib constructor shape. All overloads route through
-        // `kk_throwable_new` (which expects a single message argument) — the
+        // `__kk_throwable_new` (which expects a single message argument) — the
         // surrounding compiler call lowering is responsible for synthesising the
         // descriptive message before passing it down.
         let fileAlreadyExistsOverloads: [[(name: String, type: TypeID)]] = [
@@ -124,7 +124,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: fileAlreadyExistsSymbol,
                 ownerType: fileAlreadyExistsType,
                 parameters: parameters,
-                externalLinkName: "kk_throwable_new",
+                externalLinkName: "__kk_throwable_new",
                 symbols: symbols,
                 interner: interner
             )
