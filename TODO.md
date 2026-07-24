@@ -506,7 +506,7 @@
   - 削除 kk_*: 該当 19 関数（`rg -o '@_cdecl\("kk_list_(fold|reduce|running|scan)[a-zA-Z]*"\)' Sources/Runtime` で列挙）/ 既存 `ListAggregateHOF.kt` に追記
 - [ ] KSP-423: List 検索・述語を完遂（`find(Last)`, `indexOf(First/Last)`, `lastIndexOf`, `contains(All)`, `any`, `all`, `none`, `count`, `binarySearch(By)`）
   - 削除 kk_*: `kk_list_find`, `kk_list_findLast`, `kk_list_indexOf`, `kk_list_indexOfFirst`, `kk_list_indexOfLast`, `kk_list_lastIndexOf`, `kk_list_contains`, `kk_list_containsAll`, `kk_list_any`, `kk_list_all`, `kk_list_none`, `kk_list_count`, `kk_list_binarySearch(_comparator/_compare)`, `kk_list_binarySearchBy(_fromIndex/_range)` / 既存 `ListSearchHOF.kt` に追記。等値判定コアは `__kk_values_equal`（新設）へ降格
-- [ ] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`）
+- [x] KSP-424: List アクセスを Kotlin 化（`getOrNull`, `getOrElse`, `elementAt(OrNull/OrElse)`, `first(OrNull)`, `last(OrNull)`, `single(OrNull)`） (PR #5015)
   - ブリッジ残留: `kk_list_get`, `kk_list_size` は `__kk_` 降格（ストレージ直アクセス）。他は Kotlin 化して削除
 - [ ] KSP-425: List associate/group/zip 系を Kotlin 化（`associate(By/With)(To)`, `groupBy(To)`, `withIndex`, `onEach(Indexed)`, `partition`, `unzip`）
   - 削除 kk_*: `rg -o '@_cdecl\("kk_list_(associate|group|withIndex|onEach|partition|unzip)[a-zA-Z]*"\)' Sources/Runtime` で列挙（約 19 関数）
