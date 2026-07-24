@@ -1108,60 +1108,10 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let unsignedViewConversions: [(source: String, target: String, member: String, external: String)] = [
-            ("ByteArray", "UByteArray", "asUByteArray", "kk_byteArray_asUByteArray"),
-            ("ShortArray", "UShortArray", "asUShortArray", "kk_shortArray_asUShortArray"),
-            ("IntArray", "UIntArray", "asUIntArray", "kk_intArray_asUIntArray"),
-            ("LongArray", "ULongArray", "asULongArray", "kk_longArray_asULongArray"),
-        ]
-        for conversion in unsignedViewConversions {
-            let sourceFQName = kotlinPkg + [interner.intern(conversion.source)]
-            let targetFQName = kotlinPkg + [interner.intern(conversion.target)]
-            guard let sourceSymbol = symbols.lookup(fqName: sourceFQName),
-                  let targetSymbol = symbols.lookup(fqName: targetFQName)
-            else {
-                continue
-            }
-
-            let memberName = interner.intern(conversion.member)
-            let memberFQName = sourceFQName + [memberName]
-            if symbols.lookup(fqName: memberFQName) == nil {
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: memberName,
-                    fqName: memberFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(sourceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(conversion.external, for: memberSymbol)
-
-                let receiverType = types.make(.classType(ClassType(
-                    classSymbol: sourceSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                let returnType = types.make(.classType(ClassType(
-                    classSymbol: targetSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [],
-                        returnType: returnType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: []
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
+        // KSP-660: ByteArray/ShortArray/IntArray/LongArray -> unsigned array view
+        // conversions (asUByteArray/asUShortArray/asUIntArray/asULongArray) are now
+        // implemented in bundled Kotlin (Stdlib/kotlin/collections/UArrays.kt), which
+        // delegates to the __kk_*_asU*Array runtime bridges.
 
         // Register toTypedArray() for unsigned primitive arrays.
         if let genericArraySymbol = symbols.lookup(fqName: arrayFQName) {
@@ -1221,60 +1171,10 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let signedViewConversions: [(source: String, target: String, member: String, external: String)] = [
-            ("UByteArray", "ByteArray", "asByteArray", "kk_uByteArray_asByteArray"),
-            ("UShortArray", "ShortArray", "asShortArray", "kk_uShortArray_asShortArray"),
-            ("UIntArray", "IntArray", "asIntArray", "kk_uIntArray_asIntArray"),
-            ("ULongArray", "LongArray", "asLongArray", "kk_uLongArray_asLongArray"),
-        ]
-        for conversion in signedViewConversions {
-            let sourceFQName = kotlinPkg + [interner.intern(conversion.source)]
-            let targetFQName = kotlinPkg + [interner.intern(conversion.target)]
-            guard let sourceSymbol = symbols.lookup(fqName: sourceFQName),
-                  let targetSymbol = symbols.lookup(fqName: targetFQName)
-            else {
-                continue
-            }
-
-            let memberName = interner.intern(conversion.member)
-            let memberFQName = sourceFQName + [memberName]
-            if symbols.lookup(fqName: memberFQName) == nil {
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: memberName,
-                    fqName: memberFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(sourceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(conversion.external, for: memberSymbol)
-
-                let receiverType = types.make(.classType(ClassType(
-                    classSymbol: sourceSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                let returnType = types.make(.classType(ClassType(
-                    classSymbol: targetSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [],
-                        returnType: returnType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: []
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
+        // KSP-660: UByteArray/UShortArray/UIntArray/ULongArray -> signed array view
+        // conversions (asByteArray/asShortArray/asIntArray/asLongArray) are now
+        // implemented in bundled Kotlin (Stdlib/kotlin/collections/UArrays.kt), which
+        // delegates to the __kk_u*Array_as*Array runtime bridges.
 
         // Register copyOf(newSize) and copyOf(newSize, init) for unsigned primitive arrays.
         for name in unsignedPrimitiveArrayNames {
