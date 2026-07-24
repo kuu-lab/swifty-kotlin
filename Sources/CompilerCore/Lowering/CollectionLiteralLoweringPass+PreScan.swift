@@ -203,10 +203,11 @@ extension CollectionLiteralLoweringSupport {
                     fileExprIDs: &fileExprIDs,
                     pathExprIDs: &pathExprIDs
                 )
-            case let .virtualCall(_, callee, receiver, _, result, _, _, _):
+            case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
-                    callee: callee, receiver: receiver, result: result,
-                    lookup: lookup, listExprIDs: &listExprIDs,
+                    symbol: symbol, callee: callee, receiver: receiver, result: result,
+                    lookup: lookup, sema: sema,
+                    listExprIDs: &listExprIDs,
                     mapExprIDs: &mapExprIDs,
                     sequenceExprIDs: &sequenceExprIDs,
                     rangeExprIDs: &rangeExprIDs,
@@ -419,10 +420,12 @@ extension CollectionLiteralLoweringSupport {
     }
 
     private func handleVirtualCallInstruction(
+        symbol: SymbolID?,
         callee: InternedString,
         receiver: KIRExprID,
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
+        sema: SemaModule?,
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
@@ -434,7 +437,15 @@ extension CollectionLiteralLoweringSupport {
         if callee == lookup.asSequenceName
             || callee == lookup.kkStringAsSequenceName
         {
-            if let result { sequenceExprIDs.insert(result.rawValue) }
+            if let result {
+                let isSourceBacked = {
+                    guard let sema, let symbol, let resolved = sema.symbols.symbol(symbol) else { return false }
+                    return resolved.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+                }()
+                if !isSourceBacked {
+                    sequenceExprIDs.insert(result.rawValue)
+                }
+            }
             return
         }
         if callee == lookup.kkStringSplitName

@@ -440,14 +440,31 @@ extension CallTypeChecker {
         }
 
         let declaredClassArgs: [TypeArg]
+        let concreteClassArgs: [TypeArg]
         if let signatureReceiverType = signature.receiverType,
-           let declaredClass = resolveClassType(signatureReceiverType, sema: sema),
-           declaredClass.classSymbol == callSiteClass.classSymbol,
-           declaredClass.args.count == callSiteClass.args.count {
-            declaredClassArgs = declaredClass.args
+           let declaredClass = resolveClassType(signatureReceiverType, sema: sema) {
+            if declaredClass.classSymbol == callSiteClass.classSymbol,
+               declaredClass.args.count == callSiteClass.args.count {
+                declaredClassArgs = declaredClass.args
+                concreteClassArgs = callSiteClass.args
+            } else if sema.types.isNominalSubtypeSymbol(callSiteClass.classSymbol, of: declaredClass.classSymbol) {
+                declaredClassArgs = declaredClass.args
+                guard let lifted = sema.types.liftedNominalSupertypeArgs(
+                    from: callSiteClass.classSymbol,
+                    childArgs: callSiteClass.args,
+                    to: declaredClass.classSymbol
+                ), lifted.count == declaredClassArgs.count else {
+                    return parameterType
+                }
+                concreteClassArgs = lifted
+            } else {
+                return parameterType
+            }
         } else if signature.classTypeParameterCount > 0,
                   callSiteClass.args.count >= signature.classTypeParameterCount {
-            declaredClassArgs = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            let prefix = Array(callSiteClass.args.prefix(signature.classTypeParameterCount))
+            declaredClassArgs = prefix
+            concreteClassArgs = prefix
         } else {
             return parameterType
         }
@@ -467,7 +484,7 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            let concreteType: TypeID = switch callSiteClass.args[index] {
+            let concreteType: TypeID = switch concreteClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 type
             case .star:

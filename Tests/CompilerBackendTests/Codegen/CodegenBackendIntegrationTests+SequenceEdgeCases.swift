@@ -1067,5 +1067,33 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
     }
+
+    // KSP-441 / BUG-145 regression: object-expression Sequence/Iterator pipelines must
+    // support for-in iteration and virtual dispatch of the overridden iterator().
+    func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
+        let source = """
+        interface MySeq<out T> {
+            operator fun iterator(): Iterator<T>
+        }
+
+        fun main() {
+            val it = object : Iterator<Int> {
+                var i = 1
+                override fun hasNext(): Boolean = i <= 3
+                override fun next(): Int {
+                    val current = i
+                    i = i + 1
+                    return current
+                }
+            }
+            val seq = object : MySeq<Int> {
+                override fun iterator(): Iterator<Int> = it
+            }
+            for (x in seq) println(x)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SequenceObjectExpressionForIn", expected: "1\n2\n3\n")
+    }
 }
 

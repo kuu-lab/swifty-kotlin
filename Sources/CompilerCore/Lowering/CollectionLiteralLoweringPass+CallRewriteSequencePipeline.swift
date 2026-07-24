@@ -14,6 +14,13 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+    // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
+    // Kotlin source declaration, route through normal function resolution so
+    // the source implementation runs instead of a `kk_*` runtime shortcut.
+    if isSourceBacked(symbol: symbol, ctx: ctx) {
+        return false
+    }
+
     // --- Rewrite sequence member calls (STDLIB-003 / STDLIB-471) ---
     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
     // Guard with state.arrayExprIDs / state.listExprIDs so we only rewrite

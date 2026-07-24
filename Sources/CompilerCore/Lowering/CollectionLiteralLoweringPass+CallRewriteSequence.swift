@@ -33,6 +33,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if rewriteSequenceTerminalCall(
+            symbol: symbol,
             callee: callee,
             arguments: arguments,
             result: result,

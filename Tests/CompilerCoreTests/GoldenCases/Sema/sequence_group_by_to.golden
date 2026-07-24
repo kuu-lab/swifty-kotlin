@@ -1,4 +1,4 @@
-symbol fq=__local_0.seq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out String>
+symbol fq=__local_0.seq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<String>
 symbol fq=__local_1.dest kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
 symbol fq=__local_2.result kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
 symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
@@ -13,9 +13,6 @@ symbol fq=kotlin.collections.mutableMapOf.V kind=typeParameter vis=private flags
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
-symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_group_by_to package=_
   decl main fun main sym=main
@@ -24,11 +21,11 @@ expr e@2:31 string(bb) type=String
 expr e@2:37 string(ccc) type=String
 expr e@2:44 string(dd) type=String
 expr e@2:50 string(e) type=String
-expr e@2:15 call callee=e@2:15#1 args=[_:e@2:26,_:e@2:31,_:e@2:37,_:e@2:44,_:e@2:50] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@2:15 call callee=e@2:15#1 args=[_:e@2:26,_:e@2:31,_:e@2:37,_:e@2:44,_:e@2:50] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@2:5 localDecl seq mutable=0 type=_ init=e@2:15 type=Unit ref=__local_0.seq
 expr e@4:16 call callee=e@4:16#1 args=[] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> call=kotlin.collections.mutableMapOf#0 targs=[Int,kotlin.collections.MutableList<String>]
 expr e@4:5 localDecl dest mutable=0 type=_ init=e@4:16 type=Unit ref=__local_1.dest
-expr e@5:18 name(seq) type=kotlin.sequences.Sequence<out String> ref=__local_0.seq
+expr e@5:18 name(seq) type=kotlin.sequences.Sequence<String> ref=__local_0.seq
 expr e@5:32 name(dest) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_1.dest
 expr e@5:40 name(it) type=String ref=s-0
 expr e@5:40#1 memberCall recv=e@5:40 callee=length args=[] type=Int call=kotlin.length.$get

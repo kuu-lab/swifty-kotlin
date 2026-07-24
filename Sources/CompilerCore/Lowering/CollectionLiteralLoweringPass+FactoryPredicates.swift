@@ -156,4 +156,21 @@ extension CollectionLiteralConstructionLoweringPass {
         ]
         return resolved.fqName.starts(with: javaIOFilePrefix)
     }
+
+    /// True when the resolved callee is a bundled Kotlin source declaration
+    /// (has a source `declSite` and no runtime external link), meaning the
+    /// lowering pass should not rewrite it to a `kk_*` runtime helper.
+    func isSourceBacked(
+        symbol: SymbolID?,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let symbol,
+              let sema = ctx.sema,
+              let resolved = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return resolved.declSite != nil
+            && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
 }

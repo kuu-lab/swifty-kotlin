@@ -772,8 +772,15 @@ final class CallTypeChecker {
             return sema.types.unitType
         }
 
+        let generateSequenceName = interner.intern("generateSequence")
+        let sequencesPackageFQName = [interner.intern("kotlin"), interner.intern("sequences")]
+        let hasSourceGenerateSequence = sema.bundledIndex.contains(
+            owner: sequencesPackageFQName,
+            name: generateSequenceName,
+            arity: args.count
+        )
         if let calleeName,
-           interner.resolve(calleeName) == "generateSequence",
+           calleeName == generateSequenceName,
            args.count == 2
         {
             let rawSeedType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
@@ -799,13 +806,30 @@ final class CallTypeChecker {
                 interner: interner,
                 elementType: seedType
             )
+            if hasSourceGenerateSequence,
+               let generateSequenceSymbol = sourceGenerateSequenceSymbol(
+                   sema: sema,
+                   interner: interner,
+                   arity: 2
+               )
+            {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: generateSequenceSymbol,
+                        substitutedTypeArguments: [seedType],
+                        parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(generateSequenceSymbol))
+            }
             sema.bindings.bindExprType(id, type: sequenceType)
             return sequenceType
         }
 
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if let calleeName,
-           interner.resolve(calleeName) == "generateSequence",
+           calleeName == generateSequenceName,
            args.count == 1
         {
             // Infer the no-arg function type; deduce element type T from its return type.
@@ -815,6 +839,13 @@ final class CallTypeChecker {
             } else {
                 sema.types.anyType
             }
+            let nextExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: sema.types.makeNullable(elementType),
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nextExpectedType)
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             sema.bindings.markCollectionExpr(id)
             let sequenceType = makeSyntheticSequenceType(
@@ -823,6 +854,23 @@ final class CallTypeChecker {
                 interner: interner,
                 elementType: elementType
             )
+            if hasSourceGenerateSequence,
+               let generateSequenceSymbol = sourceGenerateSequenceSymbol(
+                   sema: sema,
+                   interner: interner,
+                   arity: 1
+               )
+            {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: generateSequenceSymbol,
+                        substitutedTypeArguments: [elementType],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(generateSequenceSymbol))
+            }
             sema.bindings.bindExprType(id, type: sequenceType)
             return sequenceType
         }
@@ -3348,6 +3396,37 @@ final class CallTypeChecker {
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
             safeCall: true
         )
+    }
+
+    /// Locate a bundled-source `kotlin.sequences.generateSequence` overload with the
+    /// given arity. Returns nil when no source declaration is available, letting the
+    /// caller fall back to the runtime `kk_sequence_generate` path.
+    private func sourceGenerateSequenceSymbol(
+        sema: SemaModule,
+        interner: StringInterner,
+        arity: Int
+    ) -> SymbolID? {
+        let fqName = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("generateSequence")
+        ]
+        return sema.symbols.lookupAll(fqName: fqName).first { symbol in
+            guard let info = sema.symbols.symbol(symbol),
+                  info.declSite != nil,
+                  (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty,
+                  let sig = sema.symbols.functionSignature(for: symbol),
+                  sig.parameterTypes.count == arity
+            else {
+                return false
+            }
+            if arity == 2, sig.parameterTypes.count == 2,
+               case .functionType = sema.types.kind(of: sig.parameterTypes[1])
+            {
+                return true
+            }
+            return arity != 2
+        }
     }
 
 }

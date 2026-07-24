@@ -250,8 +250,33 @@ struct CaptureAnalyzer {
 
             case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
-                 .breakExpr, .continueExpr, .objectLiteral, .superRef, .thisRef:
+                 .breakExpr, .continueExpr, .superRef, .thisRef:
                 break
+
+            case let .objectLiteral(_, declID, _):
+                guard let declID,
+                      let decl = ast.arena.decl(declID),
+                      case let .objectDecl(objectDecl) = decl
+                else {
+                    break
+                }
+                for memberFunctionID in objectDecl.memberFunctions {
+                    guard let memberDecl = ast.arena.decl(memberFunctionID),
+                          case let .funDecl(memberFunction) = memberDecl
+                    else {
+                        continue
+                    }
+                    visitBody(memberFunction.body)
+                }
+                for propertyID in objectDecl.memberProperties {
+                    guard let propertyDecl = ast.arena.decl(propertyID),
+                          case let .propertyDecl(property) = propertyDecl,
+                          let initializer = property.initializer
+                    else {
+                        continue
+                    }
+                    visit(initializer)
+                }
             }
         }
 

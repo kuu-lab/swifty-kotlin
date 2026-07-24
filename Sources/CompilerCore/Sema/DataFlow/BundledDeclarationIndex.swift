@@ -143,6 +143,9 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "comparisons"] {
+            return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
+        }
         if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
             return true
         }
@@ -246,7 +249,18 @@ struct BundledDeclarationIndex: Sendable {
         // List.filter is bundled as Kotlin source, but that implementation is
         // only valid for concrete List receivers. Keep the runtime bridge for
         // nominal Iterable<T> receivers, whose values may not expose List indexing.
-        interner.resolve(key.name) == "filter" && key.arity == 1
+        switch interner.resolve(key.name) {
+        case "filter":
+            return key.arity == 1
+        case "joinToString":
+            // List.joinToString is source-backed, but non-List Iterable receivers
+            // still need the runtime bridge. The bundled index aliases the List
+            // source key to Iterable, so treat this as an intentional retained
+            // overlap keyed only by arity (signatures differ by receiver type).
+            return key.arity == 3
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
@@ -256,6 +270,24 @@ struct BundledDeclarationIndex: Sendable {
         // KSP-441〜447: Sequence/Iterator パイプラインを Kotlin source 化するため、
         // Sequence 上の合成スタブは source 実装に委譲する。合成外部リンクは残留しない。
         return false
+    }
+
+    private static func isRuntimeBackedComparisonsSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // Bundled Comparators.kt provides compareBy(selector) and
+        // compareBy(comparator, selector), while the synthetic multi-selector
+        // overloads (2/3 selectors and vararg) remain runtime-backed bridges.
+        // The bundled index only tracks arity, so the multi-selector and vararg
+        // overloads collide with the source arities; mark them as intentional
+        // retained overloads.
+        switch interner.resolve(key.name) {
+        case "compareBy":
+            return key.arity == 1 || key.arity == 2 || key.arity == 3
+        default:
+            return false
+        }
     }
 
     private static func buildKeys(
@@ -493,18 +525,21 @@ struct BundledDeclarationIndex: Sendable {
 
         switch decl {
         case let .funDecl(funDecl):
-            guard let receiverTypeID = funDecl.receiverType,
-                  let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(
-                    for: receiverType,
-                    relativeTo: packageFQName,
-                    topLevelNominalNames: topLevelNominalNames,
-                    ast: ast,
-                    builtinNames: builtinNames,
-                    interner: interner
-                  )
-            else {
-                return
+            let ownerFQName: [InternedString]
+            if let receiverTypeID = funDecl.receiverType,
+               let receiverType = ast.arena.typeRef(receiverTypeID),
+               let receiverOwnerFQName = fqName(
+                   for: receiverType,
+                   relativeTo: packageFQName,
+                   topLevelNominalNames: topLevelNominalNames,
+                   ast: ast,
+                   builtinNames: builtinNames,
+                   interner: interner
+               )
+            {
+                ownerFQName = receiverOwnerFQName
+            } else {
+                ownerFQName = packageFQName
             }
             keys.insert(
                 BundledMemberKey(
@@ -515,18 +550,21 @@ struct BundledDeclarationIndex: Sendable {
             )
 
         case let .propertyDecl(propertyDecl):
-            guard let receiverTypeID = propertyDecl.receiverType,
-                  let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(
-                    for: receiverType,
-                    relativeTo: packageFQName,
-                    topLevelNominalNames: topLevelNominalNames,
-                    ast: ast,
-                    builtinNames: builtinNames,
-                    interner: interner
-                  )
-            else {
-                return
+            let ownerFQName: [InternedString]
+            if let receiverTypeID = propertyDecl.receiverType,
+               let receiverType = ast.arena.typeRef(receiverTypeID),
+               let receiverOwnerFQName = fqName(
+                   for: receiverType,
+                   relativeTo: packageFQName,
+                   topLevelNominalNames: topLevelNominalNames,
+                   ast: ast,
+                   builtinNames: builtinNames,
+                   interner: interner
+               )
+            {
+                ownerFQName = receiverOwnerFQName
+            } else {
+                ownerFQName = packageFQName
             }
             keys.insert(
                 BundledMemberKey(
@@ -715,6 +753,9 @@ struct BundledDeclarationIndex: Sendable {
             if path.count == 1, isBuiltinRootTypeName(first, builtinNames: builtinNames) {
                 return [interner.intern("kotlin"), first]
             }
+            if path.count == 1, let defaultPackage = defaultImportedPackage(for: first, interner: interner) {
+                return defaultPackage + [first]
+            }
             if path.count == 1 || topLevelNominalNames.contains(first) {
                 return packageFQName + path
             }
@@ -732,6 +773,40 @@ struct BundledDeclarationIndex: Sendable {
                 interner: interner
             )
         case .functionType, .intersection:
+            return nil
+        }
+    }
+
+    /// Returns the default-imported package for common stdlib class names
+    /// that appear as unqualified extension-function receivers in bundled
+    /// source (e.g. `Iterable` and `List` in kotlin.sequences, `Sequence` in
+    /// kotlin.collections).  This keeps the AST-built bundled index in sync
+    /// with `receiverOwnerFQName(for:symbols:types:interner:)`, which resolves
+    /// the same names once TypeIDs are available.
+    private static func defaultImportedPackage(
+        for name: InternedString,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let sequences = interner.intern("sequences")
+        let text = interner.intern("text")
+        switch interner.resolve(name) {
+        case "Iterable", "Collection", "List", "MutableList",
+             "Set", "MutableSet", "Map", "MutableMap",
+             "Iterator", "ListIterator", "MutableIterator",
+             "ArrayList", "LinkedHashSet", "HashSet", "LinkedHashMap", "HashMap",
+             "AbstractList", "AbstractSet", "AbstractMap", "AbstractCollection":
+            return [kotlin, collections]
+        case "Sequence":
+            return [kotlin, sequences]
+        case "CharSequence", "StringBuilder":
+            return [kotlin, text]
+        case "Comparable", "Comparator", "Pair", "Triple",
+             "Function", "Lazy", "Result", "Enum", "Throwable",
+             "Exception", "RuntimeException", "Error":
+            return [kotlin]
+        default:
             return nil
         }
     }

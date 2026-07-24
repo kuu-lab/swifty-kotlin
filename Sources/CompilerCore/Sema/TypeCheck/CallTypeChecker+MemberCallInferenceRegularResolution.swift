@@ -657,10 +657,17 @@ extension CallTypeChecker {
                         scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                             guard let symbol = sema.symbols.symbol(candidate),
                                   symbol.kind == .function,
-                                  symbol.flags.contains(.synthetic),
                                   let signature = sema.symbols.functionSignature(for: candidate),
                                   let recvType = signature.receiverType
                             else { return false }
+                            // Include bundled/user Kotlin source extensions, not only
+                            // synthetic stubs, so source-backed Sequence transforms
+                            // (map, filter, etc.) are visible as member-call candidates.
+                            let isSourceBackedExtension = symbol.declSite != nil
+                                && (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty
+                            guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                                return false
+                            }
                             // Exclude property accessor functions (getter/setter)
                             // whose parent is a property symbol.  Their short name
                             // is "get"/"set" and must not pollute member lookup.
@@ -889,9 +896,16 @@ extension CallTypeChecker {
         // variable bounds. Those overloads keep going through the synthetic
         // fallback and their require() bypass is tracked separately.
         let hasTrailingLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed"]
-        let hasSourceBackedCandidate = !hasTrailingLambdaArg
-            && sourceBackedCollectionMemberNames.contains(interner.resolve(calleeName))
+        // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
+        // (map, filter, etc.) must bind to the real Kotlin declaration so the
+        // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty"]
+        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "ifEmpty"]
+        let memberNameText = interner.resolve(calleeName)
+        let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
+            || sourceBackedTrailingLambdaMemberNames.contains(memberNameText)
+        let hasSourceBackedCandidate = isSourceBackedMemberName
+            && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 guard let symbol = sema.symbols.symbol(candidateID), symbol.declSite != nil else {
                     return false

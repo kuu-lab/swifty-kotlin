@@ -4,7 +4,7 @@ symbol fq=User.<init>.$0.name kind=valueParameter vis=private flags=_
 symbol fq=User.<init>.$0.nickname kind=valueParameter vis=private flags=_
 symbol fq=User.nickname kind=property vis=public flags=_ type=String?
 symbol fq=__local_0.users kind=local vis=private flags=_ type=kotlin.collections.List<out User>
-symbol fq=__local_1.byNickname kind=local vis=private flags=_ type=kotlin.collections.List<out User>
+symbol fq=__local_1.byNickname kind=local vis=private flags=_ type=kotlin.collections.List<User>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.listOf#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
 symbol fq=kotlin.collections.listOf.T kind=typeParameter vis=private flags=synthetic
@@ -30,7 +30,7 @@ expr e@5:22 name(users) type=kotlin.collections.List<out User> ref=__local_0.use
 expr e@5:41 name(it) type=User ref=s-0
 expr e@5:41#1 memberCall recv=e@5:41 callee=nickname args=[] type=String? ref=User.nickname
 expr e@5:39 lambda params=[] body=e@5:41#1 label=distinctBy type=(User) -> Any
-expr e@5:22#1 memberCall recv=e@5:22 callee=distinctBy args=[_:e@5:39] type=kotlin.collections.List<out User>
+expr e@5:22#1 memberCall recv=e@5:22 callee=distinctBy args=[_:e@5:39] type=kotlin.collections.List<User>
 expr e@5:5 localDecl byNickname mutable=0 type=_ init=e@5:22#1 type=Unit ref=__local_1.byNickname
-expr e@6:13 name(byNickname) type=kotlin.collections.List<out User> ref=__local_1.byNickname
+expr e@6:13 name(byNickname) type=kotlin.collections.List<User> ref=__local_1.byNickname
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println#1

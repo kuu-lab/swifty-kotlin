@@ -275,7 +275,9 @@ extension DataFlowSemaPhase {
         }
         // KSP-441〜447: source sequenceOf があれば合成スタブを登録しない。
         let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
-        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 1) {
+        if bundledIndex.contains(owner: packageFQName, name: functionName, arity: 1)
+            || bundledIndex.contains(owner: packageFQName, name: functionName, arity: 0)
+        {
             return
         }
         if symbols.lookup(fqName: functionFQName) != nil {

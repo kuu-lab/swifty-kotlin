@@ -25,6 +25,23 @@ extension CollectionVirtualCallRewriteLoweringPass {
         arrayExprIDs: Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+        // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
+        // Kotlin source declaration, route through normal function resolution so
+        // the source implementation runs instead of a `kk_*` runtime shortcut.
+        func isSourceBackedSequenceCall() -> Bool {
+            guard let symbol,
+                  let sema = context.sema,
+                  let semanticSymbol = sema.symbols.symbol(symbol),
+                  semanticSymbol.declSite != nil
+            else {
+                return false
+            }
+            return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        }
+        if isSourceBackedSequenceCall() {
+            return false
+        }
+
         // asSequence() → kk_list_asSequence only when receiver is a tracked list.
         // Array receivers are handled by rewriteArrayVirtualCall (guarded by arrayExprIDs).
         // Non-tracked receivers are now classified by static type via
@@ -78,22 +95,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        // STDLIB-pipeline §5: take(n) has real require(n >= 0) validation in
-        // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. Only take the direct
-        // kk_sequence_take shortcut when the resolved callee is NOT that
-        // source-backed declaration; otherwise fall through so the call
-        // routes through normal function resolution and the require() runs.
-        func isSourceBackedSequenceCall() -> Bool {
-            guard let symbol,
-                  let sema = context.sema,
-                  let semanticSymbol = sema.symbols.symbol(symbol),
-                  semanticSymbol.declSite != nil
-            else {
-                return false
-            }
-            return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
-        }
-        if callee == lookup.takeName, arguments.count == 1, !isSourceBackedSequenceCall() {
+        // take(n) uses the direct kk_sequence_take shortcut only when the source
+        // declaration is not available (checked above).
+        if callee == lookup.takeName, arguments.count == 1 {
             if sequenceExprIDs.contains(receiver.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,

@@ -959,7 +959,10 @@ extension DataFlowSemaPhase {
 
         let hasNextName = interner.intern("hasNext")
         let hasNextFQName = iteratorFQName + [hasNextName]
-        if symbols.lookup(fqName: hasNextFQName) == nil {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if symbols.lookup(fqName: hasNextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: hasNextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: hasNextName, fqName: hasNextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
@@ -983,7 +986,9 @@ extension DataFlowSemaPhase {
 
         let nextName = interner.intern("next")
         let nextFQName = iteratorFQName + [nextName]
-        if symbols.lookup(fqName: nextFQName) == nil {
+        if symbols.lookup(fqName: nextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: nextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: nextName, fqName: nextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]

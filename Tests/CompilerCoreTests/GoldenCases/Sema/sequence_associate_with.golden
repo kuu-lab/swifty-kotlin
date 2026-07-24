@@ -7,9 +7,6 @@ symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|op
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
-symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=testAssociateWithInts kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testAssociateWithStrings kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_associate_with package=_
@@ -18,7 +15,7 @@ file fsequence_associate_with package=_
 expr e@2:29 int(1) type=Int
 expr e@2:32 int(2) type=Int
 expr e@2:35 int(3) type=Int
-expr e@2:18 call callee=e@2:18#1 args=[_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@2:18 call callee=e@2:18#1 args=[_:e@2:29,_:e@2:32,_:e@2:35] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:54 name(it) type=Int ref=s-0
 expr e@2:59 name(it) type=Int ref=s-0
 expr e@2:54#1 binary(multiply) lhs=e@2:54 rhs=e@2:59 type=Int
@@ -40,7 +37,7 @@ expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.printl
 expr e@9:29 string(a) type=String
 expr e@9:34 string(bb) type=String
 expr e@9:40 string(ccc) type=String
-expr e@9:18 call callee=e@9:18#1 args=[_:e@9:29,_:e@9:34,_:e@9:40] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@9:18 call callee=e@9:18#1 args=[_:e@9:29,_:e@9:34,_:e@9:40] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@9:63 name(it) type=String ref=s-1
 expr e@9:63#1 memberCall recv=e@9:63 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@9:61 lambda params=[] body=e@9:63#1 label=associateWith type=(String) -> Any

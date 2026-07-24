@@ -1,5 +1,5 @@
-symbol fq=__local_0.s kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Int>
-symbol fq=__local_1.fm kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Any>
+symbol fq=__local_0.s kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
+symbol fq=__local_1.fm kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Int>
 symbol fq=__local_2.d kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Int>
 symbol fq=__local_3.u kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Int>
 symbol fq=__local_4.z kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out kotlin.Pair<Int, Int>>
@@ -10,48 +10,45 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
-symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_operations package=_
   decl main fun main sym=main
 expr e@2:24 int(1) type=Int
 expr e@2:27 int(2) type=Int
 expr e@2:30 int(3) type=Int
-expr e@2:13 call callee=e@2:13#1 args=[_:e@2:24,_:e@2:27,_:e@2:30] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@2:13 call callee=e@2:13#1 args=[_:e@2:24,_:e@2:27,_:e@2:30] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s
-expr e@3:5 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
+expr e@3:5 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@3:25 name(it) type=Int ref=s-0
 expr e@3:17 call callee=e@3:17#1 args=[_:e@3:25] type=Unit call=kotlin.io.println#1
 expr e@3:15 lambda params=[] body=e@3:17 label=forEach type=(Int) -> Unit
 expr e@3:5#1 memberCall recv=e@3:5 callee=forEach args=[_:e@3:15] type=Unit
-expr e@4:14 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
+expr e@4:14 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@4:37 name(it) type=Int ref=s-1
-expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@4:24 lambda params=[] body=e@4:26 label=flatMap type=(Int) -> Any
-expr e@4:14#1 memberCall recv=e@4:14 callee=flatMap args=[_:e@4:24] type=kotlin.sequences.Sequence<out Any>
+expr e@4:14#1 memberCall recv=e@4:14 callee=flatMap args=[_:e@4:24] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.flatMap targs=[Int,Int]
 expr e@4:5 localDecl fm mutable=0 type=_ init=e@4:14#1 type=Unit ref=__local_1.fm
-expr e@5:13 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
+expr e@5:13 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@5:20 int(1) type=Int
 expr e@5:13#1 memberCall recv=e@5:13 callee=drop args=[_:e@5:20] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.drop targs=[Int]
 expr e@5:5 localDecl d mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_2.d
-expr e@6:13 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
-expr e@6:13#1 memberCall recv=e@6:13 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int>
+expr e@6:13 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
+expr e@6:13#1 memberCall recv=e@6:13 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.distinct targs=[Int]
 expr e@6:5 localDecl u mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_3.u
-expr e@7:13 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
+expr e@7:13 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@7:30 int(4) type=Int
 expr e@7:33 int(5) type=Int
 expr e@7:36 int(6) type=Int
-expr e@7:19 call callee=e@7:19#1 args=[_:e@7:30,_:e@7:33,_:e@7:36] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e@7:13#1 memberCall recv=e@7:13 callee=zip args=[_:e@7:19] type=kotlin.sequences.Sequence<out kotlin.Pair<Int, Int>>
+expr e@7:19 call callee=e@7:19#1 args=[_:e@7:30,_:e@7:33,_:e@7:36] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@7:13#1 memberCall recv=e@7:13 callee=zip args=[_:e@7:19] type=kotlin.sequences.Sequence<out kotlin.Pair<Int, Int>> call=kotlin.sequences.zip#0 targs=[Int,Int]
 expr e@7:5 localDecl z mutable=0 type=_ init=e@7:13#1 type=Unit ref=__local_4.z
 expr e@8:30 int(1) type=Int
 expr e@8:35 name(it) type=Int ref=s-2
 expr e@8:40 int(1) type=Int
 expr e@8:35#1 binary(add) lhs=e@8:35 rhs=e@8:40 type=Int
 expr e@8:33 lambda params=[] body=e@8:35#1 label=generateSequence type=(Int) -> Int?
-expr e@8:13 call callee=e@8:13#1 args=[_:e@8:30,_:e@8:33] type=kotlin.sequences.Sequence<out Int>
+expr e@8:13 call callee=e@8:13#1 args=[_:e@8:30,_:e@8:33] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.generateSequence#1 targs=[Int]
 expr e@8:5 localDecl g mutable=0 type=_ init=e@8:13 type=Unit ref=__local_5.g
 expr e@9:13 name(g) type=kotlin.sequences.Sequence<out Int> ref=__local_5.g
 expr e@9:20 int(3) type=Int

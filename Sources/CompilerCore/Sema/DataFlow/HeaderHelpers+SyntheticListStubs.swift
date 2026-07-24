@@ -82,7 +82,8 @@ extension DataFlowSemaPhase {
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex
         )
         registerListContentEqualsMember(
             symbols: symbols, types: types, interner: interner,
@@ -1134,7 +1135,8 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let memberName = interner.intern("joinToString")
         let memberFQName = listFQName + [memberName]
@@ -1145,6 +1147,14 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
+
+        let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
+            ("separator", types.stringType, true),
+            ("prefix", types.stringType, true),
+            ("postfix", types.stringType, true),
+        ]
+        guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: parameters.count) else { return }
+
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
@@ -1155,12 +1165,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
         symbols.setExternalLinkName("kk_list_joinToString", for: memberSymbol)
-
-        let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
-            ("separator", types.stringType, true),
-            ("prefix", types.stringType, true),
-            ("postfix", types.stringType, true),
-        ]
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
         var parameterDefaults: [Bool] = []
@@ -1206,6 +1210,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         func registerTransformOverload(_ parameterTypes: [TypeID]) {
+            guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: parameterTypes.count) else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,

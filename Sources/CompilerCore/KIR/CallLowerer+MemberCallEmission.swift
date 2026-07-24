@@ -1053,7 +1053,7 @@ extension CallLowerer {
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
-               result: result, sema: sema, interner: interner
+               result: result, sema: sema, arena: arena, interner: interner
            )
         {
             instructions.append(inst)

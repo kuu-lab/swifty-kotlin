@@ -60,18 +60,18 @@ final class ControlFlowLowerer {
             isClassMember = false
         }
         let virtualArguments: [KIRExprID] = isClassMember ? [] : [receiverID]
-        if let receiverExpr,
-           let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-               chosenCallee: callBinding.chosenCallee,
-               calleeName: calleeName,
-               receiverExpr: receiverExpr,
-               loweredReceiverID: receiverID,
-               isSuperCall: false,
-               finalArguments: virtualArguments,
-               result: result,
-               sema: sema,
-               interner: interner
-           ) {
+        if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+            chosenCallee: callBinding.chosenCallee,
+            calleeName: calleeName,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: receiverID,
+            isSuperCall: false,
+            finalArguments: virtualArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
             instructions.append(virtualInstruction)
         } else {
             instructions.append(.call(
@@ -660,11 +660,12 @@ final class ControlFlowLowerer {
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
         // Only resolve for user-defined class types, not primitives or built-in ranges.
-        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              !classSymbol.flags.contains(.synthetic)
-        else {
+        guard resolveClassTypeSymbol(nonNullType, sema: sema) != nil else {
             return nil
         }
+        // KSP-441: Object-expression Sequence/Iterator pipelines are synthetic classes,
+        // so the synthetic guard is removed. Range-like types still fall through to the
+        // dedicated range intrinsics when they have no operator iterator() candidate.
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")

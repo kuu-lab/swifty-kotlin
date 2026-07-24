@@ -7,15 +7,12 @@ symbol fq=kotlin.collections.listOf.elements kind=valueParameter vis=private fla
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
-symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsequence_flat_map_indexed package=_
   decl main fun main sym=main
 expr e@2:37 string(a) type=String
 expr e@2:42 string(bc) type=String
-expr e@2:26 call callee=e@2:26#1 args=[_:e@2:37,_:e@2:42] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@2:26 call callee=e@2:26#1 args=[_:e@2:37,_:e@2:42] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@3:50 name(index) type=Int ref=s-0
 expr e@3:50#1 memberCall recv=e@3:50 callee=toString args=[] type=String
 expr e@3:69 string(:) type=String
@@ -31,11 +28,11 @@ expr e@2:26#2 memberCall recv=e@2:26 callee=flatMapIndexed args=[_:e@3:25] type=
 expr e@2:5 localDecl iterableResult mutable=0 type=_ init=e@2:26#2 type=Unit ref=__local_0.iterableResult
 expr e@4:37 string(x) type=String
 expr e@4:42 string(yz) type=String
-expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37,_:e@4:42] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@4:26 call callee=e@4:26#1 args=[_:e@4:37,_:e@4:42] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@5:54 name(index) type=Int ref=s-2
 expr e@5:54#1 memberCall recv=e@5:54 callee=toString args=[] type=String
 expr e@5:72 name(value) type=String ref=s-3
-expr e@5:43 call callee=e@5:43#1 args=[_:e@5:54#1,_:e@5:72] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@5:43 call callee=e@5:43#1 args=[_:e@5:54#1,_:e@5:72] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@5:25 lambda params=[index,value] body=e@5:43 label=flatMapIndexed type=(Int, String) -> Any
 expr e@4:26#2 memberCall recv=e@4:26 callee=flatMapIndexed args=[_:e@5:25] type=kotlin.sequences.Sequence<out String>
 expr e@4:5 localDecl sequenceResult mutable=0 type=_ init=e@4:26#2 type=Unit ref=__local_1.sequenceResult
