@@ -46,13 +46,6 @@ public func kk_long_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     }
 }
 
-@_cdecl("kk_long_range_isEmpty")
-public func kk_long_range_isEmpty(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_isEmpty") { range in
-        RuntimeSignedRangeHOFKind.isEmpty(range) ? 1 : 0
-    }
-}
-
 @_cdecl("kk_long_range_iterator")
 public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
