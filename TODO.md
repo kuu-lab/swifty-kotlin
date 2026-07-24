@@ -803,7 +803,29 @@
 - [ ] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`）
 - [ ] CLEANUP-STUB-101: 監査で確定したデッドコードを一括削除する（`kk_math_round_mode` 系15（Sema 登録ゼロ・到達不能）/ `kotlin.experimental` Int 版登録一式（汎用特例が先に解決）/ `kk_check_not_null(_lazy)`/`kk_require_not_null(_lazy)` 4 / CLEANUP-STUB-084 取り残しの `registerSyntheticJvmAnnotationClass`・`registerSyntheticBooleanAnnotationPropertyAndConstructor` 2関数 / `kk_sequence_of_single` の生死判定。※`kk_system_measureTime*` 3 と `CallLowerer+CollectionStdlibMemberCalls.swift` は KSP-617/620 と重複するため先行した方で実施）
 - [ ] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除）
-- [ ] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを再起票する（CLEANUP-STUB 個別リスト消失で追跡ゼロだったもの: BigInteger / Concurrency / Dynamic / FileIO / FileTreeWalk / FileWalkDirection / FilesUtility / JsFunction / LocaleConstructor / NativeFunctionAnnotation / OnErrorAction / PathStubs 本体+分割3 / PlatformObjectHelpers / ReadWriteLock / Serialization / Test / URI / URL。本タスクで対象表を確定し、以後1ファイル=1タスク（CLEANUP-STUB-104〜）で消化する）
+- [~] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを再起票する — PR 作成中
+  - 対象表を確定し、以後 1 ファイル = 1 タスク（CLEANUP-STUB-104〜124）で消化する。
+  - 104: `HeaderHelpers+SyntheticBigIntegerStubs.swift`
+  - 105: `HeaderHelpers+SyntheticConcurrencyStubs.swift`
+  - 106: `HeaderHelpers+SyntheticDynamicStubs.swift`（CLEANUP-STUB-070/071 で既に削除済み — タスククローズのみ）
+  - 107: `HeaderHelpers+SyntheticFileIOStubs.swift`
+  - 108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift`
+  - 109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift`
+  - 110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift`
+  - 111: `HeaderHelpers+SyntheticJsFunctionStubs.swift`
+  - 112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift`
+  - 113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`
+  - 114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift`
+  - 115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）
+  - 116: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`
+  - 117: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`
+  - 118: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`
+  - 119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift`
+  - 120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift`
+  - 121: `HeaderHelpers+SyntheticSerializationStubs.swift`
+  - 122: `HeaderHelpers+SyntheticTestStubs.swift`
+  - 123: `HeaderHelpers+SyntheticURIStubs.swift`
+  - 124: `HeaderHelpers+SyntheticURLStubs.swift`
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
