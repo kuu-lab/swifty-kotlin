@@ -789,7 +789,11 @@
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
 
-- [ ] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する（`HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` の約59%: Legacy AtomicInt/AtomicLong/AtomicNativePtr, FreezableAtomicReference 公開層, kotlin.native.concurrent.AtomicReference, MutableData, DetachedObjectGraph, WorkerBoundReference, atomicLazy, ObsoleteWorkersApi 系 3, ensureNeverFrozen, freeze/isFrozen 公開層。内部 `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留）
+- [~] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する — PR 作成中
+  - 対象: `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` から Legacy AtomicInt/AtomicLong/AtomicNativePtr, FreezableAtomicReference 公開層, kotlin.native.concurrent.AtomicReference, MutableData, DetachedObjectGraph, WorkerBoundReference, atomicLazy, ObsoleteWorkersApi 系 3 (`waitForMultipleFutures`/`waitWorkerTermination`/`withWorker`), ensureNeverFrozen, freeze/isFrozen 公開層を削除
+  - 残留: `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留
+  - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小
+  - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `--filter NativeConcurrent` / `--filter RuntimeABIExternalLinkValidationTests` pass。`bash Scripts/validate_runtime_abi_links.sh` pass
 - [ ] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する（`HeaderHelpers+SyntheticNativeDataStubs.swift` の約69%: BitSet（`@ObsoleteNativeApi`+未実装・325行）/ ImmutableBlob（ERROR-deprecated+未実装・169行）/ Vector128+vectorOf（同・74行））
 - [ ] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`）
 - [ ] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する（ExperimentalJsCollectionsApi/ExperimentalJsExport/ExperimentalJsReflectionCreateInstance/ExperimentalJsStatic/ExperimentalWasmJsInterop + ExperimentalWasmInterop — `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` 内）
