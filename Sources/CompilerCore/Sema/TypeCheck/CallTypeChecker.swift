@@ -2085,11 +2085,14 @@ final class CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
-            if candidates.isEmpty, let local = locals[calleeName] {
-                if let sym = ctx.cachedSymbol(local.symbol), sym.kind == .function {
-                    candidates = [local.symbol]
-                    resolvedFromLocalShadow = true
-                }
+            if let local = locals[calleeName],
+               let sym = ctx.cachedSymbol(local.symbol),
+               sym.kind == .function
+            {
+                // Local function declarations shadow imported and top-level functions
+                // of the same name, so use the local symbol as the sole candidate.
+                candidates = [local.symbol]
+                resolvedFromLocalShadow = true
             }
             // KSP-CAP-006: a class/enum/annotation-class/object may coexist
             // with a top-level function of the same name (e.g. `class Random`

@@ -231,8 +231,7 @@ enum MemberRuntimeDispatch {
         case "contains":
             if kind.isULongRangeLike { return "kk_ulong_range_contains" }
             if kind.isUIntRangeLike { return "kk_uint_range_contains" }
-            if kind.isLongRangeLike { return "kk_long_range_contains" }
-            return "kk_op_contains"
+            return "kk_range_contains"
         case "isEmpty":
             return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
@@ -241,7 +240,7 @@ enum MemberRuntimeDispatch {
             if kind.isUIntRangeLike { return "kk_uint_range_sum" }
             return "kk_range_sum"
         case "count":
-            return rangeRuntimeName(kind: kind, member: "count", longMember: "count")
+            return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
             return rangeRuntimeName(
                 kind: kind,
@@ -327,7 +326,7 @@ enum MemberRuntimeDispatch {
         case "sorted":
             return rangeRuntimeName(kind: kind, member: "sorted", longMember: "sorted", charMember: "sorted")
         case "reversed":
-            return rangeRuntimeName(kind: kind, member: "reversed", longMember: "reversed")
+            return rangeRuntimeName(kind: kind, member: "reversed")
         case "step":
             if key.arity == 0 {
                 return rangeRuntimeName(

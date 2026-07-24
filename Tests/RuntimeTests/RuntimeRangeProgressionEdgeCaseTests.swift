@@ -295,33 +295,33 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testLongRange_singleElement() {
         let r = kk_long_rangeTo(42, 42)
         XCTAssertFalse(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: r)!))
-        XCTAssertEqual(kk_long_range_contains(r, 42), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 41), 0)
+        XCTAssertEqual(kk_range_contains(r, 42), 1)
+        XCTAssertEqual(kk_range_contains(r, 41), 0)
     }
 
     func testLongRange_containsBothEnds() {
         let r = kk_long_rangeTo(1, 10)
-        XCTAssertEqual(kk_long_range_contains(r, 1), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 10), 1)
-        XCTAssertEqual(kk_long_range_contains(r, 0), 0)
-        XCTAssertEqual(kk_long_range_contains(r, 11), 0)
+        XCTAssertEqual(kk_range_contains(r, 1), 1)
+        XCTAssertEqual(kk_range_contains(r, 10), 1)
+        XCTAssertEqual(kk_range_contains(r, 0), 0)
+        XCTAssertEqual(kk_range_contains(r, 11), 0)
     }
 
     func testLongRange_step2ContainsOnlyEvenFromFirst() {
         // (1..10 step 2) -> 1,3,5,7,9; step-reachable from 1
         let p = kk_long_progression_fromClosedRange(0, 1, 10, 2, nil)
-        XCTAssertEqual(kk_long_range_contains(p, 1), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 3), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 9), 1)
-        XCTAssertEqual(kk_long_range_contains(p, 2), 0)
-        XCTAssertEqual(kk_long_range_contains(p, 10), 0, "10 is not reachable from 1 with step 2")
+        XCTAssertEqual(kk_range_contains(p, 1), 1)
+        XCTAssertEqual(kk_range_contains(p, 3), 1)
+        XCTAssertEqual(kk_range_contains(p, 9), 1)
+        XCTAssertEqual(kk_range_contains(p, 2), 0)
+        XCTAssertEqual(kk_range_contains(p, 10), 0, "10 is not reachable from 1 with step 2")
     }
 
     func testLongRange_reversed() {
         let r = kk_long_rangeTo(1, 5)
-        let rev = kk_long_range_reversed(r)
-        XCTAssertEqual(kk_long_range_first(rev), 5)
-        XCTAssertEqual(kk_long_range_last(rev), 1)
+        let rev = kk_range_reversed(r)
+        XCTAssertEqual(kk_range_first(rev), 5)
+        XCTAssertEqual(kk_range_last(rev), 1)
     }
 
     func testLongProgressionFromClosedRange_negativeStep() {
