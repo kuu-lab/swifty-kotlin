@@ -1921,12 +1921,18 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("asSequence")
         let memberFQName = listFQName + [memberName]
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        // KSP-441〜447: Iterable.asSequence / List.asSequence source 化時は合成スタブを登録しない。
+        let iterableFQName = Array(listFQName.dropLast()) + [interner.intern("Iterable")]
+        guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: 0)
+            && !bundledIndex.contains(owner: iterableFQName, name: memberName, arity: 0)
+        else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.out(listTypeParamType)],

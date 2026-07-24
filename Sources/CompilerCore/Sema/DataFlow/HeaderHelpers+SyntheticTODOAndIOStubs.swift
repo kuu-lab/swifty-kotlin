@@ -1138,6 +1138,10 @@ extension DataFlowSemaPhase {
                 && signature.parameterTypes == requestedParameterTypes
                 && signature.returnType == returnType
         }) {
+            // KSP-441〜447: source Sequence 関数が存在すれば、合成外部リンクで上書きしない。
+            if symbols.symbol(existing)?.declSite != nil {
+                return
+            }
             symbols.setExternalLinkName(resolvedExternalLinkName, for: existing)
             return
         }

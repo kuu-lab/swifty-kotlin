@@ -253,33 +253,9 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // Sequence aggregate HOFs are bundled as migration targets, but call sites
-        // still route through kk_sequence_* ABI stubs until RF-STDLIB wiring
-        // removes the compatibility bridge.
-        switch interner.resolve(key.name) {
-        case "map", "mapIndexed", "mapNotNull", "mapIndexedNotNull",
-             "filter", "filterNot", "filterIndexed",
-             "flatMap", "flatMapIndexed",
-             "onEach", "onEachIndexed":
-            return key.arity == 1
-        case "fold", "scan":
-            return key.arity == 2
-        case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
-            return key.arity == 1
-        case "filterNotNull", "filterIsInstance", "requireNoNulls", "withIndex":
-            return key.arity == 0
-        case "toList", "toSet", "toMutableList":
-            // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
-            // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
-            // dispatches Sequence.toList/toSet/toMutableList to the kk_sequence_*
-            // ABI stubs (see CollectionLiteralLoweringPass+CallRewriteSequenceTerminals
-            // and CallLowerer+ReceiverTypePredicates.toMutableListRuntimeCalleeFor...).
-            // Retain the synthetic stub's externalLinkName so Sema-level symbol
-            // lookups stay consistent with that lowering path.
-            return key.arity == 0
-        default:
-            return false
-        }
+        // KSP-441〜447: Sequence/Iterator パイプラインを Kotlin source 化するため、
+        // Sequence 上の合成スタブは source 実装に委譲する。合成外部リンクは残留しない。
+        return false
     }
 
     private static func buildKeys(

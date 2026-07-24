@@ -41,6 +41,13 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
+        // KSP-441〜447: asSequence は source 化済み。runtime rewrite せず元の仮想呼び出しを残す。
+        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
+        if isSourceBacked {
+            loweredBody.append(instruction)
+            return true
+        }
+
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
@@ -51,7 +58,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         } else if state.listExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
@@ -62,15 +68,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         } else {
-            // Receiver is not a tracked list/array literal — skip
-            // the rewrite and let virtual-call rewrite or the
-            // original symbol linkage handle it. Still mark the
-            // result as a sequence so downstream map/filter/take
-            // rewrites fire correctly for chained calls.
-            if let result { state.sequenceExprIDs.insert(result.rawValue) }
+            loweredBody.append(instruction)
+            return true
         }
     }
 

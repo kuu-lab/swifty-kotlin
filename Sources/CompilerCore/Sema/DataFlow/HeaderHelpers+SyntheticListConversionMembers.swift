@@ -9,7 +9,8 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         listInterfaceSymbol: SymbolID,
         mapInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         guard let listTypeParamSymbol = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
@@ -80,7 +81,8 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex
         )
         registerListToGenericArrayMember(
             symbols: symbols, types: types, interner: interner,

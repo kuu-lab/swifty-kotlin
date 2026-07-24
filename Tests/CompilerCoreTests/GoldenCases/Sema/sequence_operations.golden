@@ -9,9 +9,7 @@ symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
+symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
@@ -58,5 +56,5 @@ expr e@8:5 localDecl g mutable=0 type=_ init=e@8:13 type=Unit ref=__local_5.g
 expr e@9:13 name(g) type=kotlin.sequences.Sequence<out Int> ref=__local_5.g
 expr e@9:20 int(3) type=Int
 expr e@9:13#1 memberCall recv=e@9:13 callee=take args=[_:e@9:20] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.take targs=[Int]
-expr e@9:13#2 memberCall recv=e@9:13#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
+expr e@9:13#2 memberCall recv=e@9:13#1 callee=toList args=[] type=kotlin.collections.List<Int>
 expr e@9:5 localDecl r mutable=0 type=_ init=e@9:13#2 type=Unit ref=__local_6.r

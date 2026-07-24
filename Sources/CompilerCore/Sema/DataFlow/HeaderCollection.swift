@@ -933,7 +933,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {
-        guard kind == .class else { return nil }
+        guard kind == .class || kind == .interface else { return nil }
         guard reusableSyntheticSourceDeclarationKey(for: file, sourceManager: sourceManager, interner: interner) == fqName else {
             return nil
         }
@@ -965,6 +965,8 @@ extension DataFlowSemaPhase {
             return ["java", "util", "Random"].map { interner.intern($0) }
         case "__bundled_kotlin/text/StringEncoding.kt":
             return ["kotlin", "text", "Charset"].map { interner.intern($0) }
+        case "__bundled_kotlin/sequences/Sequence.kt":
+            return ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }
         default:
             return nil
         }

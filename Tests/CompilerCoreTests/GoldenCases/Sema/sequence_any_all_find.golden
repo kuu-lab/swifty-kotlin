@@ -8,7 +8,10 @@ symbol fq=__local_6.firstEven kind=local vis=private flags=_ type=Int?
 symbol fq=__local_7.lastEven kind=local vis=private flags=_ type=Int?
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
+symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
+symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.sequences.Sequence.findLast kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[(kotlin.sequences.Sequence.T) -> Boolean] ret=kotlin.sequences.Sequence.T?
+symbol fq=kotlin.sequences.Sequence.findLast.predicate kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
@@ -67,7 +70,7 @@ expr e@23:39#1 binary(modulo) lhs=e@23:39 rhs=e@23:44 type=Int
 expr e@23:49 int(0) type=Int
 expr e@23:39#2 binary(equal) lhs=e@23:39#1 rhs=e@23:49 type=Boolean
 expr e@23:37 lambda params=[] body=e@23:39#2 label=findLast type=(Int) -> Boolean
-expr e@23:26#1 memberCall recv=e@23:26 callee=findLast args=[_:e@23:37] type=<error>
+expr e@23:26#1 memberCall recv=e@23:26 callee=findLast args=[_:e@23:37] type=Int? call=kotlin.sequences.Sequence.findLast targs=[Int]
 expr e@23:5 localDecl lastEven mutable=0 type=Int? init=e@23:26#1 type=Unit ref=__local_7.lastEven
 expr e@25:13 name(hasAny) type=Boolean ref=__local_1.hasAny
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13] type=Unit call=kotlin.io.println#1

@@ -8,7 +8,7 @@ symbol fq=kotlin.collections.mutableListOf#0 kind=function vis=public flags=synt
 symbol fq=kotlin.collections.mutableListOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
+symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
