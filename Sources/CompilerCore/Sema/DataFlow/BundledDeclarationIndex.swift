@@ -276,14 +276,11 @@ struct BundledDeclarationIndex: Sendable {
         // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
-        case "map", "mapIndexed", "mapNotNull", "flatMap":
-            return key.arity == 1
-        case "flatten":
-            return key.arity == 0
+        // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
+        // KSP-423 source-backed search/predicate HOFs (find, indexOf, contains,
+        // any, all, none, count) are also source-bound.
         case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
             return key.arity == 0 || key.arity == 1
-        case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
-            return key.arity == 1
         case "reversed", "sorted":
             return key.arity == 0
         case "shuffled":
@@ -299,10 +296,18 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter is bundled as Kotlin source, but that implementation is
-        // only valid for concrete List receivers. Keep the runtime bridge for
-        // nominal Iterable<T> receivers, whose values may not expose List indexing.
-        interner.resolve(key.name) == "filter" && key.arity == 1
+        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
+        // implementations are only valid for concrete List receivers. Keep the
+        // runtime bridge for nominal Iterable<T> receivers until Iterable has
+        // its own Kotlin source (KSP-435).
+        switch interner.resolve(key.name) {
+        case "filter",
+             "reduce", "reduceIndexed",
+             "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull":
+            return key.arity == 1
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
@@ -557,9 +562,24 @@ struct BundledDeclarationIndex: Sendable {
         let collections = interner.intern("collections")
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
+        // Aliasing List member implementations to Iterable suppresses synthetic
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // require a concrete Collection with a size/indices contract; they cannot
+        // be served by the List source for an Iterable receiver.
+        let nonAliasedZeroArgNames = Set([
+            interner.intern("any"),
+            interner.intern("none"),
+            interner.intern("count"),
+            interner.intern("first"),
+            interner.intern("last"),
+            interner.intern("single"),
+        ])
 
         let listKeys = keys.filter { $0.ownerFQName == listOwnerFQName }
         for key in listKeys {
+            if key.arity == 0, nonAliasedZeroArgNames.contains(key.name) {
+                continue
+            }
             keys.insert(
                 BundledMemberKey(
                     ownerFQName: iterableOwnerFQName,

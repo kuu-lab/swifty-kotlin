@@ -570,68 +570,6 @@ extension DataFlowSemaPhase {
         // singleOrNull no-predicate (STDLIB-211)
         registerSimpleMember(name: "singleOrNull", returnType: nullableElementType, externalLinkName: "kk_list_singleOrNull")
 
-        // indexOf / lastIndexOf (non-HOF, element argument)
-        let indexOfName = interner.intern("indexOf")
-        let indexOfFQName = listFQName + [indexOfName]
-        if let types = BundledSyntheticStubRegistration.types,
-           !BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: listFQName,
-               receiverType: receiverType,
-               name: indexOfName,
-               arity: 1,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           ),
-           symbols.lookup(fqName: indexOfFQName) == nil
-        {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfName,
-                fqName: indexOfFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOf", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        let lastIndexOfName = interner.intern("lastIndexOf")
-        let lastIndexOfFQName = listFQName + [lastIndexOfName]
-        if symbols.lookup(fqName: lastIndexOfFQName) == nil {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: lastIndexOfName,
-                fqName: lastIndexOfFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_lastIndexOf", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
         // STDLIB-214: binarySearch(element) — non-HOF, element argument
         let binarySearchName = interner.intern("binarySearch")
         let binarySearchFQName = listFQName + [binarySearchName]
@@ -874,85 +812,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // indexOfFirst / indexOfLast (HOF, predicate lambda)
         let predicateType = types.make(.functionType(FunctionType(
             params: [listTypeParamType],
             returnType: types.booleanType,
             isSuspend: false,
             nullability: .nonNull
         )))
-
-        let indexOfFirstName = interner.intern("indexOfFirst")
-        let indexOfFirstFQName = listFQName + [indexOfFirstName]
-        if let types = BundledSyntheticStubRegistration.types,
-           !BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: listFQName,
-               receiverType: receiverType,
-               name: indexOfFirstName,
-               arity: 1,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           ),
-           symbols.lookup(fqName: indexOfFirstFQName) == nil
-        {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfFirstName,
-                fqName: indexOfFirstFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOfFirst", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [predicateType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        let indexOfLastName = interner.intern("indexOfLast")
-        let indexOfLastFQName = listFQName + [indexOfLastName]
-        if let types = BundledSyntheticStubRegistration.types,
-           !BundledSyntheticStubRegistration.shouldSkipRegistration(
-               declaredOwnerFQName: listFQName,
-               receiverType: receiverType,
-               name: indexOfLastName,
-               arity: 1,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           ),
-           symbols.lookup(fqName: indexOfLastFQName) == nil
-        {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfLastName,
-                fqName: indexOfLastFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOfLast", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [predicateType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
 
         // takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
         for (funcName, linkName, canThrow) in [

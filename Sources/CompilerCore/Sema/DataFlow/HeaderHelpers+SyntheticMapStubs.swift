@@ -69,7 +69,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(mapSymbol, for: getSymbol)
-            symbols.setExternalLinkName("kk_map_get", for: getSymbol)
+            symbols.setExternalLinkName("__kk_map_get", for: getSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,

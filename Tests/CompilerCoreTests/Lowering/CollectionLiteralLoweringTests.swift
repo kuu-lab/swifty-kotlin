@@ -1309,8 +1309,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
         #expect(
-            callees.contains("kk_list_size"),
-            "virtualCall(size) on List-typed parameter should be rewritten to kk_list_size, got: \(callees)"
+            callees.contains("__kk_list_size"),
+            "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1340,8 +1340,8 @@ struct CollectionLiteralLoweringTests {
             fqNameComponents: ["com", "example", "List"]
         )
         #expect(
-            !callees.contains("kk_list_size"),
-            "virtualCall(size) on user-defined List must not be rewritten to kk_list_size, got: \(callees)"
+            !callees.contains("__kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
@@ -1452,13 +1452,13 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListContains() throws {
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListContains() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_contains"),
-            "virtualCall(contains) on List-typed parameter should be rewritten to kk_list_contains, got: \(callees)"
+            !callees.contains("kk_list_contains"),
+            "virtualCall(contains) on List-typed parameter should not be rewritten to deleted kk_list_contains, got: \(callees)"
         )
     }
 
@@ -1519,13 +1519,13 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testVirtualCallOnListTypedParameterRewritesToKkListIndexOf() throws {
+    func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListIndexOf() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
         #expect(
-            callees.contains("kk_list_indexOf"),
-            "virtualCall(indexOf) on List-typed parameter should be rewritten to kk_list_indexOf, got: \(callees)"
+            !callees.contains("kk_list_indexOf"),
+            "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
         )
     }
 
