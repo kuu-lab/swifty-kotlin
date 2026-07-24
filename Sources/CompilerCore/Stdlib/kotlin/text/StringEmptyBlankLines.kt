@@ -59,15 +59,11 @@ public fun String?.orEmpty(): String {
     return this ?: ""
 }
 
-public fun String.lines(): List<String> {
-    return this.__kk_string_lines()
-}
-
-public fun CharSequence.lines(): List<String> {
-    val source = ksp401StringFromCharSequence(this).replace("\r\n", "\n").replace("\r", "\n")
+private fun ksp401Lines(source: String): List<String> {
     val result = mutableListOf<String>()
+    if (source.length == 0) return result
     var start = 0
-    while (start <= source.length) {
+    while (true) {
         val index = source.indexOf("\n", start)
         if (index == -1) {
             result.add(source.substring(start))
@@ -76,7 +72,14 @@ public fun CharSequence.lines(): List<String> {
         result.add(source.substring(start, index))
         start = index + 1
     }
-    return result
+}
+
+public fun String.lines(): List<String> {
+    return ksp401Lines(this.replace("\r\n", "\n").replace("\r", "\n"))
+}
+
+public fun CharSequence.lines(): List<String> {
+    return ksp401Lines(ksp401StringFromCharSequence(this).replace("\r\n", "\n").replace("\r", "\n"))
 }
 
 public fun String.lineSequence(): Sequence<String> {
