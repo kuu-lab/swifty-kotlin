@@ -102,23 +102,11 @@ final class ControlFlowLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // CORO-075: Detect Channel iterables and route to channel-specific
-        // iterator functions that perform blocking-suspend receive internally.
+        // KSP-678: `for (v in channel)` lowers through the bundled Kotlin
+        // `Channel<T>.iterator()` operator (Channels.kt) via the custom-iterator
+        // path below, the same way ranges do, instead of a channel-specific
+        // structural lowering.
         let iterableType = sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType
-        if isChannelType(iterableType, sema: sema, interner: interner) {
-            return lowerChannelForExpr(
-                exprID,
-                iterableExpr: iterableExpr,
-                bodyExpr: bodyExpr,
-                label: label,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-        }
         if let loopBinding = sema.bindings.loopIterationBinding(for: exprID) {
             return lowerCustomForExpr(
                 exprID,
@@ -542,105 +530,6 @@ final class ControlFlowLowerer {
         return unit
     }
 
-    // MARK: - Channel For-Loop (CORO-075)
-
-    /// Lower a `for (value in channel)` loop using the channel iterator
-    /// protocol: `kk_channel_iterator` / `kk_channel_iterator_hasNext` /
-    /// `kk_channel_iterator_next`.
-    private func lowerChannelForExpr(
-        _ exprID: ExprID,
-        iterableExpr: ExprID,
-        bodyExpr: ExprID,
-        label: InternedString?,
-        ast: ASTModule,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
-    ) -> KIRExprID {
-        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-        // Lower the channel expression.
-        let channelID = driver.lowerExpr(
-            iterableExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-        // Create the channel iterator.
-        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_channel_iterator"),
-            arguments: [channelID],
-            result: iteratorID,
-            canThrow: false,
-            thrownResult: nil
-        ))
-
-        let continueLabel = driver.ctx.makeLoopLabel()
-        let breakLabel = driver.ctx.makeLoopLabel()
-        instructions.append(.label(continueLabel))
-
-        // Call hasNext (blocks until value or close).
-        let hasNextID = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_channel_iterator_hasNext"),
-            arguments: [iteratorID],
-            result: hasNextID,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
-        instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
-
-        let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
-        let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
-        let nextValueID = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_channel_iterator_next"),
-            arguments: [iteratorID],
-            result: nextValueID,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        if let loopVariableSymbol {
-            driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
-        }
-
-        driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
-        _ = driver.lowerExpr(
-            bodyExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-        _ = driver.ctx.popLoopControl()
-        instructions.append(.jump(continueLabel))
-        instructions.append(.label(breakLabel))
-
-        if let loopVariableSymbol {
-            if let previousLoopValue {
-                driver.ctx.setLocalValue(previousLoopValue, for: loopVariableSymbol)
-            } else {
-                driver.ctx.clearLocalValue(for: loopVariableSymbol)
-            }
-        }
-
-        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
-        instructions.append(.constValue(result: unit, value: .unit))
-        return unit
-    }
-
     // MARK: - Custom Iterator Resolution (STDLIB-OP-032)
 
     /// Resolved custom iterator operator chain: iterator(), hasNext(), next().
@@ -672,32 +561,38 @@ final class ControlFlowLowerer {
         }
     }
 
-    /// Looks for a non-synthetic bundled `operator fun <Range>.iterator()` extension
-    /// declared in the same package as the range class. This is how KSP-312's
-    /// `RangeIterators.kt` functions are discovered for `for-in` lowering.
-    private func resolveBundledIteratorCandidate(
-        classSymbol: SemanticSymbol,
-        iterableType: TypeID,
+    /// Looks for a non-synthetic bundled `operator fun Receiver.<name>()` extension
+    /// (no value parameters) declared in the same package as the receiver's class.
+    /// This is how KSP-312's `RangeIterators.kt` and KSP-678's `Channels.kt`
+    /// iterator-layer operators are discovered for `for-in` lowering, since
+    /// extension operators are not found through class-hierarchy member lookup.
+    private func resolveBundledOperatorExtension(
+        named name: InternedString,
+        receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
-        guard classSymbol.fqName.count >= 2 else {
+        guard let (_, classSymbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType),
+            sema: sema
+        ),
+              classSymbol.fqName.count >= 2
+        else {
             return nil
         }
         let packageFQName = classSymbol.fqName.dropLast()
-        let iteratorName = interner.intern("iterator")
-        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [iteratorName]) {
+        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [name]) {
             guard let candidateSymbol = sema.symbols.symbol(candidate),
                   candidateSymbol.kind == .function,
                   candidateSymbol.flags.contains(.operatorFunction),
                   !candidateSymbol.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty,
-                  let receiverType = signature.receiverType
+                  let candidateReceiverType = signature.receiverType
             else {
                 continue
             }
-            if sema.types.isSubtype(iterableType, receiverType) {
+            if sema.types.isSubtype(receiverType, candidateReceiverType) {
                 return candidate
             }
         }
@@ -714,9 +609,12 @@ final class ControlFlowLowerer {
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
         // Only resolve for user-defined class types and the bundled Range/Progression
-        // classes whose `iterator()` operators are now supplied by Kotlin source.
+        // and Channel classes whose `iterator()` operators are now supplied by
+        // Kotlin source.
         guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              !classSymbol.flags.contains(.synthetic) || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
+              !classSymbol.flags.contains(.synthetic)
+                || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
+                || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
         else {
             return nil
         }
@@ -740,14 +638,14 @@ final class ControlFlowLowerer {
             return true
         }
 
-        // Built-in Range/Progression classes expose their `iterator()` as a bundled
-        // Kotlin extension rather than as a class member, so `collectMemberFunctionCandidates`
-        // will not find it through class-hierarchy lookup.
+        // Built-in Range/Progression and Channel classes expose their `iterator()`
+        // as a bundled Kotlin extension rather than as a class member, so
+        // `collectMemberFunctionCandidates` will not find it through
+        // class-hierarchy lookup.
         if iteratorCandidates.isEmpty,
-           isRangeLikeClass(classSymbol, sema: sema, interner: interner),
-           let bundledIterator = resolveBundledIteratorCandidate(
-               classSymbol: classSymbol,
-               iterableType: nonNullType,
+           let bundledIterator = resolveBundledOperatorExtension(
+               named: iteratorName,
+               receiverType: nonNullType,
                sema: sema,
                interner: interner
            )
@@ -763,9 +661,11 @@ final class ControlFlowLowerer {
 
         let iteratorReturnType = iteratorSignature.returnType
 
-        // Resolve hasNext() and next() on the iterator type.
+        // Resolve hasNext() and next() on the iterator type. These may be real
+        // members (e.g. kotlin.collections.Iterator) or bundled Kotlin extension
+        // operators (e.g. the Channel iterator layer in Channels.kt).
         let hasNextName = interner.intern("hasNext")
-        let hasNextCandidates = helpers.collectMemberFunctionCandidates(
+        var hasNextCandidates = helpers.collectMemberFunctionCandidates(
             named: hasNextName,
             receiverType: iteratorReturnType,
             sema: sema,
@@ -779,9 +679,19 @@ final class ControlFlowLowerer {
             }
             return true
         }
+        if hasNextCandidates.isEmpty,
+           let bundledHasNext = resolveBundledOperatorExtension(
+               named: hasNextName,
+               receiverType: iteratorReturnType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            hasNextCandidates = [bundledHasNext]
+        }
 
         let nextName = interner.intern("next")
-        let nextCandidates = helpers.collectMemberFunctionCandidates(
+        var nextCandidates = helpers.collectMemberFunctionCandidates(
             named: nextName,
             receiverType: iteratorReturnType,
             sema: sema,
@@ -795,6 +705,16 @@ final class ControlFlowLowerer {
             }
             return true
         }
+        if nextCandidates.isEmpty,
+           let bundledNext = resolveBundledOperatorExtension(
+               named: nextName,
+               receiverType: iteratorReturnType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            nextCandidates = [bundledNext]
+        }
 
         guard let hasNextSymbol = hasNextCandidates.first,
               let nextSymbol = nextCandidates.first
@@ -807,14 +727,6 @@ final class ControlFlowLowerer {
             hasNextSymbol: hasNextSymbol,
             nextSymbol: nextSymbol
         )
-    }
-
-    private func isChannelType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
-        }
-        return knownNames.isChannelSymbol(symbol)
     }
 
     func lowerWhileExpr(

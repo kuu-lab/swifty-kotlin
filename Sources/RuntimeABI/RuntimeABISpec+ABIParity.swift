@@ -211,21 +211,24 @@ public extension RuntimeABISpec {
             p("channelRaw", .intptr),
             p("value", .intptr),
         ]),
+        // KSP-678: these Channel residuals are bridged from bundled Kotlin
+        // (Channels.kt) and return a plain Int handle/flag; they do not use the
+        // outThrown ABI lowering path.
         abiParitySpec("kk_channel_is_closed_for_receive", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_is_closed_for_send", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator", parameters: [
             p("handle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator_hasNext", parameters: [
             p("iterHandle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_send_suspending", parameters: [
             p("handle", .intptr),
             p("value", .intptr),

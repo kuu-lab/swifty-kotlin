@@ -393,13 +393,13 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 従来どおり `HeaderHelpers+SyntheticAtomicStubs.swift`（2541 行、上表で (b) 計上済み）に分離されている。
 **KSP-499 以降が触るスタブファイルはこの2つのみ**（棚卸し時点の分割ファイル群は現存しない）。
 
-#### (c) 残留（`__kk_` 降格のみ）— 114 関数
+#### (c) 残留（`__kk_` 降格のみ）— 107 関数
 
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
 | suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_suspended`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |
 | builder・Job・構造化並行の内部プリミティブ | `kk_kxmini_{launch,launch_with_cont,launch_with_dispatcher,launch_with_dispatcher_and_cont,launch_with_exception_handler,async,async_await,async_with_cont,run_blocking,run_blocking_with_cont,produce_with_cont}`, `kk_produce`, `kk_job_{join,await_completion,cancel,cancel_with_cause,complete,complete_exceptionally,is_active,is_cancelled,is_completed,is_failed}`, `kk_coroutine_scope_*`(8), `kk_supervisor_scope_*`(3), `kk_coroutine_launcher_arg_{get,set}` | 35 | Coroutine |
-| Channel | `kk_channel_{send,receive,create,close,is_closed_for_send,is_closed_for_receive,is_closed_token,iterator,iterator_hasNext,iterator_next}` | 10 | Channel（全関数） |
+| Channel | `kk_channel_{send,receive,is_closed_token}` | 3 | Channel（suspension コア。KSP-678 で残り 7 関数は `Stdlib/kotlin/coroutines/channels/Channels.kt` の (b) ブリッジへ移行。`kk_channel_{create,close,is_closed_for_send,is_closed_for_receive,iterator,iterator_hasNext,iterator_next}` は runtime を残しつつ `@KsSymbolName` ブリッジ経由に降格） |
 | timing | `kk_kxmini_delay`, `kk_with_timeout`, `kk_with_timeout_or_null`, `kk_coroutine_yield` | 4 | Coroutine |
 | 同期プリミティブ | `kk_mutex_*`(7), `kk_lock_withLock`, `kk_semaphore_*`(5), `kk_{read_write_lock,reentrant_read_write_lock}_*`(3) | 16 | Sync（全関数） |
 | context | `kk_context_*`(9), `kk_coroutine_name_{create,get}`, `kk_dispatcher_{default,io,main}`, `kk_with_context{,_full}`, `kk_coroutine_{current_context,cancel,cancel_current,check_cancellation}` | 20 | Context / Coroutine |

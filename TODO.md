@@ -776,7 +776,7 @@
 - [ ] KSP-675: SharedFlow を Kotlin 化する（`kk_mutable_shared_flow_create/emit/try_emit`, `kk_shared_flow_collect/replay_cache` — replay buffer・購読者管理は Kotlin の状態遷移で表現可（2026-07-10 再監査で b-reclass 確定）。前提: KSP-674）
 - [ ] KSP-676: StateFlow と share_in/state_in を Kotlin 化する（`kk_mutable_state_flow_create/emit/try_emit`, `kk_state_flow_value`, `kk_flow_share_in/state_in/release/retain`。前提: KSP-675。c-hard 残留: `kk_flow_stopped`/`kk_flow_emit_with_timestamp`）
 - [ ] KSP-677: Mutex/Semaphore の (b) 分 9 関数を Kotlin 化する（withLock 等ラッパー層。カーネル同期コア 6 関数は c-soft 残留 — 分離仕様は `docs/stdlib-pipeline.md` §9 の再監査記録に従う）
-- [ ] KSP-678: Channel の (b) 分 7 関数を Kotlin 化する（iterator 層等。suspension コア 3 関数は c-soft 残留）
+- [x] KSP-678: Channel の (b) 分 7 関数を Kotlin 化する（iterator 層等。suspension コア 3 関数は c-soft 残留）
 - [ ] KSP-679: coroutineScope/supervisorScope の公開ラッパー 4 を Kotlin 化する（内部プリミティブ `kk_coroutine_scope_*`/`kk_supervisor_scope_*` は (c) のまま委譲。前提: KSP-CAP-012）
 
 #### delegates / reflect

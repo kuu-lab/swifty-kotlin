@@ -1906,56 +1906,8 @@ final class CallTypeChecker {
             }
         }
 
-        if let calleeName,
-           calleeName == knownNames.channel,
-           args.isEmpty
-        {
-            let visibleCandidates = ctx.cachedScopeLookup(calleeName)
-            let channelSymbol = visibleCandidates.first { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .function
-                else {
-                    return false
-                }
-                return sema.symbols.externalLinkName(for: candidate) == "kk_channel_create"
-            } ?? visibleCandidates.compactMap { candidate -> SymbolID? in
-                guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .class,
-                      sema.symbols.externalLinkName(for: candidate) == nil
-                else {
-                    return nil
-                }
-                let ctorFQName = symbol.fqName + [interner.intern("<init>")]
-                return sema.symbols.lookupAll(fqName: ctorFQName).first { ctorID in
-                    sema.symbols.externalLinkName(for: ctorID) == "kk_channel_create"
-                }
-            }.first
-            if let channelSymbol {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: channelSymbol,
-                        substitutedTypeArguments: explicitTypeArgs,
-                        parameterMapping: [:]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(channelSymbol))
-                let resultType: TypeID = if let explicitTypeArg = explicitTypeArgs.first,
-                                            let signature = sema.symbols.functionSignature(for: channelSymbol),
-                                            case let .classType(classType) = sema.types.kind(of: signature.returnType)
-                {
-                    sema.types.make(.classType(ClassType(
-                        classSymbol: classType.classSymbol,
-                        args: [.invariant(explicitTypeArg)],
-                        nullability: classType.nullability
-                    )))
-                } else {
-                    sema.symbols.functionSignature(for: channelSymbol)?.returnType ?? sema.types.anyType
-                }
-                sema.bindings.bindExprType(id, type: resultType)
-                return resultType
-            }
-        }
+        // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
+        // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
         if let calleeName,
            interner.resolve(calleeName) == "delay",
