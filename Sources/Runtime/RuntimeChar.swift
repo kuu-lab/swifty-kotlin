@@ -27,101 +27,42 @@ private func charScalarIsIdentifierIgnorable(_ scalar: UnicodeScalar) -> Bool {
     return scalar.properties.generalCategory == .format
 }
 
-private func charScalarIsWhitespace(_ scalar: UnicodeScalar) -> Bool {
-    switch scalar.properties.generalCategory {
-    case .spaceSeparator, .lineSeparator, .paragraphSeparator:
-        return true
-    case .control:
-        let value = scalar.value
-        return (0x0009 ... 0x000D).contains(value) || (0x001C ... 0x001F).contains(value)
-    default:
-        return false
+// KSP-661: Char 判定系 (isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
+// isLowerCase/isDefined) は kotlin.text の純 Kotlin 実装へ移行済み。ここには
+// Unicode テーブル参照だけを行う 1 行ブリッジ (__kk_char_*) を残す。
+
+/// Kotlin `Char.category` の序数 (kotlin.text.CharCategory の ordinal) を返す。
+/// サロゲート符号単位は有効な Kotlin `Char` だが `UnicodeScalar` は拒否するため、
+/// SURROGATE (18) を明示的に返す。範囲外は UNASSIGNED (0)。
+@_cdecl("__kk_char_unicode_category")
+public func __kk_char_unicode_category(_ code: Int) -> Int {
+    if code >= 0xD800 && code <= 0xDFFF {
+        return 18
     }
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return 0
+    }
+    return charCategoryToInt(scalar.properties.generalCategory)
 }
 
-@_cdecl("kk_char_isDigit")
-public func kk_char_isDigit(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
+/// Unicode "Uppercase" 派生プロパティ: UPPERCASE_LETTER に加え Other_Uppercase
+/// (ローマ数字 U+2160、丸囲み大文字 U+24B6 等) を含む。
+@_cdecl("__kk_char_is_uppercase")
+public func __kk_char_is_uppercase(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
         return kk_box_bool(0)
     }
-    return kk_box_bool(CharacterSet.decimalDigits.contains(scalar) ? 1 : 0)
-}
-
-/// Kotlin `Char.isLetter()`: true iff the category is one of UPPERCASE_LETTER,
-/// LOWERCASE_LETTER, TITLECASE_LETTER, MODIFIER_LETTER or OTHER_LETTER (the L*
-/// categories). Note that `CharacterSet.letters` ALSO contains the M* (mark)
-/// categories, so it must not be used here.
-private func charScalarIsLetter(_ scalar: UnicodeScalar) -> Bool {
-    switch scalar.properties.generalCategory {
-    case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter:
-        return true
-    default:
-        return false
-    }
-}
-
-@_cdecl("kk_char_isLetter")
-public func kk_char_isLetter(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(charScalarIsLetter(scalar) ? 1 : 0)
-}
-
-@_cdecl("kk_char_isLetterOrDigit")
-public func kk_char_isLetterOrDigit(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return kk_box_bool(0)
-    }
-    let isLetterOrDigit = charScalarIsLetter(scalar) || CharacterSet.decimalDigits.contains(scalar)
-    return kk_box_bool(isLetterOrDigit ? 1 : 0)
-}
-
-@_cdecl("kk_char_isUpperCase")
-public func kk_char_isUpperCase(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return kk_box_bool(0)
-    }
-    // Kotlin `Char.isUpperCase()`: category is UPPERCASE_LETTER, or the char has
-    // the contributory property `Other_Uppercase`. That is exactly the Unicode
-    // "Uppercase" derived property exposed by `properties.isUppercase`.
-    // `CharacterSet.uppercaseLetters` (Lu + Lt) does not match: it wrongly
-    // includes titlecase letters and excludes Other_Uppercase chars such as
-    // Roman numerals (U+2160) and circled capitals (U+24B6).
     return kk_box_bool(scalar.properties.isUppercase ? 1 : 0)
 }
 
-@_cdecl("kk_char_isLowerCase")
-public func kk_char_isLowerCase(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
+/// Unicode "Lowercase" 派生プロパティ: LOWERCASE_LETTER に加え Other_Lowercase
+/// (修飾文字 U+02B0、小文字ローマ数字 U+2170 等) を含む。
+@_cdecl("__kk_char_is_lowercase")
+public func __kk_char_is_lowercase(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
         return kk_box_bool(0)
     }
-    // Kotlin `Char.isLowerCase()`: category is LOWERCASE_LETTER, or the char has
-    // the contributory property `Other_Lowercase` — the Unicode "Lowercase"
-    // derived property exposed by `properties.isLowercase`. This additionally
-    // covers Other_Lowercase chars such as modifier letters (U+02B0) and
-    // lowercase Roman numerals (U+2170) that `CharacterSet.lowercaseLetters`
-    // omits.
     return kk_box_bool(scalar.properties.isLowercase ? 1 : 0)
-}
-
-@_cdecl("kk_char_isWhitespace")
-public func kk_char_isWhitespace(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(charScalarIsWhitespace(scalar) ? 1 : 0)
-}
-
-@_cdecl("kk_char_isDefined")
-public func kk_char_isDefined(_ value: Int) -> Int {
-    if value >= 0xD800 && value <= 0xDFFF {
-        return kk_box_bool(1)
-    }
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(scalar.properties.generalCategory == .unassigned ? 0 : 1)
 }
 
 @_cdecl("kk_char_isSupplementaryCodePoint")

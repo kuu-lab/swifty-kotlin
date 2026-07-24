@@ -2,9 +2,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-PROP-005: Validates that `Char.isDigit()` resolves through Sema
-/// for plain Char receivers as well as literal / branch contexts. The runtime
-/// link involved is `kk_char_isDigit` (see `Sources/Runtime/RuntimeChar.swift`).
+/// STDLIB-TEXT-PROP-005 / KSP-661: Validates that `Char.isDigit()` resolves
+/// through Sema for plain Char receivers as well as literal / branch contexts.
+/// The predicate is implemented in bundled Kotlin (kotlin.text.CharPredicates),
+/// so the resolved symbol carries no synthetic runtime link.
 @Suite
 struct CharIsDigitFunctionTests {
     @Test func testCharIsDigitResolvesInSource() throws {
@@ -50,7 +51,8 @@ struct CharIsDigitFunctionTests {
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isDigit() should return Boolean")
         }
-        #expect(resolvedLink == "kk_char_isDigit")
+        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
+        #expect(resolvedLink == nil)
     }
 }
 #endif

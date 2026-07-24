@@ -39,12 +39,9 @@ struct CharSyntheticMemberLinkTests {
     @Test func testCharPredicateStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
+        // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isDefined は
+        // bundled Kotlin へ移行済みのため合成スタブの外部リンクを持たない。
         let expected: [String: String] = [
-            "isDigit": "kk_char_isDigit",
-            "isLetter": "kk_char_isLetter",
-            "isLetterOrDigit": "kk_char_isLetterOrDigit",
-            "isWhitespace": "kk_char_isWhitespace",
-            "isDefined": "kk_char_isDefined",
             "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
             "digitToInt": "kk_char_digitToInt",
             "digitToIntOrNull": "kk_char_digitToIntOrNull",
@@ -323,11 +320,6 @@ struct CharSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedFunctionLinks: [String: String] = [
-                "isDigit": "kk_char_isDigit",
-                "isLetter": "kk_char_isLetter",
-                "isLetterOrDigit": "kk_char_isLetterOrDigit",
-                "isWhitespace": "kk_char_isWhitespace",
-                "isDefined": "kk_char_isDefined",
                 "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
                 "digitToInt": "kk_char_digitToInt",
                 "digitToIntOrNull": "kk_char_digitToIntOrNull",
