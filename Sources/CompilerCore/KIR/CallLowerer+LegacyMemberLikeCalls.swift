@@ -3190,12 +3190,6 @@ extension CallLowerer {
                     "kk_list_minBy"
                 case "partition":
                     "kk_list_partition"
-                case "getOrNull":
-                    "kk_list_getOrNull"
-                case "elementAtOrNull":
-                    "kk_list_elementAtOrNull"
-                case "elementAt":
-                    "kk_list_elementAt"
                 case "intersect":
                     "kk_list_intersect"
                 default:
@@ -3210,8 +3204,7 @@ extension CallLowerer {
                         instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
                         callArguments.append(kindExpr)
                     }
-                    let canThrow = runtimeCallee == "kk_list_elementAt"
-                        || runtimeCallee == "kk_list_distinctBy"
+                    let canThrow = runtimeCallee == "kk_list_distinctBy"
                         || runtimeCallee == "kk_list_dropLastWhile"
                         || runtimeCallee == "kk_list_minBy"
                         || runtimeCallee == "kk_list_min"
@@ -3316,20 +3309,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-            }
-            // List.elementAtOrElse(index, defaultValue) — 2 args (STDLIB-214)
-            if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               interner.resolve(calleeName) == "elementAtOrElse"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_elementAtOrElse"),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
             }
         }
 

@@ -983,7 +983,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListElementAtUsesRuntimeExternalLink() throws {
+    func testListElementAtUsesBundledSourceFunction() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -1001,12 +1001,15 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "elementAt"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAt")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(symbol.name) == "elementAt")
         }
     }
 
     @Test
-    func testListElementAtOrNullUsesRuntimeExternalLink() throws {
+    func testListElementAtOrNullUsesBundledSourceFunction() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -1024,7 +1027,10 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "elementAtOrNull"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAtOrNull")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(ctx.interner.resolve(symbol.name) == "elementAtOrNull")
         }
     }
 
