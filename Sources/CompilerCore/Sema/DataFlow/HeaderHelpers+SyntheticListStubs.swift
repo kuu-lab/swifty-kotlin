@@ -239,7 +239,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(listInterfaceSymbol, for: listGetSymbol)
-        symbols.setExternalLinkName("kk_list_get", for: listGetSymbol)
+        symbols.setExternalLinkName("__kk_list_get", for: listGetSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: listReceiverType,
@@ -975,61 +975,6 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
-
-        let containsName = interner.intern("contains")
-        let containsFQName = listFQName + [containsName]
-        if symbols.lookup(fqName: containsFQName) == nil {
-            let containsSymbol = symbols.define(
-                kind: .function,
-                name: containsName,
-                fqName: containsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: containsSymbol)
-            symbols.setExternalLinkName("kk_list_contains", for: containsSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listReceiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: containsSymbol
-            )
-        }
-
-        let containsAllName = interner.intern("containsAll")
-        let containsAllFQName = listFQName + [containsAllName]
-        if symbols.lookup(fqName: containsAllFQName) == nil {
-            let containsAllSymbol = symbols.define(
-                kind: .function,
-                name: containsAllName,
-                fqName: containsAllFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: containsAllSymbol)
-            symbols.setExternalLinkName("kk_list_containsAll", for: containsAllSymbol)
-            let collectionParamType = types.make(.classType(ClassType(
-                classSymbol: collectionInterfaceSymbol,
-                args: [.out(listTypeParamType)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listReceiverType,
-                    parameterTypes: [collectionParamType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: containsAllSymbol
-            )
-        }
 
         let isEmptyName = interner.intern("isEmpty")
         let isEmptyFQName = listFQName + [isEmptyName]

@@ -24,8 +24,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // --- Rewrite collection member calls ---
         // Member calls are lowered as call(callee=memberName, args=[receiver, ...])
         // any()/none()/first()/last() with no predicate: args=[receiver], pass fnPtr=0, closure=0
-        if callee == lookup.anyName || callee == lookup.noneName
-            || callee == lookup.firstName || callee == lookup.lastName
+        if callee == lookup.firstName || callee == lookup.lastName
             || callee == lookup.endExclusiveName
         {
             if arguments.count == 1 {
@@ -34,8 +33,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     let kkName: InternedString = switch callee {
-                    case lookup.anyName: lookup.kkListAnyName
-                    case lookup.noneName: lookup.kkListNoneName
                     case lookup.firstName: lookup.kkListFirstName
                     case lookup.lastName: lookup.kkListLastName
                     default: callee
@@ -172,17 +169,6 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.containsName {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListContainsName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
                         symbol: nil,
@@ -200,17 +186,6 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.containsAllName {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
-                if state.listExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkListContainsAllName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
                         symbol: nil,

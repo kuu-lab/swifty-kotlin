@@ -2149,7 +2149,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -2181,6 +2183,18 @@ extension DataFlowSemaPhase {
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let operationType = types.make(.functionType(FunctionType(
             params: [elementType, accumulatorType],
             returnType: accumulatorType,
@@ -2244,11 +2258,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner
-        ) || shouldSkipSyntheticStub(
-            bundledIndex: bundledIndex,
-            ownerFQName: iterableFQName,
-            name: memberName,
-            arity: 1
         ) {
             skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
             return
@@ -2314,7 +2323,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -2346,6 +2357,18 @@ extension DataFlowSemaPhase {
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let operationType = types.make(.functionType(FunctionType(
             params: [types.intType, accumulatorType, elementType],
             returnType: accumulatorType,
@@ -2513,7 +2536,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("reduceRightIndexed")
@@ -2532,6 +2557,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
 
         let operationType = types.make(.functionType(FunctionType(
             params: [types.intType, typeParamType, typeParamType],
@@ -2580,7 +2617,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("reduceRightIndexedOrNull")
@@ -2599,6 +2638,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
 
         let nullableElementType = types.makeNullable(typeParamType)
         let operationType = types.make(.functionType(FunctionType(
@@ -2648,7 +2699,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("reduceRightOrNull")
@@ -2667,6 +2720,18 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
 
         let nullableElementType = types.makeNullable(typeParamType)
         let operationType = types.make(.functionType(FunctionType(

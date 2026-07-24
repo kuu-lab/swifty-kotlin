@@ -11,40 +11,13 @@ enum BundledKotlinStdlib {
     static let excludedBundledStdlibFiles: Set<String> = [
     ]
 
-    // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet
-    // in standalone .kt files. The remaining collection HOFs (search, aggregate,
-    // filter, sorting, set) have been migrated to ListSearchHOF.kt,
-    // ListAggregateHOF.kt, ListFilterHOF.kt, ListSortingHOF.kt, and SetHOF.kt
-    // respectively.
+    // sumOf / maxByOrNull / minByOrNull are not yet in standalone .kt files.
+    // count / any / all / none / contains / containsAll / lastIndexOf have been
+    // migrated to ListSearchHOF.kt. The remaining collection HOFs (aggregate,
+    // filter, sorting, set) are in ListAggregateHOF.kt, ListFilterHOF.kt,
+    // ListSortingHOF.kt, and SetHOF.kt respectively.
     static let kotlinCollectionsSource = """
 package kotlin.collections
-
-import kotlin.internal.KsSymbolName
-
-public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
-    var count = 0
-    var i = 0
-    while (i < size) { if (predicate(this[i])) count += 1; i += 1 }
-    return count
-}
-
-public fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
-    var i = 0
-    while (i < size) { if (predicate(this[i])) return true; i += 1 }
-    return false
-}
-
-public fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
-    var i = 0
-    while (i < size) { if (!predicate(this[i])) return false; i += 1 }
-    return true
-}
-
-public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
-    var i = 0
-    while (i < size) { if (predicate(this[i])) return false; i += 1 }
-    return true
-}
 
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var sum = 0
@@ -54,7 +27,7 @@ public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
 }
 
 public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
-    if (length == 0) return null
+    if (size == 0) return null
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -68,7 +41,7 @@ public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
 }
 
 public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
-    if (length == 0) return null
+    if (size == 0) return null
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1

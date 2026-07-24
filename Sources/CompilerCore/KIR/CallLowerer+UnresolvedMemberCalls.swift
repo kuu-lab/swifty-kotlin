@@ -141,14 +141,7 @@ extension CallLowerer {
                 return interner.intern("kk_list_singleOrNull")
             case "sortedWith":
                 return interner.intern("kk_list_sortedWith")
-            case "indexOf":
-                return interner.intern("kk_list_indexOf")
-            case "lastIndexOf":
-                return interner.intern("kk_list_lastIndexOf")
-            case "indexOfFirst":
-                return interner.intern("kk_list_indexOfFirst")
-            case "indexOfLast":
-                return interner.intern("kk_list_indexOfLast")
+
             case "maxBy":
                 return interner.intern("kk_list_maxBy")
             case "maxByOrNull":
@@ -181,12 +174,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_minOfWith")
             case "minOfWithOrNull":
                 return interner.intern("kk_list_minOfWithOrNull")
-            case "any":
-                return interner.intern("kk_list_any")
-            case "all":
-                return interner.intern("kk_list_all")
-            case "none":
-                return interner.intern("kk_list_none")
             case "onEach":
                 return interner.intern("kk_list_onEach")
             case "onEachIndexed":
@@ -207,8 +194,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_subList")
             case "toTypedArray":
                 return interner.intern("kk_list_toTypedArray")
-            case "containsAll":
-                return interner.intern("kk_list_containsAll")
             case "binarySearch":
                 if hasHOFLambdaArg && argumentCount == 2 {
                     return interner.intern("kk_list_binarySearch_compare")
@@ -465,14 +450,7 @@ extension CallLowerer {
             return interner.intern(hasHOFLambdaArg
                 ? "kk_sequence_zipWithNextTransform"
                 : "kk_sequence_zipWithNext")
-        case "indexOf":
-            return interner.intern("kk_list_indexOf")
-        case "lastIndexOf":
-            return interner.intern("kk_list_lastIndexOf")
-        case "indexOfFirst":
-            return interner.intern("kk_list_indexOfFirst")
-        case "indexOfLast":
-            return interner.intern("kk_list_indexOfLast")
+
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -505,12 +483,6 @@ extension CallLowerer {
             return interner.intern("kk_list_minOfWith")
         case "minOfWithOrNull":
             return interner.intern("kk_list_minOfWithOrNull")
-        case "any":
-            return interner.intern("kk_list_any")
-        case "all":
-            return interner.intern("kk_list_all")
-        case "none":
-            return interner.intern("kk_list_none")
         case "onEach":
             return interner.intern("kk_list_onEach")
         case "onEachIndexed":
@@ -535,8 +507,6 @@ extension CallLowerer {
             return interner.intern("kk_list_elementAtOrElse")
         case "getOrElse":
             return interner.intern("kk_list_getOrElse")
-        case "containsAll":
-            return interner.intern("kk_list_containsAll")
         case "binarySearch":
             if argumentCount == 5,
                isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
@@ -937,7 +907,7 @@ extension CallLowerer {
             case .array?:
                 return interner.intern("kk_array_size")
             case .list?, .collection?:
-                return interner.intern("kk_list_size")
+                return interner.intern("__kk_list_size")
             default:
                 break
             }

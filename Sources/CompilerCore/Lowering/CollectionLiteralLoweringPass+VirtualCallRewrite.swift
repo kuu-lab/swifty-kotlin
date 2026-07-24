@@ -9,6 +9,83 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let interner: StringInterner
     }
 
+    /// Returns true when the callee resolves to a bundled Kotlin source declaration
+    /// that should not be rewritten to a runtime `kk_*` entry point.
+    private func shouldPreserveSourceBackedVirtualCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        context: VirtualCallRewriteContext
+    ) -> Bool {
+        guard callee == lookup.foldName
+            || callee == lookup.foldRightName
+            || callee == lookup.reduceName
+            || callee == lookup.reduceOrNullName
+            || callee == lookup.scanName
+            || callee == lookup.scanIndexedName
+            || callee == lookup.scanReduceName
+            || callee == lookup.runningFoldName
+            || callee == lookup.runningFoldIndexedName
+            || callee == lookup.runningReduceName
+            || callee == lookup.runningReduceIndexedName
+            || callee == lookup.foldIndexedName
+            || callee == lookup.foldRightIndexedName
+            || callee == lookup.reduceRightName
+            || callee == lookup.reduceRightOrNullName
+            || callee == lookup.reduceRightIndexedName
+            || callee == lookup.reduceRightIndexedOrNullName
+            || callee == lookup.reduceIndexedName
+            || callee == lookup.reduceIndexedOrNullName
+            || callee == lookup.filterName
+            || callee == lookup.filterNotName
+            || callee == lookup.filterNotNullName
+            || callee == lookup.filterIndexedName
+            || callee == lookup.associateName
+            || callee == lookup.associateByName
+            || callee == lookup.groupByName
+            || callee == lookup.sumOfName
+            || callee == lookup.maxByOrNullName
+            || callee == lookup.minByOrNullName
+            || callee == lookup.mapName
+            || callee == lookup.mapIndexedName
+            || callee == lookup.mapNotNullName
+            || callee == lookup.mapToName
+            || callee == lookup.mapIndexedToName
+            || callee == lookup.mapNotNullToName
+            || callee == lookup.mapIndexedNotNullName
+            || callee == lookup.mapIndexedNotNullToName
+            || callee == lookup.flatMapName
+            || callee == lookup.flatMapIndexedName
+            || callee == lookup.flatMapToName
+            || callee == lookup.flatMapIndexedToName
+            || callee == lookup.flattenName
+            || callee == lookup.takeName
+            || callee == lookup.dropName
+            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
+            || callee == lookup.findName
+            || callee == lookup.findLastName
+            || callee == lookup.indexOfName
+            || callee == lookup.lastIndexOfName
+            || callee == lookup.indexOfFirstName
+            || callee == lookup.indexOfLastName
+            || callee == lookup.containsName
+            || callee == lookup.containsAllName
+            || callee == lookup.countName
+            || callee == lookup.anyName
+            || callee == lookup.allName
+            || callee == lookup.noneName
+            || callee == lookup.firstOrNullName
+            || callee == lookup.lastOrNullName,
+            let symbol,
+            let sema = context.sema,
+            let semanticSymbol = sema.symbols.symbol(symbol),
+            semanticSymbol.declSite != nil
+        else {
+            return false
+        }
+        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
+
     func rewriteVirtualCallInstruction(
         symbol: SymbolID?,
         callee: InternedString,
@@ -33,6 +110,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
+
+        if shouldPreserveSourceBackedVirtualCall(
+            symbol: symbol,
+            callee: callee,
+            lookup: lookup,
+            context: context
+        ) {
+            return false
+        }
 
         // LOWERING-001: If the receiver is not in any tracking set yet,
         // attempt to classify it from its static type in the KIR arena.
@@ -606,7 +692,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
-        guard callee == lookup.groupByName || callee == lookup.sortedByName || callee == lookup.findName || callee == lookup.findLastName
+        guard callee == lookup.groupByName || callee == lookup.sortedByName
             || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
             || callee == lookup.maxByName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
@@ -632,8 +718,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         case lookup.sortedByName: lookup.kkListSortedByName
         case lookup.sortedByDescendingName: lookup.kkListSortedByDescendingName
         case lookup.sortedWithName: lookup.kkListSortedWithName
-        case lookup.findName: lookup.kkListFindName
-        case lookup.findLastName: lookup.kkListFindLastName
         case lookup.associateByName: lookup.kkListAssociateByName
         case lookup.associateWithName: lookup.kkListAssociateWithName
         case lookup.associateName: lookup.kkListAssociateName
@@ -1134,18 +1218,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         guard listExprIDs.contains(receiver.rawValue) else { return false }
 
-        if callee == lookup.countName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListCountName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
         if callee == lookup.firstName || callee == lookup.lastName {
             let kkName: InternedString = callee == lookup.firstName
                 ? lookup.kkListFirstName
@@ -1349,30 +1421,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(kkName: lookup.kkListReduceRightOrNullName, receiver: receiver, arguments: arguments + [zeroExpr], result: result, origCanThrow: origCanThrow, origThrownResult: origThrownResult, module: module, loweredBody: &loweredBody)
-            return true
-        }
-
-        if callee == lookup.indexOfFirstName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListIndexOfFirstName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
-        if callee == lookup.indexOfLastName, arguments.count == 1 {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            _ = emitHOFCall(
-                kkName: lookup.kkListIndexOfLastName, receiver: receiver, arguments: arguments + [zeroExpr],
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, module: module,
-                loweredBody: &loweredBody
-            )
             return true
         }
 
