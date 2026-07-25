@@ -142,14 +142,14 @@ extension DataFlowSemaPhase {
         }
 
         // Tag WeakReference itself with @ExperimentalNativeApi so that
-        // callers must opt in. The marker class is provided by bundled Kotlin
-        // source (KSP-668) and may not be registered yet when synthetic stubs
-        // run, so attach by FQName instead of gating on the symbol lookup.
+        // callers must opt in.  The marker is declared in bundled Kotlin
+        // source, so fall back to its fully-qualified name when the symbol
+        // is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
             to: classSymbol,
-            markerFQName: experimentalNativeApiSymbol
-                .flatMap { symbols.symbol($0)?.fqName }
-                .map { $0.map { interner.resolve($0) }.joined(separator: ".") } ?? "",
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
             symbols: symbols
         )
 
@@ -237,14 +237,14 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // Tag with @ExperimentalNativeApi. The marker class is provided by
-        // bundled Kotlin source (KSP-668) and may not be registered yet when
-        // synthetic stubs run, so attach by FQName instead of gating on lookup.
+        // Tag with @ExperimentalNativeApi.  The marker is declared in bundled
+        // Kotlin source, so fall back to its fully-qualified name when the
+        // symbol is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
             to: functionSymbol,
-            markerFQName: experimentalNativeApiSymbol
-                .flatMap { symbols.symbol($0)?.fqName }
-                .map { $0.map { interner.resolve($0) }.joined(separator: ".") } ?? "",
+            markerFQName: experimentalNativeApiSymbol.flatMap {
+                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            } ?? "kotlin.experimental.ExperimentalNativeApi",
             symbols: symbols
         )
 

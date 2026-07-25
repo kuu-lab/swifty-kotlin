@@ -785,9 +785,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> String {
-        // kotlin.experimental.ExperimentalNativeApi is declared by the bundled
-        // Kotlin source `Stdlib/kotlin/experimental/ExperimentalNativeApi.kt`
-        // (KSP-668). Only the marker FQName is needed for attach records here.
+        // `kotlin.experimental.ExperimentalNativeApi` is declared by bundled
+        // Kotlin source; only reference it here by fully-qualified name.
         return "kotlin.experimental.ExperimentalNativeApi"
     }
 
