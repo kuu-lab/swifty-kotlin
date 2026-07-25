@@ -31,5 +31,30 @@ public extension RuntimeABISpec {
             section: "Char",
             isThrowing: false
         ),
+        // KSP-661: Char 判定系の Kotlin 化に伴い残す Unicode テーブル参照ブリッジ。
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_unicode_category",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Char"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_is_uppercase",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Char"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_is_lowercase",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Char"
+        ),
     ]
 }
