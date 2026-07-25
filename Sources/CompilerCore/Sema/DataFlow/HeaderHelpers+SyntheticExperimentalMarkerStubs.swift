@@ -9,12 +9,6 @@
 /// |---------------------------|----------------------|----------|
 /// | ExperimentalVersionOverloading | kotlin          | ERROR    |
 /// | ExperimentalContextParameters | kotlin           | ERROR    |
-/// | ExperimentalWasmInterop   | kotlin.wasm          | WARNING  |
-/// | ExperimentalJsCollectionsApi | kotlin.js         | WARNING  |
-/// | ExperimentalJsExport      | kotlin.js            | WARNING  |
-/// | ExperimentalJsReflectionCreateInstance | kotlin.js | WARNING |
-/// | ExperimentalJsStatic      | kotlin.js            | WARNING  |
-/// | ExperimentalWasmJsInterop | kotlin.js            | WARNING  |
 /// | ExpectRefinement          | kotlin.experimental  | @ExperimentalMultiplatform |
 ///
 /// The common root opt-in markers (`ExperimentalUnsignedTypes`,
@@ -53,106 +47,6 @@ extension DataFlowSemaPhase {
             packageSymbol: kotlinPkgSymbol,
             severity: "ERROR",
             message: "The API is related to the experimental feature \"context parameters\" (see KEEP-367) and may be changed or removed in any future release.",
-            targetArguments: nil,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.js package ---
-        let kotlinJsPkg = ensurePackage(
-            path: ["kotlin", "js"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kotlinJsPkgSymbol = symbols.lookup(fqName: kotlinJsPkg) ?? .invalid
-
-        // --- kotlin.js.ExperimentalJsCollectionsApi (WARNING) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalJsCollectionsApi",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.FUNCTION",
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.js.ExperimentalJsExport (WARNING) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalJsExport",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: nil,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.js.ExperimentalJsReflectionCreateInstance (WARNING) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalJsReflectionCreateInstance",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.ANNOTATION_CLASS",
-                "AnnotationTarget.PROPERTY",
-                "AnnotationTarget.FIELD",
-                "AnnotationTarget.LOCAL_VARIABLE",
-                "AnnotationTarget.VALUE_PARAMETER",
-                "AnnotationTarget.CONSTRUCTOR",
-                "AnnotationTarget.FUNCTION",
-                "AnnotationTarget.PROPERTY_GETTER",
-                "AnnotationTarget.PROPERTY_SETTER",
-                "AnnotationTarget.TYPEALIAS",
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.js.ExperimentalJsStatic (WARNING) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalJsStatic",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: nil,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.js.ExperimentalWasmJsInterop (WARNING) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalWasmJsInterop",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: [
-                "AnnotationTarget.CLASS",
-                "AnnotationTarget.FUNCTION",
-                "AnnotationTarget.PROPERTY",
-                "AnnotationTarget.TYPEALIAS",
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.wasm.ExperimentalWasmInterop (WARNING) ---
-        let kotlinWasmPkg = ensurePackage(
-            path: ["kotlin", "wasm"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kotlinWasmPkgSymbol = symbols.lookup(fqName: kotlinWasmPkg) ?? .invalid
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalWasmInterop",
-            packageFQName: kotlinWasmPkg,
-            packageSymbol: kotlinWasmPkgSymbol,
-            severity: "WARNING",
             targetArguments: nil,
             symbols: symbols,
             interner: interner

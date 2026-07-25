@@ -1231,22 +1231,26 @@ struct ListSyntheticMemberLinkTests {
                 let classFQName = collectionsPkg + [ctx.interner.intern(spec.className)]
                 let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
                 let classInfo = try #require(sema.symbols.symbol(classSymbol))
+                // KSP-664: the primitive iterator shells are source-backed Kotlin
+                // declarations (PrimitiveIterators.kt), not synthetic stubs.
                 #expect(classInfo.kind == .class)
-                #expect(classInfo.flags.contains(.synthetic))
+                #expect(!classInfo.flags.contains(.synthetic))
                 #expect(classInfo.flags.contains(.abstractType))
                 #expect(sema.symbols.directSupertypes(for: classSymbol).contains(iteratorSymbol))
-                #expect(sema.symbols.supertypeTypeArgs(for: classSymbol, supertype: iteratorSymbol) == [.out(spec.elementType)])
+                #expect(sema.symbols.supertypeTypeArgs(for: classSymbol, supertype: iteratorSymbol) == [.invariant(spec.elementType)])
 
                 let primitiveNextSymbol = try #require(sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern(spec.nextName)]))
                 let primitiveNextInfo = try #require(sema.symbols.symbol(primitiveNextSymbol))
-                #expect(primitiveNextInfo.flags.isSuperset(of: [.synthetic, .abstractType]))
+                #expect(!primitiveNextInfo.flags.contains(.synthetic))
+                #expect(primitiveNextInfo.flags.contains(.abstractType))
                 let primitiveNextSignature = try #require(sema.symbols.functionSignature(for: primitiveNextSymbol))
                 #expect(primitiveNextSignature.parameterTypes.isEmpty)
                 #expect(primitiveNextSignature.returnType == spec.elementType)
 
                 let nextSymbol = try #require(sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern("next")]))
                 let nextInfo = try #require(sema.symbols.symbol(nextSymbol))
-                #expect(nextInfo.flags.isSuperset(of: [.synthetic, .openType, .overrideMember, .operatorFunction]))
+                #expect(!nextInfo.flags.contains(.synthetic))
+                #expect(nextInfo.flags.contains(.overrideMember))
                 #expect(try #require(sema.symbols.functionSignature(for: nextSymbol)).returnType == spec.elementType)
             }
         }
@@ -1290,8 +1294,10 @@ struct ListSyntheticMemberLinkTests {
                 .map { ctx.interner.intern($0) }
             let abstractIteratorSymbol = try #require(sema.symbols.lookup(fqName: abstractIteratorFQName))
             let abstractIteratorInfo = try #require(sema.symbols.symbol(abstractIteratorSymbol))
+            // KSP-664: AbstractIterator is a source-backed Kotlin declaration
+            // (AbstractIterator.kt), not a synthetic stub.
             #expect(abstractIteratorInfo.kind == .class)
-            #expect(abstractIteratorInfo.flags.contains(.synthetic))
+            #expect(!abstractIteratorInfo.flags.contains(.synthetic))
             #expect(abstractIteratorInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractIteratorSymbol) == [.invariant])
 
@@ -1301,17 +1307,20 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.symbols.supertypeTypeArgs(for: abstractIteratorSymbol, supertype: iteratorSymbol).count == 1)
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractIteratorSymbol, supertype: iteratorSymbol).count == 1)
 
+            // Source-backed members carry no `.synthetic` flag; abstract/override
+            // shape comes from the Kotlin modifiers in AbstractIterator.kt.
             let expectedMembers: [(name: String, visibility: Visibility, requiredFlags: SymbolFlags, parameterCount: Int)] = [
-                ("computeNext", .protected, [.synthetic, .abstractType], 0),
-                ("done", .protected, [.synthetic], 0),
-                ("setNext", .protected, [.synthetic], 1),
-                ("hasNext", .public, [.synthetic, .openType, .overrideMember, .operatorFunction], 0),
-                ("next", .public, [.synthetic, .openType, .overrideMember, .operatorFunction], 0),
+                ("computeNext", .protected, [.abstractType], 0),
+                ("done", .protected, [], 0),
+                ("setNext", .protected, [], 1),
+                ("hasNext", .public, [.overrideMember], 0),
+                ("next", .public, [.overrideMember], 0),
             ]
             for expected in expectedMembers {
                 let memberSymbol = try #require(sema.symbols.lookup(fqName: abstractIteratorFQName + [ctx.interner.intern(expected.name)]))
                 let memberInfo = try #require(sema.symbols.symbol(memberSymbol))
                 #expect(memberInfo.visibility == expected.visibility)
+                #expect(!memberInfo.flags.contains(.synthetic))
                 #expect(memberInfo.flags.isSuperset(of: expected.requiredFlags))
                 let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
                 #expect(signature.parameterTypes.count == expected.parameterCount)

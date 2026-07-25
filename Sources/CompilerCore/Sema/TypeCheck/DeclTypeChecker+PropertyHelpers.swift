@@ -35,18 +35,19 @@ extension DeclTypeChecker {
 
     func typeCheckDelegate(
         _ delegateExpr: ExprID,
-        property: PropertyDecl,
+        isVar: Bool,
+        fallbackRange: SourceRange,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
         ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
         diagnostics: DiagnosticEngine
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         var result = inferredPropertyType
-        var delegateLocals: LocalBindings = [:]
         let delegateType = driver.inferExpr(
-            delegateExpr, ctx: ctx, locals: &delegateLocals,
+            delegateExpr, ctx: ctx, locals: &locals,
             expectedType: nil
         )
 
@@ -96,7 +97,7 @@ extension DeclTypeChecker {
         }
 
         // Check setValue for var properties.
-        if property.isVar {
+        if isVar {
             let setValueName = interner.intern("setValue")
             let setValueCandidates = driver.helpers
                 .collectMemberFunctionCandidates(
@@ -179,7 +180,7 @@ extension DeclTypeChecker {
                         }
                     }
 
-                    if property.isVar {
+                    if isVar {
                         let setValueName = interner.intern("setValue")
                         let allSetValueCandidates = driver.helpers.collectMemberFunctionCandidates(
                             named: setValueName,
@@ -224,14 +225,14 @@ extension DeclTypeChecker {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
                 "Property delegate must have a 'getValue' operator function.",
-                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
             )
         }
-        if property.isVar, !setValueResolved, !isKnownStdlibDelegate {
+        if isVar, !setValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0104",
                 "Mutable property delegate must have a 'setValue' operator function.",
-                range: ctx.ast.arena.exprRange(delegateExpr) ?? property.range
+                range: ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
             )
         }
 
