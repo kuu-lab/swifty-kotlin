@@ -602,15 +602,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_range_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_long_range_iterator",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
@@ -823,15 +814,6 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         // CharRange (STDLIB-290)
-        RuntimeABIFunctionSpec(
-            name: "kk_char_range_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_char_range_step",
             parameters: [

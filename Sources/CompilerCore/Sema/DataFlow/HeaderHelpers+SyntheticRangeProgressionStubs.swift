@@ -603,8 +603,6 @@ extension DataFlowSemaPhase {
         switch name {
         case "UIntProgression": isEmptyRuntime = "kk_uint_range_isEmpty"
         case "ULongProgression": isEmptyRuntime = "kk_ulong_range_isEmpty"
-        case "LongProgression": isEmptyRuntime = "kk_long_range_isEmpty"
-        case "CharProgression": isEmptyRuntime = "kk_char_range_isEmpty"
         default: isEmptyRuntime = "kk_range_isEmpty"
         }
         let reversedRuntime: String

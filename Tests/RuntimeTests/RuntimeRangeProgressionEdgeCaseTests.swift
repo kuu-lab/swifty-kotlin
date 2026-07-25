@@ -12,7 +12,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testIntEmptyRange_isEmpty() {
         let empty = kk_op_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1, "from > to must be empty")
+        XCTAssertTrue(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "from > to must be empty")
     }
 
     func testIntEmptyRange_containsFalse() {
@@ -35,7 +35,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testIntSingleElementRange_notEmpty() {
         let single = kk_op_rangeTo(7, 7)
-        XCTAssertEqual(kk_range_isEmpty(single), 0)
+        XCTAssertFalse(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: single)!))
         XCTAssertEqual(kk_range_count(single), 1)
     }
 
@@ -166,7 +166,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testDownTo_isEmpty_whenFromLtTo() {
         // downTo with from < to is empty (negative step, first < last)
         let empty = kk_op_downTo(1, 5)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1)
+        XCTAssertTrue(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!))
         XCTAssertEqual(kk_range_count(empty), 0)
     }
 
@@ -188,14 +188,14 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testUntilSameEndpoints_isEmpty() {
         // (5 until 5) is empty
         let range = kk_op_rangeUntil(5, 5)
-        XCTAssertEqual(kk_range_isEmpty(range), 1)
+        XCTAssertTrue(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: range)!))
         XCTAssertEqual(kk_range_count(range), 0)
     }
 
     func testUntilEndLessThanStart_isEmpty() {
         // (5 until 3) is empty
         let range = kk_op_rangeUntil(5, 3)
-        XCTAssertEqual(kk_range_isEmpty(range), 1)
+        XCTAssertTrue(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: range)!))
     }
 
     func testUntilToList() {
@@ -289,12 +289,12 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testLongRange_emptyWhenFromGtTo() {
         let empty = kk_long_rangeTo(100, 1)
-        XCTAssertEqual(kk_long_range_isEmpty(empty), 1)
+        XCTAssertTrue(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!))
     }
 
     func testLongRange_singleElement() {
         let r = kk_long_rangeTo(42, 42)
-        XCTAssertEqual(kk_long_range_isEmpty(r), 0)
+        XCTAssertFalse(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: r)!))
         XCTAssertEqual(kk_long_range_contains(r, 42), 1)
         XCTAssertEqual(kk_long_range_contains(r, 41), 0)
     }
@@ -384,7 +384,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(kk_unbox_char(kk_range_last(stepped)), Int(Unicode.Scalar("g").value))
         XCTAssertEqual(kk_list_size(kk_char_range_toList(stepped)), 3)
-        XCTAssertEqual(kk_char_range_isEmpty(stepped), 0)
+        XCTAssertFalse(RuntimeSignedRangeHOFKind.isEmpty(runtimeRangeBox(from: stepped)!))
     }
 
     // MARK: - CharRange edge cases
@@ -542,7 +542,7 @@ final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testULongRange_emptyWhenFromGtTo() {
         let empty = kk_ulong_rangeTo(10, 1)
-        XCTAssertEqual(kk_range_isEmpty(empty), 1, "ULongRange from > to must be empty")
+        XCTAssertTrue(RuntimeUnsignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "ULongRange from > to must be empty")
     }
 
     func testULongRange_singleElement() {

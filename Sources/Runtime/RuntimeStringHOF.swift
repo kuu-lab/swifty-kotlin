@@ -1231,19 +1231,6 @@ public func kk_string_onEach(
     return strRaw
 }
 
-@_cdecl("kk_string_onEach_flat")
-public func kk_string_onEach_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_onEach(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
-}
-
 @_cdecl("kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -1435,17 +1422,4 @@ public func kk_string_onEachIndexed(
         if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
     }
     return strRaw
-}
-
-@_cdecl("kk_string_onEachIndexed_flat")
-public func kk_string_onEachIndexed_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    kk_string_onEachIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }

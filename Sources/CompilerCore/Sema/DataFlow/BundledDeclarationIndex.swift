@@ -237,24 +237,35 @@ struct BundledDeclarationIndex: Sendable {
         // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
         // extension functions in kotlin.concurrent, but current member-call
         // resolution still needs the receiver-owned synthetic bridge when users
-        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference
-        // directly. Retain these runtime-backed aliases until the bundled source
-        // path is visible to ordinary member-call lookup.
+        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference/
+        // AtomicBoolean directly. Retain these runtime-backed aliases until the
+        // bundled source path is visible to ordinary member-call lookup.
         switch ownerFQName {
         case ["kotlin", "concurrent", "atomics", "AtomicInt"],
              ["kotlin", "concurrent", "AtomicInt"],
              ["kotlin", "concurrent", "atomics", "AtomicLong"],
              ["kotlin", "concurrent", "AtomicLong"]:
             switch interner.resolve(key.name) {
-            case "get", "incrementAndGet", "decrementAndGet":
+            // KSP-671: fetchAndIncrement/fetchAndDecrement join get/incrementAndGet/
+            // decrementAndGet as arity-0 bundled delegations whose bridge is
+            // retained (also shared with java.util.concurrent.atomic.AtomicInteger).
+            case "get", "incrementAndGet", "decrementAndGet",
+                 "fetchAndIncrement", "fetchAndDecrement":
                 return key.arity == 0
-            case "set", "getAndSet", "addAndGet":
+            // KSP-671: fetchAndAdd joins set/getAndSet/addAndGet as arity-1.
+            case "set", "getAndSet", "addAndGet", "fetchAndAdd":
                 return key.arity == 1
+            // KSP-671: compareAndSet delegates to the retained compareAndExchange
+            // CAS-instruction bridge.
+            case "compareAndSet":
+                return key.arity == 2
             default:
                 return false
             }
         case ["kotlin", "concurrent", "atomics", "AtomicReference"],
-             ["kotlin", "concurrent", "AtomicReference"]:
+             ["kotlin", "concurrent", "AtomicReference"],
+             ["kotlin", "concurrent", "atomics", "AtomicBoolean"],
+             ["kotlin", "concurrent", "AtomicBoolean"]:
             switch interner.resolve(key.name) {
             case "get":
                 return key.arity == 0
@@ -281,7 +292,7 @@ struct BundledDeclarationIndex: Sendable {
         // contains, any, all, none, count, first, last, single) are source-bound.
         // KSP-426 source-backed sorting HOFs (sorted, sortedBy, sortedWith, etc.) are
         // now emitted from bundled Kotlin source; do not retain the runtime bridge.
-        case "reversed":
+        case "reversed", "sorted":
             return key.arity == 0
         case "shuffled":
             return key.arity == 0 || key.arity == 1

@@ -234,13 +234,7 @@ enum MemberRuntimeDispatch {
             if kind.isLongRangeLike { return "kk_long_range_contains" }
             return "kk_op_contains"
         case "isEmpty":
-            return rangeRuntimeName(
-                kind: kind,
-                member: "isEmpty",
-                longMember: "isEmpty",
-                charMember: "isEmpty",
-                charProgressionUsesChar: true
-            )
+            return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
             return "kk_range_endExclusive"
         case "sum":
@@ -396,8 +390,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCharArray_flat")
         case ("toRegex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
-        case ("lines", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lines_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):

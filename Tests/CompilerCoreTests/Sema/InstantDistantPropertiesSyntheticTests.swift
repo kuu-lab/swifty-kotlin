@@ -147,13 +147,11 @@ struct InstantDistantPropertiesSyntheticTests {
         #expect(sema.symbols.externalLinkName(for: elapsedSymbol) == nil)
     }
 
-    // KSP-472: now() / fromEpochMilliseconds() currently stay as direct
-    // companion factory stubs. KSP-CAP-003 (the compiler gap blocking
-    // ClassName.member() shorthand calls against a Kotlin-source extension on
-    // ClassName.Companion) is fixed, so re-expressing these two factories in
-    // Kotlin source is possible; migrating them remains unstarted KSP-472
-    // follow-up work, not a compiler limitation.
-    @Test func testInstantCompanionFactoriesRemainDirectStubs() throws {
+    // KSP-472: now() / fromEpochMilliseconds() are now Kotlin-source
+    // companion-object extensions in Stdlib/kotlin/time/Instant.kt.
+    // They resolve via Instant.now() shorthand and delegate to the
+    // kk_instant_now / kk_instant_from_epoch_millis ABI bridges.
+    @Test func testInstantCompanionFactoriesAreKotlinSourceExtensions() throws {
         let (sema, interner) = try makeSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
         let instantFQName = kotlinTime + [interner.intern("Instant")]
@@ -163,21 +161,57 @@ struct InstantDistantPropertiesSyntheticTests {
             args: [],
             nullability: .nonNull
         )))
-        let companionFQName = instantFQName + [interner.intern("Companion")]
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: instantSymbol))
+        let companionType = sema.types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
-        let nowFQName = companionFQName + [interner.intern("now")]
+        let nowFQName = kotlinTime + [interner.intern("now")]
         let nowSymbol = try #require(sema.symbols.lookupAll(fqName: nowFQName).first { symbolID in
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-            return sig.parameterTypes.isEmpty && sig.returnType == instantType
+            return sig.receiverType == companionType && sig.parameterTypes.isEmpty && sig.returnType == instantType
         })
-        #expect(sema.symbols.externalLinkName(for: nowSymbol) == "kk_instant_now")
+        #expect(sema.symbols.symbol(nowSymbol)?.declSite != nil, "Instant.now() should be a Kotlin source extension")
+        #expect(sema.symbols.externalLinkName(for: nowSymbol) == nil, "Instant.now() public API should not be a direct bridge")
 
-        let fromEpochFQName = companionFQName + [interner.intern("fromEpochMilliseconds")]
+        let fromEpochFQName = kotlinTime + [interner.intern("fromEpochMilliseconds")]
         let fromEpochSymbol = try #require(sema.symbols.lookupAll(fqName: fromEpochFQName).first { symbolID in
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-            return sig.parameterTypes == [sema.types.longType] && sig.returnType == instantType
+            return sig.receiverType == companionType && sig.parameterTypes == [sema.types.longType] && sig.returnType == instantType
         })
-        #expect(sema.symbols.externalLinkName(for: fromEpochSymbol) == "kk_instant_from_epoch_millis")
+        #expect(sema.symbols.symbol(fromEpochSymbol)?.declSite != nil, "Instant.fromEpochMilliseconds should be a Kotlin source extension")
+        #expect(sema.symbols.externalLinkName(for: fromEpochSymbol) == nil, "Instant.fromEpochMilliseconds public API should not be a direct bridge")
+    }
+
+    // KSP-472: Clock.System.now() is a Kotlin-source extension on the
+    // Clock.System nested object in Stdlib/kotlin/time/Clock.kt.
+    @Test func testClockSystemNowIsKotlinSourceExtension() throws {
+        let (sema, interner) = try makeSema()
+        let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
+        let instantFQName = kotlinTime + [interner.intern("Instant")]
+        let instantSymbol = try #require(sema.symbols.lookup(fqName: instantFQName))
+        let instantType = sema.types.make(.classType(ClassType(
+            classSymbol: instantSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let clockSystemFQName = kotlinTime + [interner.intern("Clock"), interner.intern("System")]
+        let clockSystemSymbol = try #require(sema.symbols.lookup(fqName: clockSystemFQName))
+        let clockSystemType = sema.types.make(.classType(ClassType(
+            classSymbol: clockSystemSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let nowFQName = kotlinTime + [interner.intern("now")]
+        let nowSymbol = try #require(sema.symbols.lookupAll(fqName: nowFQName).first { symbolID in
+            guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == clockSystemType && sig.parameterTypes.isEmpty && sig.returnType == instantType
+        })
+        #expect(sema.symbols.symbol(nowSymbol)?.declSite != nil, "Clock.System.now() should be a Kotlin source extension")
+        #expect(sema.symbols.externalLinkName(for: nowSymbol) == nil, "Clock.System.now() public API should not be a direct bridge")
     }
 
     @Test func testInstantDistantPropertiesResolveInSource() throws {

@@ -8,6 +8,11 @@ import Foundation
 enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
+    ///
+    /// KSP-301: ghost entries (ResultExtensions, AdvancedLogger,
+    /// KClassAnnotationRegistration, StringBasics, StringEncoding) were already
+    /// removed from this list. KSP-312 wired RangeIterators and KSP-305 wires
+    /// CollectionFactories, so no bundled stdlib files are currently excluded.
     static let excludedBundledStdlibFiles: Set<String> = [
     ]
 
