@@ -280,20 +280,6 @@ public func kk_string_contentEquals_ignoreCase(_ receiverRaw: Int, _ otherRaw: I
     return kk_box_bool(receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0)
 }
 
-@_cdecl("kk_string_lines")
-public func kk_string_lines(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
-}
-
-@_cdecl("kk_string_lineSequence")
-public func kk_string_lineSequence(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
-    let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
-    return registerRuntimeObject(seq)
-}
-
 // MARK: - STDLIB-TEXT-FN-044: String.random()
 
 @_cdecl("__kk_string_random")
