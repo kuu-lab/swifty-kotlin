@@ -124,6 +124,39 @@ struct BundledSyntheticOverlapDiagnosticTests {
         #expect(overlapDiags.isEmpty, "Unexpected overlap warnings: \(overlapDiags.map(\.message))")
     }
 
+    @Test
+    func testNoOverlapWarningForKSP671AtomicReverseVariantsAndCompareAndSet() throws {
+        // KSP-671: fetchAndAdd/fetchAndIncrement/fetchAndDecrement/compareAndSet are
+        // bundled Kotlin delegations in AtomicMigration.kt while the runtime-backed
+        // synthetic stubs stay registered (their bridge is shared with
+        // java.util.concurrent.atomic.AtomicInteger). The retained-overlap guard must
+        // both keep the members resolvable and suppress the SEMA-0102 warning.
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.atomics.AtomicLong
+
+        fun main() {
+            val a = AtomicInt(1)
+            println(a.fetchAndAdd(3))
+            println(a.fetchAndIncrement())
+            println(a.fetchAndDecrement())
+            println(a.compareAndSet(2, 5))
+            val b = AtomicLong(1L)
+            println(b.fetchAndAdd(3L))
+            println(b.fetchAndIncrement())
+            println(b.fetchAndDecrement())
+            println(b.compareAndSet(2L, 5L))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let overlapDiags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }
+        #expect(overlapDiags.isEmpty, "Unexpected overlap warnings: \(overlapDiags.map(\.message))")
+    }
+
     private func makeContext(diagnostics: DiagnosticEngine) -> CompilationContext {
         makeCompilationContext(inputs: ["/tmp/test.kt"], diagnostics: diagnostics)
     }

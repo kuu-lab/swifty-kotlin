@@ -1111,16 +1111,6 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_lines_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lines_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_lineSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lineSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_flat",
                     stringArgumentCount: 2,
