@@ -185,11 +185,14 @@ final class DeclTypeChecker {
         }
 
         if let delegateExpr = property.delegateExpression {
+            var delegateLocals: LocalBindings = [:]
             inferredPropertyType = typeCheckDelegate(
-                delegateExpr, property: property,
+                delegateExpr, isVar: property.isVar,
+                fallbackRange: property.range,
                 symbol: symbol,
                 inferredPropertyType: inferredPropertyType,
                 ctx: ctx,
+                locals: &delegateLocals,
                 diagnostics: diagnostics
             )
         }

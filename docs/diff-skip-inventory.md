@@ -193,7 +193,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
 | Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |
-| ByteArray helpers | `string_tobytearray.kt` | 解消済み（BUG-019 / KSP-660）: `joinToString(sep)` / `contentEquals` は #4671 で合成スタブ化され、SKIP-DIFF 無しで通常 diff を通過。`transform` 付き overload の gap は別課題として BUG-155 に切り出し | — |
+| ByteArray helpers | `string_tobytearray.kt` | 解消済み（BUG-019 / KSP-660）: `joinToString(sep)` / `contentEquals` は #4671 で合成スタブ化され、SKIP-DIFF 無しで通常 diff を通過。`transform` 付き overload の gap は別課題として BUG-157 に切り出し | — |
 | File/use | `file_use_edge_cases.kt` | `Closeable.use` と `java.io.File` surface | `use` common helperと JVM file interop を分離 |
 | Duration/time | `duration_operations.kt`, `experimental_time_edge_cases.kt` | formatting / timing-sensitive output | `Duration.toString` parity と monotonic time test determinism を分離 |
 | Math/comparator | `math_trig_functions.kt`, `comparator_composition_edge_cases.kt` | math function / comparator API gap | math runtime ABI、Comparator composition API に分ける |
