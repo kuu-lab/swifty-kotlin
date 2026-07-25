@@ -44,8 +44,6 @@ symbol fq=kotlin.LongArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.LongArray.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.ShortArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.ShortArray.size kind=property vis=public flags=synthetic type=Int
-symbol fq=kotlin.arrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.arrayOf.T] ret=kotlin.Array<kotlin.arrayOf.T> vararg=[1]
-symbol fq=kotlin.arrayOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.booleanArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Boolean] ret=kotlin.BooleanArray vararg=[1]
 symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ByteArray vararg=[1]
 symbol fq=kotlin.charArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Char] ret=kotlin.CharArray vararg=[1]
