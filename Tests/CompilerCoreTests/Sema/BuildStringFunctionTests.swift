@@ -114,7 +114,7 @@ struct BuildStringFunctionTests {
 
     // MARK: - Builder DSL kind binding
 
-    @Test func testBuildStringIsMarkedAsBuilderDSL() throws {
+    @Test func testBuildStringIsNotMarkedAsBuilderDSL() throws {
         let source = """
         fun build(): String = buildString { append("test") }
         """
@@ -134,7 +134,7 @@ struct BuildStringFunctionTests {
         }, "Expected a call to buildString in the AST")
 
         let kind = sema.bindings.builderDSLKind(for: callID)
-        #expect(kind == .buildString, "buildString call should be bound as .buildString DSL kind")
+        #expect(kind == nil, "buildString should not be treated as a builder DSL")
     }
 }
 #endif
