@@ -1115,5 +1115,23 @@ extension CodegenBackendIntegrationTests {
 
         try assertKotlinOutput(source, moduleName: "SequenceObjectExpressionForIn", expected: "1\n2\n3\n")
     }
+
+    // KSP-441 regression: flatMap/flatMapIndexed on source Sequence objects must
+    // traverse nested source Iterators and accept Iterable sub-collections.
+    func testCodegenSequenceFlatMapAndFlatMapIndexedOverSourceSequence() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2).flatMap { listOf(it, it * 10) }.toList())
+            println(sequenceOf(1, 2).flatMapIndexed { index, value -> listOf(index, value * 10) }.toList())
+            println(emptySequence<Int>().flatMapIndexed { index, value -> listOf(index, value) }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapRegression",
+            expected: "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[]\n"
+        )
+    }
 }
 

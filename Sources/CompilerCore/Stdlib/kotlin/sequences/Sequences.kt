@@ -87,6 +87,35 @@ public fun <T> generateSequence(seed: T, nextFunction: (T) -> T?): Sequence<T> {
     }
 }
 
+public fun <T : Any> generateSequence(seedFunction: () -> T?, nextFunction: (T) -> T?): Sequence<T> {
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            var item: T? = null
+            var computed = false
+
+            override fun hasNext(): Boolean {
+                if (!computed) {
+                    item = seedFunction()
+                    computed = true
+                }
+                return item != null
+            }
+
+            override fun next(): T {
+                if (!computed) {
+                    item = seedFunction()
+                    computed = true
+                }
+                if (item == null) throw NoSuchElementException()
+                @Suppress("UNCHECKED_CAST")
+                val result = item as T
+                item = nextFunction(result)
+                return result
+            }
+        }
+    }
+}
+
 public fun <T> Iterable<T>.asSequence(): Sequence<T> {
     val list = this.toList()
     return object : Sequence<T> {

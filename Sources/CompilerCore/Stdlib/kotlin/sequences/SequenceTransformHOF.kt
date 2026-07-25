@@ -248,34 +248,6 @@ public fun <T, R : Any> Sequence<T>.mapIndexedNotNull(transform: (Int, T) -> R?)
     }
 }
 
-public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Iterable<R>): Sequence<R> {
-    val source = this
-    return object : Sequence<R> {
-        override fun iterator(): Iterator<R> = object : Iterator<R> {
-            val sourceIterator = source.iterator()
-            var currentIterator: Iterator<R> = emptySequence<R>().iterator()
-
-            fun ensureNext() {
-                while (!currentIterator.hasNext()) {
-                    if (!sourceIterator.hasNext()) return
-                    currentIterator = transform(sourceIterator.next()).iterator()
-                }
-            }
-
-            override fun hasNext(): Boolean {
-                ensureNext()
-                return currentIterator.hasNext()
-            }
-
-            override fun next(): R {
-                ensureNext()
-                if (!currentIterator.hasNext()) throw NoSuchElementException()
-                return currentIterator.next()
-            }
-        }
-    }
-}
-
 public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Sequence<R>): Sequence<R> {
     val source = this
     return object : Sequence<R> {
@@ -304,7 +276,35 @@ public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Sequence<R>): Sequence<R
     }
 }
 
-public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Iterable<R>): Sequence<R> {
+public fun <T, R> Sequence<T>.flatMap(transform: (T) -> Iterable<R>): Sequence<R> {
+    val source = this
+    return object : Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            val sourceIterator = source.iterator()
+            var currentIterator: Iterator<R> = emptySequence<R>().iterator()
+
+            fun ensureNext() {
+                while (!currentIterator.hasNext()) {
+                    if (!sourceIterator.hasNext()) return
+                    currentIterator = transform(sourceIterator.next()).iterator()
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                ensureNext()
+                return currentIterator.hasNext()
+            }
+
+            override fun next(): R {
+                ensureNext()
+                if (!currentIterator.hasNext()) throw NoSuchElementException()
+                return currentIterator.next()
+            }
+        }
+    }
+}
+
+public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Sequence<R>): Sequence<R> {
     val source = this
     return object : Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {
@@ -334,7 +334,7 @@ public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Iterable<R>)
     }
 }
 
-public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Sequence<R>): Sequence<R> {
+public fun <T, R> Sequence<T>.flatMapIndexed(transform: (Int, T) -> Iterable<R>): Sequence<R> {
     val source = this
     return object : Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {
@@ -438,36 +438,14 @@ public fun <T : Any> Sequence<T?>.requireNoNulls(): Sequence<T> {
     return object : Sequence<T> {
         override fun iterator(): Iterator<T> = object : Iterator<T> {
             val sourceIterator = source.iterator()
-            var nextState = -2
-            var nextItem: T? = null
 
-            fun compute() {
-                if (nextState == 0 || nextState == -1) return
-                while (sourceIterator.hasNext()) {
-                    val item = sourceIterator.next()
-                    if (item == null) {
-                        throw IllegalArgumentException("null element found in $source")
-                    }
-                    nextItem = item
-                    nextState = 0
-                    return
-                }
-                nextState = -1
-            }
-
-            override fun hasNext(): Boolean {
-                compute()
-                return nextState == 0
-            }
+            override fun hasNext(): Boolean = sourceIterator.hasNext()
 
             override fun next(): T {
-                compute()
-                if (nextState != 0) throw NoSuchElementException()
-                nextState = -2
+                val item = sourceIterator.next()
+                if (item == null) throw IllegalArgumentException("null element found in sequence")
                 @Suppress("UNCHECKED_CAST")
-                val result = nextItem as T
-                nextItem = null
-                return result
+                return item as T
             }
         }
     }

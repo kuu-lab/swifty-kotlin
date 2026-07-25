@@ -784,12 +784,16 @@ final class CallTypeChecker {
            args.count == 2
         {
             let rawSeedType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-            let seedType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
-                                      functionType.params.isEmpty
+            let seedType: TypeID
+            let firstArgIsZeroArgFunction: Bool
+            if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
+               functionType.params.isEmpty
             {
-                sema.types.makeNonNullable(functionType.returnType)
+                seedType = sema.types.makeNonNullable(functionType.returnType)
+                firstArgIsZeroArgFunction = true
             } else {
-                rawSeedType
+                seedType = rawSeedType
+                firstArgIsZeroArgFunction = false
             }
             let nextExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [seedType],
@@ -810,7 +814,8 @@ final class CallTypeChecker {
                let generateSequenceSymbol = sourceGenerateSequenceSymbol(
                    sema: sema,
                    interner: interner,
-                   arity: 2
+                   arity: 2,
+                   firstArgumentIsZeroArgFunction: firstArgIsZeroArgFunction
                )
             {
                 sema.bindings.bindCall(
@@ -3330,7 +3335,8 @@ final class CallTypeChecker {
     private func sourceGenerateSequenceSymbol(
         sema: SemaModule,
         interner: StringInterner,
-        arity: Int
+        arity: Int,
+        firstArgumentIsZeroArgFunction: Bool = false
     ) -> SymbolID? {
         let fqName = [
             interner.intern("kotlin"),
@@ -3346,10 +3352,16 @@ final class CallTypeChecker {
             else {
                 return false
             }
-            if arity == 2, sig.parameterTypes.count == 2,
-               case .functionType = sema.types.kind(of: sig.parameterTypes[1])
-            {
-                return true
+            if arity == 2, sig.parameterTypes.count == 2 {
+                let firstIsFunction = if case let .functionType(firstFn) = sema.types.kind(of: sig.parameterTypes[0]) {
+                    firstFn.params.isEmpty
+                } else {
+                    false
+                }
+                guard case .functionType = sema.types.kind(of: sig.parameterTypes[1]) else {
+                    return false
+                }
+                return firstIsFunction == firstArgumentIsZeroArgFunction
             }
             return arity != 2
         }

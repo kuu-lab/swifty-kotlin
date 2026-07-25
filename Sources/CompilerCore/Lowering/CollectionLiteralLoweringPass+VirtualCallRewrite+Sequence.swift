@@ -42,6 +42,23 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return false
         }
 
+        // requireNoNulls() on sequence -> kk_sequence_requireNoNulls
+        // The bundled source iterator cannot propagate an exception thrown from
+        // hasNext(), so the runtime pipeline step (which sets outThrown) is kept.
+        if callee == lookup.requireNoNullsName, arguments.isEmpty,
+           let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 0) {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: kkName,
+                arguments: [receiver],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result { sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+
         // asSequence() → kk_list_asSequence only when receiver is a tracked list.
         // Array receivers are handled by rewriteArrayVirtualCall (guarded by arrayExprIDs).
         // Non-tracked receivers are now classified by static type via

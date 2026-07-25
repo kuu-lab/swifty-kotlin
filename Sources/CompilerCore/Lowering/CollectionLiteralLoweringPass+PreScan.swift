@@ -299,6 +299,12 @@ extension CollectionLiteralLoweringSupport {
         if let result, lookup.stringProducingCallees.contains(callee) {
             stringExprIDs.insert(result.rawValue)
         }
+        // KSP-441: Sequence factories whose source body is just a bridge to a
+        // runtime __kk_* / kk_* entry return a RuntimeSequenceBox handle.  Track
+        // those results so source Sequence HOFs route to the runtime helpers.
+        if let result, lookup.sequenceRuntimeBridgeReturningNames.contains(callee) {
+            sequenceExprIDs.insert(result.rawValue)
+        }
         propagateCollectionOperation(
             callee: callee, arguments: arguments, result: result, lookup: lookup,
             listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,

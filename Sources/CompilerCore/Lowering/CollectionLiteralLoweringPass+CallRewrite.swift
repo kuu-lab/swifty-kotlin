@@ -2,6 +2,8 @@ extension CollectionLiteralConstructionLoweringPass {
     private func shouldPreserveSourceBackedAggregateCall(
         symbol: SymbolID?,
         callee: InternedString,
+        arguments: [KIRExprID],
+        state: CollectionRewriteState,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
@@ -43,8 +45,11 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
             || callee == lookup.mapIndexedNotNullToName
-            || callee == lookup.flatMapName
-            || callee == lookup.flatMapIndexedName
+            // KSP-441: flatMap/flatMapIndexed source object-expressions are routed
+            // to kk_sequence_flatMap/kk_sequence_flatMapIndexed by the lowering
+            // pipeline, not executed from source.
+            // || callee == lookup.flatMapName
+            // || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName
             || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
@@ -78,7 +83,29 @@ extension CollectionLiteralConstructionLoweringPass {
         else {
             return false
         }
-        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        guard (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty else {
+            return false
+        }
+        // STDLIB-pipeline §5 / KSP-441: take/drop have real require() validation
+        // in bundled source, but a runtime Sequence handle cannot be iterated by
+        // the source object-expression iterator. Allow the lowering pipeline to
+        // rewrite to kk_sequence_take/kk_sequence_drop when the receiver is known
+        // to be a runtime Sequence box.
+        //
+        // flatMap/flatMapIndexed are *not* preserved here: the bundled source
+        // implementations use overloaded extension object-expressions whose
+        // nested Iterator itable registration is broken (KSP-441). The lowering
+        // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
+        // in rewriteSequencePipelineCall instead.
+        if (callee == lookup.takeName || callee == lookup.dropName),
+           let receiverID = arguments.first,
+           state.sequenceExprIDs.contains(receiverID.rawValue) {
+            return false
+        }
+        if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName {
+            return false
+        }
+        return true
     }
 
     func lowerCallInstruction(
@@ -97,6 +124,12 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) {
+        // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
+        // bundled source declaration is absent. Track its result as a runtime
+        // Sequence handle so downstream take/drop rewrites still fire.
+        if callee == lookup.kkSequenceRequireNoNullsName, let result {
+            state.sequenceExprIDs.insert(result.rawValue)
+        }
         if rewriteFactoryAndBuilderCall(
             symbol: symbol,
             callee: callee,
@@ -148,6 +181,8 @@ extension CollectionLiteralConstructionLoweringPass {
         if shouldPreserveSourceBackedAggregateCall(
             symbol: symbol,
             callee: callee,
+            arguments: arguments,
+            state: state,
             lookup: lookup,
             ctx: ctx
         ) {

@@ -171,7 +171,7 @@ internal fun checkWindowSizeStep(size: Int, step: Int) {
 }
 
 public fun <T> Sequence<T>.chunked(size: Int): Sequence<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
+    checkWindowSizeStep(size, size)
     val source = this
     return object : Sequence<List<T>> {
         override fun iterator(): Iterator<List<T>> = object : Iterator<List<T>> {
@@ -194,7 +194,7 @@ public fun <T> Sequence<T>.chunked(size: Int): Sequence<List<T>> {
 }
 
 public fun <T, R> Sequence<T>.chunked(size: Int, transform: (List<T>) -> R): Sequence<R> {
-    require(size > 0) { "size must be positive, but was $size" }
+    checkWindowSizeStep(size, size)
     val source = this
     return object : Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {

@@ -53,7 +53,7 @@ private func runtimeObjectBox(from rawValue: Int) -> RuntimeObjectBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeObjectBox.self)
 }
 
-private func runtimeArrayBoxExcludingObjects(from rawValue: Int) -> RuntimeArrayBox? {
+func runtimeArrayBoxExcludingObjects(from rawValue: Int) -> RuntimeArrayBox? {
     guard let array = runtimeArrayBox(from: rawValue),
           type(of: array) == RuntimeArrayBox.self
     else {
@@ -641,31 +641,20 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Handle the sub-collection/sequence
-        if let subList = runtimeListBox(from: subRaw) {
-            for subElem in subList.elements {
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                if state.stop { return }
-            }
-        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
-            runtimeTraverseSequence(subSeq, outThrown: outThrown) { subElem in
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                return !state.stop
-            }
+        // Handle the sub-collection/sequence, including source-implemented Sequences.
+        guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
+            return
+        }
+        for subElem in subElements {
+            runtimeSequenceTransformElement(
+                subElem,
+                steps: steps,
+                stepIndex: stepIndex + 1,
+                state: state,
+                outThrown: outThrown,
+                yield: yield
+            )
+            if state.stop { return }
         }
     case let .flatMapIndexedStep(fnPtr, closureRaw):
         let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
@@ -678,30 +667,20 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        if let subElements = runtimeCollectionElements(from: subRaw) {
-            for subElem in subElements {
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                if state.stop { return }
-            }
-        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
-            runtimeTraverseSequence(subSeq, outThrown: outThrown) { subElem in
-                runtimeSequenceTransformElement(
-                    subElem,
-                    steps: steps,
-                    stepIndex: stepIndex + 1,
-                    state: state,
-                    outThrown: outThrown,
-                    yield: yield
-                )
-                return !state.stop
-            }
+        // Handle the sub-collection/sequence, including source-implemented Sequences.
+        guard let subElements = runtimeSequenceSourceElementsOrThrow(from: subRaw, caller: #function, outThrown: outThrown) else {
+            return
+        }
+        for subElem in subElements {
+            runtimeSequenceTransformElement(
+                subElem,
+                steps: steps,
+                stepIndex: stepIndex + 1,
+                state: state,
+                outThrown: outThrown,
+                yield: yield
+            )
+            if state.stop { return }
         }
     case .shuffledStep:
         return
@@ -2416,10 +2395,10 @@ public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
             return false
         }
     } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let first = elements.first {
-            result = first
+        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+            result = elem
             found = true
+            return false
         }
     }
     if let outThrown, outThrown.pointee != 0 { return 0 }
@@ -2441,10 +2420,10 @@ public func kk_sequence_firstOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePoi
             return false
         }
     } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let first = elements.first {
-            result = first
+        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+            result = elem
             found = true
+            return false
         }
     }
     if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
@@ -3792,26 +3771,8 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_plus")
 public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
-    let lhsElements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        lhsElements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: seqRaw) {
-        lhsElements = list.elements
-    } else if let array = runtimeArrayBox(from: seqRaw) {
-        lhsElements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid LHS collection handle")
-    }
-    let rhsElements: [Int]
-    if let seq = runtimeSequenceBox(from: otherRaw) {
-        rhsElements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: otherRaw) {
-        rhsElements = list.elements
-    } else if let array = runtimeArrayBox(from: otherRaw) {
-        rhsElements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid RHS collection handle (the compiler must wrap single elements via kk_sequence_of_single)")
-    }
+    let lhsElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    let rhsElements = runtimeSequenceSourceElementsOrPanic(from: otherRaw, caller: #function)
     // Single-allocation concatenation: create an array with the exact
     // final capacity up front so there are no intermediate reallocations
     // or copy-on-write copies.
@@ -3834,16 +3795,7 @@ public func kk_sequence_plus_element(_ seqRaw: Int, _ element: Int) -> Int {
 
 @_cdecl("kk_sequence_minus")
 public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
-    let elements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        elements = evaluateSequence(seq)
-    } else if let list = runtimeListBox(from: seqRaw) {
-        elements = list.elements
-    } else if let array = runtimeArrayBox(from: seqRaw) {
-        elements = array.elements
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_minus received invalid LHS collection handle")
-    }
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     var result = elements
     // NOTE: runtimeValuesEqual compares primitives (Int, String, Bool, etc.)
     // by value but falls back to pointer identity for collection types

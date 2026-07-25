@@ -86,7 +86,9 @@ func appendObjectItableMethodRegistrations(
     interner: StringInterner,
     instructions: inout [KIRInstruction]
 ) {
-    guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+    guard let _ = sema.symbols.symbol(nominalSymbol),
+          let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol)
+    else {
         return
     }
 
@@ -125,7 +127,8 @@ func appendObjectItableMethodRegistrations(
             let implementationSymbol = kirFindOverrideMethod(
                 for: methodSymbol,
                 in: nominalSymbol,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) ?? methodSymbol
             let methodSlot = Int64(methodSlotInt)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
@@ -150,7 +153,8 @@ func appendObjectItableMethodRegistrations(
 func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    interner: StringInterner
 ) -> SymbolID? {
     guard let methodSym = sema.symbols.symbol(interfaceMethod),
           let ownerSym = sema.symbols.symbol(nominalSymbol)
@@ -158,10 +162,11 @@ func kirFindOverrideMethod(
         return nil
     }
 
-    let overrideFQName = ownerSym.fqName + [methodSym.name]
-    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+    let children = sema.symbols.children(ofFQName: ownerSym.fqName)
+    for candidate in children {
         guard let candidateSym = sema.symbols.symbol(candidate),
               candidateSym.kind == .function,
+              candidateSym.name == methodSym.name,
               sema.symbols.parentSymbol(for: candidate) == nominalSymbol
         else {
             continue

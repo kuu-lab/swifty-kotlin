@@ -110,8 +110,11 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.elements
+    // runtimeSequenceSourceElements covers RuntimeSequenceBox, source Sequence
+    // objects (RuntimeObjectBox), List, Set, and arrays, while excluding
+    // RuntimeObjectBox instances that are not actually arrays.
+    if let elements = runtimeSequenceSourceElements(from: rawValue) {
+        return elements
     }
     return nil
 }
@@ -120,8 +123,8 @@ func runtimeCollectionOrArrayValues(from rawValue: Int) -> [RuntimeValue]? {
     if let values = runtimeCollectionValues(from: rawValue) {
         return values
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
+    if let values = runtimeSequenceSourceValues(from: rawValue) {
+        return values
     }
     return nil
 }
@@ -140,11 +143,10 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
             RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
         }
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
-    }
-    if runtimeSequenceBox(from: rawValue) != nil {
-        return runtimeSequenceSourceValues(from: rawValue)
+    // runtimeSequenceSourceValues handles RuntimeSequenceBox, source Sequence
+    // objects, List, Set, and arrays without misclassifying RuntimeObjectBox.
+    if let values = runtimeSequenceSourceValues(from: rawValue) {
+        return values
     }
     return nil
 }
