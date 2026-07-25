@@ -32,20 +32,6 @@ public func kk_long_range_step(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_long_range_contains")
-public func kk_long_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_contains") { range in
-        if range.step > 0 {
-            guard range.first <= value && value <= range.last else { return 0 }
-            return (value &- range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard range.last <= value && value <= range.first else { return 0 }
-            return (range.first &- value) % (0 &- range.step) == 0 ? 1 : 0
-        }
-        return 0
-    }
-}
-
 @_cdecl("kk_long_range_iterator")
 public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
@@ -59,13 +45,6 @@ public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_long_range_reversed")
-public func kk_long_range_reversed(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_reversed") { range in
-        registerRuntimeObject(RuntimeRangeBox(first: range.last, last: range.first, step: 0 &- range.step))
-    }
-}
-
 @_cdecl("kk_long_range_toList")
 public func kk_long_range_toList(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_toList") { range in
@@ -77,13 +56,6 @@ public func kk_long_range_toList(_ rangeRaw: Int) -> Int {
 public func kk_long_range_toLongArray(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_toLongArray") { range in
         runtimeSignedRangeToArray(range)
-    }
-}
-
-@_cdecl("kk_long_range_count")
-public func kk_long_range_count(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_count") { range in
-        RuntimeSignedRangeHOFKind.count(range)
     }
 }
 
