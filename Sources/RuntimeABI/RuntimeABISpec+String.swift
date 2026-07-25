@@ -1788,32 +1788,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-143: String.lines
-        RuntimeABIFunctionSpec(
-            name: "kk_string_lines_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        // STDLIB-666: String.lineSequence
-        RuntimeABIFunctionSpec(
-            name: "kk_string_lineSequence_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         // STDLIB-144: String.trimStart/trimEnd
         flatStringHOFReturnSpec(name: "kk_string_trimStart_predicate_flat"),
         flatStringHOFReturnSpec(name: "kk_string_trimEnd_predicate_flat"),
