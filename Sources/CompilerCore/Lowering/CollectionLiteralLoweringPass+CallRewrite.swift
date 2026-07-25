@@ -42,8 +42,32 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
+            // KSP-426: List sorting and extrema HOFs have Kotlin source implementations.
+            || callee == lookup.sortedName
+            || callee == lookup.sortedDescendingName
+            || callee == lookup.sortedByName
+            || callee == lookup.sortedByDescendingName
+            || callee == lookup.sortedWithName
+            || callee == lookup.maxName
+            || callee == lookup.minName
+            || callee == lookup.maxOrNullName
+            || callee == lookup.minOrNullName
+            || callee == lookup.maxByName
+            || callee == lookup.minByName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
+            || callee == lookup.maxOfName
+            || callee == lookup.minOfName
+            || callee == lookup.maxOfOrNullName
+            || callee == lookup.minOfOrNullName
+            || callee == lookup.maxWithName
+            || callee == lookup.minWithName
+            || callee == lookup.maxWithOrNullName
+            || callee == lookup.minWithOrNullName
+            || callee == lookup.maxOfWithName
+            || callee == lookup.minOfWithName
+            || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithOrNullName
             // KSP-421: List transform HOFs have Kotlin source implementations.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName

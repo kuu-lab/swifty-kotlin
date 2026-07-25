@@ -279,12 +279,12 @@ struct BundledDeclarationIndex: Sendable {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
         // contains, any, all, none, count, first, last, single) are source-bound.
-        case "reversed", "sorted":
+        // KSP-426 source-backed sorting HOFs (sorted, sortedBy, sortedWith, etc.) are
+        // now emitted from bundled Kotlin source; do not retain the runtime bridge.
+        case "reversed":
             return key.arity == 0
         case "shuffled":
             return key.arity == 0 || key.arity == 1
-        case "sortedBy", "sortedByDescending", "sortedWith":
-            return key.arity == 1
         default:
             return false
         }

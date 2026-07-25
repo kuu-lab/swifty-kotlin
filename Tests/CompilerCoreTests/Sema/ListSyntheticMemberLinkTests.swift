@@ -62,11 +62,11 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedExternalLinks = [
+            let expectedExternalLinks: [(String, Int, String?)] = [
                 ("take", 1, "kk_list_take"),
                 ("drop", 1, "kk_list_drop"),
                 ("reversed", 0, "kk_list_reversed"),
-                ("sorted", 0, "kk_list_sorted"),
+                ("sorted", 0, nil),
                 ("distinct", 0, "kk_list_distinct"),
                 ("shuffled", 0, "kk_list_shuffled"),
                 ("shuffled", 1, "kk_list_shuffled_random"),
@@ -405,34 +405,45 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let expectedExternalLinks = [
+            let expectedExternalLinks: [String: String?] = [
                 "sum": "kk_list_sum",
-                // sumOf / minByOrNull / maxByOrNull are bundled Kotlin source (KSP-002).
-                "maxOfWith": "kk_list_maxOfWith",
-                "minOfWith": "kk_list_minOfWith",
-                "minBy": "kk_list_minBy",
-                "maxOfWithOrNull": "kk_list_maxOfWithOrNull",
-                "maxWithOrNull": "kk_list_maxWithOrNull",
-                "min": "kk_list_min",
-                "maxWith": "kk_list_maxWith",
-                "maxOrNull": "kk_list_maxOrNull",
-                "minOrNull": "kk_list_minOrNull",
-                "minOf": "kk_list_minOf",
-                "maxBy": "kk_list_maxBy",
-                "minOfWithOrNull": "kk_list_minOfWithOrNull",
-                "maxOfOrNull": "kk_list_maxOfOrNull",
+                // KSP-426: sort/max/min family is source-backed in ListSortingHOF.kt
+                // and ListExtremaHOF.kt, so synthetic stubs have no external link.
+                "max": nil,
+                "maxBy": nil,
+                "maxByOrNull": nil,
+                "maxOf": nil,
+                "maxOfOrNull": nil,
+                "maxOfWith": nil,
+                "maxOfWithOrNull": nil,
+                "maxOrNull": nil,
+                "maxWith": nil,
+                "maxWithOrNull": nil,
+                "min": nil,
+                "minBy": nil,
+                "minByOrNull": nil,
+                "minOf": nil,
+                "minOfOrNull": nil,
+                "minOfWith": nil,
+                "minOfWithOrNull": nil,
+                "minOrNull": nil,
+                "minWith": nil,
+                "minWithOrNull": nil,
+                "sorted": nil,
+                "sortedBy": nil,
+                "sortedByDescending": nil,
+                "sortedDescending": nil,
+                "sortedWith": nil,
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let symbolID = try #require(sema.symbols.lookup(
-                        fqName: [
-                            ctx.interner.intern("kotlin"),
-                            ctx.interner.intern("collections"),
-                            ctx.interner.intern("List"),
-                            ctx.interner.intern(memberName),
-                        ]
-                    ))
-                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                let symbolID = try #require(listBackedFunctionSymbol(
+                    memberName: memberName,
+                    sema: sema,
+                    interner: ctx.interner,
+                    sourceManager: ctx.sourceManager
+                ), "Expected List.\(memberName) to resolve")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) externalLinkName to be \(String(describing: externalLinkName))")
             }
 
             // find / findLast are source-backed in ListSearchHOF.kt (KSP-423)
@@ -577,6 +588,53 @@ struct ListSyntheticMemberLinkTests {
                 ("none", 1),
             ]
             for (name, arity) in sourceBackedSearchHOFs {
+                let bundled = bundledListExtensionSymbols(named: name, arity: arity)
+                #expect(!bundled.isEmpty, "Expected bundled Kotlin source for List.\(name)(arity: \(arity))")
+                #expect(
+                    bundled.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+                    "Bundled List.\(name) should not have an external link name"
+                )
+                let synthetic = syntheticMemberSymbols(
+                    ownerFQName: listOwnerFQName,
+                    name: name,
+                    arity: arity,
+                    externalLinkPrefix: "kk_list_"
+                )
+                #expect(
+                    synthetic.isEmpty,
+                    "Expected no synthetic List.\(name)(arity: \(arity)) stub when bundled Kotlin source exists, found \(synthetic.count)"
+                )
+            }
+
+            // KSP-426: sort and extrema HOFs are source-backed.
+            let sourceBackedSortMaxMinHOFs: [(name: String, arity: Int)] = [
+                ("sorted", 0),
+                ("sortedBy", 1),
+                ("sortedByDescending", 1),
+                ("sortedDescending", 0),
+                ("sortedWith", 1),
+                ("max", 0),
+                ("maxBy", 1),
+                ("maxByOrNull", 1),
+                ("maxOf", 1),
+                ("maxOfOrNull", 1),
+                ("maxOfWith", 2),
+                ("maxOfWithOrNull", 2),
+                ("maxOrNull", 0),
+                ("maxWith", 1),
+                ("maxWithOrNull", 1),
+                ("min", 0),
+                ("minBy", 1),
+                ("minByOrNull", 1),
+                ("minOf", 1),
+                ("minOfOrNull", 1),
+                ("minOfWith", 2),
+                ("minOfWithOrNull", 2),
+                ("minOrNull", 0),
+                ("minWith", 1),
+                ("minWithOrNull", 1),
+            ]
+            for (name, arity) in sourceBackedSortMaxMinHOFs {
                 let bundled = bundledListExtensionSymbols(named: name, arity: arity)
                 #expect(!bundled.isEmpty, "Expected bundled Kotlin source for List.\(name)(arity: \(arity))")
                 #expect(
@@ -2428,5 +2486,42 @@ func assertListType(
     #expect(listType.args.count == 1)
     let elementType = try projectedType(try #require(listType.args.first), file: file, line: line)
     #expect(elementType == expectedElementType)
+}
+
+/// Resolves a `List` member symbol, accounting for source-backed extension functions
+/// (which live at package scope) as well as synthetic stubs (which live under `List`).
+func listBackedFunctionSymbol(
+    memberName: String,
+    sema: SemaModule,
+    interner: StringInterner,
+    sourceManager: SourceManager
+) -> SymbolID? {
+    let listFQName: [InternedString] = [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern("List"),
+        interner.intern(memberName),
+    ]
+    if let synthetic = sema.symbols.lookup(fqName: listFQName) {
+        return synthetic
+    }
+
+    let packageFQName: [InternedString] = [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern(memberName),
+    ]
+    return sema.symbols.lookupAll(fqName: packageFQName).first { symbolID in
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              !symbol.flags.contains(.synthetic),
+              let fileID = sema.symbols.sourceFileID(for: symbolID),
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let receiverType = signature.receiverType,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else { return false }
+        return interner.resolve(receiverSymbol.name) == "List"
+            && sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    }
 }
 #endif

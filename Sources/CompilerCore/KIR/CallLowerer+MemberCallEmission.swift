@@ -812,24 +812,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0]] + successArgs + failureArgs
         }
-        if let primitiveKind = collectionElementPrimitiveCompareKind(
-            of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema
-        ) {
-            let primitiveSortCallees: Set<InternedString> = [
-                interner.intern("kk_list_sorted_primitive"),
-                interner.intern("kk_list_sortedDescending_primitive"),
-                interner.intern("kk_mutable_list_sort_primitive"),
-                interner.intern("kk_mutable_list_sortDescending_primitive"),
-            ]
-            if primitiveSortCallees.contains(loweredCallee),
-               finalArguments.count == 1
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
         if isArrayBinarySearchRuntimeCallee(loweredCallee, interner: interner) {
             let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
             let sizeRuntimeCallee = arraySizeRuntimeCallee(
@@ -857,15 +839,10 @@ extension CallLowerer {
             }
         }
         let comparatorOnlyCallees: Set<InternedString> = [
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_maxWithOrNull"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_minWithOrNull"),
             interner.intern("kk_sequence_maxWith"),
             interner.intern("kk_sequence_maxWithOrNull"),
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
-            interner.intern("kk_list_sortedWith"),
             interner.intern("kk_array_sortedArrayWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
@@ -1119,16 +1096,7 @@ extension CallLowerer {
             interner.intern("kk_list_takeLast"),
             interner.intern("kk_sequence_takeLast"),
             interner.intern("kk_list_drop"),
-            interner.intern("kk_list_max"),
-            interner.intern("kk_list_minBy"),
-            interner.intern("kk_list_min"),
-            interner.intern("kk_list_maxOf"),
-            interner.intern("kk_list_minOf"),
-            interner.intern("kk_list_maxBy"),
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_maxOfWith"),
-            interner.intern("kk_list_minOfWith"),
+
             interner.intern("kk_list_fold"),
             interner.intern("kk_list_foldRight"),
             interner.intern("kk_list_reduce"),

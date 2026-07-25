@@ -5,7 +5,8 @@ import Testing
 /// STDLIB-COMP-FN-028: Validates that `maxWithOrNull(comparator)` resolves
 /// through Sema for the comparator-based aggregate receivers wired through the
 /// standard List / Sequence synthetic-member infrastructure.
-/// Runtime link names involved: `kk_list_maxWithOrNull`, `kk_sequence_maxWithOrNull`.
+/// `Sequence.maxWithOrNull` still uses `kk_sequence_maxWithOrNull`; `List.maxWithOrNull`
+/// is source-backed in ListExtremaHOF.kt and has no external link.
 @Suite
 struct ComparisonsMaxWithOrNullFunctionTests {
 
@@ -26,8 +27,8 @@ struct ComparisonsMaxWithOrNullFunctionTests {
         #expect(errors.isEmpty, "Expected maxWithOrNull to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 
-    /// `List<T>.maxWithOrNull` must be registered with the `kk_list_maxWithOrNull` external link.
-    @Test func testListMaxWithOrNullIsRegisteredWithRuntimeLink() throws {
+    /// `List<T>.maxWithOrNull` is source-backed and must not have a `kk_list_*` external link.
+    @Test func testListMaxWithOrNullIsSourceBackedWithNoRuntimeLink() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
         let sema = try #require(ctx.sema)
@@ -36,7 +37,7 @@ struct ComparisonsMaxWithOrNullFunctionTests {
             sema.symbols.lookupAll(fqName: fq)
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        #expect(links.contains("kk_list_maxWithOrNull"), "List.maxWithOrNull must link to kk_list_maxWithOrNull; found: \(links)")
+        #expect(links.isEmpty, "List.maxWithOrNull must be source-backed; found external links: \(links)")
     }
 
     /// `Sequence<T>.maxWithOrNull` must be registered with the

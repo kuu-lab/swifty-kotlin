@@ -402,21 +402,22 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            // flatMap and the fold/*Indexed family are now bundled Kotlin source
-            // functions, so they are inlined/expanded into the core List access
-            // helpers (__kk_list_get / __kk_list_size) and mutable add.  The
-            // aggregate helpers that still lack source implementations continue
-            // to call their runtime counterparts.
+            // flatMap, the fold/*Indexed family and the lambda-bearing
+            // extrema HOFs are now bundled Kotlin source, so they are
+            // inlined/expanded into the core List access helpers
+            // (__kk_list_get / __kk_list_size) and mutable add.
             XCTAssertTrue(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
             XCTAssertTrue(callees.contains("__kk_list_size") || callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
             XCTAssertTrue(callees.contains("kk_collection_size"), "callees: \(callees.sorted())")
             XCTAssertTrue(callees.contains("kk_mutable_list_add"), "callees: \(callees.sorted())")
-            XCTAssertTrue(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
-            XCTAssertTrue(callees.contains("kk_list_minBy"))
-            XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
-            XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
+            // Only non-lambda extrema (maxOrNull / minOrNull) remain as direct
+            // source-backed callees; lambda-bearing HOFs are auto-inlined.
+            XCTAssertTrue(callees.contains("maxOrNull"))
+            XCTAssertTrue(callees.contains("minOrNull"))
+            XCTAssertFalse(callees.contains("sumOf"))
+            XCTAssertFalse(callees.contains("minBy"))
+            XCTAssertFalse(callees.contains("minOfOrNull"))
+            XCTAssertFalse(callees.contains("minByOrNull"))
             // The old runtime entry points for source-backed HOFs must not appear
             // after lowering; their bodies have been expanded inline.
             XCTAssertFalse(callees.contains("kk_list_flatMap"), "callees: \(callees.sorted())")
@@ -424,6 +425,12 @@ extension CodegenBackendIntegrationTests {
             XCTAssertFalse(callees.contains("kk_list_fold"), "callees: \(callees.sorted())")
             XCTAssertFalse(callees.contains("kk_list_foldIndexed"), "callees: \(callees.sorted())")
             XCTAssertFalse(callees.contains("kk_list_foldRightIndexed"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_sumOf"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_minBy"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_maxOrNull"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_minOrNull"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_minOfOrNull"), "callees: \(callees.sorted())")
+            XCTAssertFalse(callees.contains("kk_list_minByOrNull"), "callees: \(callees.sorted())")
         }
     }
 
