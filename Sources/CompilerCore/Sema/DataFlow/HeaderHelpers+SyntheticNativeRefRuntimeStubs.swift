@@ -142,15 +142,16 @@ extension DataFlowSemaPhase {
         }
 
         // Tag WeakReference itself with @ExperimentalNativeApi so that
-        // callers must opt in.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: classSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // callers must opt in. The marker class is provided by bundled Kotlin
+        // source (KSP-668) and may not be registered yet when synthetic stubs
+        // run, so attach by FQName instead of gating on the symbol lookup.
+        attachExperimentalNativeApi(
+            to: classSymbol,
+            markerFQName: experimentalNativeApiSymbol
+                .flatMap { symbols.symbol($0)?.fqName }
+                .map { $0.map { interner.resolve($0) }.joined(separator: ".") } ?? "",
+            symbols: symbols
+        )
 
         // Set up the single type-parameter T (inline, as the NativeInterop
         // helper is private).
@@ -236,15 +237,16 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // Tag with @ExperimentalNativeApi.
-        if let experimentalNativeApiSymbol {
-            attachExperimentalNativeApi(
-                to: functionSymbol,
-                markerFQName: symbols.symbol(experimentalNativeApiSymbol)?
-                    .fqName.map { interner.resolve($0) }.joined(separator: ".") ?? "",
-                symbols: symbols
-            )
-        }
+        // Tag with @ExperimentalNativeApi. The marker class is provided by
+        // bundled Kotlin source (KSP-668) and may not be registered yet when
+        // synthetic stubs run, so attach by FQName instead of gating on lookup.
+        attachExperimentalNativeApi(
+            to: functionSymbol,
+            markerFQName: experimentalNativeApiSymbol
+                .flatMap { symbols.symbol($0)?.fqName }
+                .map { $0.map { interner.resolve($0) }.joined(separator: ".") } ?? "",
+            symbols: symbols
+        )
 
         // createCleaner<T>(value: T, block: (T) -> Unit): Cleaner
         // We use `Any` as a simple approximation for T and the Cleaner return type.
