@@ -196,6 +196,7 @@ struct RuntimeABIExternalLinkValidationTests {
         let hasReceiver: Bool
         let receiverType: String?
         let valueParameterTypes: [String]
+        let valueParameterIsVararg: [Bool]
         let returnType: String?
         let relativePath: String
     }
@@ -275,6 +276,7 @@ struct RuntimeABIExternalLinkValidationTests {
                         hasReceiver: hasReceiver,
                         receiverType: signature.receiverType,
                         valueParameterTypes: signature.valueParameterTypes,
+                        valueParameterIsVararg: signature.valueParameterIsVararg,
                         returnType: signature.returnType,
                         relativePath: relativePath
                     )
@@ -316,6 +318,7 @@ struct RuntimeABIExternalLinkValidationTests {
     private struct FunctionSignatureInfo {
         let receiverType: String?
         let valueParameterTypes: [String]
+        let valueParameterIsVararg: [Bool]
         let returnType: String?
 
         var functionTypedParameterCount: Int {
@@ -358,13 +361,20 @@ struct RuntimeABIExternalLinkValidationTests {
 
         let parameters = suffix[suffix.index(after: openParen)..<closeParen]
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let valueParameterTypes = splitTopLevelCommaSeparated(parameters).compactMap { parameter -> String? in
+        var valueParameterTypes: [String] = []
+        var valueParameterIsVararg: [Bool] = []
+        for parameter in splitTopLevelCommaSeparated(parameters) {
             guard let colon = parameter.firstIndex(of: ":") else {
-                return nil
+                continue
             }
+            let namePart = parameter[..<colon]
+            let isVararg = namePart
+                .split(whereSeparator: { $0 == " " || $0 == "\t" })
+                .contains("vararg")
             let suffix = parameter[parameter.index(after: colon)...]
             let typePart = suffix.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
-            return String(typePart).trimmingCharacters(in: .whitespacesAndNewlines)
+            valueParameterTypes.append(String(typePart).trimmingCharacters(in: .whitespacesAndNewlines))
+            valueParameterIsVararg.append(isVararg)
         }
 
         let remainder = suffix[suffix.index(after: closeParen)...]
@@ -377,6 +387,7 @@ struct RuntimeABIExternalLinkValidationTests {
         return FunctionSignatureInfo(
             receiverType: receiverType,
             valueParameterTypes: valueParameterTypes,
+            valueParameterIsVararg: valueParameterIsVararg,
             returnType: returnType
         )
     }
@@ -429,6 +440,10 @@ struct RuntimeABIExternalLinkValidationTests {
             loweredArity += 1
         }
         loweredArity += declaration.functionTypedParameterCount
+        // A `vararg` value parameter lowers to a (packed array pointer, count)
+        // pair in the runtime ABI (see CallSupportLowerer's kk_array_of path),
+        // so each vararg contributes one extra count parameter.
+        loweredArity += declaration.valueParameterIsVararg.filter { $0 }.count
         if specs.contains(where: \.isThrowing) {
             loweredArity += 1
         }
@@ -509,7 +524,14 @@ struct RuntimeABIExternalLinkValidationTests {
                 types.append(RuntimeABICType.intptr.rawValue)
             }
         }
-        for parameterType in declaration.valueParameterTypes {
+        for (index, parameterType) in declaration.valueParameterTypes.enumerated() {
+            if index < declaration.valueParameterIsVararg.count,
+               declaration.valueParameterIsVararg[index] {
+                // vararg -> (packed array pointer, element count)
+                types.append(RuntimeABICType.intptr.rawValue)
+                types.append(RuntimeABICType.intptr.rawValue)
+                continue
+            }
             types.append(contentsOf: expectedRuntimeABIParameterTypes(for: parameterType, isFlat: isFlat))
         }
         return types
