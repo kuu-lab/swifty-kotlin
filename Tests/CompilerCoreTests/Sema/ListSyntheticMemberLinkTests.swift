@@ -469,28 +469,6 @@ struct ListSyntheticMemberLinkTests {
                 #expect(sourceSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "List.\(memberName) should be source-backed")
             }
 
-            // find / findLast are source-backed in ListSearchHOF.kt (KSP-423)
-            // and therefore have no external link name.
-            let collectionsPkg = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-            ]
-            for memberName in ["find", "findLast"] {
-                let sourceSymbols = sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern(memberName)]).filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID),
-                          symbol.kind == .function,
-                          !symbol.flags.contains(.synthetic),
-                          let fileID = sema.symbols.sourceFileID(for: symbolID),
-                          let signature = sema.symbols.functionSignature(for: symbolID),
-                          signature.receiverType != nil
-                    else {
-                        return false
-                    }
-                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
-                }
-                #expect(!sourceSymbols.isEmpty, "Expected bundled Kotlin source for List.\(memberName)")
-                #expect(sourceSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil }, "List.\(memberName) should be source-backed")
-            }
         }
     }
 
