@@ -968,12 +968,7 @@ extension DataFlowSemaPhase {
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iteratorSymbol, for: sym)
-            // KSP-441: Iterator.hasNext/next are interface methods; source
-            // Iterator implementations (including anonymous object expressions)
-            // must dispatch virtually rather than through the legacy runtime
-            // kk_iterator_* direct-call stubs. Do not set an external link on
-            // the interface declaration so emitForLoopMemberCall and member-call
-            // lowering choose virtual dispatch.
+            symbols.setExternalLinkName("kk_iterator_hasNext", for: sym)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [], returnType: types.booleanType, isSuspend: false, nullability: .nonNull
             ))), for: sym)
@@ -999,7 +994,7 @@ extension DataFlowSemaPhase {
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iteratorSymbol, for: sym)
-            // See hasNext above: Iterator.next dispatches virtually.
+            symbols.setExternalLinkName("kk_iterator_next", for: sym)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [], returnType: iteratorTypeParamType, isSuspend: false, nullability: .nonNull
             ))), for: sym)

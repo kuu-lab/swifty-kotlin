@@ -189,10 +189,14 @@ extension BuildKIRRegressionTests {
             let allCallees = Set(callCallees + virtualCallees)
 
             #expect(callCallees.contains("iterator"), "Expected custom iterator() call, got: \(callCallees)")
-            #expect(allCallees.contains("hasNext"), "Expected virtual hasNext dispatch, got: call=\(callCallees) virtual=\(virtualCallees)")
-            #expect(allCallees.contains("next"), "Expected virtual next dispatch, got: call=\(callCallees) virtual=\(virtualCallees)")
-            #expect(!allCallees.contains("kk_iterator_hasNext"), "User Iterable loop should not use kk_iterator_hasNext, got: \(allCallees)")
-            #expect(!allCallees.contains("kk_iterator_next"), "User Iterable loop should not use kk_iterator_next, got: \(allCallees)")
+            #expect(
+                allCallees.contains("kk_iterator_hasNext"),
+                "Expected Iterator.hasNext to lower through the generic kk_iterator_hasNext runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+            )
+            #expect(
+                allCallees.contains("kk_iterator_next"),
+                "Expected Iterator.next to lower through the generic kk_iterator_next runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+            )
             #expect(!allCallees.contains("kk_range_iterator"), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
             #expect(!allCallees.contains("kk_range_hasNext"), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
             #expect(!allCallees.contains("kk_range_next"), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
