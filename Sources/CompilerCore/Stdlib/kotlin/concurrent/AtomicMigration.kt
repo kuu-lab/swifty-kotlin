@@ -2,8 +2,8 @@ package kotlin.concurrent
 
 import java.util.concurrent.atomic.AtomicInteger
 
-// MIGRATION-ATOMIC-001
-// AtomicInt / AtomicLong / AtomicBoolean / AtomicReference API migrated to
+// MIGRATION-ATOMIC-001 / KSP-670
+// AtomicInt / AtomicLong / AtomicReference / AtomicBoolean API migrated to
 // Kotlin source.
 // get/set/getAndSet delegate to load/store/exchange bridge members;
 // incrementAndGet/decrementAndGet/addAndGet delegate to the
@@ -114,6 +114,14 @@ public fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
 }
 
 // ── AtomicBoolean ──────────────────────────────────────────────────────────
+// KSP-670: get/set/getAndSet delegate to the load/store/exchange bridge members.
+// compareAndSet/compareAndExchange remain Swift bridges (kk_atomic_bool_*).
+
+public fun AtomicBoolean.get(): Boolean = load()
+
+public fun AtomicBoolean.set(value: Boolean): Unit = store(value)
+
+public fun AtomicBoolean.getAndSet(newValue: Boolean): Boolean = exchange(newValue)
 
 public fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean {
     while (true) {

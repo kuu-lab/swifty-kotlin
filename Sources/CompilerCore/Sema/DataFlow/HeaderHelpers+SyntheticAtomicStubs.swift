@@ -75,6 +75,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_bool",
             includeArithmetic: false,
+            includeGetAndSetAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
