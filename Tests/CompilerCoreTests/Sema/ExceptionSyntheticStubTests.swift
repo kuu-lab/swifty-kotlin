@@ -95,8 +95,8 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_throwable_new"),
-            ([nullableStringType], "kk_throwable_new"),
+            ([], "__kk_throwable_new"),
+            ([nullableStringType], "__kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
@@ -143,8 +143,8 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_throwable_new"),
-            ([sema.types.stringType], "kk_throwable_new"),
+            ([], "__kk_throwable_new"),
+            ([sema.types.stringType], "__kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
@@ -193,8 +193,8 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_throwable_new"),
-            ([sema.types.stringType], "kk_throwable_new"),
+            ([], "__kk_throwable_new"),
+            ([sema.types.stringType], "__kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
