@@ -246,10 +246,19 @@ struct BundledDeclarationIndex: Sendable {
              ["kotlin", "concurrent", "atomics", "AtomicLong"],
              ["kotlin", "concurrent", "AtomicLong"]:
             switch interner.resolve(key.name) {
-            case "get", "incrementAndGet", "decrementAndGet":
+            // KSP-671: fetchAndIncrement/fetchAndDecrement join get/incrementAndGet/
+            // decrementAndGet as arity-0 bundled delegations whose bridge is
+            // retained (also shared with java.util.concurrent.atomic.AtomicInteger).
+            case "get", "incrementAndGet", "decrementAndGet",
+                 "fetchAndIncrement", "fetchAndDecrement":
                 return key.arity == 0
-            case "set", "getAndSet", "addAndGet":
+            // KSP-671: fetchAndAdd joins set/getAndSet/addAndGet as arity-1.
+            case "set", "getAndSet", "addAndGet", "fetchAndAdd":
                 return key.arity == 1
+            // KSP-671: compareAndSet delegates to the retained compareAndExchange
+            // CAS-instruction bridge.
+            case "compareAndSet":
+                return key.arity == 2
             default:
                 return false
             }
@@ -279,10 +288,8 @@ struct BundledDeclarationIndex: Sendable {
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
-        // KSP-423 source-backed search/predicate HOFs (find, indexOf, contains,
-        // any, all, none, count) are also source-bound.
-        case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
-            return key.arity == 0 || key.arity == 1
+        // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
+        // contains, any, all, none, count, first, last, single) are source-bound.
         case "reversed", "sorted":
             return key.arity == 0
         case "shuffled":

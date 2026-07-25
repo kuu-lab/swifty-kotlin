@@ -13,37 +13,21 @@ struct NativeConcurrentAPISurfaceInventoryTests {
     }
 
     private static let implementedTopLevelEntries: Set<TopLevelEntry> = [
-        TopLevelEntry(name: "AtomicReference", kind: .class, todo: nil),
-        TopLevelEntry(name: "AtomicInt", kind: .class, todo: nil),
-        TopLevelEntry(name: "AtomicLong", kind: .class, todo: nil),
-        TopLevelEntry(name: "AtomicNativePtr", kind: .class, todo: nil),
         TopLevelEntry(name: "Continuation0", kind: .class, todo: nil),
         TopLevelEntry(name: "Continuation1", kind: .class, todo: nil),
         TopLevelEntry(name: "Continuation2", kind: .class, todo: nil),
-        TopLevelEntry(name: "DetachedObjectGraph", kind: .class, todo: nil),
         TopLevelEntry(name: "FreezingException", kind: .class, todo: nil),
-        TopLevelEntry(name: "FreezableAtomicReference", kind: .class, todo: nil),
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
         TopLevelEntry(name: "FutureState", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "InvalidMutabilityException", kind: .class, todo: nil),
-        TopLevelEntry(name: "MutableData", kind: .class, todo: nil),
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "SharedImmutable", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "ThreadLocal", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "TransferMode", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "Worker", kind: .class, todo: nil),
-        TopLevelEntry(name: "WorkerBoundReference", kind: .class, todo: nil),
-        TopLevelEntry(name: "atomicLazy", kind: .function, todo: nil),
-        TopLevelEntry(name: "attach", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation2", kind: .function, todo: nil),
-        TopLevelEntry(name: "ensureNeverFrozen", kind: .function, todo: nil),
-        TopLevelEntry(name: "freeze", kind: .function, todo: nil),
-        TopLevelEntry(name: "isFrozen", kind: .property, todo: nil),
-        TopLevelEntry(name: "waitForMultipleFutures", kind: .function, todo: nil),
-        TopLevelEntry(name: "waitWorkerTermination", kind: .function, todo: nil),
-        TopLevelEntry(name: "withWorker", kind: .function, todo: nil),
     ]
 
     private static let knownGapTopLevelEntries: Set<TopLevelEntry> = []
@@ -70,8 +54,8 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 31)
-        #expect(Self.implementedTopLevelEntries.count == 31)
+        #expect(targetEntries.count == 15)
+        #expect(Self.implementedTopLevelEntries.count == 15)
         #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 
