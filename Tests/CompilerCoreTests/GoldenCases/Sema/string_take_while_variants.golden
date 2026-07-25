@@ -2,7 +2,6 @@ symbol fq=__local_0.prefix kind=local vis=private flags=_ type=String
 symbol fq=__local_1.suffix kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.isDigit kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstring_take_while_variants package=_
   decl main fun main sym=main
