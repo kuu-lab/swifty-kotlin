@@ -235,6 +235,38 @@ extension MemberLowerer {
         ) + [valueExprID]
     }
 
+    /// Builds `(thisRef, kProperty)` args for a **local** delegated declaration's
+    /// getValue/setValue call (`fun f() { val x by Prop() }`). Unlike a member
+    /// delegate, whose `thisRef` is the enclosing instance, a local delegate is
+    /// never bound to a receiver — `thisRef` is always `null` regardless of
+    /// whether the declaration happens to sit inside a member function (where
+    /// an unrelated implicit receiver for the *enclosing class* may be active).
+    ///
+    /// Takes a plain `[KIRInstruction]` (rather than `KIRLoweringEmitContext`,
+    /// as `buildKPropertyStub` below does) because callers here are inlining
+    /// into an *already-existing* function body being lowered by `ExprLowerer`,
+    /// not building a standalone synthetic accessor function from scratch.
+    func buildLocalDelegateAccessorArgs(
+        localSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        let thisRefExprID = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+        instructions.append(.constValue(result: thisRefExprID, value: .null))
+        var body = KIRLoweringEmitContext(instructions)
+        let kPropertyExprID = buildKPropertyStub(
+            propertySymbol: localSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            body: &body
+        )
+        instructions = body.instructions
+        return [thisRefExprID, kPropertyExprID]
+    }
+
     private func buildKPropertyStub(
         propertySymbol: SymbolID,
         sema: SemaModule,
