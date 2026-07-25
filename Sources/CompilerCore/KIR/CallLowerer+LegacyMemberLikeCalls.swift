@@ -3124,7 +3124,6 @@ extension CallLowerer {
                         thrownResult: nil
                     ))
                     return result
-                    }
                 }
             }
             }
