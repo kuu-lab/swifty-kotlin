@@ -2,9 +2,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-PROP-019: Validates that `Char.isWhitespace()` resolves through Sema
-/// for plain Char receivers as well as literal / branch contexts. The runtime
-/// link involved is `kk_char_isWhitespace` (see `Sources/Runtime/RuntimeChar.swift`).
+/// STDLIB-TEXT-PROP-019 / KSP-661: Validates that `Char.isWhitespace()` resolves
+/// through Sema for plain Char receivers as well as literal / branch contexts.
+/// The predicate is implemented in bundled Kotlin (kotlin.text.CharPredicates),
+/// so the resolved symbol carries no synthetic runtime link.
 @Suite
 struct CharIsWhitespaceFunctionTests {
     @Test func testCharIsWhitespaceResolvesInSource() throws {
@@ -54,7 +55,8 @@ struct CharIsWhitespaceFunctionTests {
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isWhitespace() should return Boolean")
         }
-        #expect(resolvedLink == "kk_char_isWhitespace")
+        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
+        #expect(resolvedLink == nil)
     }
 
     @Test func testCharIsWhitespaceResolvesAtCallSite() throws {
@@ -78,7 +80,7 @@ struct CharIsWhitespaceFunctionTests {
 
         let chosen = sema.bindings.callBinding(for: callExpr)?.chosenCallee
             ?? sema.bindings.identifierSymbol(for: callExpr)
-        #expect(chosen.flatMap { sema.symbols.externalLinkName(for: $0) } == "kk_char_isWhitespace")
+        #expect(chosen.flatMap { sema.symbols.externalLinkName(for: $0) } == nil)
     }
 }
 #endif
