@@ -404,6 +404,26 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testSourceSequenceObjectTerminalHofTraversesIterator() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2, 3).map { it * 2 }.sumBy { it })
+            println(emptySequence<Int>().sumBy { 5 })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SourceSeqTerminalHof",
+            expected:
+                """
+                12
+                0
+                """
+                + "\n"
+        )
+    }
+
     func testSequenceRunningReduceIndexedAccumulatesWithIndex() throws {
         let source = """
         fun main() {

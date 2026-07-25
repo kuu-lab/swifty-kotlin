@@ -202,7 +202,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
-        synthesizeNominalLayouts(symbols: symbols, types: types)
+        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

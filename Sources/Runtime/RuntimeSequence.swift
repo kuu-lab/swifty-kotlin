@@ -1,4 +1,3 @@
-
 // MARK: - Sequence Functions (STDLIB-003)
 
 func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
@@ -9,6 +8,60 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceBuilderBox.self)
 }
 
+private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
+
+/// Iterates a source-implemented `Sequence` object (created by Kotlin `object`
+/// expressions implementing `kotlin.sequences.Sequence`) by dispatching through
+/// the Sequence itable to obtain an `Iterator`, then driving that iterator with
+/// the generic `kk_iterator_hasNext` / `kk_iterator_next` runtime dispatchers.
+/// Returns `true` if `rawValue` is a source `Sequence` and was iterated (or an
+/// exception was recorded in `outThrown`). Returns `false` if it is not a source
+/// `Sequence` so callers can fall back to runtime box handling.
+private func runtimeTraverseSourceSequenceObject(
+    _ rawValue: Int,
+    outThrown: UnsafeMutablePointer<Int>?,
+    yield: (Int) -> Bool
+) -> Bool {
+    let iteratorFnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeSequenceInterfaceTypeID), 0)
+    guard iteratorFnPtr != 0 else {
+        return false
+    }
+    let iteratorFn = unsafeBitCast(
+        iteratorFnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown: Int = 0
+    let iterRaw = iteratorFn(rawValue, &thrown)
+    if thrown != 0 {
+        if let outThrown {
+            outThrown.pointee = thrown
+        } else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence iterator() threw an exception")
+        }
+        return true
+    }
+    while true {
+        let hasNext = kk_iterator_hasNext(iterRaw)
+        if hasNext == 0 { break }
+        let element = kk_iterator_next(iterRaw)
+        if !yield(element) { break }
+    }
+    return true
+}
+
+private func runtimeObjectBox(from rawValue: Int) -> RuntimeObjectBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeObjectBox.self)
+}
+
+private func runtimeArrayBoxExcludingObjects(from rawValue: Int) -> RuntimeArrayBox? {
+    guard let array = runtimeArrayBox(from: rawValue),
+          type(of: array) == RuntimeArrayBox.self
+    else {
+        return nil
+    }
+    return array
+}
+
 func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let seq = runtimeSequenceBox(from: rawValue) {
         return evaluateSequence(seq)
@@ -16,11 +69,21 @@ func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let list = runtimeListBox(from: rawValue) {
         return list.elements
     }
-    if let array = runtimeArrayBox(from: rawValue) {
-        return array.elements
-    }
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var elements: [Int] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
+            elements.append(elem)
+            return true
+        }) {
+            return elements
+        }
+        return nil
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
+        return array.elements
     }
     return nil
 }
@@ -32,11 +95,21 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     if let list = runtimeListBox(from: rawValue) {
         return list.values
     }
-    if let array = runtimeArrayBox(from: rawValue) {
-        return array.values
-    }
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var values: [RuntimeValue] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
+            values.append(RuntimeValue(raw: elem))
+            return true
+        }) {
+            return values
+        }
+        return nil
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
+        return array.values
     }
     return nil
 }
@@ -56,7 +129,19 @@ private func runtimeSequenceSourceElementsOrThrow(
     if let list = runtimeListBox(from: rawValue) {
         return list.elements
     }
-    if let array = runtimeArrayBox(from: rawValue) {
+    if let set = runtimeSetBox(from: rawValue) {
+        return set.elements
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var elements: [Int] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
+            elements.append(elem)
+            return true
+        }) {
+            return elements
+        }
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
         return array.elements
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
@@ -77,7 +162,19 @@ private func runtimeSequenceSourceValuesOrThrow(
     if let list = runtimeListBox(from: rawValue) {
         return list.values
     }
-    if let array = runtimeArrayBox(from: rawValue) {
+    if let set = runtimeSetBox(from: rawValue) {
+        return set.values
+    }
+    if runtimeObjectBox(from: rawValue) != nil {
+        var values: [RuntimeValue] = []
+        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
+            values.append(RuntimeValue(raw: elem))
+            return true
+        }) {
+            return values
+        }
+    }
+    if let array = runtimeArrayBoxExcludingObjects(from: rawValue) {
         return array.values
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
@@ -934,6 +1031,9 @@ func runtimeTraverseSequenceSource(
         let state = SequenceTraversalState()
         runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown, yield: yield)
         return state
+    }
+    if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: yield) {
+        return nil
     }
     for elem in runtimeSequenceSourceElementsOrPanic(from: rawValue, caller: caller) {
         // swiftlint:disable:next for_where

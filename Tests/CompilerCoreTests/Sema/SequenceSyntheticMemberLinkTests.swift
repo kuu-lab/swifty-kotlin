@@ -483,14 +483,15 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToListResolvesInCallExpressions() throws {
-        try assertSequenceSourceExtensionResolves(
+        try assertSequenceMemberResolves(
             source: """
             fun collectValues(): List<Int> {
                 val values = sequenceOf(1, 2, 3)
                 return values.toList()
             }
             """,
-            functionName: "toList",
+            memberName: "toList",
+            expectedLinkName: "kk_sequence_to_list",
             diagnosticContext: "Sequence.toList"
         )
     }
@@ -757,14 +758,15 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToMutableListResolvesInCallExpressions() throws {
-        try assertSequenceSourceExtensionResolves(
+        try assertSequenceMemberResolves(
             source: """
             fun collectMutableValues(): MutableList<Int> {
                 val values = sequenceOf(1, 2, 3)
                 return values.toMutableList()
             }
             """,
-            functionName: "toMutableList",
+            memberName: "toMutableList",
+            expectedLinkName: "kk_sequence_toMutableList",
             diagnosticContext: "Sequence.toMutableList"
         )
     }
@@ -1277,14 +1279,15 @@ struct SequenceSyntheticMemberLinkTests {
     }
 
     @Test func testSequenceToSetResolvesInCallExpressions() throws {
-        try assertSequenceSourceExtensionResolves(
+        try assertSequenceMemberResolves(
             source: """
             fun collectValues(): Set<Int> {
                 val values = sequenceOf(1, 2, 3, 2)
                 return values.toSet()
             }
             """,
-            functionName: "toSet",
+            memberName: "toSet",
+            expectedLinkName: "kk_sequence_toSet",
             diagnosticContext: "Sequence.toSet"
         )
     }
