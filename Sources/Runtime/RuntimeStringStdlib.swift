@@ -102,13 +102,6 @@ public func kk_string_uppercase(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased())
 }
 
-@_cdecl("kk_string_capitalize")
-public func kk_string_capitalize(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard !source.isEmpty else { return strRaw }
-    return runtimeMakeStringRaw(source.prefix(1).uppercased() + source.dropFirst())
-}
-
 @_cdecl("kk_string_lowercase_locale")
 public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -234,12 +227,6 @@ private func runtimeNormalizedString(_ source: String, formTagRaw: Int) -> Strin
     }
 }
 
-@_cdecl("__kk_string_normalize")
-public func __kk_string_normalize(_ strRaw: Int, _ formTagRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeNormalizedString(source, formTagRaw: formTagRaw))
-}
-
 @_cdecl("__kk_string_normalize_flat")
 public func __kk_string_normalize_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -257,13 +244,6 @@ public func __kk_string_normalize_flat(
         outByteCount: outByteCount,
         outHash: outHash
     )
-}
-
-@_cdecl("__kk_string_isNormalized")
-public func __kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
-    return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
 @_cdecl("__kk_string_isNormalized_flat")
@@ -821,25 +801,4 @@ public func kk_string_contains_ignoreCase_flat(
         }
     }
     return 0
-}
-// MARK: - Bridge functions for case conversion (MIGRATION-TEXT-005)
-
-@_cdecl("__string_lowercase")
-public func __string_lowercase(_ strRaw: Int) -> Int {
-    return kk_string_lowercase(strRaw)
-}
-
-@_cdecl("__string_uppercase")
-public func __string_uppercase(_ strRaw: Int) -> Int {
-    return kk_string_uppercase(strRaw)
-}
-
-@_cdecl("__string_lowercase_locale")
-public func __string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
-    return kk_string_lowercase_locale(strRaw, localeRaw)
-}
-
-@_cdecl("__string_uppercase_locale")
-public func __string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
-    return kk_string_uppercase_locale(strRaw, localeRaw)
 }
