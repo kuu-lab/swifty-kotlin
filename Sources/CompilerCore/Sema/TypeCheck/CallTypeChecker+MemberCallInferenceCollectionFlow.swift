@@ -522,7 +522,33 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            if !isSequenceReceiver {
+            if isSequenceReceiver {
+                let memberFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("sequences"),
+                    calleeName,
+                ]
+                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.declSite != nil,
+                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == args.count,
+                          let signatureReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return receiverClassifier.isSequenceLikeType(signatureReceiver)
+                }) {
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: chosenCallee,
+                        substitutedTypeArguments: [resultElementType],
+                        parameterMapping: [:]
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                }
+            } else {
                 bindBundledListSourceFunction(typeArguments: [resultElementType])
             }
             sema.bindings.markCollectionExpr(id)
