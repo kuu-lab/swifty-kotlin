@@ -2,8 +2,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-PROP-011: Validates that `Char.isLetter()` resolves through Sema
-/// and links to the runtime helper `kk_char_isLetter`.
+/// STDLIB-TEXT-PROP-011 / KSP-661: Validates that `Char.isLetter()` resolves
+/// through Sema. The predicate is implemented in bundled Kotlin
+/// (kotlin.text.CharPredicates), so it carries no synthetic runtime link.
 @Suite
 struct CharIsLetterFunctionTests {
     @Test func testCharIsLetterResolvesInSource() throws {
@@ -47,7 +48,8 @@ struct CharIsLetterFunctionTests {
             },
             "Expected synthetic kotlin.text.isLetter extension on Char"
         )
-        #expect(sema.symbols.externalLinkName(for: sym) == "kk_char_isLetter")
+        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
+        #expect(sema.symbols.externalLinkName(for: sym) == nil)
     }
 }
 #endif
