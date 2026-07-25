@@ -35,21 +35,48 @@ final class LocalDeclTypeChecker {
             )
         }
 
-        var initializerType: TypeID?
-        if let initializer {
-            initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
-        }
+        // The delegate resolution below needs a symbol to key getValue/setValue
+        // onto, so the symbol is defined up front instead of after localType.
+        let localSymbol = sema.symbols.define(
+            kind: .local,
+            name: name,
+            fqName: [
+                ctx.interner.intern("__local_\(id.rawValue)"),
+                name,
+            ],
+            declSite: range,
+            visibility: .private,
+            flags: isMutable ? [.mutable] : []
+        )
 
         let localType: TypeID
-        if let declaredType {
-            localType = declaredType
-            if let initializerType {
-                if isDelegated {
-                    // Local delegated properties are currently modeled as local
-                    // declarations whose initializer is the delegate factory call.
-                    // Preserve the declared property type and skip constraining
-                    // the delegate object itself to that property type.
-                } else {
+        if isDelegated, let initializer {
+            // Resolve getValue (and setValue for `var`) against the delegate
+            // expression's type, exactly as member/top-level delegated properties
+            // do (DeclTypeChecker.typeCheckDelegate). Previously this branch never
+            // ran for local declarations, so the local's type silently fell back
+            // to the delegate instance's own type below, and KIR lowering had no
+            // resolved operator to call — `val x by Prop()` bound `x` straight to
+            // the `Prop()` instance instead of `Prop().getValue(...)`.
+            localType = driver.declChecker.typeCheckDelegate(
+                initializer,
+                isVar: isMutable,
+                fallbackRange: range,
+                symbol: localSymbol,
+                inferredPropertyType: declaredType,
+                ctx: ctx,
+                locals: &locals,
+                diagnostics: ctx.semaCtx.diagnostics
+            ) ?? declaredType ?? sema.types.nullableAnyType
+        } else {
+            var initializerType: TypeID?
+            if let initializer {
+                initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+            }
+
+            if let declaredType {
+                localType = declaredType
+                if let initializerType {
                     if let initializer,
                        sema.bindings.isRangeExpr(initializer),
                        driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
@@ -65,24 +92,12 @@ final class LocalDeclTypeChecker {
                         )
                     }
                 }
+            } else if let initializerType {
+                localType = initializerType
+            } else {
+                localType = sema.types.errorType
             }
-        } else if let initializerType {
-            localType = initializerType
-        } else {
-            localType = sema.types.errorType
         }
-
-        let localSymbol = sema.symbols.define(
-            kind: .local,
-            name: name,
-            fqName: [
-                ctx.interner.intern("__local_\(id.rawValue)"),
-                name,
-            ],
-            declSite: range,
-            visibility: .private,
-            flags: isMutable ? [.mutable] : []
-        )
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
