@@ -7,8 +7,7 @@ extension CallTypeChecker {
     ) -> Bool {
                 if let externalLinkName = sema.symbols.externalLinkName(for: candidate) {
                     switch externalLinkName {
-            case "kk_list_getOrElse", "kk_list_elementAtOrElse",
-                 "kk_list_binarySearch",
+            case "kk_list_binarySearch",
                  "kk_list_reduceIndexedOrNull",
                  "kk_list_foldRight", "kk_list_foldRightIndexed", "kk_list_reduceRight", "kk_list_reduceRightIndexed", "kk_list_reduceRightIndexedOrNull", "kk_list_reduceRightOrNull",
                  "kk_list_runningFoldIndexed", "kk_list_runningReduceIndexed", "kk_list_scanIndexed",

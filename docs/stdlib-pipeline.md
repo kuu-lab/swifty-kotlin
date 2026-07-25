@@ -221,7 +221,7 @@ fiction audit ダンプを起点に棚卸し）:
 
 | File | Lines | Bucket | Owner / next action |
 |---|---:|:---:|---|
-| `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c) | Array and primitive-array compiler surface; split source-backed factories/HOF later. |
+| `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c)→(b) | KSP-657 で `arrayOf`/`emptyArray`/`arrayOfNulls` を `Stdlib/kotlin/ArrayIntrinsics.kt` へ b-reclass 済み（第1弾）。primitive-array factory / HOF は後続バッチ。 |
 | `HeaderHelpers+SyntheticAtomicStubs.swift` | 2512 | (b) | `AtomicMigration.kt` owner; split Java atomic interop cleanup pockets first. |
 | `HeaderHelpers+SyntheticBase64Stubs.swift` | 830 | (b) | MIGRATION-ENC owner; Kotlin source exists but public stubs still dispatch directly. |
 | `HeaderHelpers+SyntheticBigIntegerStubs.swift` | 620 | (a) | `java.math.BigInteger` compatibility; target-out cleanup candidate. |
@@ -432,15 +432,19 @@ Flow terminal/合成を (b) 化するには、このパスを「対象シンボ�
 
 Atomic の内訳:
 
-- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet`（`AtomicInt`/`AtomicLong`/
-  `AtomicReference`）は `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt`（47行）で Kotlin 化済み。
-  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch}` は実質
-  (c) ブリッジ（`__kk_` 未リネームのみが残タスク）
-- **未着手**: `compareAndSet`/`compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`
-  は上記委譲が未実施のため全操作が対象）。`updateAndGet`/`getAndUpdate` は `while(true)` ループを要するため、
-  `AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで**ブロック**。
-  `compareAndSet`/`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_`
-  残留になると想定される
+- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671 で
+  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`）を
+  `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt` で Kotlin 化済み。reverse 変種は
+  `addAndFetch`/`incrementAndFetch`/`decrementAndFetch` に、`compareAndSet` は `compareAndExchange` に委譲する。
+  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}`
+  は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
+  `java.util.concurrent.atomic.AtomicInteger` の直接構築サーフェスと同一ボックス/接頭辞を共有するため、これらの
+  ブリッジは Java interop からも参照される＝削除不可。したがって member-call 解決は現状も合成スタブ経由で、
+  bundled 委譲ソースは KSP-670 と同様に休眠（同一 PR で `isRuntimeBackedAtomicSyntheticRetainedOverlap` にスタブ保持を追加）
+- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`/`AtomicReference`
+  の `compareAndSet` は get/set 委譲順序の都合で別タスク）。`updateAndGet`/`getAndUpdate` は `while(true)`
+  ループを要するため、`AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで
+  **ブロック**。`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_` 残留になると想定される
 
 #### 未分類・KSP-499 着手前に個別判断が必要な項目 — 18 関数
 
