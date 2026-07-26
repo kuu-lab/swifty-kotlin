@@ -222,13 +222,16 @@ struct LoweringPassRegressionTests {
     }
 
     @Test
-    func testCoroutineLoweringRewritesCoroutineScopeToScopeRun() throws {
+    func testCoroutineScopeNoLongerLowersToScopeRun() throws {
+        // coroutineScope/supervisorScope are real bundled Kotlin suspend functions;
+        // lowering must not rewrite them to the kk_coroutine_scope_run /
+        // kk_supervisor_scope_run convenience entry points (which no longer exist).
         let source = """
         suspend fun delayedValue(): Int {
             delay(1)
             return 42
         }
-        fun main(): Any? = coroutineScope(delayedValue)
+        fun main(): Any? = runBlocking { coroutineScope { delayedValue() } }
         """
 
         try withTemporaryFile(contents: source) { path in
@@ -237,11 +240,42 @@ struct LoweringPassRegressionTests {
             try LoweringPhase().run(ctx)
 
             let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+            #expect(!allCallees.contains("kk_coroutine_scope_run"), "coroutineScope must not lower to the removed kk_coroutine_scope_run")
+            #expect(!allCallees.contains("kk_supervisor_scope_run"), "supervisorScope must not lower to the removed kk_supervisor_scope_run")
+        }
+    }
 
-            let mainCalls = extractCallees(from: mainBody, interner: ctx.interner)
-            #expect(mainCalls.contains("kk_coroutine_scope_run"), "Expected coroutineScope to be rewritten to kk_coroutine_scope_run")
-            #expect(!mainCalls.contains("coroutineScope"), "coroutineScope should have been rewritten")
+    @Test
+    func testNonInlineCallIsNotRedirectedToSameNamedInlineOverload() throws {
+        // `Mutex.withLock` is a suspend Kotlin wrapper (not auto-inlined), while
+        // `Lock.withLock` is an inline wrapper over the __kk_lock_withLock bridge.
+        // Inline lowering must not resolve the former to the latter by name.
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.sync.*
+
+        fun main() = runBlocking {
+            val mutex = Mutex()
+            println(mutex.withLock { 1 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MutexWithLockLowering", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+            #expect(
+                !allCallees.contains("__kk_lock_withLock"),
+                "Mutex.withLock must not be inlined into the Lock.withLock bridge"
+            )
         }
     }
 

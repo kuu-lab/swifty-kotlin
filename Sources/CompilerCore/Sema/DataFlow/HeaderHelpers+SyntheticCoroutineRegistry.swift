@@ -1222,34 +1222,9 @@ extension DataFlowSemaPhase {
                 for: functionSymbol
             )
         }
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "coroutineScope",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                params: [],
-                returnType: types.anyType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "supervisorScope",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                params: [],
-                returnType: types.anyType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-679: `coroutineScope` / `supervisorScope` are now real suspend
+        // functions in bundled Kotlin (Stdlib/kotlinx/coroutines/
+        // CoroutineScope.kt), delegating to the residual (c) scope primitives.
         registerSyntheticCoroutineTopLevelFunction(
             named: "delay",
             packageFQName: coroutinesPkg,
