@@ -41,59 +41,27 @@ private var runtimeMutexTestState: RuntimeMutexTestState {
     }
 }
 
-private let runtimeMutexWithLockObservedLockedInsideLock = NSLock()
-nonisolated(unsafe) private var _runtimeMutexWithLockObservedLockedInside = false
-
-private var runtimeMutexWithLockObservedLockedInside: Bool {
-    get {
-        runtimeMutexWithLockObservedLockedInsideLock.lock()
-        defer { runtimeMutexWithLockObservedLockedInsideLock.unlock() }
-        return _runtimeMutexWithLockObservedLockedInside
-    }
-    set {
-        runtimeMutexWithLockObservedLockedInsideLock.lock()
-        defer { runtimeMutexWithLockObservedLockedInsideLock.unlock() }
-        _runtimeMutexWithLockObservedLockedInside = newValue
-    }
-}
-
-@_cdecl("runtime_mutex_with_lock_action")
-private func runtime_mutex_with_lock_action(_ envRaw: Int) -> Int {
-    runtimeMutexWithLockObservedLockedInside = kk_mutex_isLocked(envRaw) != 0
-    return 77
-}
-
 final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         runtimeMutexTestState.reset()
-        runtimeMutexWithLockObservedLockedInside = false
     }
 
-    func testMutexBasicLockTryLockUnlockAndWithLock() {
-        let handle = kk_mutex_create()
+    // KSP-677: Mutex.withLock is Kotlin source composing the c-soft lock()/unlock()
+    // kernel primitives, so its runtime coverage is the lock/tryLock/unlock path below.
+    func testMutexBasicLockTryLockUnlock() {
+        let handle = __kk_mutex_create()
         XCTAssertNotEqual(handle, 0)
 
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
         XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 0)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
+        XCTAssertEqual(__kk_mutex_tryLock(handle), 0)
         XCTAssertEqual(kk_mutex_unlock(handle), 0)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
-        XCTAssertEqual(kk_mutex_unlock(handle), 0)
-
-        let actionFn = unsafeBitCast(
-            runtime_mutex_with_lock_action as @convention(c) (Int) -> Int,
-            to: Int.self
-        )
-        let withLockResult = kk_mutex_withLock(handle, actionFn, handle, 0)
-        XCTAssertEqual(withLockResult, 77)
-        XCTAssertTrue(runtimeMutexWithLockObservedLockedInside)
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
+        XCTAssertEqual(__kk_mutex_tryLock(handle), 1)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
         XCTAssertEqual(kk_mutex_unlock(handle), 0)
     }
 
@@ -102,12 +70,12 @@ final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
     // the mutex without deadlock.  A strict ordering assertion would be flaky on
     // CI runners using Linux's nptl mutex implementation.
     func testMutexLockWaitersAreServedInFIFOOrder() {
-        let handle = kk_mutex_create()
+        let handle = __kk_mutex_create()
         XCTAssertNotEqual(handle, 0)
 
         XCTAssertEqual(kk_mutex_lock(handle, 0), 0)
         runtimeMutexTestState.record("main-acquired")
-        XCTAssertEqual(kk_mutex_isLocked(handle), 1)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 1)
 
         let waiter1Done = DispatchSemaphore(value: 0)
         let waiter2Done = DispatchSemaphore(value: 0)
@@ -131,15 +99,15 @@ final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
         }
 
         Thread.sleep(forTimeInterval: 0.05)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 0)
+        XCTAssertEqual(__kk_mutex_tryLock(handle), 0)
 
         XCTAssertEqual(kk_mutex_unlock(handle), 0)
 
         XCTAssertEqual(waiter1Done.wait(timeout: .now() + .seconds(2)), .success)
         XCTAssertEqual(waiter2Done.wait(timeout: .now() + .seconds(2)), .success)
 
-        XCTAssertEqual(kk_mutex_isLocked(handle), 0)
-        XCTAssertEqual(kk_mutex_tryLock(handle), 1)
+        XCTAssertEqual(__kk_mutex_isLocked(handle), 0)
+        XCTAssertEqual(__kk_mutex_tryLock(handle), 1)
         XCTAssertEqual(kk_mutex_unlock(handle), 0)
 
         // Verify that all expected events were recorded (order is platform-dependent).

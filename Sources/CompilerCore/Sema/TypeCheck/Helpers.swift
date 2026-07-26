@@ -441,20 +441,8 @@ struct TypeCheckHelpers {
                 sema: sema,
                 interner: interner
             ) ?? sema.types.anyType
-        case interner.intern("flowOf"):
-            guard argumentCount >= 0 else { return nil }
-            return makeFlowType(
-                elementType: sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) ?? sema.types.anyType
-        case interner.intern("emptyFlow"):
-            guard argumentCount == 0 else { return nil }
-            return makeFlowType(
-                elementType: sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) ?? sema.types.anyType
+        // KSP-674: flowOf / emptyFlow are Kotlin source now; they resolve
+        // normally and no longer need unresolved-call fallback typing.
         case knownNames.emit:
             guard argumentCount == 1 else { return nil }
             return sema.types.unitType
