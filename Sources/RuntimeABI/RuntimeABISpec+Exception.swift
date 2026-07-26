@@ -5,7 +5,7 @@ public extension RuntimeABISpec {
 
     static let exceptionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_new",
+            name: "__kk_throwable_new",
             parameters: [
                 RuntimeABIParameter(name: "message", type: .nullableOpaquePointer),
             ],
@@ -13,7 +13,7 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_throwable_new_with_cause",
+            name: "__kk_throwable_new_with_cause",
             parameters: [
                 RuntimeABIParameter(name: "message", type: .nullableOpaquePointer),
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
@@ -118,7 +118,7 @@ public extension RuntimeABISpec {
         // Per-type explicit constructor entry points (catch-clause sibling-type
         // discrimination fix). Each built-in exception class below gets its own
         // `_new` / `_new_message` / `_new_message_cause` triplet instead of sharing
-        // the type-erased kk_throwable_new/kk_throwable_new_with_cause, so the
+        // the type-erased __kk_throwable_new/__kk_throwable_new_with_cause, so the
         // allocated RuntimeThrowableBox subclass carries the correct runtime type
         // identity for kk_op_is / catch-clause dispatch.
         RuntimeABIFunctionSpec(

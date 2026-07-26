@@ -38,7 +38,7 @@ symbol fq=kotlin.NoSuchElementException.<init>.message kind=valueParameter vis=p
 symbol fq=kotlin.RuntimeException kind=class vis=public flags=synthetic|openType type=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.RuntimeException
 symbol fq=kotlin.RuntimeException.<init>.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.Throwable kind=class vis=public flags=synthetic|openType type=kotlin.Throwable
+symbol fq=kotlin.Throwable kind=class vis=public flags=openType type=kotlin.Throwable
 symbol fq=kotlin.Throwable.cause kind=property vis=public flags=synthetic type=kotlin.Throwable?
 symbol fq=kotlin.Throwable.message kind=property vis=public flags=synthetic type=String?
 symbol fq=kotlin.Throwable.stackTraceToString kind=function vis=public flags=synthetic sig=recv=kotlin.Throwable params=[] ret=String
