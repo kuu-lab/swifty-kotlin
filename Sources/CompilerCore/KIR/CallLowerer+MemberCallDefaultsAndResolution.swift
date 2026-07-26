@@ -401,12 +401,8 @@ extension CallLowerer {
                 return interner.intern("kk_channel_send")
             case "receive":
                 return interner.intern("kk_channel_receive")
-            case "close":
-                return interner.intern("kk_channel_close")
-            case "isClosedForReceive":
-                return interner.intern("kk_channel_is_closed_for_receive")
-            case "isClosedForSend":
-                return interner.intern("kk_channel_is_closed_for_send")
+            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
+            // through bundled Kotlin source, not this synthetic fallback.
             default:
                 break
             }
