@@ -27,12 +27,12 @@ struct MutexSyntheticMemberLinkTests {
     @Test func testMutexMembersHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
+        // KSP-677: the wrapper layer (Mutex factory, tryLock, isLocked,
+        // withLock) is Kotlin source; only the c-soft kernel primitives
+        // remain as synthetic members.
         let expectations: [(member: String, link: String)] = [
             ("lock", "kk_mutex_lock"),
             ("unlock", "kk_mutex_unlock"),
-            ("tryLock", "kk_mutex_tryLock"),
-            ("isLocked", "kk_mutex_isLocked"),
-            ("withLock", "kk_mutex_withLock"),
         ]
 
         for expectation in expectations {
