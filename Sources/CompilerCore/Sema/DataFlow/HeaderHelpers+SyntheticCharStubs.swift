@@ -107,41 +107,8 @@ private struct SyntheticCharCompanionFunctionSpec {
 }
 
 private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
-    SyntheticCharMemberSpec(
-        name: "isDigit",
-        externalLinkName: "kk_char_isDigit",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isLetter",
-        externalLinkName: "kk_char_isLetter",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isLetterOrDigit",
-        externalLinkName: "kk_char_isLetterOrDigit",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isUpperCase",
-        externalLinkName: "kk_char_isUpperCase",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isLowerCase",
-        externalLinkName: "kk_char_isLowerCase",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isWhitespace",
-        externalLinkName: "kk_char_isWhitespace",
-        returnKind: .boolean
-    ),
-    SyntheticCharMemberSpec(
-        name: "isDefined",
-        externalLinkName: "kk_char_isDefined",
-        returnKind: .boolean
-    ),
+    // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
+    // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
     SyntheticCharMemberSpec(
         name: "uppercase",
         externalLinkName: "kk_char_uppercase",
