@@ -1220,14 +1220,7 @@ final class CallLowerer {
             } else {
                 sourceCalleeName
             }
-            if loweredCalleeName == interner.intern("kk_channel_create"), finalArgIDs.isEmpty {
-                let capacityExpr = arena.appendExpr(
-                    .intLiteral(0),
-                    type: sema.types.intType
-                )
-                instructions.append(.constValue(result: capacityExpr, value: .intLiteral(0)))
-                finalArgIDs.append(capacityExpr)
-            } else if loweredCalleeName == interner.intern("__kk_throwable_new"), finalArgIDs.isEmpty {
+            if loweredCalleeName == interner.intern("__kk_throwable_new"), finalArgIDs.isEmpty {
                 // Throwable() and the zero-argument synthetic exception constructors
                 // route here, but the runtime bridge still expects a nullable message
                 // pointer. Pass the null sentinel so it defaults to "Throwable".
