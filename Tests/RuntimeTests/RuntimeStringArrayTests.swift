@@ -3176,18 +3176,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(formatted, "3.5")
     }
 
-    // MARK: - kk_throwable_new
+    // MARK: - __kk_throwable_new
 
     func testThrowableNewCreatesThrowable() {
         let msg = makeRuntimeString("error occurred")
-        let throwable = kk_throwable_new(msg)
+        let throwable = __kk_throwable_new(msg)
         XCTAssertNotNil(throwable)
         let output = capturePrintln { kk_println_any(throwable) }
         XCTAssertTrue(output.contains("error occurred"))
     }
 
     func testThrowableNewWithNilUsesDefaultMessage() {
-        let throwable = kk_throwable_new(nil)
+        let throwable = __kk_throwable_new(nil)
         XCTAssertNotNil(throwable)
         let output = capturePrintln { kk_println_any(throwable) }
         XCTAssertTrue(output.contains("Throwable"))
@@ -3198,15 +3198,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testThrowableIsCancellationReturnsFalseForRegularThrowable() {
-        let throwable = kk_throwable_new(makeRuntimeString("not cancellation"))
+        let throwable = __kk_throwable_new(makeRuntimeString("not cancellation"))
         let raw = Int(bitPattern: throwable)
         XCTAssertEqual(kk_throwable_is_cancellation(raw), 0)
     }
 
     func testThrowableAddSuppressedPreservesInsertionOrder() {
-        let primary = Int(bitPattern: kk_throwable_new(makeRuntimeString("primary")))
-        let suppressed1 = Int(bitPattern: kk_throwable_new(makeRuntimeString("suppressed1")))
-        let suppressed2 = Int(bitPattern: kk_throwable_new(makeRuntimeString("suppressed2")))
+        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
+        let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
+        let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
 
         _ = kk_throwable_addSuppressed(primary, suppressed1)
         _ = kk_throwable_addSuppressed(primary, suppressed2)
@@ -3222,7 +3222,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testThrowableAddSuppressedRejectsSelfSuppression() {
-        let primary = Int(bitPattern: kk_throwable_new(makeRuntimeString("primary")))
+        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
         _ = kk_throwable_addSuppressed(primary, primary)
 
@@ -3231,7 +3231,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testThrowableAddSuppressedIgnoresNullAndInvalidHandles() {
-        let primary = Int(bitPattern: kk_throwable_new(makeRuntimeString("primary")))
+        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
 
         _ = kk_throwable_addSuppressed(primary, runtimeNullSentinelInt)
         _ = kk_throwable_addSuppressed(primary, 0)
@@ -3244,9 +3244,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testThrowableSuppressedExceptionsReturnsList() {
-        let primary = Int(bitPattern: kk_throwable_new(makeRuntimeString("primary")))
-        let suppressed1 = Int(bitPattern: kk_throwable_new(makeRuntimeString("suppressed1")))
-        let suppressed2 = Int(bitPattern: kk_throwable_new(makeRuntimeString("suppressed2")))
+        let primary = Int(bitPattern: __kk_throwable_new(makeRuntimeString("primary")))
+        let suppressed1 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed1")))
+        let suppressed2 = Int(bitPattern: __kk_throwable_new(makeRuntimeString("suppressed2")))
 
         _ = kk_throwable_addSuppressed(primary, suppressed1)
         _ = kk_throwable_addSuppressed(primary, suppressed2)
@@ -3258,7 +3258,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testThrowablePrintStackTraceWritesRenderedMessageToStandardError() {
-        let throwable = Int(bitPattern: kk_throwable_new(makeRuntimeString("print me")))
+        let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("print me")))
 
         let output = captureStandardError {
             XCTAssertEqual(kk_throwable_printStackTrace(throwable), 0)
@@ -3411,7 +3411,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testPrintlnThrowable() {
         let msg = makeRuntimeString("some error")
-        let throwable = kk_throwable_new(msg)
+        let throwable = __kk_throwable_new(msg)
         let output = capturePrintln { kk_println_any(throwable) }
         XCTAssertTrue(output.contains("some error"))
     }
