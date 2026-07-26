@@ -115,11 +115,6 @@ public func kk_atomic_int_compareAndExchange(_ receiver: Int, _ expect: Int, _ u
     return box.compareAndExchange(expect: expect, update: update)
 }
 
-@_cdecl("kk_atomic_int_asJavaAtomic")
-public func kk_atomic_int_asJavaAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_int_fetchAndAdd")
 public func kk_atomic_int_fetchAndAdd(_ receiver: Int, _ delta: Int) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
@@ -271,11 +266,6 @@ public func kk_atomic_long_compareAndExchange(_ receiver: Int, _ expect: Int, _ 
     return box.compareAndExchange(expect: expect, update: update)
 }
 
-@_cdecl("kk_atomic_long_asJavaAtomic")
-public func kk_atomic_long_asJavaAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_long_fetchAndAdd")
 public func kk_atomic_long_fetchAndAdd(_ receiver: Int, _ delta: Int) -> Int {
     guard let box = atomicLongBox(from: receiver) else { return 0 }
@@ -414,11 +404,6 @@ public func kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, _ 
     return box.compareAndExchange(expect: expect != 0, update: update != 0) ? 1 : 0
 }
 
-@_cdecl("kk_atomic_bool_asJavaAtomic")
-public func kk_atomic_bool_asJavaAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 // MARK: - AtomicReference<T>
 
 /// Backing storage for kotlin.concurrent.AtomicReference<T>.
@@ -520,11 +505,6 @@ public func kk_atomic_ref_compareAndSet(_ receiver: Int, _ expect: Int, _ update
 public func kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicRefBox(from: receiver) else { return 0 }
     return box.compareAndExchange(expect: expect, update: update)
-}
-
-@_cdecl("kk_atomic_ref_asJavaAtomic")
-public func kk_atomic_ref_asJavaAtomic(_ receiver: Int) -> Int {
-    receiver
 }
 
 // MARK: - AtomicIntArray
@@ -712,11 +692,6 @@ public func kk_atomic_int_array_compareAndExchangeAt(
         return 0
     }
     return box.compareAndExchange(at: index, expect: expect, update: update)
-}
-
-@_cdecl("kk_atomic_int_array_asJavaAtomicArray")
-public func kk_atomic_int_array_asJavaAtomicArray(_ receiver: Int) -> Int {
-    receiver
 }
 
 @_cdecl("kk_atomic_int_array_fetchAndAddAt")
@@ -999,16 +974,6 @@ public func kk_atomic_long_array_compareAndExchangeAt(
     return box.compareAndExchange(at: index, expect: expect, update: update)
 }
 
-@_cdecl("kk_atomic_long_array_asJavaAtomicArray")
-public func kk_atomic_long_array_asJavaAtomicArray(_ receiver: Int) -> Int {
-    receiver
-}
-
-@_cdecl("kk_java_atomic_long_array_asKotlinAtomicArray")
-public func kk_java_atomic_long_array_asKotlinAtomicArray(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_long_array_fetchAndAddAt")
 public func kk_atomic_long_array_fetchAndAddAt(
     _ receiver: Int, _ index: Int, _ delta: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -1256,9 +1221,4 @@ public func kk_atomic_ref_array_compareAndSetAt(_ receiver: Int, _ index: Int, _
 public func kk_atomic_ref_array_compareAndExchangeAt(_ receiver: Int, _ index: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicRefArrayBox(from: receiver) else { return 0 }
     return box.compareAndExchange(at: index, expect: expect, update: update)
-}
-
-@_cdecl("kk_atomic_ref_array_asJavaAtomicArray")
-public func kk_atomic_ref_array_asJavaAtomicArray(_ receiver: Int) -> Int {
-    receiver
 }

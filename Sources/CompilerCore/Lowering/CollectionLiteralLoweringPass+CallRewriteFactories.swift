@@ -630,12 +630,6 @@ extension CollectionLiteralConstructionLoweringPass {
         // --- Rewrite builder DSL calls to kk_build_* runtime helpers (STDLIB-002) ---
         if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let kkCallee: InternedString = switch callee {
-            case lookup.buildStringName:
-                arguments.count == 2 ? lookup.kkBuildStringWithCapacityName : lookup.kkBuildStringName
-            case lookup.buildStringBuilderName:
-                arguments.count == 2
-                    ? lookup.kkBuildStringBuilderWithCapacityName
-                    : lookup.kkBuildStringBuilderName
             case lookup.buildListName:
                 arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
             case lookup.buildSetName: lookup.kkBuildSetName
@@ -671,33 +665,11 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite builder member functions (STDLIB-002) ---
-        // Only rewrite append/add/put inside builder lambda functions
-        // matching the correct builder kind to avoid cross-kind rewrites.
+        // Only rewrite add/put inside builder lambda functions matching the
+        // correct builder kind to avoid cross-kind rewrites.
         if let builderCallee = builderLambdaKinds[function.name] {
             var rewrittenCallee: InternedString?
-            let isStringBuilderCallee = builderCallee == lookup.buildStringName
-                || builderCallee == lookup.buildStringBuilderName
-            let builderArguments = stringBuilderBuilderArguments(
-                arguments,
-                isStringBuilderCallee: isStringBuilderCallee,
-                function: function,
-                module: module
-            )
-            if isStringBuilderCallee, callee == lookup.appendName, builderArguments.count == 1 {
-                rewrittenCallee = lookup.kkStringBuilderAppendName
-            } else if isStringBuilderCallee, callee == lookup.appendLineName, builderArguments.count == 1 {
-                rewrittenCallee = lookup.kkStringBuilderAppendLineName
-            } else if isStringBuilderCallee, callee == lookup.appendLineName, builderArguments.count == 0 {
-                rewrittenCallee = lookup.kkStringBuilderAppendLineNoargName
-            } else if isStringBuilderCallee, callee == lookup.insertName, builderArguments.count == 2 {
-                rewrittenCallee = lookup.kkStringBuilderInsertName
-            } else if isStringBuilderCallee, callee == lookup.deleteName, builderArguments.count == 2 {
-                rewrittenCallee = lookup.kkStringBuilderDeleteName
-            } else if isStringBuilderCallee, callee == lookup.lengthName, builderArguments.count == 0 {
-                rewrittenCallee = lookup.kkStringBuilderLengthName
-            } else if isStringBuilderCallee, callee == lookup.appendRangeName, builderArguments.count == 3 {
-                rewrittenCallee = lookup.kkStringBuilderAppendRangeName
-            } else if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
+            if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderListAddName
             } else if builderCallee == lookup.buildListName, callee == lookup.addAllName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderListAddAllName
@@ -709,26 +681,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 rewrittenCallee = lookup.kkBuilderMapPutName
             }
             if let target = rewrittenCallee {
-                let runtimeArguments: [KIRExprID]
-                if builderCallee == lookup.buildStringName,
-                   (callee == lookup.appendName || callee == lookup.appendLineName),
-                   builderArguments.count == 1
-                {
-                    runtimeArguments = [
-                        boxedBuildStringTextArgumentIfNeeded(
-                            builderArguments[0],
-                            module: module,
-                            ctx: ctx,
-                            loweredBody: &loweredBody
-                        ),
-                    ]
-                } else {
-                    runtimeArguments = builderArguments
-                }
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: target,
-                    arguments: runtimeArguments,
+                    arguments: arguments,
                     result: result,
                     canThrow: canThrow,
                     thrownResult: thrownResult
@@ -772,22 +728,5 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         return false
-    }
-
-    private func stringBuilderBuilderArguments(
-        _ arguments: [KIRExprID],
-        isStringBuilderCallee: Bool,
-        function: KIRFunction,
-        module: KIRModule
-    ) -> [KIRExprID] {
-        guard isStringBuilderCallee,
-              let firstArgument = arguments.first,
-              let receiverParameter = function.params.first,
-              case let .symbolRef(symbol) = module.arena.expr(firstArgument),
-              symbol == receiverParameter.symbol
-        else {
-            return arguments
-        }
-        return Array(arguments.dropFirst())
     }
 }
