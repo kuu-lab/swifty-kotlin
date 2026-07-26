@@ -249,6 +249,37 @@ struct LoweringPassRegressionTests {
     }
 
     @Test
+    func testNonInlineCallIsNotRedirectedToSameNamedInlineOverload() throws {
+        // `Mutex.withLock` is a suspend Kotlin wrapper (not auto-inlined), while
+        // `Lock.withLock` is an inline wrapper over the __kk_lock_withLock bridge.
+        // Inline lowering must not resolve the former to the latter by name.
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.sync.*
+
+        fun main() = runBlocking {
+            val mutex = Mutex()
+            println(mutex.withLock { 1 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MutexWithLockLowering", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+            #expect(
+                !allCallees.contains("__kk_lock_withLock"),
+                "Mutex.withLock must not be inlined into the Lock.withLock bridge"
+            )
+        }
+    }
+
+    @Test
     func testCoroutineLoweringRewritesSuspendLocalFunctionCalls() throws {
         let source = """
         suspend fun delayedValue(v: Int): Int = v
