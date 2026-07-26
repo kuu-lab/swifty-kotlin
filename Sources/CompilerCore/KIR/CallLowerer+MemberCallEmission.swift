@@ -379,18 +379,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_array_binarySearch_compare")
-        {
-            materializeArrayBinarySearchDefaultArguments(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-        }
-        if normalized.defaultMask != 0,
            loweredCallee == interner.intern("kk_array_copyInto")
         {
             materializeArrayCopyIntoDefaultArguments(
@@ -830,32 +818,6 @@ extension CallLowerer {
                 finalArguments.append(kindExpr)
             }
         }
-        if isArrayBinarySearchRuntimeCallee(loweredCallee, interner: interner) {
-            let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-            let sizeRuntimeCallee = arraySizeRuntimeCallee(
-                for: receiverType,
-                sema: sema,
-                interner: interner
-            )
-            let memberArgumentCount = finalArguments.count - 1
-            if memberArgumentCount == 1 || memberArgumentCount == 2 {
-                let sizeExpr = arena.appendTemporary(type: sema.types.intType)
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: sizeRuntimeCallee,
-                    arguments: [receiver.loweredID],
-                    result: sizeExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                if memberArgumentCount == 1 {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    finalArguments.append(zeroExpr)
-                }
-                finalArguments.append(sizeExpr)
-            }
-        }
         let comparatorOnlyCallees: Set<InternedString> = [
             interner.intern("kk_list_maxWith"),
             interner.intern("kk_list_maxWithOrNull"),
@@ -866,7 +828,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
             interner.intern("kk_list_sortedWith"),
-            interner.intern("kk_array_sortedArrayWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
            finalArguments.count == 2,
@@ -903,34 +864,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
             finalArguments.append(zeroClosureExpr)
         }
-        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation) and
-        // kk_semaphore_withPermit(handle, actionFnPtr, actionEnvPtr, continuation): split the
-        // lambda argument at index 1 into a function pointer and environment pointer,
-        // following the standard closure-conversion ABI used by collection HOFs.
-        // A zero continuation placeholder is appended as the 4th argument because the
-        // current runtime path blocks on contention and keeps the ABI shape aligned
-        // with the suspend-aware entry point.
-        if loweredCallee == interner.intern("kk_mutex_withLock")
-            || loweredCallee == interner.intern("kk_semaphore_withPermit"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let continuationExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
-            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr, continuationExpr]
-        }
-        // kk_lock_withLock(handle, actionFnPtr, actionEnvPtr),
-        // kk_read_write_lock_read(handle, actionFnPtr, actionEnvPtr), and
+        // KSP-677: Mutex.withLock / Semaphore.withPermit / Lock.withLock are Kotlin
+        // source (Stdlib/kotlinx/coroutines/sync/Sync.kt, Stdlib/kotlin/concurrent/Lock.kt).
+        // The Mutex/Semaphore helpers compose lock()/unlock() and acquire()/release();
+        // Lock.withLock delegates to the demoted __kk_lock_withLock bridge via the general
+        // closure-taking ABI, so none of them need a dedicated closure-conversion branch.
+        // kk_read_write_lock_read(handle, actionFnPtr, actionEnvPtr) and
         // kk_read_write_lock_write(handle, actionFnPtr, actionEnvPtr): split the
         // lambda argument at index 1 into a function pointer and environment pointer.
-        if loweredCallee == interner.intern("kk_lock_withLock")
-            || loweredCallee == interner.intern("kk_read_write_lock_read")
+        if loweredCallee == interner.intern("kk_read_write_lock_read")
             || loweredCallee == interner.intern("kk_read_write_lock_write"),
            finalArguments.count == 2
         {
@@ -999,8 +941,8 @@ extension CallLowerer {
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
         // ReentrantReadWriteLock.read(handle, actionFnPtr, actionEnvPtr): split the lambda in
-        // the same way as kk_mutex_withLock, but leave the continuation out because the call
-        // is synchronous and throw-only.
+        // the same way as kk_read_write_lock_read, but leave the continuation out because the
+        // call is synchronous and throw-only.
         if loweredCallee == interner.intern("kk_reentrant_read_write_lock_read"),
            finalArguments.count == 2
         {
@@ -1269,8 +1211,6 @@ extension CallLowerer {
             interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),
             interner.intern("kk_list_binarySearch_comparator"),
-            interner.intern("kk_array_binarySearch_compare"),
-            interner.intern("kk_array_sortedArrayWith"),
             interner.intern("kk_list_binarySearchBy"),
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),

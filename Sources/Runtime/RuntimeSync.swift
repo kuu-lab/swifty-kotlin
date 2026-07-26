@@ -41,7 +41,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     }
 
     /// Acquire the mutex, blocking the calling thread until it is available.
-    /// Used by `kk_mutex_withLock` which runs on a regular (non-coroutine) thread.
+    /// Used by `__kk_lock_withLock` which runs on a regular (non-coroutine) thread.
     func lockBlocking() {
         _ = lockSync(continuation: 0)
     }
@@ -307,8 +307,8 @@ private func runtimeSyncContinuationIsCancelled(_ continuation: Int) -> Bool {
 
 // MARK: - C ABI entry points
 
-@_cdecl("kk_mutex_create")
-public func kk_mutex_create() -> Int {
+@_cdecl("__kk_mutex_create")
+public func __kk_mutex_create() -> Int {
     let mutex = RuntimeMutexHandle()
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(mutex).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -346,26 +346,26 @@ public func kk_mutex_unlock(_ handle: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutex_tryLock")
-public func kk_mutex_tryLock(_ handle: Int) -> Int {
+@_cdecl("__kk_mutex_tryLock")
+public func __kk_mutex_tryLock(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_tryLock received invalid mutex handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_tryLock received invalid mutex handle")
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
     return mutex.tryLock() ? 1 : 0
 }
 
-@_cdecl("kk_mutex_isLocked")
-public func kk_mutex_isLocked(_ handle: Int) -> Int {
+@_cdecl("__kk_mutex_isLocked")
+public func __kk_mutex_isLocked(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_isLocked received invalid mutex handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_isLocked received invalid mutex handle")
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
     return mutex.isLocked ? 1 : 0
 }
 
-@_cdecl("kk_semaphore_create")
-public func kk_semaphore_create(_ permits: Int) -> Int {
+@_cdecl("__kk_semaphore_create")
+public func __kk_semaphore_create(_ permits: Int) -> Int {
     let semaphore = RuntimeSemaphoreHandle(permits: permits)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(semaphore).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -393,19 +393,19 @@ public func kk_semaphore_release(_ handle: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_semaphore_tryAcquire")
-public func kk_semaphore_tryAcquire(_ handle: Int) -> Int {
+@_cdecl("__kk_semaphore_tryAcquire")
+public func __kk_semaphore_tryAcquire(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_tryAcquire received invalid semaphore handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_semaphore_tryAcquire received invalid semaphore handle")
     }
     let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
     return semaphore.tryAcquire() ? 1 : 0
 }
 
-@_cdecl("kk_semaphore_availablePermits")
-public func kk_semaphore_availablePermits(_ handle: Int) -> Int {
+@_cdecl("__kk_semaphore_availablePermits")
+public func __kk_semaphore_availablePermits(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_availablePermits received invalid semaphore handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_semaphore_availablePermits received invalid semaphore handle")
     }
     let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
     return semaphore.availablePermits
@@ -443,113 +443,40 @@ public func kk_read_write_lock_write(_ handle: Int, _ actionFnPtr: Int, _ action
     return runtimeInvokeReadWriteLockAction(actionFnPtr, actionEnvPtr)
 }
 
-// MARK: - Mutex.withLock { } (kotlinx.coroutines.sync.Mutex.withLock)
-
-/// Runtime backing for `Mutex.withLock { }`.
-///
-/// Attempts to acquire the mutex, invokes `action`, releases the mutex, and
-/// returns the action result.  The current lowering passes a zero continuation
-/// placeholder, so contended calls block on a regular semaphore; if a real
-/// continuation is supplied, the same FIFO waiter queue can still suspend and
-/// resume the caller.
-/// The action is passed as a Swift function pointer (`actionFnPtr`) and an
-/// opaque environment pointer (`actionEnvPtr`) following the standard closure-
-/// conversion ABI used throughout KSwiftK.
-@_cdecl("kk_mutex_withLock")
-public func kk_mutex_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int, _ continuation: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_withLock received invalid mutex handle")
-    }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-
-    // Attempt to acquire the mutex via the coroutine suspension mechanism.
-    // If contended, lockSync enqueues the continuation and returns COROUTINE_SUSPENDED.
-    let lockResult = mutex.lockSync(continuation: continuation)
-    if lockResult != 0 {
-        // Mutex is contended — caller will be resumed once the lock is available.
-        return lockResult
-    }
-    defer { mutex.unlock() }
-
-    // Invoke the action closure: fn(envPtr) -> intptr_t.
-    var result: Int = 0
-    if actionFnPtr != 0,
-       let fnRaw = UnsafeRawPointer(bitPattern: actionFnPtr)
-    {
-        typealias ActionFn = @convention(c) (Int) -> Int
-        let fn = unsafeBitCast(fnRaw, to: ActionFn.self)
-        result = fn(actionEnvPtr)
-    }
-
-    return result
-}
-
-// MARK: - Semaphore.withPermit { } (kotlinx.coroutines.sync.Semaphore.withPermit)
-
-/// Runtime backing for `Semaphore.withPermit { }`.
-///
-/// Attempts to acquire a permit, invokes `action`, releases the permit, and
-/// returns the action result.  Mirrors `kk_mutex_withLock`'s continuation
-/// handling: a zero continuation placeholder means contended calls block on
-/// a regular semaphore, while a real continuation lets the FIFO waiter queue
-/// suspend and resume the caller.
-/// The action is passed as a Swift function pointer (`actionFnPtr`) and an
-/// opaque environment pointer (`actionEnvPtr`) following the standard closure-
-/// conversion ABI used throughout KSwiftK.
-@_cdecl("kk_semaphore_withPermit")
-public func kk_semaphore_withPermit(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int, _ continuation: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_withPermit received invalid semaphore handle")
-    }
-    let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
-
-    // Attempt to acquire a permit via the coroutine suspension mechanism.
-    // If contended, acquireSync enqueues the continuation and returns COROUTINE_SUSPENDED.
-    let acquireResult = semaphore.acquireSync(continuation: continuation)
-    if acquireResult != 0 {
-        // Semaphore is contended — caller will be resumed once a permit is available.
-        return acquireResult
-    }
-    defer { semaphore.release() }
-
-    // Invoke the action closure: fn(envPtr) -> intptr_t.
-    var result: Int = 0
-    if actionFnPtr != 0,
-       let fnRaw = UnsafeRawPointer(bitPattern: actionFnPtr)
-    {
-        typealias ActionFn = @convention(c) (Int) -> Int
-        let fn = unsafeBitCast(fnRaw, to: ActionFn.self)
-        result = fn(actionEnvPtr)
-    }
-
-    return result
-}
+// KSP-677: kk_mutex_withLock and kk_semaphore_withPermit are removed. The
+// public helpers Mutex.withLock / Semaphore.withPermit are Kotlin source
+// (Stdlib/kotlinx/coroutines/sync/Sync.kt) composing the c-soft kernel
+// primitives lock()/unlock() and acquire()/release().
 
 // MARK: - Lock.withLock { } (kotlin.concurrent.Lock.withLock)
 
 /// Runtime backing for `kotlin.concurrent.Lock.withLock { }`.
 ///
 /// Acquires the mutex in a blocking way using `lockBlocking()`, executes the action,
-/// and releases the mutex. The action is represented as a plain closure call with
-/// no coroutine suspension support.
-@_cdecl("kk_lock_withLock")
-public func kk_lock_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int) -> Int {
+/// and releases the mutex. `Lock.withLock` is Kotlin source (KSP-677,
+/// Stdlib/kotlin/concurrent/Lock.kt) delegating to this demoted bridge, so the
+/// action arrives split into a function pointer / closure environment pair with an
+/// `outThrown` out-parameter, matching the general closure-taking bridge ABI.
+@_cdecl("__kk_lock_withLock")
+public func kk_lock_bridge_withLock(
+    _ handle: Int,
+    _ actionFnPtr: Int,
+    _ actionClosureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_lock_withLock received invalid mutex handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_lock_withLock received invalid mutex handle")
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
 
     mutex.lockBlocking()
     defer { mutex.unlock() }
 
-    var result: Int = 0
-    if actionFnPtr != 0,
-       let fnRaw = UnsafeRawPointer(bitPattern: actionFnPtr)
-    {
-        typealias ActionFn = @convention(c) (Int) -> Int
-        let fn = unsafeBitCast(fnRaw, to: ActionFn.self)
-        result = fn(actionEnvPtr)
+    var thrown = 0
+    let result = runtimeInvokeClosureThunk(fnPtr: actionFnPtr, closureRaw: actionClosureRaw, outThrown: &thrown)
+    if thrown != 0 {
+        return handleCollectionLambdaThrow(thrown, outThrown)
     }
-
     return result
 }
