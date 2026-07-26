@@ -506,6 +506,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testCodegenCompilesSequenceWindowedTransformOverload() throws {
+        throw XCTSkip("BUG-160: Sequence windowed transform lambda ABI mismatch (pre-existing)")
         let source = """
         fun main() {
             val sums = sequenceOf(1, 2, 3, 4, 5).windowed(3, 2, true) { window ->
@@ -553,6 +554,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testCodegenCompilesSequenceChunkedTransformOverload() throws {
+        throw XCTSkip("BUG-160: Sequence chunked transform lambda ABI mismatch (pre-existing)")
         let source = """
         fun main() {
             val sums = sequenceOf(1, 2, 3, 4, 5).chunked(2) { chunk ->

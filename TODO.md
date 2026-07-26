@@ -43,13 +43,13 @@
 
 ### Runtime: 完全到達不能 export / legacy bridge
 
-- [ ] DEADCODE-RUNTIME-001: [E0] `RuntimeStringArray.swift:2120` の `kk_readln_from_syscall(_:)` を削除し、`RuntimeABISpec+IO.swift:28` の spec も消す。現行 IO は `kk_readline` / `kk_readln` / `kk_readlnOrNull`
+- [x] DEADCODE-RUNTIME-001: [E0] `RuntimeStringArray.swift:2120` の `kk_readln_from_syscall(_:)` を削除し、`RuntimeABISpec+IO.swift:28` の spec も消す。現行 IO は `kk_readline` / `kk_readln` / `kk_readlnOrNull` — #5022
 - [x] DEADCODE-RUNTIME-002: [E0] `RuntimeStringStdlib.swift:117` の `kk_string_capitalize(_:)` を削除し、`RuntimeABISpec+String.swift:1007` も消す。source-backed 実装は既存で external link nil（KSP-412 の子タスク）— PR #5024, verified
 - [ ] DEADCODE-RUNTIME-003: [E0] `RuntimeStringHOF.swift:1355` の `kk_string_onEach_flat(...)` を削除する。raw `kk_string_onEach` は compiler emit + ABI spec ありのため残す
 - [ ] DEADCODE-RUNTIME-004: [E0] `RuntimeStringHOF.swift:1561` の `kk_string_onEachIndexed_flat(...)` を削除する。raw 版は残す
 - [ ] DEADCODE-RUNTIME-005: [E0] `RuntimeStringConversion.swift:603` の `__kk_string_toBigDecimalOrNull_flat(...)` を削除する。raw `__kk_string_toBigDecimalOrNull` は bundled source / compiler fallback / runtime test から到達するため残す
 - [ ] DEADCODE-RUNTIME-006: [E0] `RuntimeStringConversion.swift:644` の `__kk_string_toBigIntegerOrNull_flat(...)` を削除する。raw `__kk_string_toBigIntegerOrNull` は bundled source / compiler fallback / runtime test から到達するため残す
-- [ ] DEADCODE-RUNTIME-007: [E0] `RuntimeStringArray.swift:2113` の `kk_sys_write(_:_:_:)` を削除し、`RuntimeABISpec+System.swift:97` も消す。console IO は Swift `print` / `readLine` 経路
+- [x] DEADCODE-RUNTIME-007: [E0] `RuntimeStringArray.swift:2113` の `kk_sys_write(_:_:_:)` を削除し、`RuntimeABISpec+System.swift:97` も消す。console IO は Swift `print` / `readLine` 経路 — #5022
 - [x] DEADCODE-RUNTIME-008: [E0] `RuntimeStringStdlib.swift:237` の raw `__kk_string_normalize` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す — PR #5024, verified
 - [x] DEADCODE-RUNTIME-009: [E0] `RuntimeStringStdlib.swift:262` の raw `__kk_string_isNormalized` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す — PR #5024, verified
 - [x] DEADCODE-RUNTIME-010: [E0] `RuntimeStringFormat.swift:694` の `__string_trimIndent` と `RuntimeABISpec+String.swift:3025` の spec を削除する（KSP-302 後始末）— PR #5024, verified
@@ -598,21 +598,7 @@
 - [ ] BUG-154: `kotlin.text.CASE_INSENSITIVE_ORDER` が `HeaderHelpers+SyntheticStringStubs.swift`（`registerSyntheticStringTopLevelProperty`, STDLIB-TEXT-TYPE-004）により `kotlin.text` パッケージ直下のトップレベルプロパティとして登録されているが、実際の Kotlin では `String` の companion object メンバ（`String.CASE_INSENSITIVE_ORDER`）としてのみ存在し、トップレベル `kotlin.text.CASE_INSENSITIVE_ORDER` という名前は存在しない。最小再現: `import kotlin.text.CASE_INSENSITIVE_ORDER; fun main() { println(CASE_INSENSITIVE_ORDER) }` は kswiftc ではコンパイルが通るが、本家 kotlinc は `error: unresolved reference 'CASE_INSENSITIVE_ORDER'` で拒否する（`String.CASE_INSENSITIVE_ORDER` であれば通る）。発見元: BUG-036（`CASE_INSENSITIVE_ORDER` の参照同一性修正、PR #4994）の CI で `Scripts/diff_cases/case_insensitive_order_identity.kt` が kotlinc diff で失敗し判明 — BUG-036 自体（参照同一性）の修正は正しく、この diff_cases ファイルの `SKIP-DIFF (DEBT-DIFF-005)` 化のみで対応し、根本原因はここに切り出した。今回修正できない理由: この top-level 登録は `CASE_INSENSITIVE_ORDER` 単体ではなく `HeaderHelpers+SyntheticStringStubs.swift` の synthetic property 登録パターン全体に関わる可能性があり（他の `registerSyntheticStringTopLevelProperty` 呼び出しが同様に本来 companion object メンバであるべきものを誤って top-level 化していないか要確認）、`String` の companion object 自体への synthetic メンバ登録経路の要否も含めた設計判断が必要で、単一の小さな修正では閉じられないため見送り
 - [ ] BUG-155: source-backed な generic クラスの値フィールド（`T?`）に格納した非 null 値が、後続のメンバ呼び出しで正しく取り出せず既定値（`Int` なら `0`）になる。`AbstractIterator<T>` の State マシン（`setNext(value: T)` が `nextValue: T?` に格納 → `next()` が `nextValue as T` で取り出す）を素直に .kt 実装したところ、`hasNext()`/`next()` のロジック自体は正しく回るが、取り出された値が格納値ではなく `0` になる。最小再現: `import kotlin.collections.AbstractIterator` `class OneShot(private val v: Int) : AbstractIterator<Int>() { private var used = false; override fun computeNext() { if (used) done() else { used = true; setNext(v) } } }` `fun main() { val it = OneShot(42); while (it.hasNext()) println(it.next()) }` は `42` ではなく `0` を出力（`.build/debug/kswiftc` で実機確認）。発見元: KSP-664（AbstractIterator の .kt 化に伴い、ユーザー定義 AbstractIterator サブクラスが初めてコンパイル・実行到達可能になり発覚）。**回帰ではない**: 同コードは master（合成スタブ版 AbstractIterator）では `undefined reference to 'done'` / `undefined reference to 'setNext'` でリンク不能（合成殻に runtime body が無いため）だったので、リンク・実行到達自体が本 PR の前進。今回修正できない理由: generic 値のボックス化とフィールド（`T?`）への格納・取り出しを跨ぐ runtime/lowering 経路の見直しが必要で、KSP-664 のサーフェス移行スコープを大きく超える（`for` ループ等の実運用の反復は runtime ブリッジ経路を通り正常動作するため、この欠陥はユーザー定義 AbstractIterator サブクラスの実行時のみに限定される）
 - [ ] BUG-156: 「interface → override 実装を持つ抽象基底クラス → 具象クラス」の多段 generic 階層で、具象インスタンスを interface 静的型経由で呼ぶと、基底クラスが実装した interface メソッドの override が具象サブクラスの itable スロットに配線されず `KSWIFTK-RUNTIME-0001: Virtual dispatch failed: method not found in vtable/itable` でパニックする。最小再現: `interface Box<T> { fun get(): T }` `abstract class AbstractBox<T> : Box<T> { abstract fun compute(): T; override fun get(): T = compute() }` `class IntBox(val v: Int) : AbstractBox<Int>() { override fun compute(): Int = v }` `fun accept(b: Box<Int>): Int = b.get()` `fun main() { println(accept(IntBox(7))) }` は本ブランチではコンパイルは通るが実行時に上記パニック（`.build/debug/kswiftc` で実機確認）。具象クラスが interface を直接実装する単段ケース（`class IntBox : Box<Int>`）は正常に動作するため、欠陥は「基底クラスから継承した interface override」の itable 配線に限定される。発見元: KSP-664（`AbstractIterator<T> : Iterator<T>` の covariance 修正（`Inheritance.swift`）により本パターンが Sema を通過するようになり実行到達可能化）。**回帰ではない**: 同コードは master では `KSWIFTK-SEMA-OVERRIDE-RETURN: Override of 'get' has incompatible return type`（自クラス型パラメータを参照する supertype 型引数が解決されないことに起因する covariance 誤判定）で Sema 拒否され実行到達しない。今回修正できない理由: 多段 generic 階層で基底クラスが実装した interface メソッドを具象サブクラスの itable へ配線する lowering 変更（DEBT-KIR-001 の object-local vtable registry の itable 側相当）が必要で、KSP-664 のサーフェス移行スコープを大きく超える
-- [x] DEADCODE-RUNTIME-001: [E0] `RuntimeStringArray.swift:2120` の `kk_readln_from_syscall(_:)` を削除し、`RuntimeABISpec+IO.swift:28` の spec も消す。現行 IO は `kk_readline` / `kk_readln` / `kk_readlnOrNull`
-- [ ] DEADCODE-RUNTIME-002: [E0] `RuntimeStringStdlib.swift:117` の `kk_string_capitalize(_:)` を削除し、`RuntimeABISpec+String.swift:1007` も消す。source-backed 実装は既存で external link nil（KSP-412 の子タスク）
-- [x] DEADCODE-RUNTIME-007: [E0] `RuntimeStringArray.swift:2113` の `kk_sys_write(_:_:_:)` を削除し、`RuntimeABISpec+System.swift:97` も消す。console IO は Swift `print` / `readLine` 経路
-- [ ] DEADCODE-RUNTIME-008: [E0] `RuntimeStringStdlib.swift:237` の raw `__kk_string_normalize` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す
-- [ ] DEADCODE-RUNTIME-009: [E0] `RuntimeStringStdlib.swift:262` の raw `__kk_string_isNormalized` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す
-- [ ] DEADCODE-RUNTIME-010: [E0] `RuntimeStringFormat.swift:694` の `__string_trimIndent` と `RuntimeABISpec+String.swift:3025` の spec を削除する（KSP-302 後始末）
-- [ ] DEADCODE-RUNTIME-011: [E0] `RuntimeStringFormat.swift:699` の `__string_trimMargin` と `RuntimeABISpec+String.swift:3033` の spec を削除する
-- [ ] DEADCODE-RUNTIME-012: [E0] `RuntimeStringFormat.swift:704` の `__string_prependIndent` と `RuntimeABISpec+String.swift:3042` の spec を削除する
-- [ ] DEADCODE-RUNTIME-013: [E0] `RuntimeStringFormat.swift:709` の `__string_replaceIndent` と `RuntimeABISpec+String.swift:3051` の spec を削除する
-- [ ] DEADCODE-RUNTIME-014: [E0] `RuntimeStringFormat.swift:714` の `__string_replaceIndentByMargin` と `RuntimeABISpec+String.swift:3060` の spec を削除する
-- [ ] DEADCODE-RUNTIME-015: [E0] `RuntimeStringFormat.swift:724` の `__string_format` と `RuntimeABISpec+String.swift:3071` の spec を削除する（KSP-418 の子タスク）
-- [ ] DEADCODE-RUNTIME-016: [E0] `RuntimeStringStdlib.swift:1044` の `__string_lowercase` を削除する。bundled source の同名記載はコメントのみ
-- [ ] DEADCODE-RUNTIME-017: [E0] `RuntimeStringStdlib.swift:1049` の `__string_uppercase` を削除する
-- [ ] DEADCODE-RUNTIME-018: [E0] `RuntimeStringStdlib.swift:1054` の `__string_lowercase_locale` を削除する。live bridge `__kk_lowercase_locale` とは別シンボル
-- [ ] DEADCODE-RUNTIME-019: [E0] `RuntimeStringStdlib.swift:1059` の `__string_uppercase_locale` を削除する。live bridge `__kk_uppercase_locale` とは別シンボル
+
 - [ ] BUG-157: `Float.toString()`（および `Float` 値の `println`）が特定の値で本家 kotlinc より有効数字を1桁少なく出力する。kotlinc は Float の最短往復（shortest round-trip）表現を出力するが、kswiftc の Float→String 変換はそれより短い（往復しない）表現を出す。最小再現: `Scripts/diff_cases/num_float_tostring.kt`（`1.23456792E8` が kswiftc では `1.2345679E8` になる）と `Scripts/diff_cases/num_conversions.kt`（`Int.MAX_VALUE.toFloat()` の `2.14748365E9` が kswiftc では `2.1474836E9` になる）。いずれも master（commit `c591d53dc` / `43419eb0b`）でも同一の diff で FAIL することを確認済み（本 PR の変更とは無関係な既存バグ）。原因は Runtime の Float→String 整形（`Sources/Runtime` の数値フォーマット経路。`Double` 側は正しく最短表現を出しているため Float 専用パスの精度不足の疑い）。発見元: KSP-657（Array ファクトリ Kotlin 化）の `Scripts/diff_kotlinc.sh Scripts/diff_cases` 完了ゲート実行中に検出。今回修正できない理由: Float の shortest round-trip 整形アルゴリズム（Ryū / Grisu 相当）を Runtime の数値フォーマット層に実装/修正する必要があり、Array ファクトリ移行という本 PR のスコープ（compiler フロントエンド + stdlib 宣言）とは別サブシステムで、単一の小さな修正に収まらないため見送り
 - [ ] BUG-158: プリミティブ配列（`ByteArray`/`IntArray`/`LongArray` 等）の `joinToString` に `transform` オーバーロードが無く、末尾ラムダ付きで呼ぶと transform が黙って捨てられる。`HeaderHelpers+SyntheticArrayStubs.swift` はプリミティブ配列に対しては `joinToString(separator, prefix, postfix)`（3引数版、`kk_*Array_joinToString`）のみを登録し、`transform: ((T) -> CharSequence)?` を含むオーバーロードを登録していない（generic `Array<T>` には `kk_array_joinToString_transform` が line 2032 付近で登録済みだが、プリミティブ配列には無い）。そのため末尾ラムダ付き呼び出しは 3引数版へ解決され、ラムダが無視される。最小再現: `fun main() { val a = byteArrayOf(10, 20, 30); println(a.joinToString(",") { (it + 1).toString() }) }` は `10,20,30` を出力する（本家 kotlinc は `11,21,31`）。`IntArray`/`LongArray` 等でも同様。発見元: KSP-660（BUG-019 の `ByteArray.joinToString`/`contentEquals` 吸収作業中に、`transform` 付き `ByteArray.joinToString` の挙動を検証して発覚）。BUG-019 の定義スコープ（`Scripts/diff_cases/string_tobytearray.kt` の `joinToString(sep)`/`contentEquals` ギャップ、#4671 で解消済み）には `transform` は含まれない。今回修正できない理由: 全プリミティブ配列型（12 種）横断で `joinToString(..., transform)` オーバーロードの Sema 登録・KIR lowering・runtime helper（または Kotlin 実装への移行）を一貫して追加する必要があり、本 PR の符号なしビュー変換移行スコープを大きく超えるため見送り
 
@@ -630,3 +616,32 @@
   }
   ```
   発見元: KSP-426（List sort/max/min の Kotlin 化）PR #5061 の `CodegenBackendIntegrationTests/testCodegenCompilesAppendableAppendOverloads` 検証。今回修正できない理由: `StringBuilder` に `Appendable`（および `CharSequence` 等）の実装を追加し、covariant return 型 (`StringBuilder` vs `Appendable`) の override を itable 生成に正しく配線する変更は、クラス継承・interface 実装・vtable/itable 生成にまたがる大きな修正であり、List sort/max/min Kotlin 化の PR スコープを超える。関連: `BUG-156`（多段 generic 階層の itable 配線）とも近しい根本原因の可能性あり
+
+- [ ] BUG-160: `sequenceOf(...).windowed(size, step, partialWindows) { ... }` および `chunked(size) { ... }` の transform 付きオーバーロードが実行時に `Bad pointer dereference` でクラッシュする。`kk_sequence_windowed_transform` / `kk_sequence_chunked_transform` は `(T, T) -> Int` 形式の function pointer + closure raw を期待する ABI だが、`CallLowerer` は lambda 引数を closure オブジェクトのまま渡しており、`runtimeInvokeCollectionLambda1` 等への `fnPtr` が `RuntimeIntBox` 等のオブジェクトポインタになり `unsafeBitCast` 後に無効アドレスへジャンプする。最小再現:
+  ```kotlin
+  fun main() {
+      val sums = sequenceOf(1, 2, 3, 4, 5).windowed(3, 2, true) { window ->
+          window[0] + window.size
+      }
+      println(sums.toList())
+  }
+  ```
+  発見元: KSP-426（List sort/max/min の Kotlin 化）PR #5061 の `CodegenBackendIntegrationTests/testCodegenCompilesSequenceWindowedTransformOverload` / `testCodegenCompilesSequenceChunkedTransformOverload` 検証。今回修正できない理由: Sequence 遅延パイプラインの transform HOF に対する function-pointer ABI への lambda 展開を `CallLowerer` 側で統合する（または KSP-308/KSP-411・KSP-441 で Sequence 遅延 transform 全体を Kotlin 化する）必要があり、List sort/max/min Kotlin 化の PR スコープを超える。
+
+- [ ] BUG-161: `Collection<T>` / `Iterable<T>` / `Set<T>` の `joinToString(...)` がリンク時に `undefined reference to 'joinToString'` で失敗する（`testCodegenIterableJoinToStringUsesRuntimeDefaultsAndNamedArguments` では `outputUnavailable`）。`List<T>` 受信者の `joinToString` は `kk_list_joinToString` へ到達するが、`Collection` / `Iterable` 経由の呼び出しは `kk_iterable_joinToString` 等の正しいランタイムシンボルに束縛されず、生の `joinToString` シンボルが出力される。最小再現:
+  ```kotlin
+  fun main() {
+      val c: Collection<Int> = listOf(1, 2, 3)
+      println(c.joinToString())
+  }
+  ```
+  発見元: KSP-426（List sort/max/min の Kotlin 化）PR #5061 の `CodegenBackendIntegrationTests/testCodegenIterableJoinToStringUsesRuntimeDefaultsAndNamedArguments` 検証。今回修正できない理由: `Iterable` / `Collection` 受信者の `joinToString` 合成メンバ登録・lowering 経路、または KSP-620/KSP-621 での `joinToString` ソース化統一を要する修正であり、List sort/max/min Kotlin 化の PR スコープを超える。関連: `DEBT-KIR-006`（transform ラムダ無視）。
+
+- [ ] BUG-162: `CharSequence` 型のレシーバで `removePrefix` / `removeSuffix` / `removeSurrounding` を呼ぶと `KSWIFTK-SEMA-0024: Unresolved member function 'removePrefix'` で解決できない。これらの `kotlin.text` 拡張関数は `String` 受信者には合成登録されているが、`CharSequence` インターフェース受信者には登録されていない。最小再現:
+  ```kotlin
+  fun main() {
+      val cs: CharSequence = "foofoobarfoo"
+      println(cs.removePrefix("foo"))
+  }
+  ```
+  発見元: KSP-426（List sort/max/min の Kotlin 化）PR #5061 の `CodegenBackendIntegrationTests/testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases` 検証。今回修正できない理由: `CharSequence` インターフェースへの拡張メンバ登録、または `CharSequence` 真のインターフェースメンバ化（`BUG-152`）を含む設計変更が必要で、List sort/max/min Kotlin 化の PR スコープを超える。関連: `BUG-152`。

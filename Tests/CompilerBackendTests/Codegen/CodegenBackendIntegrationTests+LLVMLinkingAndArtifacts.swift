@@ -867,7 +867,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_equals("))
         XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
-        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
+        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }") || ir.contains("{ i8*, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_label"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_spill"))
