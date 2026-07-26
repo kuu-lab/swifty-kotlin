@@ -260,6 +260,173 @@ extension CallTypeChecker {
             return false
         }
 
+        func typeIDFromTypeArg(_ typeArg: TypeArg) -> TypeID {
+            switch typeArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                type
+            case .star:
+                sema.types.anyType
+            }
+        }
+
+        func containsTypeParameter(_ typeID: TypeID, symbols: Set<SymbolID>) -> Bool {
+            switch sema.types.kind(of: typeID) {
+            case let .typeParam(typeParam):
+                symbols.contains(typeParam.symbol)
+            case let .classType(classType):
+                classType.args.contains { arg in
+                    containsTypeParameter(arg, symbols: symbols)
+                }
+            case let .functionType(functionType):
+                (functionType.receiver.map { containsTypeParameter($0, symbols: symbols) } ?? false)
+                    || functionType.params.contains { containsTypeParameter($0, symbols: symbols) }
+                    || containsTypeParameter(functionType.returnType, symbols: symbols)
+                    || functionType.contextReceivers.contains { containsTypeParameter($0, symbols: symbols) }
+            case let .kClassType(kClassType):
+                containsTypeParameter(kClassType.argument, symbols: symbols)
+            case let .intersection(parts):
+                parts.contains { containsTypeParameter($0, symbols: symbols) }
+            default:
+                false
+            }
+        }
+
+        func containsTypeParameter(_ typeArg: TypeArg, symbols: Set<SymbolID>) -> Bool {
+            switch typeArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                containsTypeParameter(type, symbols: symbols)
+            case .star:
+                false
+            }
+        }
+
+        func mapExtraTypeArgument(
+            signatureReturnType: TypeID,
+            actualLambdaReturnType: TypeID,
+            extraSymbol: SymbolID,
+            sema: SemaModule,
+            interner: StringInterner
+        ) -> TypeID? {
+            let extraSymbols: Set<SymbolID> = [extraSymbol]
+            guard containsTypeParameter(signatureReturnType, symbols: extraSymbols) else {
+                return nil
+            }
+            switch sema.types.kind(of: signatureReturnType) {
+            case let .typeParam(typeParam) where typeParam.symbol == extraSymbol:
+                if typeParam.nullability == .nullable {
+                    return sema.types.makeNonNullable(actualLambdaReturnType)
+                }
+                return actualLambdaReturnType
+            case let .classType(classType):
+                if classType.args.count == 1,
+                   containsTypeParameter(typeIDFromTypeArg(classType.args[0]), symbols: extraSymbols) {
+                    return extractIterableOrSequenceElementType(actualLambdaReturnType, sema: sema, interner: interner)
+                }
+            default:
+                break
+            }
+            return nil
+        }
+
+        @discardableResult
+        func bindBundledMapSourceFunction() -> Bool {
+            guard isMapReceiver, !isSequenceReceiver else {
+                return false
+            }
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            let receiverForLookup = sema.types.makeNonNullable(receiverType)
+            guard let (actualReceiverClassType, _) = resolveClassTypeSymbol(receiverForLookup, sema: sema),
+                  actualReceiverClassType.args.count >= 2
+            else {
+                return false
+            }
+            let actualClassSymbol = actualReceiverClassType.classSymbol
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == args.count,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                guard let (sigClassType, sigSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
+                      knownNames.isMapLikeSymbol(sigSymbol)
+                else {
+                    return false
+                }
+                return sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol)
+            }),
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                return false
+            }
+            let baseCount = min(
+                max(signature.classTypeParameterCount, actualReceiverClassType.args.count),
+                signature.typeParameterSymbols.count
+            )
+            var typeArguments: [TypeID] = []
+            for index in 0..<baseCount {
+                if index < actualReceiverClassType.args.count {
+                    typeArguments.append(typeIDFromTypeArg(actualReceiverClassType.args[index]))
+                } else {
+                    typeArguments.append(sema.types.anyType)
+                }
+            }
+            let extraParamSymbols = Array(signature.typeParameterSymbols.dropFirst(typeArguments.count))
+            if !extraParamSymbols.isEmpty {
+                var inferredExtras: [TypeID] = []
+                for (argIndex, paramType) in signature.parameterTypes.enumerated() {
+                    guard case let .functionType(fn) = sema.types.kind(of: paramType) else {
+                        continue
+                    }
+                    let paramReturnType = fn.returnType
+                    guard containsTypeParameter(paramReturnType, symbols: Set(extraParamSymbols)) else {
+                        continue
+                    }
+                    let actualArgExpr = args[argIndex].expr
+                    let actualLambdaReturnType = inferredLambdaReturnType(argExpr: actualArgExpr, ast: ast, sema: sema)
+                    var extrasForParam: [TypeID] = []
+                    for extraSymbol in extraParamSymbols {
+                        if let inferred = mapExtraTypeArgument(
+                            signatureReturnType: paramReturnType,
+                            actualLambdaReturnType: actualLambdaReturnType,
+                            extraSymbol: extraSymbol,
+                            sema: sema,
+                            interner: interner
+                        ) {
+                            extrasForParam.append(inferred)
+                        } else {
+                            extrasForParam.append(sema.types.anyType)
+                        }
+                    }
+                    if extrasForParam.count == extraParamSymbols.count {
+                        inferredExtras = extrasForParam
+                        if let lambdaExpr = ast.arena.expr(actualArgExpr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(actualArgExpr)
+                        }
+                        break
+                    }
+                }
+                typeArguments.append(contentsOf: inferredExtras)
+                if typeArguments.count < signature.typeParameterSymbols.count {
+                    typeArguments.append(contentsOf: Array(repeating: sema.types.anyType, count: signature.typeParameterSymbols.count - typeArguments.count))
+                }
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: typeArguments,
+                parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }
         if interner.resolve(calleeName) == "asFlow",
            args.isEmpty,
            isCollectionReceiver || isSequenceReceiver
@@ -275,6 +442,37 @@ extension CallTypeChecker {
                 )
             } else {
                 sema.types.anyType
+            }
+            // KSP-674: resolve to the bundled `Iterable<T>.asFlow()` Kotlin
+            // source (kotlinx.coroutines.flow) when present, so Lowering runs the
+            // real `flow { }`-composed body instead of the removed
+            // `kk_flow_as_flow` bridge. Fall back to type-only binding otherwise.
+            let asFlowFQName = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("flow"),
+                calleeName,
+            ]
+            if isCollectionReceiver,
+               let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
+                   guard let symbol = sema.symbols.symbol(candidate),
+                         symbol.kind == .function,
+                         !symbol.flags.contains(.synthetic),
+                         let signature = sema.symbols.functionSignature(for: candidate),
+                         signature.parameterTypes.isEmpty,
+                         signature.receiverType != nil
+                   else {
+                       return false
+                   }
+                   return true
+               })
+            {
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: [elementType],
+                    parameterMapping: [:]
+                ))
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             }
             sema.bindings.markFlowExpr(id)
             sema.bindings.bindFlowElementType(elementType, forExpr: id)
@@ -613,89 +811,6 @@ extension CallTypeChecker {
             return finalType
         }
 
-        if interner.resolve(calleeName) == "binarySearch",
-           isArrayReceiver
-        {
-            let knownNames = KnownCompilerNames(interner: interner)
-            let receiverClassName: InternedString? = {
-                guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-                    return nil
-                }
-                return symbol.name
-            }()
-            let isGenericArrayReceiver = receiverClassName == knownNames.array
-            if receiverClassName == knownNames.booleanArray {
-                ctx.semaCtx.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for call.",
-                    range: range
-                )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
-            }
-            let arrayElementType = resolvedCollectionElementType(
-                receiverID: receiverID,
-                receiverType: receiverType,
-                sema: sema,
-                interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
-            if args.count == 4,
-               let comparatorSymbol = sema.symbols.lookup(fqName: [
-                   interner.intern("kotlin"),
-                   interner.intern("Comparator"),
-               ])
-            {
-                guard isGenericArrayReceiver else {
-                    ctx.semaCtx.diagnostics.error(
-                        "KSWIFTK-SEMA-0002",
-                        "No viable overload found for call.",
-                        range: range
-                    )
-                    sema.bindings.bindExprType(id, type: sema.types.errorType)
-                    return sema.types.errorType
-                }
-                let comparatorExpectedType = sema.types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(arrayElementType)],
-                    nullability: .nonNull
-                )))
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: arrayElementType)
-                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-            } else if !isGenericArrayReceiver {
-                if args.indices.contains(0) {
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: arrayElementType)
-                }
-                if args.indices.contains(1) {
-                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                    if let chosen = sema.bindings.callBinding(for: args[1].expr)?.chosenCallee {
-                        let chosenName = sema.symbols.symbol(chosen).map { interner.resolve($0.name) }
-                        let externalLinkName = sema.symbols.externalLinkName(for: chosen)
-                        let isComparatorFactory = externalLinkName?.hasPrefix("kk_comparator_") == true
-                            || ["compareBy", "compareByDescending", "naturalOrder", "reverseOrder"].contains(chosenName ?? "")
-                        if isComparatorFactory {
-                            ctx.semaCtx.diagnostics.error(
-                                "KSWIFTK-SEMA-0002",
-                                "No viable overload found for call.",
-                                range: range
-                            )
-                            sema.bindings.bindExprType(id, type: sema.types.errorType)
-                            return sema.types.errorType
-                        }
-                    }
-                }
-                if args.indices.contains(2) {
-                    _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                }
-            }
-            let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
-            sema.bindings.bindExprType(id, type: finalType)
-            return finalType
-        }
-
         if let groupingType = tryGroupingMemberCall(
             id,
             calleeName: calleeName,
@@ -854,79 +969,6 @@ extension CallTypeChecker {
             default:
                 break
             }
-        }
-
-        if interner.resolve(calleeName) == "binarySearch",
-           isArrayReceiver
-        {
-            let knownNames = KnownCompilerNames(interner: interner)
-            let isGenericArrayReceiver: Bool = {
-                guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-                    return false
-                }
-                return symbol.name == knownNames.array && classType.args.count == 1
-            }()
-            let arrayElementType = resolvedCollectionElementType(
-                receiverID: receiverID,
-                receiverType: receiverType,
-                sema: sema,
-                interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
-            if args.count == 4,
-               let comparatorSymbol = sema.symbols.lookup(fqName: [
-                   interner.intern("kotlin"),
-                   interner.intern("Comparator"),
-               ])
-            {
-                guard isGenericArrayReceiver else {
-                    ctx.semaCtx.diagnostics.error(
-                        "KSWIFTK-SEMA-0002",
-                        "No viable overload found for call.",
-                        range: range
-                    )
-                    sema.bindings.bindExprType(id, type: sema.types.errorType)
-                    return sema.types.errorType
-                }
-                let comparatorExpectedType = sema.types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(arrayElementType)],
-                    nullability: .nonNull
-                )))
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: arrayElementType)
-                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-            } else if !isGenericArrayReceiver {
-                if args.indices.contains(0) {
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: arrayElementType)
-                }
-                if args.indices.contains(1) {
-                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                    if let chosen = sema.bindings.callBinding(for: args[1].expr)?.chosenCallee {
-                        let chosenName = sema.symbols.symbol(chosen).map { interner.resolve($0.name) }
-                        let externalLinkName = sema.symbols.externalLinkName(for: chosen)
-                        let isComparatorFactory = externalLinkName?.hasPrefix("kk_comparator_") == true
-                            || ["compareBy", "compareByDescending", "naturalOrder", "reverseOrder"].contains(chosenName ?? "")
-                        if isComparatorFactory {
-                            ctx.semaCtx.diagnostics.error(
-                                "KSWIFTK-SEMA-0002",
-                                "No viable overload found for call.",
-                                range: range
-                            )
-                            sema.bindings.bindExprType(id, type: sema.types.errorType)
-                            return sema.types.errorType
-                        }
-                    }
-                }
-                if args.indices.contains(2) {
-                    _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                }
-            }
-            let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
-            sema.bindings.bindExprType(id, type: finalType)
-            return finalType
         }
 
         // --- Collection higher-order functions (STDLIB-005) ---
@@ -1262,6 +1304,9 @@ extension CallTypeChecker {
                             sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                         }
                     }
+                }
+                if calleeStr == "mapKeysTo" || calleeStr == "mapValuesTo" {
+                    _ = bindBundledMapSourceFunction()
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -1842,6 +1887,10 @@ extension CallTypeChecker {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                             }
                         }
+                    }
+
+                    if isMapReceiver {
+                        _ = bindBundledMapSourceFunction()
                     }
                 }
 
@@ -3141,6 +3190,9 @@ extension CallTypeChecker {
                     : sema.types.makeNullable(collectionElementType)
                 if (calleeStr == "maxByOrNull" || calleeStr == "minByOrNull"), isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType, selectorType]
+                }
+                if isMapReceiver, calleeStr == "maxByOrNull" || calleeStr == "minByOrNull" {
+                    _ = bindBundledMapSourceFunction()
                 }
 
             case "maxOf", "minOf":

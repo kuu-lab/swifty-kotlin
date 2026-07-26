@@ -232,3 +232,15 @@ public fun buildString(capacity: Int, builderAction: StringBuilder.() -> Unit): 
     builder.builderAction()
     return builder.toString()
 }
+
+public fun buildStringBuilder(builderAction: StringBuilder.() -> Unit): StringBuilder {
+    val builder = StringBuilder()
+    builder.builderAction()
+    return builder
+}
+
+public fun buildStringBuilder(capacity: Int, builderAction: StringBuilder.() -> Unit): StringBuilder {
+    val builder = StringBuilder(capacity)
+    builder.builderAction()
+    return builder
+}

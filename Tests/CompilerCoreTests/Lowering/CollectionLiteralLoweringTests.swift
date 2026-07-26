@@ -872,7 +872,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testBuildStringBuilderRewrittenToKkBuildStringBuilder() throws {
+    func testBuildStringBuilderIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildStringBuilder")
@@ -882,15 +882,15 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder should be rewritten")
+        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder should not be rewritten")
         #expect(
-            callees.contains("kk_build_string_builder"),
-            "buildStringBuilder should become kk_build_string_builder"
+            !callees.contains("kk_build_string_builder"),
+            "buildStringBuilder should not become kk_build_string_builder"
         )
     }
 
     @Test
-    func testBuildStringBuilderCapacityRewrittenToKkBuildStringBuilderWithCapacity() throws {
+    func testBuildStringBuilderCapacityIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -922,10 +922,10 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should be rewritten")
+        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should not be rewritten")
         #expect(
-            callees.contains("kk_build_string_builder_with_capacity"),
-            "buildStringBuilder(capacity) should become kk_build_string_builder_with_capacity"
+            !callees.contains("kk_build_string_builder_with_capacity"),
+            "buildStringBuilder(capacity) should not become kk_build_string_builder_with_capacity"
         )
     }
 

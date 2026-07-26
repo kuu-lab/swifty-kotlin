@@ -92,21 +92,6 @@ extension CallLowerer {
             return interner.intern("kk_comparable_compareTo")
         }
 
-        if memberName == "binarySearch",
-           let runtimeName = arrayBinarySearchRuntimeName(
-               for: nonNullReceiverType,
-               sema: sema,
-               interner: interner
-           )
-        {
-            if argumentCount == 5,
-               isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
-            return runtimeName
-        }
-
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "flatMapIndexed":
@@ -360,14 +345,6 @@ extension CallLowerer {
                 }
             case "fill":
                 return interner.intern("kk_array_fill")
-            case "binarySearch":
-                return arrayBinarySearchRuntimeName(
-                    for: nonNullReceiverType,
-                    sema: sema,
-                    interner: interner
-                )
-            case "sortedArrayWith":
-                return interner.intern("kk_array_sortedArrayWith")
             case "find":
                 return interner.intern("kk_array_find")
             case "findLast":
@@ -470,11 +447,6 @@ extension CallLowerer {
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         case "binarySearch":
-            if argumentCount == 5,
-               isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                return interner.intern("kk_array_binarySearch_compare")
-            }
             if hasHOFLambdaArg && argumentCount == 2 {
                 return interner.intern("kk_list_binarySearch_compare")
             }
@@ -1018,39 +990,13 @@ extension CallLowerer {
         }
         switch memberName {
         case "count":
-            return interner.intern(argumentCount == 0 ? "kk_map_size" : "kk_map_count")
-        case "any":
-            return interner.intern("kk_map_any")
-        case "all":
-            return interner.intern("kk_map_all")
-        case "none":
-            return interner.intern("kk_map_none")
+            return argumentCount == 0 ? interner.intern("kk_map_size") : nil
         case "getValue":
             return interner.intern("kk_map_getValue")
         case "getOrDefault":
             return interner.intern("kk_map_getOrDefault")
         case "getOrElse":
             return interner.intern("kk_map_getOrElse")
-        case "maxByOrNull":
-            return interner.intern("kk_map_maxByOrNull")
-        case "minByOrNull":
-            return interner.intern("kk_map_minByOrNull")
-        case "plus":
-            return interner.intern("kk_map_plus")
-        case "minus":
-            return interner.intern("kk_map_minus")
-        case "filterNot":
-            return interner.intern("kk_map_filterNot")
-        case "filterKeys":
-            return interner.intern("kk_map_filterKeys")
-        case "filterValues":
-            return interner.intern("kk_map_filterValues")
-        case "mapNotNull":
-            return interner.intern("kk_map_mapNotNull")
-        case "mapKeysTo":
-            return interner.intern("kk_map_mapKeysTo")
-        case "mapValuesTo":
-            return interner.intern("kk_map_mapValuesTo")
         case "getOrPut":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil

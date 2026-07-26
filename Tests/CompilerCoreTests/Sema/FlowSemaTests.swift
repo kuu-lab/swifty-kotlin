@@ -264,6 +264,9 @@ struct FlowSemaTests {
 
     @Test func testAdditionalFlowBuildersTypeCheck() throws {
         let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
         fun main() {
             runBlocking {
                 flowOf(1, 2, 3).collect { println(it) }

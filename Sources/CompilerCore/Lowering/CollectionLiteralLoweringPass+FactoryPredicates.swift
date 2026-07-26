@@ -23,34 +23,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
     }
 
-    func boxedBuildStringTextArgumentIfNeeded(
-        _ argument: KIRExprID,
-        module: KIRModule,
-        ctx: KIRContext,
-        loweredBody: inout [KIRInstruction]
-    ) -> KIRExprID {
-        guard let sema = ctx.sema,
-              let argumentType = module.arena.exprType(argument),
-              case .primitive(_, .nonNull) = sema.types.kind(of: argumentType),
-              let boxCallee = primitiveBoxCalleeName(
-                  for: argumentType,
-                  types: sema.types,
-                  symbols: sema.symbols,
-                  interner: ctx.interner
-              )
-        else {
-            return argument
-        }
-        let boxedArgument = emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argument,
-            resultType: sema.types.anyType,
-            arena: module.arena,
-            into: &loweredBody
-        )
-        return boxedArgument
-    }
-
     /// Returns true when the resolved symbol's FQN matches one of the known
     /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
     /// we conservatively allow the rewrite – the name check already passed and

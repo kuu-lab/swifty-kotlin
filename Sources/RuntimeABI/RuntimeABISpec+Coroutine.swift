@@ -378,32 +378,9 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // Flow terminal operators & builders (STDLIB-088 / STDLIB-FLOW-178)
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_of",
-            parameters: [
-                RuntimeABIParameter(name: "arrayHandle", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_empty",
-            parameters: [
-                RuntimeABIParameter(name: "reserved", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flow_as_flow",
-            parameters: [
-                RuntimeABIParameter(name: "sourceHandle", type: .intptr),
-                RuntimeABIParameter(name: "reserved", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        // KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed —
+        // flowOf / emptyFlow / Iterable.asFlow are now Kotlin source composed
+        // from kk_flow_create + kk_flow_emit.
         RuntimeABIFunctionSpec(
             name: "kk_flow_to_list",
             parameters: [
@@ -715,7 +692,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
+            // Int-returning residual; it does not use the outThrown ABI path.
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_channel_is_closed_token",
@@ -843,46 +823,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_run",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "functionID", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_run_with_cont",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_supervisor_scope_run",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "functionID", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_supervisor_scope_run_with_cont",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
         ),
         // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
         RuntimeABIFunctionSpec(
@@ -1040,17 +980,12 @@ public extension RuntimeABISpec {
         ),
         // Mutex / Semaphore (sync primitives)
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_create",
+            name: "__kk_mutex_create",
             parameters: [],
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_reentrant_read_write_lock_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_mutex_lock",
             parameters: [
@@ -1069,7 +1004,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_tryLock",
+            name: "__kk_mutex_tryLock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -1077,30 +1012,23 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_isLocked",
+            name: "__kk_mutex_isLocked",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KSP-677: Lock.withLock is Kotlin source delegating to this demoted
+        // __kk_lock_withLock bridge; the action is passed via the general
+        // closure-taking ABI (function pointer + closure environment + outThrown).
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_withLock",
+            name: "__kk_lock_withLock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_lock_withLock",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1132,7 +1060,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_create",
+            name: "__kk_semaphore_create",
             parameters: [
                 RuntimeABIParameter(name: "permits", type: .intptr),
             ],
@@ -1157,7 +1085,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_tryAcquire",
+            name: "__kk_semaphore_tryAcquire",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -1165,23 +1093,13 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_availablePermits",
+            name: "__kk_semaphore_availablePermits",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_semaphore_withPermit",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        // KSP-677: kk_semaphore_withPermit removed — Semaphore.withPermit is Kotlin source.
     ]
 }

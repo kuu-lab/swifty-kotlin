@@ -327,37 +327,6 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 42, "launch_with_dispatcher(IO) must deliver the coroutine's return value")
     }
 
-    // MARK: - Test 8: Supervisor scope isolates child failures
-
-    /// A supervisor scope must not cancel sibling children when one child fails.
-    /// Here we use supervisor_scope_run with an immediately-returning coroutine to
-    /// verify the scope infrastructure works and returns the block result.
-    func testSupervisorScopeRunReturnsBlockResult() {
-        let entryRaw = unsafeBitCast(
-            advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-            to: Int.self
-        )
-        var outThrown = 0
-        let result = kk_supervisor_scope_run(entryRaw, 8815, &outThrown)
-        XCTAssertEqual(outThrown, 0, "supervisor_scope_run with non-throwing block must not throw")
-        XCTAssertEqual(result, 42, "supervisor_scope_run must return the block's result")
-    }
-
-    /// A direct throw from the supervisorScope block itself (as opposed to a
-    /// child failing, which SupervisorJob semantics isolate) must still
-    /// propagate to the caller instead of being silently discarded. Regression
-    /// test for a fix flagged by PR review: this variant did not forward
-    /// outThrown to the suspend loop, unlike the identical kk_coroutine_scope_run.
-    func testSupervisorScopeRunPropagatesDirectThrow() {
-        let entryRaw = unsafeBitCast(
-            advcoro_throw_immediately as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-            to: Int.self
-        )
-        var outThrown = 0
-        _ = kk_supervisor_scope_run(entryRaw, 8827, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "A direct throw from the supervisorScope block must propagate, not be discarded")
-    }
-
     // MARK: - Test 9: Supervisor scope is active and not cancelled initially
 
     func testSupervisorScopeNewIsInitiallyActive() {
@@ -365,7 +334,7 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(scopeHandle, 0)
         XCTAssertEqual(kk_coroutine_scope_is_active(scopeHandle), 1, "Supervisor scope should be active on creation")
         XCTAssertEqual(kk_coroutine_scope_is_cancelled(scopeHandle), 0, "Supervisor scope should not be cancelled on creation")
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
     }
 
     // MARK: - Test 10: withTimeoutOrNull returns null when block exceeds timeout
@@ -546,38 +515,6 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    // MARK: - Test 17: coroutineScope run with continuation returns captured value
-
-    func testCoroutineScopeRunWithContReturnsCapturedValue() {
-        let continuation = kk_coroutine_continuation_new(8822)
-        _ = kk_coroutine_launcher_arg_set(continuation, 0, 7)
-        let entryRaw = unsafeBitCast(
-            advcoro_add_constant as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-            to: Int.self
-        )
-
-        var outThrown = 0
-        let result = kk_coroutine_scope_run_with_cont(entryRaw, continuation, &outThrown)
-        XCTAssertEqual(outThrown, 0, "coroutineScope run with cont should not throw")
-        XCTAssertEqual(result, 107, "coroutineScope run with cont should return the block result")
-    }
-
-    // MARK: - Test 18: supervisorScope run with continuation returns captured value
-
-    func testSupervisorScopeRunWithContReturnsCapturedValue() {
-        let continuation = kk_coroutine_continuation_new(8823)
-        _ = kk_coroutine_launcher_arg_set(continuation, 0, 9)
-        let entryRaw = unsafeBitCast(
-            advcoro_add_constant as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
-            to: Int.self
-        )
-
-        var outThrown = 0
-        let result = kk_supervisor_scope_run_with_cont(entryRaw, continuation, &outThrown)
-        XCTAssertEqual(outThrown, 0, "supervisorScope run with cont should not throw")
-        XCTAssertEqual(result, 109, "supervisorScope run with cont should return the block result")
-    }
-
     // MARK: - Test 19: context_cancel_no_cause cancels a running job
 
     func testContextCancelNoCauseCancelsRunningJob() {
@@ -666,11 +603,11 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
     // MARK: - Test 22: Semaphore acquire / release / permit tracking
 
     func testSemaphoreAcquireReleaseAndPermitTracking() {
-        let semaphoreHandle = kk_semaphore_create(1)
+        let semaphoreHandle = __kk_semaphore_create(1)
         XCTAssertNotEqual(semaphoreHandle, 0)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 1)
-        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 1)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 1)
+        XCTAssertEqual(__kk_semaphore_tryAcquire(semaphoreHandle), 1)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
 
         let continuation = kk_coroutine_continuation_new(8825)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
@@ -684,12 +621,12 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
 
         let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
         XCTAssertEqual(kk_semaphore_acquire(semaphoreHandle, continuation), suspendedToken)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
 
         XCTAssertEqual(kk_semaphore_release(semaphoreHandle), 0)
         XCTAssertEqual(resumed.wait(timeout: .now() + 2.0), .success, "Semaphore release should resume the suspended continuation")
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
-        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_tryAcquire(semaphoreHandle), 0)
     }
 }
 

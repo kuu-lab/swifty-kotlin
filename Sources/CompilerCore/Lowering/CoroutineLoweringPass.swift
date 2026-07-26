@@ -27,16 +27,11 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withContext"),
             ctx.interner.intern("withTimeout"),
             ctx.interner.intern("withTimeoutOrNull"),
-            ctx.interner.intern("coroutineScope"),
-            ctx.interner.intern("supervisorScope"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
-            ctx.interner.intern("flowOf"),
-            ctx.interner.intern("emptyFlow"),
             ctx.interner.intern("emit"),
-            ctx.interner.intern("asFlow"),
             ctx.interner.intern("collect"),
             ctx.interner.intern("collectLatest"),
             ctx.interner.intern("map"),
@@ -63,9 +58,6 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_flow_emit"),
             ctx.interner.intern("kk_flow_collect"),
-            ctx.interner.intern("kk_flow_of"),
-            ctx.interner.intern("kk_flow_empty"),
-            ctx.interner.intern("kk_flow_as_flow"),
         ]
         return !coroutineCallees.isDisjoint(with: module.usedCallees)
     }
@@ -84,8 +76,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let kxMiniWithContextCallee = ctx.interner.intern("withContext")
         let kxMiniWithTimeoutCallee = ctx.interner.intern("withTimeout")
         let kxMiniWithTimeoutOrNullCallee = ctx.interner.intern("withTimeoutOrNull")
-        let kxMiniCoroutineScopeCallee = ctx.interner.intern("coroutineScope")
-        let kxMiniSupervisorScopeCallee = ctx.interner.intern("supervisorScope")
         let suspendCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("suspendCoroutineUninterceptedOrReturn")
         let kxMiniDelayCallee = ctx.interner.intern("delay")
         let kxMiniYieldCallee = ctx.interner.intern("yield")
@@ -97,8 +87,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
         let runtimeProduceCallee = ctx.interner.intern("kk_produce")
-        let runtimeCoroutineScopeRunCallee = ctx.interner.intern("kk_coroutine_scope_run")
-        let runtimeSupervisorScopeRunCallee = ctx.interner.intern("kk_supervisor_scope_run")
         let runtimeDelayCallee = ctx.interner.intern("kk_kxmini_delay")
         let runtimeYieldCallee = ctx.interner.intern("kk_coroutine_yield")
         let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("kk_sequence_builder_yield")
@@ -133,8 +121,6 @@ final class CoroutineLoweringPass: LoweringPass {
             kxMiniAsyncCallee: runtimeAsyncCallee,
             kxMiniProduceCallee: runtimeProduceCallee,
             runtimeProduceCallee: runtimeProduceCallee,
-            kxMiniCoroutineScopeCallee: runtimeCoroutineScopeRunCallee,
-            kxMiniSupervisorScopeCallee: runtimeSupervisorScopeRunCallee,
         ]
 
         let suspendFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
@@ -173,7 +159,8 @@ final class CoroutineLoweringPass: LoweringPass {
                 original: suspendFunction,
                 loweredName: loweredName,
                 nextSyntheticSymbol: &nextSyntheticSymbol,
-                sema: ctx.sema
+                sema: ctx.sema,
+                interner: ctx.interner
             )
             let loweredSymbol = loweredFunctionSymbol.kirSymbol
             let loweredSemaSymbol = loweredFunctionSymbol.semaSymbol
@@ -256,6 +243,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let launcherThunkContext = LauncherThunkSynthesisContext(
             module: module,
             interner: ctx.interner,
+            sema: ctx.sema,
             anyType: anyType,
             intType: intType,
             launcherArgGetCallee: launcherArgGetCallee,
@@ -304,8 +292,6 @@ final class CoroutineLoweringPass: LoweringPass {
             kxMiniAsyncCallee: ctx.interner.intern("kk_kxmini_async_with_cont"),
             kxMiniProduceCallee: ctx.interner.intern("kk_kxmini_produce_with_cont"),
             runtimeProduceCallee: ctx.interner.intern("kk_kxmini_produce_with_cont"),
-            kxMiniCoroutineScopeCallee: ctx.interner.intern("kk_coroutine_scope_run_with_cont"),
-            kxMiniSupervisorScopeCallee: ctx.interner.intern("kk_supervisor_scope_run_with_cont"),
         ]
 
         let rewriteContext = SuspendRewriteContext(
@@ -374,7 +360,30 @@ final class CoroutineLoweringPass: LoweringPass {
         return maxRaw
     }
 
-    func allocateSyntheticSymbol(_ nextSyntheticSymbol: inout Int32) -> SymbolID {
+    func allocateSyntheticSymbol(
+        _ nextSyntheticSymbol: inout Int32,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> SymbolID {
+        // Continuation-parameter and lowered-function sema symbols are drawn from
+        // the dense sema id space (sema.symbols.define). A separate integer
+        // counter would overlap that space -- and because codegen resolves a
+        // `.symbolRef` to a same-id parameter before a same-id function (see
+        // NativeEmitter+EmissionConstants), a lowered function symbol that
+        // collides with a continuation-parameter symbol makes a suspend entry
+        // point resolve to a data pointer, crashing at run time. Reserve every
+        // synthetic KIR symbol from the same sema id space so ids stay unique.
+        if let sema {
+            let uniqueName = interner.intern("$kk_coro_synthetic_\(sema.symbols.count)")
+            return sema.symbols.define(
+                kind: .function,
+                name: uniqueName,
+                fqName: [uniqueName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
         let id = SymbolID(rawValue: nextSyntheticSymbol)
         nextSyntheticSymbol += 1
         return id

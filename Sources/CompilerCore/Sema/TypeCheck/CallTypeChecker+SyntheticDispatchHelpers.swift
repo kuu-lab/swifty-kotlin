@@ -17,20 +17,19 @@ extension CallTypeChecker {
         if visibleCandidates.isEmpty {
             return true
         }
-        let hasConflictingUserDefinedCandidate = visibleCandidates.contains { candidate in
+        // KSP-674: defer to any real (non-synthetic) declaration — the bundled
+        // Kotlin `flowOf`/`emptyFlow` implementations (kotlinx.coroutines.flow)
+        // or a user override. Only keep the builtin factory special handling
+        // while a synthetic stub is the only visible candidate.
+        let hasRealCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function
             else {
                 return false
             }
-            let flowPkgPrefix = [
-                ctx.interner.intern("kotlinx"),
-                ctx.interner.intern("coroutines"),
-                ctx.interner.intern("flow"),
-            ]
-            return !symbol.fqName.starts(with: flowPkgPrefix)
+            return !symbol.flags.contains(.synthetic)
         }
-        return !hasConflictingUserDefinedCandidate
+        return !hasRealCandidate
     }
 
     /// Returns true when the call site looks like a top-level `run { ... }` or

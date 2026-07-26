@@ -3,6 +3,7 @@ extension CoroutineLoweringPass {
     struct LauncherThunkSynthesisContext {
         let module: KIRModule
         let interner: StringInterner
+        let sema: SemaModule?
         let anyType: TypeID?
         let intType: TypeID?
         let launcherArgGetCallee: InternedString
@@ -30,8 +31,16 @@ extension CoroutineLoweringPass {
                 existingFunctionNames: &existingFunctionNames,
                 interner: synthesis.interner
             )
-            let thunkSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
-            let thunkContParamSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let thunkSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
+            let thunkContParamSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
             let contType = synthesis.continuationTypeByLoweredSymbol[loweredTarget.symbol]
                 ?? synthesis.anyType ?? suspendFunction.returnType
 
@@ -81,8 +90,16 @@ extension CoroutineLoweringPass {
                 existingFunctionNames: &existingFunctionNames,
                 interner: synthesis.interner
             )
-            let thunkSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
-            let thunkContParamSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let thunkSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
+            let thunkContParamSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
             let contType = synthesis.continuationTypeByLoweredSymbol[loweredTarget.symbol]
                 ?? synthesis.anyType ?? suspendFunction.returnType
             let thunkBody = buildSequenceBuilderReceiverThunkBody(
@@ -565,8 +582,6 @@ extension CoroutineLoweringPass {
     ) -> [KIRInstruction] {
         let structuredBlockingRuntimes: Set<InternedString> = [
             rewrite.ctx.interner.intern("kk_kxmini_run_blocking"),
-            rewrite.ctx.interner.intern("kk_coroutine_scope_run"),
-            rewrite.ctx.interner.intern("kk_supervisor_scope_run"),
         ]
         let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
@@ -597,8 +612,6 @@ extension CoroutineLoweringPass {
     ) -> [KIRInstruction] {
         let structuredBlockingRuntimes: Set<InternedString> = [
             rewrite.ctx.interner.intern("kk_kxmini_run_blocking_with_cont"),
-            rewrite.ctx.interner.intern("kk_coroutine_scope_run_with_cont"),
-            rewrite.ctx.interner.intern("kk_supervisor_scope_run_with_cont"),
         ]
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),

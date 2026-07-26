@@ -1,9 +1,5 @@
 import Foundation
 
-private struct RuntimeStringBuilderFrame {
-    var value = ""
-}
-
 private struct RuntimeMutableListFrame {
     var elements: [Int] = []
 }
@@ -19,13 +15,12 @@ private struct RuntimeMutableMapFrame {
 }
 
 private struct RuntimeBuilderThreadState {
-    var stringFrames: [RuntimeStringBuilderFrame] = []
     var listFrames: [RuntimeMutableListFrame] = []
     var setFrames: [RuntimeMutableSetFrame] = []
     var mapFrames: [RuntimeMutableMapFrame] = []
 
     var isEmpty: Bool {
-        stringFrames.isEmpty && listFrames.isEmpty && setFrames.isEmpty && mapFrames.isEmpty
+        listFrames.isEmpty && setFrames.isEmpty && mapFrames.isEmpty
     }
 }
 
@@ -33,70 +28,6 @@ private final class RuntimeBuilderState: @unchecked Sendable {
     private let lock = NSLock()
     private var threads: [ObjectIdentifier: RuntimeBuilderThreadState] = [:]
     private let maxDepth = 16
-
-    func pushStringFrame() -> Bool {
-        withThreadState { state in
-            guard state.stringFrames.count < maxDepth else {
-                return false
-            }
-            state.stringFrames.append(RuntimeStringBuilderFrame())
-            return true
-        }
-    }
-
-    func popStringFrame() -> RuntimeStringBuilderFrame? {
-        withThreadState { state in
-            state.stringFrames.popLast()
-        }
-    }
-
-    func appendString(_ value: String) {
-        withThreadState { state in
-            guard !state.stringFrames.isEmpty else {
-                return
-            }
-            state.stringFrames[state.stringFrames.count - 1].value.append(value)
-        }
-    }
-
-    func insertString(_ value: String, at index: Int) {
-        withThreadState { state in
-            guard !state.stringFrames.isEmpty else {
-                return
-            }
-            let frameIndex = state.stringFrames.count - 1
-            let str = state.stringFrames[frameIndex].value
-            let utf8 = str.utf8
-            let clampedIndex = max(0, min(index, utf8.count))
-            let insertionPoint = utf8.index(utf8.startIndex, offsetBy: clampedIndex)
-            state.stringFrames[frameIndex].value.insert(contentsOf: value, at: insertionPoint)
-        }
-    }
-
-    func deleteString(start: Int, end: Int) {
-        withThreadState { state in
-            guard !state.stringFrames.isEmpty else {
-                return
-            }
-            let frameIndex = state.stringFrames.count - 1
-            let str = state.stringFrames[frameIndex].value
-            let utf8 = str.utf8
-            let clampedStart = max(0, min(start, utf8.count))
-            let clampedEnd = max(clampedStart, min(end, utf8.count))
-            let startIdx = utf8.index(utf8.startIndex, offsetBy: clampedStart)
-            let endIdx = utf8.index(utf8.startIndex, offsetBy: clampedEnd)
-            state.stringFrames[frameIndex].value.removeSubrange(startIdx..<endIdx)
-        }
-    }
-
-    func stringLength() -> Int {
-        withThreadState { state in
-            guard !state.stringFrames.isEmpty else {
-                return 0
-            }
-            return state.stringFrames[state.stringFrames.count - 1].value.utf8.count
-        }
-    }
 
     func pushListFrame() -> Bool {
         withThreadState { state in
@@ -223,174 +154,6 @@ private final class RuntimeBuilderState: @unchecked Sendable {
 }
 
 private let runtimeBuilderState = RuntimeBuilderState()
-
-@_cdecl("kk_string_builder_append_flat")
-public func kk_string_builder_append_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeBuildStringAppend(
-        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
-}
-
-private func runtimeBuildStringAppend(_ string: String) -> Int {
-    runtimeBuilderState.appendString(string)
-    return 0
-}
-
-@_cdecl("kk_string_builder_append_line_flat")
-public func kk_string_builder_append_line_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeBuildStringAppendLine(
-        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
-}
-
-private func runtimeBuildStringAppendLine(_ string: String) -> Int {
-    runtimeBuilderState.appendString(string)
-    runtimeBuilderState.appendString("\n")
-    return 0
-}
-
-@_cdecl("kk_string_builder_append")
-public func kk_string_builder_append(_ valueRaw: Int) -> Int {
-    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
-    return 0
-}
-
-@_cdecl("kk_string_builder_append_line")
-public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
-    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
-    runtimeBuilderState.appendString("\n")
-    return 0
-}
-
-@_cdecl("kk_string_builder_append_line_noarg")
-public func kk_string_builder_append_line_noarg() -> Int {
-    runtimeBuilderState.appendString("\n")
-    return 0
-}
-
-@_cdecl("kk_string_builder_append_range_flat")
-public func kk_string_builder_append_range_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ startIndex: Int,
-    _ endIndex: Int
-) -> Int {
-    runtimeBuildStringAppendRange(
-        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        startIndex: startIndex,
-        endIndex: endIndex
-    )
-}
-
-private func runtimeBuildStringAppendRange(_ string: String, startIndex: Int, endIndex: Int) -> Int {
-    runtimeBuilderState.appendString(runtimeUTF16Substring(string, startIndex: startIndex, endIndex: endIndex))
-    return 0
-}
-
-@_cdecl("kk_string_builder_insert_flat")
-public func kk_string_builder_insert_flat(
-    _ index: Int,
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    runtimeBuildStringInsert(
-        index: index,
-        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    )
-}
-
-private func runtimeBuildStringInsert(index: Int, value string: String) -> Int {
-    runtimeBuilderState.insertString(string, at: index)
-    return 0
-}
-
-@_cdecl("kk_string_builder_delete")
-public func kk_string_builder_delete(_ start: Int, _ end: Int) -> Int {
-    runtimeBuilderState.deleteString(start: start, end: end)
-    return 0
-}
-
-@_cdecl("kk_string_builder_length")
-public func kk_string_builder_length() -> Int {
-    return runtimeBuilderState.stringLength()
-}
-
-private func runtimeExecuteStringBuilderAction(
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?,
-    functionName: String
-) -> RuntimeStringBuilderFrame {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) called with null function pointer")
-    }
-    guard runtimeBuilderState.pushStringFrame() else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) nesting depth exceeded (max 16)")
-    }
-
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    _ = lambda(0, &thrown)
-
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-
-    return runtimeBuilderState.popStringFrame() ?? RuntimeStringBuilderFrame()
-}
-
-@_cdecl("kk_build_string")
-public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string")
-    return runtimeMakeStringRaw(frame.value)
-}
-
-@_cdecl("kk_build_string_with_capacity")
-public func kk_build_string_with_capacity(
-    _ capacity: Int,
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    // capacity is an optimization hint only; no semantic difference from kk_build_string.
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
-        return 0
-    }
-    return kk_build_string(fnPtr, outThrown)
-}
-
-@_cdecl("kk_build_string_builder")
-public func kk_build_string_builder(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string_builder")
-    return runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(frame.value)))
-}
-
-@_cdecl("kk_build_string_builder_with_capacity")
-public func kk_build_string_builder_with_capacity(
-    _ capacity: Int,
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
-        return 0
-    }
-    return kk_build_string_builder(fnPtr, outThrown)
-}
 
 @_cdecl("kk_builder_list_add")
 public func kk_builder_list_add(_ elem: Int) -> Int {
