@@ -2,17 +2,12 @@
 
 package kotlin.collections
 
-import kotlin.internal.KsSymbolName
-
 // MIGRATION-COL-004
 // List association / grouping / indexing / side-effect / unzip HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
 //
 // These implementations reuse the List indexing path (this[i] / size) and the
 // MutableMap / MutableList factory bridges in CollectionFactories.kt.
-// withIndex constructs IndexedValue instances through the retained runtime helper
-// kk_indexed_value_new so that property access / destructuring continues to work
-// against the existing synthetic IndexedValue stub.
 
 // --- associate variants ------------------------------------------------------
 
@@ -261,26 +256,3 @@ public fun <T, R> List<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     return Pair(first as List<T>, second as List<R>)
 }
 
-@KsSymbolName("kk_indexed_value_new")
-private external fun <T> kk_indexed_value_new(index: Int, value: T): IndexedValue<T>
-
-public fun <T> List<T>.withIndex(): Iterable<IndexedValue<T>> {
-    val result = mutableListOf<IndexedValue<T>>()
-    var i = 0
-    while (i < size) {
-        result.add(kk_indexed_value_new(i, this[i]))
-        i += 1
-    }
-    return result
-}
-
-public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
-    val list = this.toMutableList()
-    val result = mutableListOf<IndexedValue<T>>()
-    var i = 0
-    while (i < list.size) {
-        result.add(kk_indexed_value_new(i, list[i]))
-        i += 1
-    }
-    return result
-}

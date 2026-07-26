@@ -129,8 +129,54 @@ extension CallTypeChecker {
         @discardableResult
         func bindBundledListSourceFunction(
             typeArguments: [TypeID],
-            parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+            parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) }),
+            matchingParameterType: TypeID? = nil
         ) -> Bool {
+            func typeArgMatches(_ lhs: TypeArg, _ rhs: TypeArg) -> Bool {
+                switch (lhs, rhs) {
+                case let (.invariant(l), .invariant(r)),
+                     let (.out(l), .out(r)),
+                     let (.in(l), .in(r)):
+                    return typeMatches(l, r)
+                case (.star, .star):
+                    return true
+                default:
+                    return false
+                }
+            }
+            func typeMatches(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
+                let lk = sema.types.kind(of: lhs)
+                let rk = sema.types.kind(of: rhs)
+                switch (lk, rk) {
+                case let (.classType(l), .classType(r)):
+                    return l.classSymbol == r.classSymbol
+                        && l.nullability == r.nullability
+                        && l.args.count == r.args.count
+                        && zip(l.args, r.args).allSatisfy(typeArgMatches)
+                case let (.functionType(l), .functionType(r)):
+                    return l.nullability == r.nullability
+                        && l.isSuspend == r.isSuspend
+                        && l.params.count == r.params.count
+                        && zip(l.params, r.params).allSatisfy(typeMatches)
+                        && l.returnType == r.returnType
+                        && l.receiver == r.receiver
+                        && l.throws == r.throws
+                case let (.typeParam(l), .typeParam(r)):
+                    return l.symbol == r.symbol && l.nullability == r.nullability
+                case let (.kClassType(l), .kClassType(r)):
+                    return l.nullability == r.nullability && typeMatches(l.argument, r.argument)
+                case let (.primitive(l, lNull), .primitive(r, rNull)):
+                    return l == r && lNull == rNull
+                case let (.nothing(lNull), .nothing(rNull)),
+                     let (.any(lNull), .any(rNull)),
+                     let (.stringStruct(lNull), .stringStruct(rNull)):
+                    return lNull == rNull
+                case (.error, .error), (.unit, .unit):
+                    return true
+                default:
+                    return false
+                }
+            }
             guard (!isSequenceReceiver || isListFactoryReceiver),
                   receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
             else {
@@ -152,7 +198,27 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
+                guard receiverClassifier.isConcreteListLikeType(signatureReceiver) else {
+                    return false
+                }
+                if let matchingParameterType,
+                   !signature.parameterTypes.isEmpty,
+                   !signature.typeParameterSymbols.isEmpty {
+                    let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                    let substitution = Dictionary(uniqueKeysWithValues: typeArguments.enumerated().map {
+                        (TypeVarID(rawValue: Int32($0.offset)), $0.element)
+                    })
+                    let substitutedParam = sema.types.substituteTypeParameters(
+                        in: signature.parameterTypes[0],
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    let matches = typeMatches(substitutedParam, matchingParameterType)
+                    guard matches else {
+                        return false
+                    }
+                }
+                return true
             }) else {
                 return false
             }
@@ -2546,7 +2612,9 @@ extension CallTypeChecker {
                         return failedType
                     }
                 }
-                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                if !bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                    _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                }
                 if isInPlaceMutation {
                     resultType = sema.types.unitType
                 } else if isSequenceReceiver {
@@ -2563,36 +2631,61 @@ extension CallTypeChecker {
                     return failedType
                 }
                 let usesRuntimeFunctionPointerComparator = calleeStr == "sortedArrayWith" || isSequenceReceiver
+                let functionExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType, collectionElementType],
+                    returnType: sema.types.intType
+                )))
+                let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+                let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: comparatorSymbol,
+                        args: [.invariant(collectionElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    nil
+                }
                 if usesRuntimeFunctionPointerComparator {
-                    // Arrays and Sequences still route to runtime helpers that expect a (T, T) -> Int function pointer.
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                            params: [collectionElementType, collectionElementType],
-                            returnType: sema.types.intType
-                        )))
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: functionExpectedType)
                     } else {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                     }
-                } else {
-                    // List/MutableList sorting APIs take Comparator<T>.
-                    let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-                    let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
-                        sema.types.make(.classType(ClassType(
-                            classSymbol: comparatorSymbol,
-                            args: [.invariant(collectionElementType)],
-                            nullability: .nonNull
-                        )))
+                } else if (calleeStr == "sortedWith" || calleeStr == "sortWith"),
+                          receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
+                    let argExpr = ast.arena.expr(args[0].expr)
+                    if argExpr?.isLambdaOrCallableRef == true {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: functionExpectedType)
+                        _ = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType],
+                            matchingParameterType: functionExpectedType
+                        )
+                    } else if case .nameRef = argExpr {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+                        let argType = sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType
+                        let argKind = sema.types.kind(of: argType)
+                        if case .functionType = argKind {
+                            _ = bindBundledListSourceFunction(
+                                typeArguments: [collectionElementType],
+                                matchingParameterType: functionExpectedType
+                            )
+                        } else {
+                            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
+                            _ = bindBundledListSourceFunction(
+                                typeArguments: [collectionElementType],
+                                matchingParameterType: comparatorExpectedType ?? sema.types.nothingType
+                            )
+                        }
                     } else {
-                        nil
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
+                        _ = bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType],
+                            matchingParameterType: comparatorExpectedType ?? sema.types.nothingType
+                        )
                     }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                }
-                if (calleeStr == "sortedWith" || calleeStr == "sortWith"), bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
-                    }
+                } else {
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                 }
                 if isInPlaceMutation {
                     resultType = sema.types.unitType
