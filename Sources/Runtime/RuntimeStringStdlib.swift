@@ -102,8 +102,8 @@ public func kk_string_uppercase(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased())
 }
 
-@_cdecl("kk_string_lowercase_locale")
-public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
+@_cdecl("__kk_lowercase_locale")
+public func __kk_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let box = runtimeLocaleBox(from: localeRaw) else {
         return runtimeMakeStringRaw(source.lowercased())
@@ -111,8 +111,8 @@ public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.lowercased(with: box.locale))
 }
 
-@_cdecl("kk_string_lowercase_locale_flat")
-public func kk_string_lowercase_locale_flat(
+@_cdecl("__kk_lowercase_locale_flat")
+public func __kk_lowercase_locale_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -123,15 +123,15 @@ public func kk_string_lowercase_locale_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatString(
-        runtimeStringFromRaw(kk_string_lowercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
+        runtimeStringFromRaw(__kk_lowercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
     )
 }
 
-@_cdecl("kk_string_uppercase_locale")
-public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
+@_cdecl("__kk_uppercase_locale")
+public func __kk_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let box = runtimeLocaleBox(from: localeRaw) else {
         return runtimeMakeStringRaw(source.uppercased())
@@ -139,8 +139,8 @@ public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased(with: box.locale))
 }
 
-@_cdecl("kk_string_uppercase_locale_flat")
-public func kk_string_uppercase_locale_flat(
+@_cdecl("__kk_uppercase_locale_flat")
+public func __kk_uppercase_locale_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -151,7 +151,7 @@ public func kk_string_uppercase_locale_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     runtimeRegisterFlatString(
-        runtimeStringFromRaw(kk_string_uppercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
+        runtimeStringFromRaw(__kk_uppercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -680,35 +680,7 @@ public func kk_string_withIndex_flat(
 }
 
 
-// MARK: - STDLIB-315: String.replaceFirstChar
-
-@_cdecl("kk_string_replaceFirstChar")
-public func kk_string_replaceFirstChar(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard !scalars.isEmpty else { return runtimeMakeStringRaw("") }
-    guard fnPtr != 0 else { return strRaw }
-    let firstCharRaw = Int(scalars[0].value)
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let result = lambda(closureRaw, firstCharRaw, &thrown)
-    if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown,
-            outThrown: outThrown,
-            context: "replaceFirstChar transform"
-        )
-        return runtimeMakeStringRaw("")
-    }
-    let replacement = runtimeUnicodeScalarFromRaw(result) ?? scalars[0]
-    let tail = scalars.dropFirst()
-    var rebuilt = String.UnicodeScalarView()
-    rebuilt.append(replacement)
-    rebuilt.append(contentsOf: tail)
-    return runtimeMakeStringRaw(String(rebuilt))
-}
+// KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
 // (StringTakeDrop.kt); their runtime bridges were removed.

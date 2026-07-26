@@ -10,7 +10,7 @@
 public extension RuntimeABISpec {
     static let localeFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_string_lowercase_locale",
+            name: "__kk_lowercase_locale",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
@@ -20,7 +20,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_uppercase_locale",
+            name: "__kk_uppercase_locale",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
