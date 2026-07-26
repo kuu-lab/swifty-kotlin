@@ -216,11 +216,11 @@ struct StringSyntheticMemberLinkTests {
         )
 
         #expect(
-            externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner) == "kk_string_lowercase_locale",
+            externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner) == "__kk_lowercase_locale",
             "String.lowercase(Locale) wrapper should call the private locale primitive"
         )
         #expect(
-            externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner) == "kk_string_uppercase_locale",
+            externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner) == "__kk_uppercase_locale",
             "String.uppercase(Locale) wrapper should call the private locale primitive"
         )
     }
