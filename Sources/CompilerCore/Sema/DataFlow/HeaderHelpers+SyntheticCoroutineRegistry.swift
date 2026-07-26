@@ -1869,36 +1869,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "flowOf",
-            packageFQName: flowPkg,
-            parameters: [(name: "values", type: types.anyType)],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_of",
-            syntheticTypeParameterNames: ["T"],
-            syntheticVarargParameterIndices: [0],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "emptyFlow",
-            packageFQName: flowPkg,
-            parameters: [],
-            returnType: flowRawType,
-            externalLinkName: "kk_flow_empty",
-            syntheticTypeParameterNames: ["T"],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: flowInterfaceSymbol,
-            ownerType: flowRawType,
-            name: "asFlow",
-            externalLinkName: "kk_flow_as_flow",
-            returnType: flowRawType,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
+        // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
+        // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
         // withContext overload accepting CoroutineContext (not just dispatcher)
         registerSyntheticCoroutineTopLevelFunction(
@@ -2526,16 +2499,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(mutexType, for: mutexSymbol)
 
-        // Mutex() factory function
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "Mutex",
-            packageFQName: syncPkg,
-            parameters: [],
-            returnType: mutexType,
-            externalLinkName: "kk_mutex_create",
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex() factory is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_create bridge.
 
         // Mutex.lock() suspend
         registerSyntheticCoroutineMember(
@@ -2559,48 +2525,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Mutex.tryLock(): Boolean
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "tryLock",
-            externalLinkName: "kk_mutex_tryLock",
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.tryLock is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_tryLock bridge.
 
-        // Mutex.isLocked property
-        registerSyntheticObjectProperty(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "isLocked",
-            propertyType: types.booleanType,
-            externalLinkName: "kk_mutex_isLocked",
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.isLocked is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_mutex_isLocked bridge.
 
-        // Mutex.withLock(action: () -> T): T
-        // Suspend-style helper that acquires the lock, runs action, then releases.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "withLock",
-            externalLinkName: "kk_mutex_withLock",
-            returnType: types.anyType,
-            parameters: [(
-                name: "action",
-                type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        // Mutex.withLock is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
+        // extension that composes lock()/unlock(); no synthetic stub remains.
 
         // Semaphore (kotlinx.coroutines.sync.Semaphore)
         let semaphoreSymbol = ensureInterfaceSymbol(
@@ -2616,16 +2551,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(semaphoreType, for: semaphoreSymbol)
 
-        // Semaphore(permits) factory function
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "Semaphore",
-            packageFQName: syncPkg,
-            parameters: [(name: "permits", type: types.intType)],
-            returnType: semaphoreType,
-            externalLinkName: "kk_semaphore_create",
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore(permits) factory is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_create bridge.
 
         // Semaphore.acquire() suspend
         registerSyntheticCoroutineMember(
@@ -2649,48 +2577,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Semaphore.tryAcquire(): Boolean
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "tryAcquire",
-            externalLinkName: "kk_semaphore_tryAcquire",
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.tryAcquire is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_tryAcquire bridge.
 
-        // Semaphore.availablePermits property
-        registerSyntheticObjectProperty(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "availablePermits",
-            propertyType: types.intType,
-            externalLinkName: "kk_semaphore_availablePermits",
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.availablePermits is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
+        // demoted __kk_semaphore_availablePermits bridge.
 
-        // Semaphore.withPermit(action: () -> T): T
-        // Suspend-style helper that acquires a permit, runs action, then releases it.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "withPermit",
-            externalLinkName: "kk_semaphore_withPermit",
-            returnType: types.anyType,
-            parameters: [(
-                name: "action",
-                type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        // Semaphore.withPermit is migrated to Kotlin source
+        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
+        // extension that composes acquire()/release(); no synthetic stub remains.
 
         registerSyntheticCoroutineExtensionFunction(
             named: "cancel",
