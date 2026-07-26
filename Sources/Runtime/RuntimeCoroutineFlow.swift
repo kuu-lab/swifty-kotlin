@@ -58,7 +58,7 @@ private struct RuntimeFlowOp {
 }
 
 private enum RuntimeFlowSource {
-    case emitter(Int)
+    case emitter(fnPtr: Int, continuation: Int)
     case fixed([RuntimeFlowEvent])
     case merge([Int])
     case zip(Int, Int, Int)
@@ -110,8 +110,17 @@ private final class RuntimeFlowHandle {
     let fixedValues: [Int]?
 
     var emitterFnPtr: Int {
-        if case let .emitter(emitterFnPtr) = source {
+        if case let .emitter(emitterFnPtr, _) = source {
             return emitterFnPtr
+        }
+        return 0
+    }
+
+    /// Continuation carrying captured values for a capturing `flow { }` builder.
+    /// Zero for non-capturing builders, whose emitter is invoked directly.
+    var emitterContinuation: Int {
+        if case let .emitter(_, continuation) = source {
+            return continuation
         }
         return 0
     }
@@ -122,15 +131,47 @@ private final class RuntimeFlowHandle {
         self.fixedValues = fixedValues
     }
 
-    convenience init(emitterFnPtr: Int, opChain: [RuntimeFlowOp] = [], fixedValues: [Int]? = nil) {
+    convenience init(
+        emitterFnPtr: Int,
+        emitterContinuation: Int = 0,
+        opChain: [RuntimeFlowOp] = [],
+        fixedValues: [Int]? = nil
+    ) {
         if let fixedValues {
             let fixedEvents = fixedValues.enumerated().map { index, value in
                 RuntimeFlowEvent(value: value, timestamp: UInt64(index))
             }
             self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
         } else {
-            self.init(source: .emitter(emitterFnPtr), opChain: opChain, fixedValues: nil)
+            self.init(
+                source: .emitter(fnPtr: emitterFnPtr, continuation: emitterContinuation),
+                opChain: opChain,
+                fixedValues: nil
+            )
         }
+    }
+}
+
+/// Invoke a flow builder emitter, honoring the closure-capture ABI.
+///
+/// A capturing `flow { }` builder is lowered to a launcher thunk plus a
+/// continuation whose launcher-arg slots hold the captured values; the runtime
+/// invokes the thunk with that continuation so the emitter receives its
+/// captures. Non-capturing builders keep the direct `(outThrown)` ABI.
+private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inout Int) {
+    let continuation = flow.emitterContinuation
+    if continuation != 0 {
+        let thunk = unsafeBitCast(
+            flow.emitterFnPtr,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        _ = thunk(continuation, &outThrown)
+    } else {
+        let emitter = unsafeBitCast(
+            flow.emitterFnPtr,
+            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        _ = emitter(&outThrown)
     }
 }
 
@@ -673,12 +714,8 @@ private func runtimeFlowRunSourceStage(
     context.emitHandler = processValue
     runtimeFlowPushCollectContext(context)
 
-    let emitter = unsafeBitCast(
-        flow.emitterFnPtr,
-        to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
-    )
     var outThrown = 0
-    _ = emitter(&outThrown)
+    runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     runtimeFlowPopCollectContext()
 
     if failure == nil, outThrown != 0 {
@@ -1036,12 +1073,8 @@ private func runtimeFlowCollectStreaming(
         let context = RuntimeFlowCollectContext()
         runtimeFlowPushCollectContext(context)
 
-        let emitter = unsafeBitCast(
-            flow.emitterFnPtr,
-            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
-        )
         var outThrown = 0
-        _ = emitter(&outThrown)
+        runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
         runtimeFlowPopCollectContext()
 
         if outThrown == 0 {
@@ -1174,12 +1207,8 @@ private func runtimeFlowCollectStreaming(
     }
     runtimeFlowPushCollectContext(context)
 
-    let emitter = unsafeBitCast(
-        flow.emitterFnPtr,
-        to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
-    )
     var outThrown = 0
-    _ = emitter(&outThrown)
+    runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     runtimeFlowPopCollectContext()
     return 0
 }
@@ -1240,8 +1269,10 @@ private func runtimeFlowDeliverValue(
 }
 
 @_cdecl("kk_flow_create")
-public func kk_flow_create(_ emitterFnPtr: Int, _: Int) -> Int {
-    runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: emitterFnPtr))
+public func kk_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> Int {
+    runtimeRegisterFlowHandle(
+        RuntimeFlowHandle(emitterFnPtr: emitterFnPtr, emitterContinuation: emitterContinuation)
+    )
 }
 
 /// Return the flow-stop sentinel pointer. This is a unique object pointer that
@@ -1288,6 +1319,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     }
     let derived = RuntimeFlowHandle(
         emitterFnPtr: flow.emitterFnPtr,
+        emitterContinuation: flow.emitterContinuation,
         opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
         fixedValues: flow.fixedValues
     )
@@ -1510,42 +1542,9 @@ public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> 
     return accumulator
 }
 
-/// Create a Flow from varargs-style fixed values (flowOf).
-@_cdecl("kk_flow_of")
-public func kk_flow_of(_ arrayHandle: Int, _ count: Int) -> Int {
-    let values: [Int]
-    if count > 0 {
-        var collected: [Int] = []
-        collected.reserveCapacity(count)
-        for i in 0 ..< count {
-            collected.append(runtimeReadArrayElement(arrayRaw: arrayHandle, index: i))
-        }
-        values = collected
-    } else {
-        values = []
-    }
-
-    let handle = RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: values)
-    return runtimeRegisterFlowHandle(handle)
-}
-
-/// Create an empty flow (emptyFlow).
-@_cdecl("kk_flow_empty")
-public func kk_flow_empty(_: Int) -> Int {
-    runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: []))
-}
-
-/// Create a Flow from an existing runtime collection/array (asFlow).
-@_cdecl("kk_flow_as_flow")
-public func kk_flow_as_flow(_ sourceHandle: Int, _: Int) -> Int {
-    if let elements = runtimeCollectionElements(from: sourceHandle) {
-        return runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: elements))
-    }
-    if let arrayBox = runtimeArrayBox(from: sourceHandle) {
-        return runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: Array(arrayBox.elements)))
-    }
-    return runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: []))
-}
+// KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed. flowOf /
+// emptyFlow / Iterable.asFlow are now Kotlin source (kotlinx.coroutines.flow)
+// composed from `flow { }` (kk_flow_create) + `emit` (kk_flow_emit).
 
 // MARK: - SharedFlow / StateFlow Runtime (STDLIB-FLOW-177)
 
