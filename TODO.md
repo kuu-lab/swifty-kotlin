@@ -148,7 +148,7 @@
   - 注意: コンストラクタは `CallSupportLowerer` 経由。可変内部バッファは `__kk_` ブリッジ最小集合（new/append_obj/toString/length など）に絞り、型別 append/insert/delete 系を Kotlin 化
   - 削除対象の確認: `rg -n 'kk_string_builder_' Sources/Runtime/RuntimeStringBuilder.swift Sources/CompilerCore` で全列挙 → 残留/削除を分類してから着手
   - 手順: T / diff: `ls Scripts/diff_cases | rg -i 'builder'` で確認・不足追加
-- [ ] KSP-312: RangeIterators / RangeMembership を配線する（`iterator`/`contains`/`isEmpty` 各 Range/Progression）
+- [x] KSP-312: RangeIterators / RangeMembership を配線する（`iterator`/`contains`/`isEmpty` 各 Range/Progression） (PR #5059)
   - 注意: `for (x in range)` は `ExprLowerer+ControlFlowAndBlocks.swift` が `.iterator()` を経由せず `kk_range_iterator`/`hasNext`/`next` へ直接特例化している（3 並列ディスパッチ）。本タスクは (1) 死蔵 2 ファイルの移設・配線 (2) `CallTypeChecker+RangeMemberFallback.swift` の該当特例削除まで。for-in 特例の撤去は KSP-452 で実施
   - 手順: T / diff: `range_basic.kt`, `range_contains.kt`（既存）
 
