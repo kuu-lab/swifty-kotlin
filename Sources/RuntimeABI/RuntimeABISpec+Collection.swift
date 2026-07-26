@@ -1457,7 +1457,7 @@ public extension RuntimeABISpec {
         ),
         // Signed primitive array to unsigned primitive array view conversions
         RuntimeABIFunctionSpec(
-            name: "kk_byteArray_asUByteArray",
+            name: "__kk_byteArray_asUByteArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1466,7 +1466,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_shortArray_asUShortArray",
+            name: "__kk_shortArray_asUShortArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1475,7 +1475,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_intArray_asUIntArray",
+            name: "__kk_intArray_asUIntArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1484,7 +1484,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_longArray_asULongArray",
+            name: "__kk_longArray_asULongArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1527,7 +1527,7 @@ public extension RuntimeABISpec {
         ),
         // Unsigned primitive array to signed primitive array view conversions
         RuntimeABIFunctionSpec(
-            name: "kk_uByteArray_asByteArray",
+            name: "__kk_uByteArray_asByteArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1536,7 +1536,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uShortArray_asShortArray",
+            name: "__kk_uShortArray_asShortArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1545,7 +1545,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uIntArray_asIntArray",
+            name: "__kk_uIntArray_asIntArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1554,7 +1554,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uLongArray_asLongArray",
+            name: "__kk_uLongArray_asLongArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
