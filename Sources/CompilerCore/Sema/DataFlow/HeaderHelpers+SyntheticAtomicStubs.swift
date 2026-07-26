@@ -299,24 +299,10 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(lockType, for: lockSymbol)
-        registerAtomicMember(
-            ownerSymbol: lockSymbol,
-            ownerType: lockType,
-            name: "withLock",
-            externalLinkName: "kk_lock_withLock",
-            returnType: types.anyType,
-            parameters: [(
-                name: "action",
-                type: types.make(.functionType(FunctionType(
-                    params: [],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-677: Lock.withLock is migrated to Kotlin source
+        // (Stdlib/kotlin/concurrent/Lock.kt) delegating to the demoted
+        // __kk_lock_withLock bridge. Only the Lock class symbol is kept so the
+        // Kotlin external declaration can reference it as a type.
 
         // -- ReentrantReadWriteLock --
         let rwLockSymbol = ensureClassSymbol(
