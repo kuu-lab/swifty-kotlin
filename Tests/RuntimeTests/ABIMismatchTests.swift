@@ -103,7 +103,7 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKThrowableNewSignature() throws {
-        let spec = try requireSpec("kk_throwable_new")
+        let spec = try requireSpec("__kk_throwable_new")
         XCTAssertEqual(spec.returnType, .opaquePointer)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
