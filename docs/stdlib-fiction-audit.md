@@ -98,7 +98,7 @@ DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswift
 - 残留する実働 cinterop ブリッジは `kk_cpointer_toLong`, `kk_byteArray_toCValues`,
   `kk_pin_object`/`kk_pinned_get`/`kk_unpin_object`, `kk_uByteArray_toCValues`/
   `kk_uIntArray_toCValues`/`kk_uLongArray_toCValues`, `kk_cpointer_toKStringFromUtf32`/
-  `kk_cpointer_toKStringFromUtf16`, `kk_cinterop_writeBits` のみ。
+  `kk_cpointer_toKStringFromUtf16` のみ。
 
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 
