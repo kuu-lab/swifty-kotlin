@@ -161,9 +161,7 @@
   - 完了: `rg '"kk_string_is|"kk_string_if|"kk_string_orEmpty|"kk_string_lines' Sources/CompilerCore` 0 件 + G
   - 追記（2026-07-13, PR #4578 / 発見元 KSP-401）: `Scripts/diff_cases/string_linesequence.kt` の `こんにちは\n世界\n` で、source-backed `String.replace` が `StringIndexOutOfBoundsException` 相当の未処理例外を起こし candidate が exit 1 になった。flat String の UTF-8 byte length と文字単位の走査長が不一致だったためで、`StringSearchReplace.kt` の走査を `toList()` ベースへ修正済み（マージ後に本項を `[x]` 化する）。
 - [x] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`） (PR #4999)
-  - 削除 kk_*: `kk_string_startsWith`, `kk_string_endsWith`, `kk_string_removePrefix`, `kk_string_removeSuffix`, `kk_string_removeSurrounding`, `kk_string_removeSurrounding_pair`
 - [x] KSP-405: take/drop 系を Kotlin 化（`take`, `takeLast`, `drop`, `dropLast`, `takeWhile`, `dropWhile`, `takeLastWhile`） (PR #5005)
-  - 削除 kk_*: `kk_string_take`, `kk_string_takeLast`, `kk_string_drop`, `kk_string_dropLast`, `kk_string_takeWhile`, `kk_string_dropWhile`, `kk_string_takeLastWhile`
 - [ ] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
   - 削除 kk_*: `kk_string_substring`, `kk_string_subSequence`, `kk_string_slice_range`, `kk_string_slice_iterable`, `kk_string_removeRange`, `kk_string_removeRange_range`, `kk_string_replaceRange`, `kk_string_replaceRange_indices`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）。基点の `substring(startIndex, endIndex)` のみ `__kk_` 降格可
 - [ ] KSP-407: substringBefore/After・replaceBefore/After 系を Kotlin 化（各 String/Char 版）
@@ -212,7 +210,7 @@
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
 - [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
   - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
-- [ ] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`）
+- [x] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`） (PR #5023)
   - 削除 kk_*: `RuntimeCollectionHOF.swift` の `kk_map_*` HOF 18 関数 + `RuntimeSetAndMap.swift` の `kk_map_plus`, `kk_map_minus`
 - [ ] KSP-431: Map lookup・変換を Kotlin 化（`getValue`, `getOrDefault`, `getOrElse`, `getOrPut`, `containsKey/Value`, `keys`, `values`, `entries`, `toList`, `toMutableMap`, `orEmpty`, `withDefault`）
   - ブリッジ残留: `kk_map_get`（キー探索コア）→ `__kk_map_get`、iterator 状態 → `__kk_map_iterator*`。他は Kotlin 化
@@ -267,7 +265,7 @@
 
 #### kotlin.random [M7 実行体]
 
-- [~] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）— PR 作成中
+- [x] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数） (PR #5027)
   - Kotlin 化: `Sources/CompilerCore/Stdlib/kotlin/random/SecureRandom.kt` に `SecureRandom` クラスと companion `getInstance()`、`setSeed`、`generateSeed`、`nextBytes` を追加。`@KsSymbolName` 経由で `__kk_secure_random_get_instance` / `__kk_secure_random_set_seed` / `__kk_secure_random_generate_seed` / `__kk_secure_random_next_bytes` ABI ブリッジを呼ぶ
   - クリーンアップ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift` から `SecureRandom` の synthetic class/companion/method 登録を除去
   - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `RuntimeABIExternalLinkValidationTests` / `RuntimeSecureRandomTests` pass。`Scripts/diff_cases/secure_random.kt` を `kswiftc` で実行確認
@@ -495,7 +493,7 @@
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
 
-- [~] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する — PR 作成中
+- [x] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する (PR #5029)
   - 対象: `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` から Legacy AtomicInt/AtomicLong/AtomicNativePtr, FreezableAtomicReference 公開層, kotlin.native.concurrent.AtomicReference, MutableData, DetachedObjectGraph, WorkerBoundReference, atomicLazy, ObsoleteWorkersApi 系 3 (`waitForMultipleFutures`/`waitWorkerTermination`/`withWorker`), ensureNeverFrozen, freeze/isFrozen 公開層を削除
   - 残留: `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留
   - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小

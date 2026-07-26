@@ -442,7 +442,9 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapSymbols.mapSymbol,
             keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
             valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         registerSyntheticArrayDequeStub(
