@@ -300,8 +300,8 @@ public func kk_string_case_insensitive_order() -> Int {
 // MARK: - compareValues / compareValuesBy
 
 func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
-    let aIsNull = (a == runtimeNullSentinelInt || a == 0)
-    let bIsNull = (b == runtimeNullSentinelInt || b == 0)
+    let aIsNull = (a == runtimeNullSentinelInt)
+    let bIsNull = (b == runtimeNullSentinelInt)
     if aIsNull && bIsNull { return 0 }
     if aIsNull { return -1 }
     if bIsNull { return 1 }

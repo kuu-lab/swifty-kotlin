@@ -3,6 +3,7 @@ extension CoroutineLoweringPass {
     struct LauncherThunkSynthesisContext {
         let module: KIRModule
         let interner: StringInterner
+        let sema: SemaModule?
         let anyType: TypeID?
         let intType: TypeID?
         let launcherArgGetCallee: InternedString
@@ -30,8 +31,16 @@ extension CoroutineLoweringPass {
                 existingFunctionNames: &existingFunctionNames,
                 interner: synthesis.interner
             )
-            let thunkSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
-            let thunkContParamSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let thunkSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
+            let thunkContParamSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
             let contType = synthesis.continuationTypeByLoweredSymbol[loweredTarget.symbol]
                 ?? synthesis.anyType ?? suspendFunction.returnType
 
@@ -81,8 +90,16 @@ extension CoroutineLoweringPass {
                 existingFunctionNames: &existingFunctionNames,
                 interner: synthesis.interner
             )
-            let thunkSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
-            let thunkContParamSymbol = allocateSyntheticSymbol(&nextSyntheticSymbol)
+            let thunkSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
+            let thunkContParamSymbol = allocateSyntheticSymbol(
+                &nextSyntheticSymbol,
+                sema: synthesis.sema,
+                interner: synthesis.interner
+            )
             let contType = synthesis.continuationTypeByLoweredSymbol[loweredTarget.symbol]
                 ?? synthesis.anyType ?? suspendFunction.returnType
             let thunkBody = buildSequenceBuilderReceiverThunkBody(

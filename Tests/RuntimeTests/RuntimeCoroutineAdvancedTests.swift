@@ -603,11 +603,11 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
     // MARK: - Test 22: Semaphore acquire / release / permit tracking
 
     func testSemaphoreAcquireReleaseAndPermitTracking() {
-        let semaphoreHandle = kk_semaphore_create(1)
+        let semaphoreHandle = __kk_semaphore_create(1)
         XCTAssertNotEqual(semaphoreHandle, 0)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 1)
-        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 1)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 1)
+        XCTAssertEqual(__kk_semaphore_tryAcquire(semaphoreHandle), 1)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
 
         let continuation = kk_coroutine_continuation_new(8825)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
@@ -621,12 +621,12 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
 
         let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
         XCTAssertEqual(kk_semaphore_acquire(semaphoreHandle, continuation), suspendedToken)
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
 
         XCTAssertEqual(kk_semaphore_release(semaphoreHandle), 0)
         XCTAssertEqual(resumed.wait(timeout: .now() + 2.0), .success, "Semaphore release should resume the suspended continuation")
-        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
-        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(__kk_semaphore_tryAcquire(semaphoreHandle), 0)
     }
 }
 

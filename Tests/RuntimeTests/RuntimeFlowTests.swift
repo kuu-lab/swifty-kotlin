@@ -154,6 +154,25 @@ func runtime_test_flow_emitter_values_1_2_3_4(_ outThrown: UnsafeMutablePointer<
     return 0
 }
 
+/// Emits a fixed sequence of values captured in the emitter continuation's
+/// launcher slots (slot 0 = count, slots 1... = values). KSP-674: replaces the
+/// removed `kk_flow_of` bridge for runtime tests that need a cold fixed-value
+/// flow, exercising the capturing-emitter ABI of `kk_flow_create`.
+@_cdecl("runtime_test_flow_fixed_values_emitter")
+func runtime_test_flow_fixed_values_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let sentinel = kk_flow_stopped()
+    let count = kk_coroutine_launcher_arg_get(continuation, 0)
+    var index: Int64 = 0
+    while index < count {
+        let value = kk_coroutine_launcher_arg_get(continuation, index + 1)
+        let result = kk_flow_emit(0, Int(value), RuntimeFlowTag.emit.rawValue)
+        if result == sentinel { break }
+        index += 1
+    }
+    return 0
+}
+
 @_cdecl("runtime_test_flow_map_throw_on_two")
 func runtime_test_flow_map_throw_on_two(_: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeFlowTestState.recordMapCall()
@@ -501,78 +520,13 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(snapshot.values, [1, 2, 3, 1], "distinctUntilChanged should remove consecutive duplicates.")
     }
 
-    func testFlowOfCreatesFlowFromFixedValues() {
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        // Create an array with values [10, 20, 30]
-        let arrayHandle = kk_array_new(3)
-        _ = kk_array_set(arrayHandle, 0, 10, nil)
-        _ = kk_array_set(arrayHandle, 1, 20, nil)
-        _ = kk_array_set(arrayHandle, 2, 30, nil)
-
-        let flowHandle = kk_flow_of(arrayHandle, 3)
-
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
-        let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [10, 20, 30], "flowOf should emit the provided values.")
-
-        // Cold stream: collect again should yield same values.
-        runtimeFlowTestState.reset()
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [10, 20, 30], "flowOf cold stream: re-collect yields same values.")
-    }
-
-    func testFlowOfWithOperators() {
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-        let mapPtr = unsafeBitCast(runtime_test_flow_map_double as RuntimeFlowUnaryEntry, to: Int.self)
-
-        let arrayHandle = kk_array_new(3)
-        _ = kk_array_set(arrayHandle, 0, 5, nil)
-        _ = kk_array_set(arrayHandle, 1, 10, nil)
-        _ = kk_array_set(arrayHandle, 2, 15, nil)
-
-        let flowHandle = kk_flow_of(arrayHandle, 3)
-        let mapped = kk_flow_emit(flowHandle, mapPtr, RuntimeFlowTag.map.rawValue)
-        let taken = kk_flow_emit(mapped, 2, RuntimeFlowTag.take.rawValue)
-
-        _ = kk_flow_collect(taken, collectorPtr, 0, 0)
-        let snapshot = runtimeFlowTestState.snapshot()
-        XCTAssertEqual(snapshot.values, [10, 20], "flowOf with map+take should work correctly.")
-        XCTAssertEqual(snapshot.mapCalls, 2, "Lazy: map should only run for elements before take exhausted.")
-    }
-
-    func testEmptyFlowProducesNoValues() {
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let flowHandle = kk_flow_empty(0)
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
-
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [], "emptyFlow should emit nothing.")
-    }
-
-    func testAsFlowFromListPreservesElements() {
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let listHandle = registerRuntimeObject(RuntimeListBox(elements: [7, 8, 9]))
-        let flowHandle = kk_flow_as_flow(listHandle, 0)
-
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [7, 8, 9], "asFlow(list) should emit list elements in order.")
-    }
-
-    func testAsFlowFromArrayPreservesElements() {
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let arrayHandle = kk_array_new(3)
-        _ = kk_array_set(arrayHandle, 0, 11, nil)
-        _ = kk_array_set(arrayHandle, 1, 12, nil)
-        _ = kk_array_set(arrayHandle, 2, 13, nil)
-
-        let flowHandle = kk_flow_as_flow(arrayHandle, 0)
-        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
-
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 12, 13], "asFlow(array) should emit array elements in order.")
-    }
+    // KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed. flowOf /
+    // emptyFlow / Iterable.asFlow are now Kotlin source; their end-to-end
+    // behavior is covered by CodegenBackend integration tests and the
+    // Scripts/diff_cases/flow_builders.kt kotlinc diff case. The cold
+    // fixed-value flow primitive (RuntimeFlowHandle fixedValues / emitter) that
+    // backed them is still exercised via runtimeFlowOf(...) below and the
+    // zip/merge/combine/share_in tests.
 
     func testFlowFirst() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
@@ -733,11 +687,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
     }
 
     func testShareInAndStateInMaterializeFromColdFlowSource() {
-        let valuesArray = registerRuntimeObject(RuntimeArrayBox(length: 3))
-        _ = kk_array_set(valuesArray, 0, 1, nil)
-        _ = kk_array_set(valuesArray, 1, 2, nil)
-        _ = kk_array_set(valuesArray, 2, 3, nil)
-        let coldFlow = kk_flow_of(valuesArray, 3)
+        let coldFlow = runtimeFlowOf([1, 2, 3])
 
         let sharedHandle = kk_flow_share_in(coldFlow, 2)
         let replayHandle = kk_shared_flow_replay_cache(sharedHandle)
@@ -809,10 +759,7 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_fail_for_fallback as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
 
-        let arrayHandle = kk_array_new(2)
-        _ = kk_array_set(arrayHandle, 0, 42, nil)
-        _ = kk_array_set(arrayHandle, 1, 43, nil)
-        let fallbackFlow = kk_flow_of(arrayHandle, 2)
+        let fallbackFlow = runtimeFlowOf([42, 43])
 
         let flowHandle = kk_flow_create(emitterPtr, 0)
         let resumed = kk_flow_emit(flowHandle, fallbackFlow, RuntimeFlowTag.onErrorResume.rawValue)
@@ -946,9 +893,14 @@ func runtime_test_flow_fold_add(_: Int, _ acc: Int, _ value: Int, _ outThrown: U
 }
 
 private func runtimeFlowOf(_ values: [Int]) -> Int {
-    let arrayHandle = kk_array_new(values.count)
+    let continuation = kk_coroutine_continuation_new(0)
+    _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(values.count))
     for (index, value) in values.enumerated() {
-        _ = kk_array_set(arrayHandle, index, value, nil)
+        _ = kk_coroutine_launcher_arg_set(continuation, Int64(index + 1), Int64(value))
     }
-    return kk_flow_of(arrayHandle, values.count)
+    let thunkPtr = unsafeBitCast(
+        runtime_test_flow_fixed_values_emitter as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+        to: Int.self
+    )
+    return kk_flow_create(thunkPtr, continuation)
 }
