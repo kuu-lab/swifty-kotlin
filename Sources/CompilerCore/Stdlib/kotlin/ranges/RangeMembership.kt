@@ -84,10 +84,21 @@ private fun containsChar(value: Char, first: Char, last: Char, step: Int): Boole
     return (value - first) % step == 0
 }
 
+@KsSymbolName("kk_range_contains")
 public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
     containsLong(value, first, last, step.toLong())
+
+@KsSymbolName("kk_range_contains")
 public operator fun CharRange.contains(value: Char): Boolean = containsChar(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun CharProgression.contains(value: Char): Boolean = containsChar(value, first, last, step)

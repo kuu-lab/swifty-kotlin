@@ -292,7 +292,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: characterCodingSymbol,
             ownerType: characterCodingType,
             parameters: [],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -300,7 +300,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: characterCodingSymbol,
             ownerType: characterCodingType,
             parameters: [("message", nullableStringType)],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -313,7 +313,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: noSuchFileSymbol,
             ownerType: noSuchFileType,
             parameters: [],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -321,7 +321,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: noSuchFileSymbol,
             ownerType: noSuchFileType,
             parameters: [("file", types.stringType)],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -335,7 +335,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileAlreadyExistsExceptionSymbol,
             ownerType: fileAlreadyExistsExceptionType,
             parameters: [],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -343,7 +343,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: fileAlreadyExistsExceptionSymbol,
             ownerType: fileAlreadyExistsExceptionType,
             parameters: [("file", types.stringType)],
-            externalLinkName: "kk_throwable_new",
+            externalLinkName: "__kk_throwable_new",
             symbols: symbols,
             interner: interner
         )
@@ -394,7 +394,7 @@ extension DataFlowSemaPhase {
             messageCauseLinkName: "kk_number_format_exception_new_message_cause"
         )
         // Each entry gives its constructor's external link name a distinct
-        // per-type prefix (instead of sharing the type-erased kk_throwable_new),
+        // per-type prefix (instead of sharing the type-erased __kk_throwable_new),
         // so the allocated box's runtime identity matches the Kotlin-level type
         // and `catch (e: T)` can discriminate between unrelated sibling exceptions.
         let genericExceptionLinkPrefixes: [(symbol: SymbolID, prefix: String)] = [
@@ -662,9 +662,9 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         includeMessageOverload: Bool,
         throwableSymbol: SymbolID? = nil,
-        noArgLinkName: String = "kk_throwable_new",
-        messageLinkName: String = "kk_throwable_new",
-        messageCauseLinkName: String = "kk_throwable_new_with_cause"
+        noArgLinkName: String = "__kk_throwable_new",
+        messageLinkName: String = "__kk_throwable_new",
+        messageCauseLinkName: String = "__kk_throwable_new_with_cause"
     ) {
         registerSyntheticExceptionConstructor(
             ownerSymbol: ownerSymbol,
