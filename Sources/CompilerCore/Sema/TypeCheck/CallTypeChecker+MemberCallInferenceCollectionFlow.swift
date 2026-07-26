@@ -158,7 +158,7 @@ extension CallTypeChecker {
                         && l.isSuspend == r.isSuspend
                         && l.params.count == r.params.count
                         && zip(l.params, r.params).allSatisfy(typeMatches)
-                        && l.returnType == r.returnType
+                        && typeMatches(l.returnType, r.returnType)
                         && l.receiver == r.receiver
                         && l.throws == r.throws
                 case let (.typeParam(l), .typeParam(r)):
