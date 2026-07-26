@@ -336,6 +336,15 @@ extension DataFlowSemaPhase {
                         ),
                         for: primaryCtorSymbol
                     )
+                    registerAnnotations(
+                        classDecl.primaryConstructorAnnotations,
+                        symbol: primaryCtorSymbol,
+                        declRange: classDecl.range,
+                        sourceFileID: file.fileID,
+                        sourceManager: sourceManager,
+                        symbols: symbols,
+                        diagnostics: diagnostics
+                    )
                 }
             }
 
@@ -375,6 +384,15 @@ extension DataFlowSemaPhase {
                         classTypeParameterCount: classTypeParamSymbols.count
                     ),
                     for: secCtorSymbol
+                )
+                registerAnnotations(
+                    secondaryCtor.annotations,
+                    symbol: secCtorSymbol,
+                    declRange: secondaryCtor.range,
+                    sourceFileID: file.fileID,
+                    sourceManager: sourceManager,
+                    symbols: symbols,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -990,6 +1008,8 @@ extension DataFlowSemaPhase {
             return ["java", "util", "Random"].map { interner.intern($0) }
         case "__bundled_kotlin/text/StringEncoding.kt":
             return ["kotlin", "text", "Charset"].map { interner.intern($0) }
+        case "__bundled_kotlin/Throwable.kt":
+            return ["kotlin", "Throwable"].map { interner.intern($0) }
         default:
             return nil
         }
