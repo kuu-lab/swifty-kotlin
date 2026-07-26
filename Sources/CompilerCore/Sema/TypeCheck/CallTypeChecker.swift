@@ -96,12 +96,6 @@ final class CallTypeChecker {
                shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
             {
                 let lambdaArgumentIndex: Int? = switch builderKind {
-                case .buildString, .buildStringBuilder:
-                    switch args.count {
-                    case 1: 0
-                    case 2: 1
-                    default: nil
-                    }
                 case .buildList:
                     switch args.count {
                     case 1: 0
@@ -120,9 +114,7 @@ final class CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                if builderKind == .buildList
-                    || builderKind == .buildString
-                    || builderKind == .buildStringBuilder,
+                if builderKind == .buildList,
                     args.count == 2
                 {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
@@ -148,10 +140,6 @@ final class CallTypeChecker {
                     interner: interner
                 )
                 let returnType: TypeID = switch builderKind {
-                case .buildString:
-                    sema.types.stringType
-                case .buildStringBuilder:
-                    receiverType
                 case .buildList:
                     builderDSLBuildListReturnType(receiverType: receiverType, sema: sema, interner: interner)
                 case .buildSet:
@@ -2983,10 +2971,6 @@ final class CallTypeChecker {
         if let calleeName, ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString, .buildStringBuilder:
-                (name == "append" && args.count == 1)
-                    || (name == "appendLine" && args.count <= 1)
-                    || (name == "appendRange" && args.count == 3)
             case .buildList, .buildSet:
                 (name == "add" && args.count == 1) || (name == "addAll" && args.count == 1)
             case .buildMap: name == "put" && args.count == 2
