@@ -1032,8 +1032,8 @@ public struct KTypeInfo {
 ### 例外
 
 ```swift
-@_cdecl("kk_throwable_new")
-public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer
+@_cdecl("__kk_throwable_new")
+public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer
 ```
 
 ### 文字列
