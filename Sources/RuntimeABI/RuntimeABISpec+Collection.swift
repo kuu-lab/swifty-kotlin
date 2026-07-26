@@ -1474,7 +1474,7 @@ public extension RuntimeABISpec {
         ),
         // Signed primitive array to unsigned primitive array view conversions
         RuntimeABIFunctionSpec(
-            name: "kk_byteArray_asUByteArray",
+            name: "__kk_byteArray_asUByteArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1483,7 +1483,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_shortArray_asUShortArray",
+            name: "__kk_shortArray_asUShortArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1492,7 +1492,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_intArray_asUIntArray",
+            name: "__kk_intArray_asUIntArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1501,7 +1501,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_longArray_asULongArray",
+            name: "__kk_longArray_asULongArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1544,7 +1544,7 @@ public extension RuntimeABISpec {
         ),
         // Unsigned primitive array to signed primitive array view conversions
         RuntimeABIFunctionSpec(
-            name: "kk_uByteArray_asByteArray",
+            name: "__kk_uByteArray_asByteArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1553,7 +1553,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uShortArray_asShortArray",
+            name: "__kk_uShortArray_asShortArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1562,7 +1562,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uIntArray_asIntArray",
+            name: "__kk_uIntArray_asIntArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1571,7 +1571,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uLongArray_asLongArray",
+            name: "__kk_uLongArray_asLongArray",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1840,17 +1840,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArrayWith",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
         // Array utility functions (STDLIB-089)
         RuntimeABIFunctionSpec(
             name: "kk_array_copyOf",
@@ -1904,15 +1893,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArray",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_array_sliceArray_range",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
@@ -1927,15 +1907,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "indicesRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_sortedArrayDescending",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",
@@ -2096,45 +2067,6 @@ public extension RuntimeABISpec {
         ),
         // Builder DSL (STDLIB-002)
         RuntimeABIFunctionSpec(
-            name: "kk_build_string",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        // buildString(capacity, builderAction) overload (STDLIB-TEXT-EDGE-007)
-        RuntimeABIFunctionSpec(
-            name: "kk_build_string_with_capacity",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_build_string_builder",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_build_string_builder_with_capacity",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_build_list",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -2170,101 +2102,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        // StringBuilder enhancements (STDLIB-311) — buildString DSL helpers
-        // (object-oriented StringBuilder API lives in RuntimeABISpec+StringBuilder.swift)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append_line_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append_line",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append_line_noarg",
-            parameters: [],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_append_range_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "startIndex", type: .intptr),
-                RuntimeABIParameter(name: "endIndex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_insert_flat",
-            parameters: [
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_delete",
-            parameters: [
-                RuntimeABIParameter(name: "start", type: .intptr),
-                RuntimeABIParameter(name: "end", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_builder_length",
-            parameters: [],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_builder_list_add",

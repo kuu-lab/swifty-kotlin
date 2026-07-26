@@ -1111,16 +1111,6 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_lines_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lines_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_lineSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lineSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_flat",
                     stringArgumentCount: 2,
@@ -1298,27 +1288,6 @@ extension NativeEmitter {
                 ),
                 "kk_regex_matches_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_matches_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "kk_string_builder_append_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_builder_append_line_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_line_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_builder_append_range_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_builder_insert_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_insert_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]

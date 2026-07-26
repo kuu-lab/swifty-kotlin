@@ -35,63 +35,6 @@ final class CallLowerer {
         return nil
     }
 
-    func boxBuildStringTextArgumentIfNeeded(
-        _ argument: KIRExprID,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) -> KIRExprID {
-        guard let argumentType = arena.exprType(argument) else {
-            return argument
-        }
-        let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-            for: sema.types.kind(of: argumentType),
-            requireNonNull: true
-        )
-        guard let boxCallee else {
-            return argument
-        }
-        let boxedArgument = emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argument,
-            resultType: sema.types.anyType,
-            arena: arena,
-            into: &instructions
-        )
-        return boxedArgument
-    }
-
-    private func buildStringAppendRuntimeCall(
-        for argument: KIRExprID,
-        flatCallee: String,
-        objectCallee: String,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) -> (callee: String, arguments: [KIRExprID]) {
-        if let argumentType = arena.exprType(argument),
-           sema.types.nullability(of: argumentType) == .nonNull,
-           sema.types.isSubtype(argumentType, sema.types.stringType)
-        {
-            return (flatCallee, [argument])
-        }
-
-        return (
-            objectCallee,
-            [
-                boxBuildStringTextArgumentIfNeeded(
-                    argument,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                ),
-            ]
-        )
-    }
-
     private func isStringBuilderConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -845,19 +788,6 @@ final class CallLowerer {
         if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
             let sourceName = interner.resolve(sourceCalleeName)
             let builderRuntimeCallee: String? = switch builderKind {
-            case .buildString, .buildStringBuilder:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("append", 1):
-                    "kk_string_builder_append_flat"
-                case ("appendLine", 0):
-                    "kk_string_builder_append_line_noarg"
-                case ("appendLine", 1):
-                    "kk_string_builder_append_line_flat"
-                case ("appendRange", 3):
-                    "kk_string_builder_append_range_flat"
-                default:
-                    nil
-                }
             case .buildList:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("add", 1):
@@ -885,43 +815,12 @@ final class CallLowerer {
                 }
             }
             if let builderRuntimeCallee {
-                let runtimeArguments: [KIRExprID]
-                let runtimeCallee: String
-                switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-                case ("append", 1):
-                    let appendCall = buildStringAppendRuntimeCall(
-                        for: loweredArgIDs[0],
-                        flatCallee: "kk_string_builder_append_flat",
-                        objectCallee: "kk_string_builder_append",
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeCallee = appendCall.callee
-                    runtimeArguments = appendCall.arguments
-                case ("appendLine", 1):
-                    let appendCall = buildStringAppendRuntimeCall(
-                        for: loweredArgIDs[0],
-                        flatCallee: "kk_string_builder_append_line_flat",
-                        objectCallee: "kk_string_builder_append_line",
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeCallee = appendCall.callee
-                    runtimeArguments = appendCall.arguments
-                default:
-                    runtimeCallee = builderRuntimeCallee
-                    runtimeArguments = loweredArgIDs
-                }
                 let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern(runtimeCallee),
-                    arguments: runtimeArguments,
+                    callee: interner.intern(builderRuntimeCallee),
+                    arguments: loweredArgIDs,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -1321,13 +1220,16 @@ final class CallLowerer {
             } else {
                 sourceCalleeName
             }
-            if loweredCalleeName == interner.intern("kk_channel_create"), finalArgIDs.isEmpty {
-                let capacityExpr = arena.appendExpr(
-                    .intLiteral(0),
+            if loweredCalleeName == interner.intern("__kk_throwable_new"), finalArgIDs.isEmpty {
+                // Throwable() and the zero-argument synthetic exception constructors
+                // route here, but the runtime bridge still expects a nullable message
+                // pointer. Pass the null sentinel so it defaults to "Throwable".
+                let nullMessageExpr = arena.appendExpr(
+                    .intLiteral(Int64.min),
                     type: sema.types.intType
                 )
-                instructions.append(.constValue(result: capacityExpr, value: .intLiteral(0)))
-                finalArgIDs.append(capacityExpr)
+                instructions.append(.constValue(result: nullMessageExpr, value: .intLiteral(Int64.min)))
+                finalArgIDs.append(nullMessageExpr)
             } else if loweredCalleeName == interner.intern("kk_coroutine_cancel_current"),
                       finalArgIDs.count == 1
             {
@@ -1481,8 +1383,6 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
-            "__kk_string_trimMargin",
-            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(name)
     }
@@ -1496,8 +1396,6 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
-            "__kk_string_trimMargin",
-            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }

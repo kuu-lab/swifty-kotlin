@@ -221,7 +221,7 @@ fiction audit ダンプを起点に棚卸し）:
 
 | File | Lines | Bucket | Owner / next action |
 |---|---:|:---:|---|
-| `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c) | Array and primitive-array compiler surface; split source-backed factories/HOF later. |
+| `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c)→(b) | KSP-657 で `arrayOf`/`emptyArray`/`arrayOfNulls` を `Stdlib/kotlin/ArrayIntrinsics.kt` へ b-reclass 済み（第1弾）。primitive-array factory / HOF は後続バッチ。 |
 | `HeaderHelpers+SyntheticAtomicStubs.swift` | 2512 | (b) | `AtomicMigration.kt` owner; split Java atomic interop cleanup pockets first. |
 | `HeaderHelpers+SyntheticBase64Stubs.swift` | 830 | (b) | MIGRATION-ENC owner; Kotlin source exists but public stubs still dispatch directly. |
 | `HeaderHelpers+SyntheticBigIntegerStubs.swift` | 620 | (a) | `java.math.BigInteger` compatibility; target-out cleanup candidate. |
@@ -393,18 +393,43 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 従来どおり `HeaderHelpers+SyntheticAtomicStubs.swift`（2541 行、上表で (b) 計上済み）に分離されている。
 **KSP-499 以降が触るスタブファイルはこの2つのみ**（棚卸し時点の分割ファイル群は現存しない）。
 
-#### (c) 残留（`__kk_` 降格のみ）— 114 関数
+#### (c) 残留（`__kk_` 降格のみ）— 107 関数
 
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
 | suspend 機構・continuation | `kk_suspend_coroutine`, `kk_coroutine_suspended`, `kk_coroutine_continuation_{context,factory,new,resume,resume_with,resume_with_exception}`, `kk_coroutine_state_{enter,exit,get_completion,get_spill,get_thrown_exception,set_completion,set_label,set_spill}`, `kk_create_coroutine_unintercepted`, `kk_start_coroutine_unintercepted_or_return`, `kk_continuation_intercepted`, `kk_continuation_interceptor_intercept_continuation`, `kk_exception_handler_{new,create,invoke}`, `kk_is_cancellation_exception` | 24 | Coroutine / Context |
 | builder・Job・構造化並行の内部プリミティブ | `kk_kxmini_{launch,launch_with_cont,launch_with_dispatcher,launch_with_dispatcher_and_cont,launch_with_exception_handler,async,async_await,async_with_cont,run_blocking,run_blocking_with_cont,produce_with_cont}`, `kk_produce`, `kk_job_{join,await_completion,cancel,cancel_with_cause,complete,complete_exceptionally,is_active,is_cancelled,is_completed,is_failed}`, `kk_coroutine_scope_*`(8), `kk_supervisor_scope_*`(3), `kk_coroutine_launcher_arg_{get,set}` | 35 | Coroutine |
-| Channel | `kk_channel_{send,receive,create,close,is_closed_for_send,is_closed_for_receive,is_closed_token,iterator,iterator_hasNext,iterator_next}` | 10 | Channel（全関数） |
+| Channel | `kk_channel_{send,receive,is_closed_token}` | 3 | Channel（suspension コア。KSP-678 で残り 7 関数は `Stdlib/kotlin/coroutines/channels/Channels.kt` の (b) ブリッジへ移行。`kk_channel_{create,close,is_closed_for_send,is_closed_for_receive,iterator,iterator_hasNext,iterator_next}` は runtime を残しつつ `@KsSymbolName` ブリッジ経由に降格） |
 | timing | `kk_kxmini_delay`, `kk_with_timeout`, `kk_with_timeout_or_null`, `kk_coroutine_yield` | 4 | Coroutine |
-| 同期プリミティブ | `kk_mutex_*`(7), `kk_lock_withLock`, `kk_semaphore_*`(5), `kk_{read_write_lock,reentrant_read_write_lock}_*`(3) | 16 | Sync（全関数） |
+| 同期プリミティブ（カーネルコア c-soft 残留） | `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`, `kk_read_write_lock_{read,write}` | 6 | Sync | KSP-677 再監査で (b) 9 関数を分離（下記） |
 | context | `kk_context_*`(9), `kk_coroutine_name_{create,get}`, `kk_dispatcher_{default,io,main}`, `kk_with_context{,_full}`, `kk_coroutine_{current_context,cancel,cancel_current,check_cancellation}` | 20 | Context / Coroutine |
 | Flow ブリッジ（cold Flow の最小核） | `kk_flow_create`, `kk_flow_emit`, `kk_flow_collect` | 3 | Flow |
 | （参考・別系統だが同性質）GC root 登録 | `kk_register_coroutine_root`, `kk_unregister_coroutine_root` | 2 | GC |
+
+##### 同期プリミティブ 再監査記録（KSP-677, 2026-07-24）
+
+当初の棚卸しは Mutex/Semaphore/Lock/ReadWriteLock の同期系 16 関数をすべて (c) に計上していたが、KSP-677 で再監査し
+**(b) 9 / c-soft コア 6 / (a) cleanup 候補 1** に分離した。ラッパー層（factory・accessor・try・`withLock`/`withPermit`）は
+純ロジックで、c-soft カーネルプリミティブ（lock/unlock・acquire/release）の合成として Kotlin source で表現できる。
+
+- **(b) Kotlin 移行済み（9）** — `Sources/CompilerCore/Stdlib/kotlinx/coroutines/sync/Sync.kt` および
+  `Sources/CompilerCore/Stdlib/kotlin/concurrent/Lock.kt`:
+  - Mutex: `Mutex()`（旧 `kk_mutex_create`）, `Mutex.isLocked`（旧 `kk_mutex_isLocked`）, `Mutex.tryLock`（旧 `kk_mutex_tryLock`）, `Mutex.withLock`（旧 `kk_mutex_withLock`）
+  - Semaphore: `Semaphore(permits)`（旧 `kk_semaphore_create`）, `Semaphore.availablePermits`（旧 `kk_semaphore_availablePermits`）, `Semaphore.tryAcquire`（旧 `kk_semaphore_tryAcquire`）, `Semaphore.withPermit`（旧 `kk_semaphore_withPermit`）
+  - Lock: `Lock.withLock`（旧 `kk_lock_withLock`）
+  - factory/accessor/try 系は demoted `__kk_*` bridge へ委譲（`__kk_mutex_create` 等）。`withLock`/`withPermit` は
+    canonical generic `suspend fun <T> ...(action: () -> T): T` で lock/unlock・acquire/release を try/finally 合成し、
+    専用 runtime entry（`kk_mutex_withLock`/`kk_semaphore_withPermit`）は削除。`Lock.withLock` は general closure ABI の
+    `__kk_lock_withLock` bridge（fnPtr + closure env + `outThrown`）へ委譲する。
+- **c-soft コア残留（6）**: `kk_mutex_lock`, `kk_mutex_unlock`, `kk_semaphore_acquire`, `kk_semaphore_release`,
+  `kk_read_write_lock_read`, `kk_read_write_lock_write`。suspend 継続・待機解放・pthread rwlock コアと不可分のため (c) 残置。
+- **(a) cleanup 候補（scope 外）**: `kk_read_write_lock_create` は CLEANUP-STUB-100（未使用重複）として別途整理。
+  `kk_reentrant_read_write_lock_new` と `HeaderHelpers+SyntheticReadWriteLockStubs.swift` の compatibility stub も本 PR 対象外。
+
+移行に伴い generic 高階関数 `fun <T> f(action: () -> T): T` が Unit 本体ラムダから `T` を推論できないコンパイラバグ
+（`KSWIFTK-TYPE-0001`/`KSWIFTK-SEMA-0002`）を同 PR で修正した。ただし `launch { }` 本体からキャプチャ付き suspend 呼び出しを
+行う経路は coroutine lowering の feature gap（`KSWIFTK-CORO-0003`, BUG-049）が残るため、`Scripts/diff_cases/coroutine_mutex_semaphore.kt`
+は引き続き SKIP-DIFF（DEBT-DIFF-003）。
 
 #### (b) 候補（KSP-499 以降で移行）— 103 関数 + 新規実装分
 
@@ -432,15 +457,19 @@ Flow terminal/合成を (b) 化するには、このパスを「対象シンボ�
 
 Atomic の内訳:
 
-- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet`（`AtomicInt`/`AtomicLong`/
-  `AtomicReference`）は `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt`（47行）で Kotlin 化済み。
-  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch}` は実質
-  (c) ブリッジ（`__kk_` 未リネームのみが残タスク）
-- **未着手**: `compareAndSet`/`compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`
-  は上記委譲が未実施のため全操作が対象）。`updateAndGet`/`getAndUpdate` は `while(true)` ループを要するため、
-  `AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで**ブロック**。
-  `compareAndSet`/`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_`
-  残留になると想定される
+- **委譲パターン適用済み**: `get`/`set`/`getAndSet`/`incrementAndGet`/`decrementAndGet`/`addAndGet` に加えて、KSP-671 で
+  `fetchAndAdd`/`fetchAndIncrement`/`fetchAndDecrement`（reverse 変種）と `compareAndSet`（`AtomicInt`/`AtomicLong`）を
+  `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt` で Kotlin 化済み。reverse 変種は
+  `addAndFetch`/`incrementAndFetch`/`decrementAndFetch` に、`compareAndSet` は `compareAndExchange` に委譲する。
+  委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}`
+  は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
+  `java.util.concurrent.atomic.AtomicInteger` の直接構築サーフェスと同一ボックス/接頭辞を共有するため、これらの
+  ブリッジは Java interop からも参照される＝削除不可。したがって member-call 解決は現状も合成スタブ経由で、
+  bundled 委譲ソースは KSP-670 と同様に休眠（同一 PR で `isRuntimeBackedAtomicSyntheticRetainedOverlap` にスタブ保持を追加）
+- **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`/`AtomicReference`
+  の `compareAndSet` は get/set 委譲順序の都合で別タスク）。`updateAndGet`/`getAndUpdate` は `while(true)`
+  ループを要するため、`AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで
+  **ブロック**。`compareAndExchange` 自体はハードウェア CAS 命令への直接ブリッジなので、移行後も (c) `__kk_` 残留になると想定される
 
 #### 未分類・KSP-499 着手前に個別判断が必要な項目 — 18 関数
 

@@ -12,10 +12,6 @@ package enum KnownCompilerAnnotation {
     case jvmName
     case jvmField
     case jvmOverloads
-    case experimentalJsExport
-    case experimentalJsStatic
-    case experimentalJsReflectionCreateInstance
-    case experimentalJsCollectionsApi
     case throws_
     case rootThrows
     case suppress
@@ -62,14 +58,6 @@ package enum KnownCompilerAnnotation {
             "JvmField"
         case .jvmOverloads:
             "JvmOverloads"
-        case .experimentalJsExport:
-            "ExperimentalJsExport"
-        case .experimentalJsStatic:
-            "ExperimentalJsStatic"
-        case .experimentalJsReflectionCreateInstance:
-            "ExperimentalJsReflectionCreateInstance"
-        case .experimentalJsCollectionsApi:
-            "ExperimentalJsCollectionsApi"
         case .throws_:
             "Throws"
         case .rootThrows:
@@ -137,14 +125,6 @@ package enum KnownCompilerAnnotation {
             "kotlin.jvm.JvmField"
         case .jvmOverloads:
             "kotlin.jvm.JvmOverloads"
-        case .experimentalJsExport:
-            "kotlin.js.ExperimentalJsExport"
-        case .experimentalJsStatic:
-            "kotlin.js.ExperimentalJsStatic"
-        case .experimentalJsReflectionCreateInstance:
-            "kotlin.js.ExperimentalJsReflectionCreateInstance"
-        case .experimentalJsCollectionsApi:
-            "kotlin.js.collections.ExperimentalJsCollectionsApi"
         case .throws_:
             "kotlin.jvm.Throws"
         case .rootThrows:
@@ -282,8 +262,6 @@ package struct KnownCompilerNames {
     let buildList: InternedString
     let buildSet: InternedString
     let buildMap: InternedString
-    let buildString: InternedString
-    let buildStringBuilder: InternedString
     let className: InternedString
     let isInitialized: InternedString
     let simpleName: InternedString
@@ -474,8 +452,6 @@ package struct KnownCompilerNames {
         buildList = interner.intern("buildList")
         buildSet = interner.intern("buildSet")
         buildMap = interner.intern("buildMap")
-        buildString = interner.intern("buildString")
-        buildStringBuilder = interner.intern("buildStringBuilder")
         className = interner.intern("class")
         isInitialized = interner.intern("isInitialized")
         simpleName = interner.intern("simpleName")

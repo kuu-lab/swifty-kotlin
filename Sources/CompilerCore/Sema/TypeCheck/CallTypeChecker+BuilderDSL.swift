@@ -116,10 +116,6 @@ extension CallTypeChecker {
     func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
         let knownNames = KnownCompilerNames(interner: interner)
         switch name {
-        case knownNames.buildString:
-            return .buildString
-        case knownNames.buildStringBuilder:
-            return .buildStringBuilder
         case knownNames.buildList:
             return .buildList
         case knownNames.buildSet:
@@ -157,7 +153,6 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let kotlinName = interner.intern("kotlin")
-        let textName = interner.intern("text")
         let collectionsName = interner.intern("collections")
         guard symbol.fqName.count == 3,
               symbol.fqName[0] == kotlinName,
@@ -166,10 +161,6 @@ extension CallTypeChecker {
             return false
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        if symbol.fqName[1] == textName {
-            return calleeName == knownNames.buildString
-                || calleeName == knownNames.buildStringBuilder
-        }
         if symbol.fqName[1] == collectionsName {
             return calleeName == knownNames.buildList
                 || calleeName == knownNames.buildSet
@@ -210,8 +201,6 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         switch kind {
-        case .buildString, .buildStringBuilder:
-            return ensureSyntheticStringBuilderType(sema: sema, interner: interner)
         case .buildList:
             let elementType = builderDSLListElementType(
                 lambdaExprID: lambdaExprID,
@@ -477,8 +466,6 @@ extension CallTypeChecker {
 
         var previewLocals = locals
         switch kind {
-        case .buildString, .buildStringBuilder:
-            return .unary([])
         case .buildList, .buildSet:
             let argumentTypes = unaryArgumentExprs.compactMap { exprID -> TypeID? in
                 let inferredType = driver.inferExpr(exprID, ctx: ctx, locals: &previewLocals)
@@ -858,8 +845,6 @@ extension CallTypeChecker {
 
     private func isMatchingBuilderDSLFunctionName(_ name: String, kind: BuilderDSLKind) -> Bool {
         switch kind {
-        case .buildString, .buildStringBuilder:
-            name == "append" || name == "appendLine" || name == "appendRange"
         case .buildList, .buildSet:
             name == "add"
         case .buildMap:
@@ -1439,18 +1424,6 @@ extension CallTypeChecker {
         default:
             break
         }
-    }
-
-    func ensureSyntheticStringBuilderType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let stringBuilderSymbol = ensureKotlinTextStringBuilderSymbol(symbols: sema.symbols, interner: interner)
-        return sema.types.make(.classType(ClassType(
-            classSymbol: stringBuilderSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
     }
 
     private func sequenceBuilderElementType(

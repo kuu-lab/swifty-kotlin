@@ -104,41 +104,6 @@ extension CallLowerer {
         }
     }
 
-    func materializeArrayBinarySearchDefaultArguments(
-        _ defaultMask: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard arguments.count >= 6 else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let fromIndexMaskBit = Int64(1) << 2
-        let toIndexMaskBit = Int64(1) << 3
-        if (defaultMask & fromIndexMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[4] = zeroExpr
-        }
-
-        if (defaultMask & toIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_size"),
-                arguments: [arguments[0]],
-                result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            arguments[5] = sizeExpr
-        }
-    }
-
     func materializeArrayCopyIntoDefaultArguments(
         _ defaultMask: Int64,
         sema: SemaModule,
@@ -332,12 +297,6 @@ extension CallLowerer {
                         return interner.intern("kk_list_binarySearch_comparator")
                     }
                 }
-                if (externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch"),
-                   isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-                   argumentCount == 5
-                {
-                    return interner.intern("kk_array_binarySearch_compare")
-                }
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.symbol(chosenCallee)?.declSite != nil {
@@ -401,12 +360,8 @@ extension CallLowerer {
                 return interner.intern("kk_channel_send")
             case "receive":
                 return interner.intern("kk_channel_receive")
-            case "close":
-                return interner.intern("kk_channel_close")
-            case "isClosedForReceive":
-                return interner.intern("kk_channel_is_closed_for_receive")
-            case "isClosedForSend":
-                return interner.intern("kk_channel_is_closed_for_send")
+            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
+            // through bundled Kotlin source, not this synthetic fallback.
             default:
                 break
             }
@@ -517,16 +472,13 @@ extension CallLowerer {
         }
         switch memberName {
         case "contains":
-            if elementType == sema.types.longType {
-                return interner.intern("kk_long_range_contains")
-            }
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_contains")
             }
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_contains")
             }
-            return nil
+            return interner.intern("kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_isEmpty")

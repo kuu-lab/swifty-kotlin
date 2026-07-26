@@ -1,6 +1,11 @@
-// SKIP-DIFF (DEBT-DIFF-003): Mutex.withLock / Semaphore.withPermit calls nested inside a
-// launch { } trailing lambda fail Sema overload resolution (KSWIFTK-SEMA-0002); the same
-// calls work when placed directly in a runBlocking { } body. See docs/diff-skip-inventory.md.
+// SKIP-DIFF (DEBT-DIFF-003): the Sema overload-resolution failure (KSWIFTK-SEMA-0002) on
+// Mutex.withLock / Semaphore.withPermit was fixed in KSP-677 (generic-lambda return-type
+// inference). This case still fails to compile because those calls are nested inside a
+// launch { } trailing lambda and capture outer variables, which hits the separate,
+// pre-existing coroutine-lowering feature gap KSWIFTK-CORO-0003 ("CoroutineScope.launch
+// does not yet support a suspend lambda that captures outer variables"). The withLock /
+// withPermit calls themselves work directly in a runBlocking { } body. See
+// docs/diff-skip-inventory.md and BUG-049.
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.*
 import java.util.concurrent.atomic.AtomicInteger

@@ -74,8 +74,15 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 }
 
 public enum RuntimeABISpec {
-    public static let specVersion = "bcdd6ff8026c0a711088ec70c7d2b0ba4c81352c17dc901fec9a6785e32a0e19"
-
+    /// SHA-256 hex of the canonical serialization of `allFunctions`.
+    /// Computed at first access so parallel PRs no longer need to update a hardcoded hash line.
+    public static let specVersion: String = {
+        let canonical = allFunctions.map { spec in
+            let params = spec.parameters.map { "\($0.name):\($0.type.rawValue)" }.joined(separator: ",")
+            return "\(spec.name)|\(spec.returnType.rawValue)|\(params)|\(spec.section)|\(spec.isThrowing)"
+        }.joined(separator: "\n")
+        return SHA256.hex(Array(canonical.utf8))
+    }()
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///
     /// The sub-arrays are listed in alphabetical order, one entry per line, so that
