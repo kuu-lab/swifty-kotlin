@@ -731,31 +731,12 @@ final class CallTypeChecker {
             return flowExprType
         }
 
-        let fixedFlowFactoryNames: Set<InternedString> = [
-            interner.intern("flowOf"),
-            interner.intern("emptyFlow"),
-        ]
-        if let calleeName,
-           fixedFlowFactoryNames.contains(calleeName),
-           shouldUseBuiltinFlowFactorySpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
-        {
-            sema.bindings.markFlowExpr(id)
-            if let explicitElementType = explicitTypeArgs.first {
-                sema.bindings.bindFlowElementType(explicitElementType, forExpr: id)
-            } else if calleeName == interner.intern("flowOf"), !args.isEmpty {
-                let inferredArgTypes = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals) }
-                let lub = sema.types.lub(inferredArgTypes)
-                sema.bindings.bindFlowElementType(lub == sema.types.errorType ? sema.types.anyType : lub, forExpr: id)
-            }
-            let flowElementType = sema.bindings.flowElementType(forExpr: id) ?? sema.types.anyType
-            let flowExprType = driver.helpers.makeFlowType(
-                elementType: flowElementType,
-                sema: sema,
-                interner: interner
-            ) ?? sema.types.anyType
-            sema.bindings.bindExprType(id, type: flowExprType)
-            return flowExprType
-        }
+        // KSP-674: flowOf / emptyFlow are Kotlin source (kotlinx.coroutines.flow),
+        // so they resolve through normal overload resolution to their bundled
+        // declarations. The former builtin fixed-flow special-casing (which only
+        // bound a Flow type without a callable target) was removed; missing the
+        // import now yields a proper unresolved-reference diagnostic, matching
+        // kotlinx.coroutines.
 
         // --- Flow builder lambda calls (CORO-003) ---
         // Inside `flow { ... }`, unqualified `emit` resolves as a builtin
