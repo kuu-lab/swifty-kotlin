@@ -87,9 +87,6 @@ extension CoroutineLoweringPass {
         let flowName = ctx.interner.intern("flow")
         let channelFlowName = ctx.interner.intern("channelFlow")
         let callbackFlowName = ctx.interner.intern("callbackFlow")
-        let flowOfName = ctx.interner.intern("flowOf")
-        let emptyFlowName = ctx.interner.intern("emptyFlow")
-        let asFlowName = ctx.interner.intern("asFlow")
         let emitName = ctx.interner.intern("emit")
         let collectName = ctx.interner.intern("collect")
         let collectLatestName = ctx.interner.intern("collectLatest")
@@ -126,9 +123,6 @@ extension CoroutineLoweringPass {
         let kkFlowCollectLatestName = ctx.interner.intern("kk_flow_collectLatest")
         let kkFlowRetainName = ctx.interner.intern("kk_flow_retain")
         let kkFlowReleaseName = ctx.interner.intern("kk_flow_release")
-        let kkFlowOfName = ctx.interner.intern("kk_flow_of")
-        let kkFlowEmptyName = ctx.interner.intern("kk_flow_empty")
-        let kkFlowAsFlowName = ctx.interner.intern("kk_flow_as_flow")
         let kkFlowToListName = ctx.interner.intern("kk_flow_to_list")
         let kkFlowFirstName = ctx.interner.intern("kk_flow_first")
         let kkFlowSingleName = ctx.interner.intern("kk_flow_single")
@@ -265,7 +259,7 @@ extension CoroutineLoweringPass {
                 return self.hasRealDeclaration(symbol, in: ctx)
             }
             let kkFlowBridgeNames: Set<InternedString> = [
-                kkFlowCreateName, kkFlowOfName, kkFlowEmptyName, kkFlowAsFlowName,
+                kkFlowCreateName,
                 kkFlowEmitName, kkFlowCollectName, kkFlowCollectLatestName,
                 kkFlowToListName, kkFlowFirstName, kkFlowSingleName,
             ]
@@ -293,11 +287,6 @@ extension CoroutineLoweringPass {
                         }
                         if isFlowRewriteCandidate(symbol, callee),
                            callee == kkFlowCreateName, arguments.count == 2 {
-                            if markFlowExpr(result) { changed = true }
-                            continue
-                        }
-                        if isFlowRewriteCandidate(symbol, callee),
-                           callee == flowOfName || callee == kkFlowOfName || callee == emptyFlowName || callee == kkFlowEmptyName {
                             if markFlowExpr(result) { changed = true }
                             continue
                         }
@@ -378,13 +367,6 @@ extension CoroutineLoweringPass {
                             if markFlowExpr(result) { changed = true }
                             continue
                         }
-                        if isFlowRewriteCandidate(symbol, callee),
-                           callee == asFlowName,
-                           arguments.isEmpty
-                        {
-                            if markFlowExpr(result) { changed = true }
-                            continue
-                        }
 
                     case let .virtualCall(symbol, callee, receiver, arguments, result, _, _, _):
                         if !flowExprIDs.contains(receiver.rawValue), isFlowClassResultType(receiver) {
@@ -424,13 +406,6 @@ extension CoroutineLoweringPass {
                             if markFlowExpr(result) { changed = true }
                             continue
                         }
-                        if isFlowRewriteCandidate(symbol, callee),
-                           callee == asFlowName,
-                           arguments.isEmpty
-                        {
-                            if markFlowExpr(result) { changed = true }
-                            continue
-                        }
 
                     case let .copy(from, to):
                         if flowExprIDs.contains(from.rawValue),
@@ -465,7 +440,6 @@ extension CoroutineLoweringPass {
                 switch instruction {
                 case let .call(_, callee, _, _, _, _, _, _):
                     callee == flowName || callee == channelFlowName || callee == callbackFlowName ||
-                        callee == flowOfName || callee == emptyFlowName ||
                         callee == emitName || callee == collectName || callee == collectLatestName ||
                         callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||
@@ -473,10 +447,9 @@ extension CoroutineLoweringPass {
                         callee == combineName || callee == zipName || callee == mergeName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
                         callee == debounceName || callee == sampleName || callee == delayEachName ||
-                        callee == asFlowName || callee == toListName || callee == firstName || callee == singleName ||
+                        callee == toListName || callee == firstName || callee == singleName ||
                         callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName ||
                         callee == kkFlowCollectLatestName ||
-                        callee == kkFlowOfName || callee == kkFlowEmptyName || callee == kkFlowAsFlowName ||
                         callee == kkFlowToListName || callee == kkFlowFirstName || callee == kkFlowSingleName
                 case let .virtualCall(_, callee, _, _, _, _, _, _):
                     callee == mapName || callee == filterName || callee == takeName || callee == collectName ||
@@ -487,7 +460,7 @@ extension CoroutineLoweringPass {
                         callee == debounceName || callee == sampleName || callee == delayEachName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
                         callee == onErrorReturnName || callee == onErrorResumeName ||
-                        callee == asFlowName || callee == toListName || callee == firstName || callee == singleName
+                        callee == toListName || callee == firstName || callee == singleName
                 default:
                     false
                 }
@@ -519,13 +492,6 @@ extension CoroutineLoweringPass {
                         continue
                     }
                     if isFlowRewriteCandidate(symbol, callee),
-                       callee == asFlowName,
-                       arguments.count == 1
-                    {
-                        markConsume(arguments[0])
-                        continue
-                    }
-                    if isFlowRewriteCandidate(symbol, callee),
                        callee == collectName || callee == kkFlowCollectName || callee == collectLatestName,
                        arguments.count == 2 || arguments.count == 3
                     {
@@ -551,10 +517,6 @@ extension CoroutineLoweringPass {
                         callee == collectLatestName,
                        arguments.count == 1
                     {
-                        markConsume(receiver)
-                    }
-                    if isFlowRewriteCandidate(symbol, callee),
-                   callee == asFlowName, arguments.isEmpty {
                         markConsume(receiver)
                     }
                     if isFlowRewriteCandidate(symbol, callee),
