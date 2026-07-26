@@ -95,9 +95,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // contains — delegate to kk_op_contains (STDLIB-090) or kk_ulong_range_contains (STDLIB-RANGE-037)
+        // contains — signed ranges use the bundled kk_range_contains; unsigned keep per-type helpers
         if callee == lookup.containsName, arguments.count == 1 {
-            let containsName = isULongRange ? lookup.kkULongRangeContainsName : (isUIntRange ? interner.intern("kk_uint_range_contains") : lookup.kkOpContainsName)
+            let containsName = isULongRange ? lookup.kkULongRangeContainsName : (isUIntRange ? interner.intern("kk_uint_range_contains") : interner.intern("kk_range_contains"))
             loweredBody.append(.call(
                 symbol: nil, callee: containsName,
                 arguments: [receiver, arguments[0]], result: result,
