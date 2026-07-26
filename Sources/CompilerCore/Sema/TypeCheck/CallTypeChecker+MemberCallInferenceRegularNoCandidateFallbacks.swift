@@ -1813,10 +1813,6 @@ extension CallTypeChecker {
         if ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString, .buildStringBuilder:
-                (name == "append" && args.count == 1)
-                    || (name == "appendLine" && args.count <= 1)
-                    || (name == "appendRange" && args.count == 3)
             case .buildList, .buildSet: name == "add" && args.count == 1
             case .buildMap: name == "put" && args.count == 2
             }
