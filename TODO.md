@@ -510,29 +510,124 @@
 - [ ] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`）
 - [ ] CLEANUP-STUB-101: 監査で確定したデッドコードを一括削除する（`kk_math_round_mode` 系15（Sema 登録ゼロ・到達不能）/ `kotlin.experimental` Int 版登録一式（汎用特例が先に解決）/ `kk_check_not_null(_lazy)`/`kk_require_not_null(_lazy)` 4 / CLEANUP-STUB-084 取り残しの `registerSyntheticJvmAnnotationClass`・`registerSyntheticBooleanAnnotationPropertyAndConstructor` 2関数 / `kk_sequence_of_single` の生死判定。※`kk_system_measureTime*` 3 と `CallLowerer+CollectionStdlibMemberCalls.swift` は KSP-617/620 と重複するため先行した方で実施）
 - [ ] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除）
-- [~] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを再起票する — PR 作成中
-  - 対象表を確定し、以後 1 ファイル = 1 タスク（CLEANUP-STUB-104〜124）で消化する。
-  - 104: `HeaderHelpers+SyntheticBigIntegerStubs.swift`
-  - 105: `HeaderHelpers+SyntheticConcurrencyStubs.swift`
-  - 106: `HeaderHelpers+SyntheticDynamicStubs.swift`（CLEANUP-STUB-070/071 で既に削除済み — タスククローズのみ）
-  - 107: `HeaderHelpers+SyntheticFileIOStubs.swift`
-  - 108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift`
-  - 109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift`
-  - 110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift`
-  - 111: `HeaderHelpers+SyntheticJsFunctionStubs.swift`
-  - 112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift`
-  - 113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`
-  - 114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift`
-  - 115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）
-  - 116: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`
-  - 117: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`
-  - 118: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`
-  - 119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift`
-  - 120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift`
-  - 121: `HeaderHelpers+SyntheticSerializationStubs.swift`
-  - 122: `HeaderHelpers+SyntheticTestStubs.swift`
-  - 123: `HeaderHelpers+SyntheticURIStubs.swift`
-  - 124: `HeaderHelpers+SyntheticURLStubs.swift`
+- [x] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを確定し、CLEANUP-STUB-104 〜 CLEANUP-STUB-124 へ個別起票する（対象: BigInteger / Concurrency / Dynamic / FileIO / FileTreeWalk / FileWalkDirection / FilesUtility / JsFunction / LocaleConstructor / NativeFunctionAnnotation / OnErrorAction / PathStubs 本体+分割3 / PlatformObjectHelpers / ReadWriteLock / Serialization / Test / URI / URL）
+- [ ] CLEANUP-STUB-104: `HeaderHelpers+SyntheticBigIntegerStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBigIntegerStubs.swift`（650行）
+  - 削除内容: `registerSyntheticBigIntegerStubs(...)` および `java.math.BigInteger` クラス・コンストラクタ（String）・companion `valueOf`・四則/remainder/pow/abs/gcd/toInt/toLong 等のメンバ登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:272`（`bucket: .targetOutCleanup, name: "BigInteger"`）を削除
+  - 連動整理: bundled `Sources/CompilerCore/Stdlib/java/math/BigInteger.kt`、Runtime `Sources/Runtime/RuntimeBigInteger.swift`（`kk_biginteger_*` 58件）/ `Sources/Runtime/RuntimeStringConversion.swift`（`kk_string_to_biginteger` 等3件）、`Sources/RuntimeABI/RuntimeABISpec+BigInteger.swift` / `RuntimeABISpec+String.swift` 内 BigInteger 登録 / `RuntimeABISpec+ABIParity.swift` 該当行
+  - テスト影響: `Tests/CompilerCoreTests/Sema/BigIntegerSyntheticLinkTests.swift`、`StringToBigIntegerFunctionTests.swift`、`StringToBigIntegerOrNullFunctionTests.swift`、`Tests/CompilerCoreTests/Integration/KotlinCompilationBigIntegerTests.swift`、`Tests/RuntimeTests/RuntimeBigIntegerTests.swift`、Golden `big_integer_basic.golden` 等の削除または更新
+- [ ] CLEANUP-STUB-105: `HeaderHelpers+SyntheticConcurrencyStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticConcurrencyStubs.swift`（186行）
+  - 削除内容: `registerSyntheticConcurrencyStubs(...)` および `java.lang.Thread` / `kotlin.concurrent` パッケージ内 Thread/Timer/Executor 等の synthetic 登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:284`（`bucket: .targetOutCleanup, name: "Concurrency"`）を削除
+  - 連動整理: `java.util.concurrent` 互換部分は Atomic 系（CLEANUP-STUB-100/096 側）と重複しないよう整理
+  - テスト影響: `Tests/CompilerCoreTests/Sema/ConcurrencySyntheticStubTests.swift` など対象テストの削除/縮小
+- [ ] CLEANUP-STUB-106: Dynamic 用 `HeaderHelpers+SyntheticDynamicStubs.swift` は削除済みのため追跡のみ
+  - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticDynamicStubs.swift`（DEADCODE-CORE-009/010 で削除済み）
+  - 削除内容: `registerSyntheticDynamicStubs` および `registerDynamicIterator` は既に削除されている
+  - テスト影響: なし（`HeaderHelpers+SyntheticBucketedStubRegistry` 等からの残り呼び出しがないか確認）
+- [ ] CLEANUP-STUB-107: `HeaderHelpers+SyntheticFileIOStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`（2319行）
+  - 削除内容: `registerSyntheticFileIOStubs(...)` および `java.io.File` クラス・コンストラクタ・`readText`/`writeText`/`readLines`/`appendText`/`forEachLine`/`bufferedReader`/`delete`/`mkdirs`/`listFiles`/`walk`/`name`/`path`/`exists`/`isFile`/`isDirectory` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` / `HeaderHelpers+SyntheticOnErrorActionStubs.swift` 内のコメント参照を整理
+  - 連動整理: bundled `Stdlib/kotlin/io/FileIO.kt`（および `FileStreamExtensions.kt`/`FileTraversal.kt`）の出番確認、Runtime `Sources/Runtime/RuntimeFileIO.swift`（`kk_file_*`/`kk_files_*` 等）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`
+  - テスト影響: `Tests/CompilerCoreTests/GoldenCases/Sema/file_*.golden`・`file_tree_walk.golden`、`Tests/CompilerBackendTests/Codegen/*File*` テスト群、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、`Scripts/diff_cases/file_*.kt` 等の整理
+- [ ] CLEANUP-STUB-108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileTreeWalkStubs.swift`（291行）
+  - 削除内容: `registerSyntheticFileTreeWalkStubs(...)` および `kotlin.io.FileTreeWalk` クラス・`walkTopDown`/`walkBottomUp`/`walk`/`maxDepth`/`filter`/`onEnter`/`onLeave`/`onFail`/`toList`/`forEach` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1244`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:210`（`name: "FileTreeWalk"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 FileTreeWalk 関連 `kk_file_tree_walk_*`、該当 ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Sema/FileTreeWalkClassTests.swift`、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、Golden `file_tree_walk.golden`/`.kt`、diff case `file_walk.kt` の削除または更新
+- [ ] CLEANUP-STUB-109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileWalkDirectionStubs.swift`（113行）
+  - 削除内容: `registerSyntheticFileWalkDirectionStubs(...)` および `kotlin.io.FileWalkDirection` enum（`TOP_DOWN`/`BOTTOM_UP`）の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1243`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:207`（`name: "FileWalkDirection"`）を削除
+  - テスト影響: `Tests/CompilerCoreTests/Sema/FileWalkDirectionEnumTests.swift` の削除または更新
+- [ ] CLEANUP-STUB-110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFilesUtilityStubs.swift`（520行）
+  - 削除内容: `registerSyntheticFilesUtilityStubs(...)` および `java.nio.file.Files` singleton・`createFile`/`delete`/`copy`/`move`/`createDirectory`/`createDirectories`/`size`/`getLastModifiedTime`/`isRegularFile`/`isDirectory`/`exists`/`walk`/`list`/`newDirectoryStream`/`createTempFile`/`createTempDirectory` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1246`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:215`（`name: "FilesUtility"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `kk_files_*`（48件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`/`RuntimeABISpec+Path.swift` 該当 ABI
+  - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
+- [ ] CLEANUP-STUB-111: `HeaderHelpers+SyntheticJsFunctionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsFunctionStubs.swift`（77行）
+  - 削除内容: `registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` および Kotlin/JS `js(...)` 外部関数の synthetic 登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1228`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:174`（`name: "JsFunction"`）を削除
+  - テスト影響: 本家 Kotlin/JS 専用のためテストは少ない；`swift build` と Sema inventory テストの確認
+- [ ] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）
+  - 削除内容: `registerSyntheticLocaleConstructorStubs(...)` および `java.util.Locale` クラス・コンストラクタ / `forLanguageTag` / `getDefault` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:263`（`name: "LocaleConstructor"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeI18N.swift`（`kk_locale_*` 28件）、`Sources/RuntimeABI/RuntimeABISpec+Locale.swift`/`RuntimeABISpec+String.swift` 内 Locale ABI 登録
+  - テスト影響: diff case `locale_basic.kt`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+LLVMLinkingAndArtifacts.swift` などで Locale 使用箇所の確認
+- [ ] CLEANUP-STUB-113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`（85行）
+  - 削除内容: `registerSyntheticNativeGetterStubs(...)` / `registerSyntheticNativeSetterStubs(...)` および `kotlin.js.nativeGetter`/`nativeSetter`/`nativeInvoke` 注釈クラスの登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:302`（`name: "NativeGetter"`）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:281`（`name: "NativeSetter"`）を削除
+  - テスト影響: `Tests/CompilerCoreTests/Sema/NativeGetterAnnotationTests.swift`、`NativeSetterAnnotationTests.swift`、`NativeByteArraySetterSurfaceTests.swift`、`NativePrimitiveByteArraySetterSurfaceTests.swift`、`NativeUnsignedByteArraySetterSurfaceTests.swift` の削除または更新
+- [ ] CLEANUP-STUB-114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticOnErrorActionStubs.swift`（120行）
+  - 削除内容: `registerSyntheticOnErrorActionStubs(...)` および `kotlin.io.OnErrorAction` enum（`SKIP`/`TERMINATE`）の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1245`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:213`（`name: "OnErrorAction"`）を削除
+  - 連動整理: `RuntimeFileIO.swift` 内 `copyTo` 再帰処理で使われる OnErrorAction ordinal（`kk_file_copy_*`）があれば整理
+  - テスト影響: `Tests/RuntimeTests/RuntimeFileCopyRecursivelyTests.swift` の確認
+- [ ] CLEANUP-STUB-115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`（2102行）
+  - 削除内容: `registerSyntheticPathStubs(...)` および `kotlin.io.path.Path` クラス・companion `createTempFile`/`createTempDirectory`/`list`/`walk`/`readBytes`/`readText`/`writeText`/`writeBytes`/`copyTo`/`resolve`/`parent`/`fileName`/`extension` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1247`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:219`（`name: "Path"`）を削除
+  - 連動整理: 3つの split ファイル（CLEANUP-STUB-116〜118）も併せて削除；Runtime `Sources/Runtime/RuntimePath.swift`（`kk_path_*` 273件、`kk_uri_*`/`kk_url_*` も含む）、`Sources/RuntimeABI/RuntimeABISpec+Path.swift`（114件）
+  - テスト影響: `Tests/CompilerCoreTests/Sema/Path*FunctionTests.swift`（5ファイル）、`PathWalkOptionEnumTests.swift`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+PathCreateSymbolicLink.swift`、`Scripts/diff_cases/path_basic.kt`、Golden 該当ケースの整理
+- [ ] CLEANUP-STUB-116: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`（548行）
+  - 削除内容: `registerPathUseLinesFunction(...)` 等の overload 群、`useLines`/`readLines`/`forEachLine` 等の generic function 登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 1364行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`（315行）
+  - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`（337行）
+  - 削除内容: `registerPathCopyActionContextSurface(...)` 等 `CopyActionContext` / `WalkOptions` 等の型登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 190行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPlatformObjectHelpers.swift`（216行）
+  - 削除内容: `registerSyntheticObjectProperty(...)` 等 Java `Class` / `Platform` object 向け helper を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticStringStubs.swift`（313, 3245行付近）と `HeaderHelpers+SyntheticTODOAndIOStubs.swift`（434-466行付近）から呼ばれているため、削除前に live 側へ移設/インライン化
+  - テスト影響: 上記 live ファイルを使う Sema / Golden テストへの影響を確認；削除前に参照切り替え
+- [ ] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticReadWriteLockStubs.swift`（216行）
+  - 削除内容: `registerSyntheticReadWriteLockStubs(...)` および `java.util.concurrent.locks.ReentrantReadWriteLock` クラス・`kotlin.concurrent.read` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
+  - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
+- [ ] CLEANUP-STUB-121: `HeaderHelpers+SyntheticSerializationStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSerializationStubs.swift`（723行）
+  - 削除内容: `registerSyntheticSerializationStubs(...)` および `kotlinx.serialization`/`kotlinx.serialization.json` の `Json`/`JsonBuilder`/`JsonConfiguration`/`Serializers` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:254`（`name: "Serialization"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeSerialization.swift`（`kk_serialization_*`/`kk_json_*` 46件）、`Sources/RuntimeABI/RuntimeABISpec+Serialization.swift`
+  - テスト影響: `Tests/RuntimeTests/RuntimeSerializationTests.swift`、`Tests/CompilerCoreTests/Sema/LibMetadataSerializationTests*.swift`、diff cases `json_serialization.kt`/`dataclass_serialization.kt`/`collection_serialization.kt`/`custom_serializer.kt` の整理
+- [ ] CLEANUP-STUB-122: `HeaderHelpers+SyntheticTestStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTestStubs.swift`（184行）
+  - 削除内容: `registerSyntheticTestFrameworkStubs(...)` および `kotlin.test` 注釈（`Test`/`Before`/`After`/`Ignore` 等）・`assertEquals`/`assertTrue`/`assertNull`/`fail` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1203`（`kotlinPkg` 指定）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:119`（`name: "TestFramework"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeTest.swift`（`kk_test_*` 12件）、`Sources/RuntimeABI/RuntimeABISpec+Test.swift`
+  - テスト影響: `Tests/CompilerCoreTests/Sema/TestFrameworkSyntheticStubTests.swift`、diff cases `test_framework_basic.kt`/`test_array_new_functions.kt` 等 `kotlin.test` 関連ケースの整理
+- [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
+  - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:257`（`name: "URI"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
+- [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
+  - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:260`（`name: "URL"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeNetwork.swift`（`kk_url_*`/`kk_uri_*` 36件）、`Sources/Runtime/RuntimePath.swift` 内 URL 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URL ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
