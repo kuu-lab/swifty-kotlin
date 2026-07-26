@@ -205,6 +205,108 @@ final class LoweringFlowCodegenTests: XCTestCase {
         }
     }
 
+    // KSP-674: flowOf / emptyFlow / Iterable.asFlow are Kotlin source composed
+    // from flow { } (kk_flow_create) + emit (kk_flow_emit); the dedicated
+    // kk_flow_of / kk_flow_empty / kk_flow_as_flow bridges were removed. These
+    // cases pin their end-to-end behavior, including the emitter-side capture of
+    // an outer val inside an explicit flow { } builder.
+    func testFlowOfVarargExecutablePrintsExpectedOutput() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        suspend fun runFlowOf() {
+            flowOf(1, 2, 3)
+                .map { it * 10 }
+                .filter { it > 10 }
+                .collect { println(it) }
+        }
+
+        fun main() {
+            runBlocking(::runFlowOf)
+            return
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "FlowOfExecutable",
+            expectedStdout: "20\n30\n"
+        )
+    }
+
+    func testEmptyFlowExecutableEmitsNothing() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        suspend fun runEmptyFlow() {
+            emptyFlow<Int>()
+                .collect { println(it) }
+            println("done")
+        }
+
+        fun main() {
+            runBlocking(::runEmptyFlow)
+            return
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "EmptyFlowExecutable",
+            expectedStdout: "done\n"
+        )
+    }
+
+    func testAsFlowCollectionExecutablePrintsExpectedOutput() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        suspend fun runAsFlow() {
+            listOf(4, 5, 6)
+                .asFlow()
+                .map { it + 100 }
+                .collect { println(it) }
+        }
+
+        fun main() {
+            runBlocking(::runAsFlow)
+            return
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "AsFlowExecutable",
+            expectedStdout: "104\n105\n106\n"
+        )
+    }
+
+    func testFlowBuilderCapturesOuterValExecutable() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        suspend fun runCapturingFlow() {
+            val base = 1000
+            flow {
+                for (i in 1..3) {
+                    emit(base + i)
+                }
+            }.collect { println(it) }
+        }
+
+        fun main() {
+            runBlocking(::runCapturingFlow)
+            return
+        }
+        """
+        try assertFlowExecutableOutput(
+            source: source,
+            moduleName: "FlowCaptureExecutable",
+            expectedStdout: "1001\n1002\n1003\n"
+        )
+    }
+
     private func assertFlowExecutableOutput(
         source: String,
         moduleName: String,

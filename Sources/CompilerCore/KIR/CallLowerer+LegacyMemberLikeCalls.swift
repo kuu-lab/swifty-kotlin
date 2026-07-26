@@ -229,35 +229,6 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1,
-           interner.resolve(calleeName) == "sortedArrayWith"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let runtimeCallee = interner.intern("kk_array_sortedArrayWith")
-                let sortedArrayWithArguments = adaptComparatorBackedCollectionArguments(
-                    loweredCallee: runtimeCallee,
-                    finalArguments: [loweredReceiverID] + normalizedArgIDs,
-                    sourceArgExprs: args.map(\.expr),
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: runtimeCallee,
-                    arguments: sortedArrayWithArguments,
-                    result: result,
-                    canThrow: true,
-                    thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
-                    )
-                ))
-                return result
-            }
-        }
-
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
