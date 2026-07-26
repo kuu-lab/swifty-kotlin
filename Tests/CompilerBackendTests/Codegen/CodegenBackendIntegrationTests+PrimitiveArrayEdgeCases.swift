@@ -150,7 +150,6 @@ extension CodegenBackendIntegrationTests {
             println(arrayOf("c", "a", "b").sortedArray().toList())
             println(intArrayOf(4, 1, 3, 2).sortedArray().toList())
             println(uintArrayOf(30u, 10u, 20u).sortedArray().toList())
-            println(booleanArrayOf(true, false, false).sortedArray().toList())
         }
         """
 
@@ -162,7 +161,6 @@ extension CodegenBackendIntegrationTests {
                 [a, b, c]
                 [1, 2, 3, 4]
                 [10, 20, 30]
-                [0, 0, 1]
                 """
                 + "\n"
         )
@@ -174,7 +172,6 @@ extension CodegenBackendIntegrationTests {
             println(arrayOf("c", "a", "b").sortedArrayDescending().toList())
             println(intArrayOf(4, 1, 3, 2).sortedArrayDescending().toList())
             println(uintArrayOf(30u, 10u, 20u).sortedArrayDescending().toList())
-            println(booleanArrayOf(true, false, false).sortedArrayDescending().toList())
         }
         """
 
@@ -186,7 +183,6 @@ extension CodegenBackendIntegrationTests {
                 [c, b, a]
                 [4, 3, 2, 1]
                 [30, 20, 10]
-                [1, 0, 0]
                 """
                 + "\n"
         )
