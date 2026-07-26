@@ -1040,7 +1040,7 @@ public extension RuntimeABISpec {
         ),
         // Mutex / Semaphore (sync primitives)
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_create",
+            name: "__kk_mutex_create",
             parameters: [],
             returnType: .intptr,
             section: "Coroutine"
@@ -1069,7 +1069,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_tryLock",
+            name: "__kk_mutex_tryLock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -1077,30 +1077,23 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_isLocked",
+            name: "__kk_mutex_isLocked",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KSP-677: Lock.withLock is Kotlin source delegating to this demoted
+        // __kk_lock_withLock bridge; the action is passed via the general
+        // closure-taking ABI (function pointer + closure environment + outThrown).
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_withLock",
+            name: "__kk_lock_withLock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_lock_withLock",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1132,7 +1125,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_create",
+            name: "__kk_semaphore_create",
             parameters: [
                 RuntimeABIParameter(name: "permits", type: .intptr),
             ],
@@ -1157,7 +1150,7 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_tryAcquire",
+            name: "__kk_semaphore_tryAcquire",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -1165,23 +1158,13 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_semaphore_availablePermits",
+            name: "__kk_semaphore_availablePermits",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_semaphore_withPermit",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "actionEnvPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        // KSP-677: kk_semaphore_withPermit removed — Semaphore.withPermit is Kotlin source.
     ]
 }
