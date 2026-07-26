@@ -25,13 +25,9 @@ struct LockSyntheticMemberLinkTests {
         return sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) }
     }
 
-    @Test func testLockWithLockMemberHasCorrectExternalLink() throws {
-        let (sema, interner) = try makeSema()
-
-        let links = externalLinks(for: "Lock", member: "withLock", sema: sema, interner: interner)
-        let hasLink = links.contains("kk_lock_withLock")
-        #expect(hasLink, "Lock.withLock() stub missing")
-    }
+    // KSP-677: Lock.withLock is migrated to Kotlin source
+    // (Stdlib/kotlin/concurrent/Lock.kt) delegating to the demoted
+    // __kk_lock_withLock bridge, so it is no longer a synthetic member.
 
     @Test func testReadWriteLockMembersHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
