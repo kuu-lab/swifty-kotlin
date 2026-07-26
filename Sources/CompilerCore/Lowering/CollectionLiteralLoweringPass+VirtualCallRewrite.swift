@@ -75,7 +75,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.allName
             || callee == lookup.noneName
             || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName,
+            || callee == lookup.lastOrNullName
+            // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
+            || callee == lookup.isEmptyName
+            || callee == lookup.iteratorName,
             let symbol,
             let sema = context.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),

@@ -37,13 +37,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(readWriteLockType, for: readWriteLockSymbol)
 
-        registerReadWriteLockConstructor(
-            ownerSymbol: readWriteLockSymbol,
-            ownerType: readWriteLockType,
-            externalLinkName: "kk_reentrant_read_write_lock_new",
-            symbols: symbols,
-            interner: interner
-        )
         registerReadWriteLockReadExtension(
             ownerSymbol: readWriteLockSymbol,
             ownerType: readWriteLockType,
@@ -55,50 +48,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerReadWriteLockConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerInfo.fqName + [initName]
-        if let existing = symbols.lookupAll(fqName: ctorFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.parameterTypes.isEmpty && signature.returnType == ownerType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [],
-                returnType: ownerType,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: []
-            ),
-            for: ctorSymbol
-        )
-    }
 
     private func registerReadWriteLockReadExtension(
         ownerSymbol: SymbolID,
