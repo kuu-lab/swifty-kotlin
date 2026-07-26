@@ -737,19 +737,18 @@ extension CallTypeChecker {
         )
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
+            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
+            // through bundled Kotlin source (Channels.kt) via normal candidate
+            // resolution below; only the suspension core send / receive are
+            // special-cased here.
             switch (memberName, args.count) {
-            case ("send", 1), ("close", 0):
+            case ("send", 1):
                 let resultType = sema.types.unitType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             case ("receive", 0):
                 let resultType = sema.types.nullableAnyType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            case ("isClosedForReceive", 0), ("isClosedForSend", 0):
-                let resultType = sema.types.booleanType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType

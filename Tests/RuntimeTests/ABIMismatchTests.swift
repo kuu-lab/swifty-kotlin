@@ -972,19 +972,21 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKLockWithLockSignature() throws {
-        let spec = try requireSpec("kk_lock_withLock")
+        let spec = try requireSpec("__kk_lock_withLock")
         XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 3)
+        XCTAssertEqual(spec.parameters.count, 4)
         XCTAssertEqual(spec.parameters[0].name, "handle")
         XCTAssertEqual(spec.parameters[0].type, .intptr)
         XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
         XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
+        XCTAssertEqual(spec.parameters[2].name, "closureRaw")
         XCTAssertEqual(spec.parameters[2].type, .intptr)
+        XCTAssertEqual(spec.parameters[3].name, "outThrown")
+        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
     }
 
     func testKKMutexCreateSignature() throws {
-        let spec = try requireSpec("kk_mutex_create")
+        let spec = try requireSpec("__kk_mutex_create")
         XCTAssertEqual(spec.returnType, .intptr)
         XCTAssertEqual(spec.parameters.count, 0)
     }
@@ -1014,7 +1016,7 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKMutexTryLockSignature() throws {
-        let spec = try requireSpec("kk_mutex_tryLock")
+        let spec = try requireSpec("__kk_mutex_tryLock")
         XCTAssertEqual(spec.returnType, .intptr)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].name, "handle")
@@ -1022,26 +1024,14 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKMutexIsLockedSignature() throws {
-        let spec = try requireSpec("kk_mutex_isLocked")
+        let spec = try requireSpec("__kk_mutex_isLocked")
         XCTAssertEqual(spec.returnType, .intptr)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].name, "handle")
         XCTAssertEqual(spec.parameters[0].type, .intptr)
     }
 
-    func testKKMutexWithLockSignature() throws {
-        let spec = try requireSpec("kk_mutex_withLock")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 4)
-        XCTAssertEqual(spec.parameters[0].name, "handle")
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
-        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
-        XCTAssertEqual(spec.parameters[1].type, .intptr)
-        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
-        XCTAssertEqual(spec.parameters[2].type, .intptr)
-        XCTAssertEqual(spec.parameters[3].name, "continuation")
-        XCTAssertEqual(spec.parameters[3].type, .intptr)
-    }
+    // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.
 
     func testKKReadWriteLockReadSignature() throws {
         let spec = try requireSpec("kk_read_write_lock_read")

@@ -90,20 +90,6 @@ public extension RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_binarySearch_compare",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "element", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "fromIndex", type: .intptr),
-                RuntimeABIParameter(name: "toIndex", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Array"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_vararg_spread_concat",
             parameters: [
                 RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),

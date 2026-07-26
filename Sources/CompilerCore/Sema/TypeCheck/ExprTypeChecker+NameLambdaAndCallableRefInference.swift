@@ -879,10 +879,22 @@ extension ExprTypeChecker {
         // Passing Unit down as the body's expectedType would incorrectly propagate
         // into the body's own call resolution -- e.g. rejecting `addOne(i): Int` as
         // "no viable overload" because Int isn't a subtype of the pushed-down Unit.
-        // Only push the expected return type down when it isn't Unit.
-        let bodyExpectedType = expectedFunctionType?.returnType == sema.types.unitType
-            ? nil
-            : expectedFunctionType?.returnType
+        // Only push the expected return type down when it isn't Unit. An unresolved
+        // type parameter (the `T` of `fun <T> f(action: () -> T): T`) is treated the
+        // same way: it cannot constrain the body's own resolution, and pushing it
+        // down makes a Unit-valued body (e.g. `{ println() }`) fail to type-check.
+        // Leaving it out lets the body infer its natural type so the caller can solve
+        // the type variable from it.
+        let bodyExpectedType: TypeID? = {
+            guard let expectedReturnType = expectedFunctionType?.returnType,
+                  expectedReturnType != sema.types.unitType else {
+                return nil
+            }
+            if case .typeParam = sema.types.kind(of: expectedReturnType) {
+                return nil
+            }
+            return expectedReturnType
+        }()
         let inferredBodyType = driver.inferExpr(
             body,
             ctx: bodyCtx,
