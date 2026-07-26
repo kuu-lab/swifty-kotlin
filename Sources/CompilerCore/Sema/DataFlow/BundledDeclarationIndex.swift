@@ -292,7 +292,8 @@ struct BundledDeclarationIndex: Sendable {
         // contains, any, all, none, count, first, last, single) are source-bound.
         // KSP-426 source-backed sorting HOFs (sorted, sortedBy, sortedWith, etc.) are
         // now emitted from bundled Kotlin source; do not retain the runtime bridge.
-        case "reversed", "sorted":
+        // reversed is still KSP-428 and remains bridge-backed for now.
+        case "reversed":
             return key.arity == 0
         case "shuffled":
             return key.arity == 0 || key.arity == 1

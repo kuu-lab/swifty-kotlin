@@ -816,99 +816,9 @@ public func kk_list_reduceRightOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw
 
 
 
-@_cdecl("kk_list_associateBy")
-public func kk_list_associateBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    var keys: [Int] = []
-    var values: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let key = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        keys.append(maybeUnbox(key))
-        values.append(elem)
-    }
-    let normalized = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: normalized.0, values: normalized.1))
-}
 
-@_cdecl("kk_list_associateByTransform")
-public func kk_list_associateByTransform(_ listRaw: Int, _ keyFnPtr: Int, _ keyClosureRaw: Int, _ valueFnPtr: Int, _ valueClosureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    var keys: [Int] = []
-    var values: [Int] = []
-    for elem in list.elements {
-        var keyThrown = 0
-        let key = runtimeInvokeCollectionLambda1(fnPtr: keyFnPtr, closureRaw: keyClosureRaw, value: elem, outThrown: &keyThrown)
-        if keyThrown != 0 { return handleCollectionLambdaThrow(keyThrown, outThrown) }
-        var valueThrown = 0
-        let value = runtimeInvokeCollectionLambda1(fnPtr: valueFnPtr, closureRaw: valueClosureRaw, value: elem, outThrown: &valueThrown)
-        if valueThrown != 0 { return handleCollectionLambdaThrow(valueThrown, outThrown) }
-        keys.append(maybeUnbox(key))
-        values.append(maybeUnbox(value))
-    }
-    let normalized = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: normalized.0, values: normalized.1))
-}
 
-@_cdecl("kk_list_associateWith")
-public func kk_list_associateWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    var keys: [Int] = []
-    var values: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let value = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        keys.append(elem)
-        values.append(maybeUnbox(value))
-    }
-    let normalized = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: normalized.0, values: normalized.1))
-}
 
-@_cdecl("kk_list_associate")
-public func kk_list_associate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    var keys: [Int] = []
-    var values: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let pair = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        keys.append(kk_pair_first(pair))
-        values.append(kk_pair_second(pair))
-    }
-    let normalized = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: normalized.0, values: normalized.1))
-}
-
-@_cdecl("kk_list_associateTo")
-public func kk_list_associateTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let elements = runtimeCollectionElements(from: listRaw) else {
-        invalidContainerPanic(#function, "collection")
-    }
-    guard runtimeMapBox(from: destRaw) != nil else {
-        invalidContainerPanic(#function, "map")
-    }
-    for elem in elements {
-        var thrown = 0
-        let pair = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        _ = kk_mutable_map_put(destRaw, kk_pair_first(pair), kk_pair_second(pair))
-    }
-    return destRaw
-}
 
 // MARK: - STDLIB-535/536/537: associateByTo / associateWithTo / groupByTo
 

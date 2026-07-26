@@ -2508,6 +2508,30 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCallee {
+                    let runtimeHOFWithLambdaCallees: Set<String> = [
+                        "kk_array_map", "kk_array_filter", "kk_array_forEach",
+                        "kk_array_any", "kk_array_all", "kk_array_none", "kk_array_count",
+                        "kk_iterable_firstNotNullOf", "kk_iterable_firstNotNullOfOrNull",
+                        "kk_array_reduce", "kk_array_reduceOrNull", "kk_array_reduceIndexed",
+                        "kk_array_fold", "kk_array_foldIndexed", "kk_array_flatMap",
+                    ]
+                    let callArguments: [KIRExprID]
+                    if runtimeHOFWithLambdaCallees.contains(runtimeCallee),
+                       normalizedArgIDs.count == 1,
+                       args.count == 1
+                    {
+                        let expandedArgs = makeCollectionHOFExpandedArguments(
+                            loweredArgID: normalizedArgIDs[0],
+                            argExprID: args[0].expr,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        callArguments = [loweredReceiverID] + expandedArgs
+                    } else {
+                        callArguments = [loweredReceiverID] + normalizedArgIDs
+                    }
                     let canThrow = runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
                         || runtimeCallee == "kk_array_reduce"
@@ -2516,6 +2540,11 @@ extension CallLowerer {
                         || runtimeCallee == "kk_array_fold"
                         || runtimeCallee == "kk_array_foldIndexed"
                         || runtimeCallee == "kk_array_flatMap"
+                        || runtimeCallee == "kk_array_any"
+                        || runtimeCallee == "kk_array_all"
+                        || runtimeCallee == "kk_array_none"
+                        || runtimeCallee == "kk_array_forEach"
+                        || runtimeCallee == "kk_array_count"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
                             .temporary(Int32(arena.expressions.count)),
@@ -2525,7 +2554,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        arguments: callArguments,
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult

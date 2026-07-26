@@ -301,6 +301,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
             finalArguments.append(radixExpr)
         }
+        // Array predicate HOFs (any/none/all/count/forEach) are lowered to runtime
+        // functions whose native signature is (arrayRaw, fnPtr, closureRaw, outThrown).
+        // When Sema resolves these through the unresolved-member fallback, the lambda
+        // argument is not yet split into fnPtr + closureRaw, so expand it now.
+        let arrayPredicateHOFRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_array_any"),
+            interner.intern("kk_array_none"),
+            interner.intern("kk_array_all"),
+            interner.intern("kk_array_count"),
+            interner.intern("kk_array_forEach"),
+        ]
+        if arrayPredicateHOFRuntimeCallees.contains(loweredCallee),
+           finalArguments.count == 2
+        {
+            let callbackArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs.first ?? ExprID(rawValue: finalArguments[1].rawValue),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + callbackArgs
+        }
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,

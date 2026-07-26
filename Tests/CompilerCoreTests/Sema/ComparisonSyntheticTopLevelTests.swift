@@ -46,6 +46,57 @@ struct ComparisonSyntheticTopLevelTests {
         }
     }
 
+    /// Regression: bundled `kotlin.collections.maxOf` / `minOf` extensions must not
+    /// shadow top-level `kotlin.comparisons.maxOf` / `minOf` special-call detection.
+    @Test
+    func testTopLevelMaxOfMinOfResolveEvenWhenListExtensionsAreVisible() throws {
+        let source = """
+        fun sample(): Int {
+            val a = maxOf(1, 2)
+            val b = minOf(1, 2)
+            val fromList = listOf(1, 2, 3).maxOf { it * 2 }
+            return a + b + fromList
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let topLevelMaxOf = try #require(lastExprID(in: ast) { _, expr in
+                guard case let .call(calleeExpr, _, _, _) = expr,
+                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                      interner.resolve(calleeName) == "maxOf"
+                else { return false }
+                return true
+            })
+            #expect(sema.bindings.stdlibSpecialCallKind(for: topLevelMaxOf) == .maxOfInt)
+
+            let topLevelMinOf = try #require(lastExprID(in: ast) { _, expr in
+                guard case let .call(calleeExpr, _, _, _) = expr,
+                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                      interner.resolve(calleeName) == "minOf"
+                else { return false }
+                return true
+            })
+            #expect(sema.bindings.stdlibSpecialCallKind(for: topLevelMinOf) == .minOfInt)
+
+            let listMaxOf = try #require(lastExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, calleeName, _, _, _) = expr,
+                      interner.resolve(calleeName) == "maxOf"
+                else { return false }
+                return true
+            })
+            #expect(sema.bindings.stdlibSpecialCallKind(for: listMaxOf) == nil)
+            let listMaxOfType = try #require(sema.bindings.exprTypes[listMaxOf])
+            #expect(listMaxOfType == sema.types.intType)
+        }
+    }
+
     @Test
     func testCompareByAndCompareByDescendingResolveToBundledStdlibFunctions() throws {
         let source = """

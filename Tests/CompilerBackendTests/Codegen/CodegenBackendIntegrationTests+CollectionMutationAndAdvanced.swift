@@ -7,7 +7,7 @@ extension CodegenBackendIntegrationTests {
     func testCodegenCollectionConstructorsCopySourceElements() throws {
         let source = """
         fun main() {
-            val source: Collection<Int> = listOf(1, 2)
+            val source: List<Int> = listOf(1, 2)
             val copiedList = ArrayList(source)
             copiedList.add(3)
             println(source.size)
@@ -15,7 +15,7 @@ extension CodegenBackendIntegrationTests {
             println(copiedList.contains(3))
             println(source.contains(3))
 
-            val duplicated: Collection<Int> = listOf(1, 2, 2)
+            val duplicated: List<Int> = listOf(1, 2, 2)
             val hashCopy = HashSet(duplicated)
             hashCopy.add(4)
             println(hashCopy.size)

@@ -891,6 +891,16 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
+            let listResultType: TypeID = if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(collectionElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
+
             func bindBundledSequenceAggregateSource(typeArguments: [TypeID]) {
                 guard isSequenceReceiver else {
                     return
@@ -2504,7 +2514,13 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                resultType = isInPlaceMutation ? sema.types.unitType : receiverType
+                if isInPlaceMutation {
+                    resultType = sema.types.unitType
+                } else if isSequenceReceiver {
+                    resultType = receiverType
+                } else {
+                    resultType = listResultType
+                }
 
             case "sort", "sorted", "sortedDescending":
                 let isInPlaceMutation = calleeStr == "sort"
@@ -2531,7 +2547,13 @@ extension CallTypeChecker {
                     }
                 }
                 _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
-                resultType = isInPlaceMutation ? sema.types.unitType : receiverType
+                if isInPlaceMutation {
+                    resultType = sema.types.unitType
+                } else if isSequenceReceiver {
+                    resultType = receiverType
+                } else {
+                    resultType = listResultType
+                }
 
             case "sortedWith", "sortedArrayWith", "sortWith":
                 let isInPlaceMutation = calleeStr == "sortWith"
@@ -2540,9 +2562,9 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: failedType)
                     return failedType
                 }
-                if calleeStr == "sortedArrayWith" {
-                    // Arrays still route to the runtime kk_array_sortedArrayWith helper,
-                    // which expects a (T, T) -> Int function pointer.
+                let usesRuntimeFunctionPointerComparator = calleeStr == "sortedArrayWith" || isSequenceReceiver
+                if usesRuntimeFunctionPointerComparator {
+                    // Arrays and Sequences still route to runtime helpers that expect a (T, T) -> Int function pointer.
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                             params: [collectionElementType, collectionElementType],
@@ -2572,7 +2594,15 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                resultType = isInPlaceMutation ? sema.types.unitType : receiverType
+                if isInPlaceMutation {
+                    resultType = sema.types.unitType
+                } else if calleeStr == "sortedArrayWith" {
+                    resultType = receiverType
+                } else if isSequenceReceiver {
+                    resultType = receiverType
+                } else {
+                    resultType = listResultType
+                }
 
             case "maxWith", "minWith", "maxWithOrNull", "minWithOrNull":
                 guard args.count == 1 else {
@@ -2582,17 +2612,32 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: failedType)
                     return failedType
                 }
-                let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-                let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
-                    sema.types.make(.classType(ClassType(
-                        classSymbol: comparatorSymbol,
-                        args: [.invariant(collectionElementType)],
-                        nullability: .nonNull
-                    )))
+                if isSequenceReceiver {
+                    // Sequence extrema runtime helpers expect a (T, T) -> Int function pointer.
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                            params: [collectionElementType, collectionElementType],
+                            returnType: sema.types.intType
+                        )))
+                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    } else {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+                    }
                 } else {
-                    nil
+                    // List/MutableList extrema source uses Comparator<T>.
+                    let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+                    let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: comparatorSymbol,
+                            args: [.invariant(collectionElementType)],
+                            nullability: .nonNull
+                        )))
+                    } else {
+                        nil
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                 }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                 if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
