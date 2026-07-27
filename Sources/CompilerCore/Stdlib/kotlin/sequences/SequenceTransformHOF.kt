@@ -392,8 +392,8 @@ public fun <T> Sequence<Sequence<T>>.flatten(): Sequence<T> {
     }
 }
 
-public fun <T> Sequence<T>.withIndex(): Sequence<Pair<Int, T>> =
-    mapIndexed<T, Pair<Int, T>> { index, value -> Pair(index, value) }
+public fun <T> Sequence<T>.withIndex(): Sequence<IndexedValue<T>> =
+    mapIndexed<T, IndexedValue<T>> { index, value -> IndexedValue(index, value) }
 
 public fun <T : Any> Sequence<T?>.filterNotNull(): Sequence<T> {
     val source = this

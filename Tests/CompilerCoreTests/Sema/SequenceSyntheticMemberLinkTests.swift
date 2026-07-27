@@ -1523,15 +1523,16 @@ struct SequenceSyntheticMemberLinkTests {
             )
             #expect(sema.symbols.externalLinkName(for: withIndexSymbol) == nil)
 
-            let pairSymbol = try #require(sema.symbols.lookup(fqName: [
+            let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
-                ctx.interner.intern("Pair"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("IndexedValue"),
             ]))
             let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
             guard case let .classType(sequenceType) = sema.types.kind(of: signature.returnType),
                   let firstArg = sequenceType.args.first
             else {
-                Issue.record("Expected Sequence.withIndex() to return Sequence<Pair<Int, T>>")
+                Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
                 return
             }
             let elementType: TypeID
@@ -1542,11 +1543,11 @@ struct SequenceSyntheticMemberLinkTests {
                 Issue.record("Expected Sequence.withIndex() element type, got star projection")
                 return
             }
-            guard case let .classType(pairType) = sema.types.kind(of: elementType) else {
-                Issue.record("Expected Sequence.withIndex() to return Sequence<Pair<Int, T>>")
+            guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
+                Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
                 return
             }
-            #expect(pairType.classSymbol == pairSymbol)
+            #expect(indexedValueType.classSymbol == indexedValueSymbol)
         }
     }
 

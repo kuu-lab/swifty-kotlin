@@ -9,11 +9,30 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
 }
 
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
+private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+
+/// Dispatches an `Iterator` method on a source-implemented `Iterator` object by
+/// looking up the `kotlin.collections.Iterator` itable dynamically.
+private func runtimeIteratorMethodCall(
+    _ iterRaw: Int,
+    methodSlot: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let fnPtr = kk_itable_lookup_dynamic(iterRaw, Int(runtimeIteratorInterfaceTypeID), methodSlot)
+    guard fnPtr != 0 else {
+        return 0
+    }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return fn(iterRaw, outThrown)
+}
 
 /// Iterates a source-implemented `Sequence` object (created by Kotlin `object`
 /// expressions implementing `kotlin.sequences.Sequence`) by dispatching through
 /// the Sequence itable to obtain an `Iterator`, then driving that iterator with
-/// the generic `kk_iterator_hasNext` / `kk_iterator_next` runtime dispatchers.
+/// the `Iterator` itable directly so thrown exceptions can be propagated.
 /// Returns `true` if `rawValue` is a source `Sequence` and was iterated (or an
 /// exception was recorded in `outThrown`). Returns `false` if it is not a source
 /// `Sequence` so callers can fall back to runtime box handling.
@@ -41,9 +60,27 @@ private func runtimeTraverseSourceSequenceObject(
         return true
     }
     while true {
-        let hasNext = kk_iterator_hasNext(iterRaw)
+        var hasNextThrown: Int = 0
+        let hasNext = runtimeIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: &hasNextThrown)
+        if hasNextThrown != 0 {
+            if let outThrown {
+                outThrown.pointee = hasNextThrown
+            } else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence Iterator.hasNext() threw an exception")
+            }
+            return true
+        }
         if hasNext == 0 { break }
-        let element = kk_iterator_next(iterRaw)
+        var nextThrown: Int = 0
+        let element = runtimeIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: &nextThrown)
+        if nextThrown != 0 {
+            if let outThrown {
+                outThrown.pointee = nextThrown
+            } else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: source Sequence Iterator.next() threw an exception")
+            }
+            return true
+        }
         if !yield(element) { break }
     }
     return true

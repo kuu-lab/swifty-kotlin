@@ -45,11 +45,10 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
             || callee == lookup.mapIndexedNotNullToName
-            // KSP-441: flatMap/flatMapIndexed source object-expressions are routed
-            // to kk_sequence_flatMap/kk_sequence_flatMapIndexed by the lowering
-            // pipeline, not executed from source.
-            // || callee == lookup.flatMapName
-            // || callee == lookup.flatMapIndexedName
+            // KSP-441: Sequence source flatMap/flatMapIndexed is routed through the
+            // runtime pipeline; non-Sequence source flatMap is preserved.
+            || callee == lookup.flatMapName
+            || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName
             || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
@@ -110,7 +109,8 @@ extension CollectionLiteralConstructionLoweringPass {
            state.sequenceExprIDs.contains(receiverID.rawValue) {
             return false
         }
-        if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName {
+        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName),
+           isSequenceReceiverType(symbol: symbol, ctx: ctx) {
             return false
         }
         return true
