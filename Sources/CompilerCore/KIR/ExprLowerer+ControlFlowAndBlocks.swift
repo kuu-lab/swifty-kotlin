@@ -954,7 +954,6 @@ extension ExprLowerer {
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
                     let isCustomDelegateDecl = isDelegated
                         && StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner) == .custom
-                        && !sema.symbols.hasProvideDelegate(for: symbol)
                     if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
                         // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
                         // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
@@ -962,12 +961,28 @@ extension ExprLowerer {
                         // the pre-fix behavior, which made a primitive-returning
                         // delegate observably return a raw object handle instead
                         // of its unboxed value. Stdlib-special-cased kinds (lazy/
-                        // observable/vetoable/notNull — KSP-491/492) and
-                        // provideDelegate are excluded above and fall through to
-                        // the unchanged `else` path below.
-                        driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
+                        // observable/vetoable/notNull — KSP-491/492) are excluded
+                        // above and fall through to the unchanged `else` path below.
+                        //
+                        // provideDelegate (BUG-146): when the delegate exposes a
+                        // `provideDelegate` operator, the *effective* delegate is
+                        // its return value, mirroring member/top-level lowering in
+                        // KIRLoweringDriver+ProvideDelegate.swift. Call
+                        // `Factory().provideDelegate(null, KProperty("x"))` first and
+                        // resolve getValue/setValue against that result (Sema already
+                        // recorded getValue/setValue for the effective delegate type
+                        // via DeclTypeChecker.typeCheckDelegate).
+                        let effectiveDelegateID = lowerLocalProvideDelegateIfNeeded(
+                            symbol: symbol,
+                            rawDelegateID: initializerID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        driver.ctx.setLocalDelegateStorage(effectiveDelegateID, for: symbol)
                         let propertyType = sema.symbols.propertyType(for: symbol)
-                            ?? arena.exprType(initializerID)
+                            ?? arena.exprType(effectiveDelegateID)
                             ?? sema.types.anyType
                         driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
                         let getterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
@@ -981,7 +996,7 @@ extension ExprLowerer {
                         instructions.append(.call(
                             symbol: getValueSymbol,
                             callee: interner.intern("getValue"),
-                            arguments: [initializerID] + getterArgs,
+                            arguments: [effectiveDelegateID] + getterArgs,
                             result: resultExprID,
                             canThrow: false,
                             thrownResult: nil
@@ -2361,5 +2376,44 @@ extension ExprLowerer {
                 thrownResult: nil
             ))
         }
+    }
+
+    /// Resolves the *effective* delegate for a local custom-delegate declaration
+    /// (BUG-146). When the delegate factory exposes a `provideDelegate` operator,
+    /// the actual delegate is its return value — the same rule member/top-level
+    /// delegated properties follow in KIRLoweringDriver+ProvideDelegate.swift.
+    /// Emits `rawDelegate.provideDelegate(null, KProperty("x"))` and returns the
+    /// result. When no `provideDelegate` is present, returns `rawDelegateID`
+    /// unchanged (the delegate factory instance is itself the delegate).
+    func lowerLocalProvideDelegateIfNeeded(
+        symbol: SymbolID,
+        rawDelegateID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard sema.symbols.hasProvideDelegate(for: symbol),
+              let provideDelegateSymbol = sema.symbols.delegateProvideDelegateSymbol(for: symbol)
+        else {
+            return rawDelegateID
+        }
+        let provideArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
+            localSymbol: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        let providedExprID = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: provideDelegateSymbol,
+            callee: interner.intern("provideDelegate"),
+            arguments: [rawDelegateID] + provideArgs,
+            result: providedExprID,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return providedExprID
     }
 }

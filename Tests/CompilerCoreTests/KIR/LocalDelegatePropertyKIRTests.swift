@@ -140,6 +140,127 @@ struct LocalDelegatePropertyKIRTests {
         }
     }
 
+    @Test func testLocalValProvideDelegateEmitsProvideDelegateThenGetValue() throws {
+        // BUG-146: a local delegate whose factory exposes `provideDelegate` must
+        // first call `provideDelegate` and then resolve getValue against its
+        // *result* (the effective delegate), not bind the local to the raw
+        // factory instance.
+        let source = """
+        class ValidatedDelegate(private val value: String) {
+            operator fun getValue(thisRef: Any?, property: Any?): String = value
+        }
+        class DelegateFactory {
+            operator fun provideDelegate(thisRef: Any?, prop: Any?): ValidatedDelegate = ValidatedDelegate("ok")
+        }
+        fun main() {
+            val name by DelegateFactory()
+            println(name)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local provideDelegate declaration should compile without errors: \(diagnosticMessages)")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(
+                callees.contains("provideDelegate"),
+                "Local delegated declaration with a provideDelegate operator should call provideDelegate, got: \(callees)"
+            )
+            #expect(
+                callees.contains("getValue"),
+                "Local provideDelegate declaration should still call getValue on the effective delegate, got: \(callees)"
+            )
+        }
+    }
+
+    @Test func testLocalValProvideDelegateGetValueReceivesProvideDelegateResult() throws {
+        // The effective delegate is provideDelegate's return value, so getValue's
+        // receiver argument must be provideDelegate's result — never the raw
+        // factory instance (the pre-fix behavior bound `x` to the factory itself).
+        let source = """
+        class ValidatedDelegate(private val value: String) {
+            operator fun getValue(thisRef: Any?, property: Any?): String = value
+        }
+        class DelegateFactory {
+            operator fun provideDelegate(thisRef: Any?, prop: Any?): ValidatedDelegate = ValidatedDelegate("ok")
+        }
+        fun main() {
+            val name by DelegateFactory()
+            println(name)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            var provideDelegateResult: KIRExprID?
+            var getValueArguments: [KIRExprID] = []
+            for instruction in mainBody {
+                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
+                switch ctx.interner.resolve(callee) {
+                case "provideDelegate":
+                    provideDelegateResult = result
+                case "getValue":
+                    getValueArguments = arguments
+                default:
+                    break
+                }
+            }
+
+            let resolvedProvideResult = try #require(provideDelegateResult, "expected a provideDelegate call in main")
+            #expect(
+                getValueArguments.first == resolvedProvideResult,
+                "getValue's receiver must be provideDelegate's result (the effective delegate), not the raw factory instance"
+            )
+        }
+    }
+
+    @Test func testLocalVarProvideDelegateEmitsSetValueOnEffectiveDelegate() throws {
+        let source = """
+        class IntBox(private var stored: Int) {
+            operator fun getValue(thisRef: Any?, property: Any?): Int = stored
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) { stored = value }
+        }
+        class IntBoxFactory(private val initial: Int) {
+            operator fun provideDelegate(thisRef: Any?, prop: Any?): IntBox = IntBox(initial)
+        }
+        fun main() {
+            var counter by IntBoxFactory(10)
+            counter = 42
+            println(counter)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local provideDelegate var should compile without errors: \(diagnosticMessages)")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(
+                callees.contains("provideDelegate"),
+                "Expected a provideDelegate call, got: \(callees)"
+            )
+            #expect(
+                callees.contains("setValue"),
+                "Assigning a local provideDelegate var should call setValue, got: \(callees)"
+            )
+        }
+    }
+
     @Test func testStdlibLazyLocalDelegateIsUnaffected() throws {
         // Stdlib-special-cased delegate kinds (lazy/observable/vetoable/notNull)
         // are explicitly out of scope for this fix (KSP-491/492) and must keep
