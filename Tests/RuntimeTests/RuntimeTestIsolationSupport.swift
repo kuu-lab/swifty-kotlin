@@ -326,8 +326,18 @@ func runtimeIsolationLockSerializesConcurrentContenders() async {
 
     #expect(probe.maxObserved == 1)
     // The single token is back (balanced release, no leak).
-    #expect(mutex.wait(timeout: .now()) == .success)
-    mutex.signal()
+    // Use a synchronous helper because DispatchSemaphore.wait is unavailable in async contexts.
+    #expect(waitAndRelease(mutex, timeout: .now()) == .success)
+}
+
+/// Synchronous, non-async helper to test whether a semaphore is immediately
+/// available. If the wait succeeds, the acquired token is released before returning.
+private func waitAndRelease(_ semaphore: DispatchSemaphore, timeout: DispatchTime) -> DispatchTimeoutResult {
+    let result = semaphore.wait(timeout: timeout)
+    if result == .success {
+        semaphore.signal()
+    }
+    return result
 }
 
 /// Use this base class for runtime tests that mutate global runtime state or
