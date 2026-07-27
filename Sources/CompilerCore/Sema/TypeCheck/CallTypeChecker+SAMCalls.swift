@@ -264,6 +264,7 @@ extension CallTypeChecker {
         // Mark the lambda as SAM-converted and bind the underlying function type.
         sema.bindings.markSamConversion(argExpr)
         sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
+        sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
         // The whole call expression has the interface type.
         sema.bindings.bindExprType(id, type: interfaceType)
