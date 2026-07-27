@@ -55,12 +55,22 @@ extension BuildASTPhase {
         /// Callers must pair this with `defer { leaveRecursion() }`.
         func enterRecursion() -> Bool {
             recursionDepth += 1
-            guard recursionDepth > Self.maxRecursionDepth else { return true }
+            let exceededCap = recursionDepth > Self.maxRecursionDepth
+            // The cap assumes a stack large enough for `maxRecursionDepth`
+            // frames; on the 512 KiB threads the frontend also parses on
+            // (Dispatch workers, cooperative pool, LSP requests) the stack runs
+            // out first, so probe it to keep this a diagnostic and not a crash.
+            guard exceededCap || StackHeadroom.isExhausted(atDepth: recursionDepth) else {
+                return true
+            }
             if !depthLimitReported {
                 depthLimitReported = true
+                let reason = exceededCap
+                    ? "exceeded maximum depth of \(Self.maxRecursionDepth)"
+                    : "exhausted the available stack at depth \(recursionDepth)"
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0012",
-                    "Expression nesting is too deep (exceeded maximum depth of \(Self.maxRecursionDepth)).",
+                    "Expression nesting is too deep (\(reason)).",
                     range: current()?.range
                 )
             }

@@ -59,10 +59,10 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine? = nil,
         recursionDepth: Int = 0
     ) -> TypeID? {
-        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+        if let reason = DataFlowSemaPhase.structuralRecursionLimitReason(at: recursionDepth) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-TYPE-DEPTH",
-                "Type nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                "Type nesting is too deep (\(reason)).",
                 range: nil
             )
             return types.errorType
@@ -539,6 +539,22 @@ extension DataFlowSemaPhase {
     /// on deeply nested generic / function types.
     private static let maxStructuralRecursionDepth = 512
 
+    /// Describes why structural recursion must stop at `depth`, or `nil` to continue.
+    ///
+    /// The depth cap alone is not enough: a level costs roughly 4 KiB, so 512
+    /// levels need ~2 MiB and overrun the 512 KiB stacks of cooperative-pool and
+    /// Dispatch worker threads long before the cap trips. Probing the remaining
+    /// stack turns that crash back into this diagnostic.
+    static func structuralRecursionLimitReason(at depth: Int) -> String? {
+        if depth > maxStructuralRecursionDepth {
+            return "exceeded maximum depth of \(maxStructuralRecursionDepth)"
+        }
+        if StackHeadroom.isExhausted(atDepth: depth) {
+            return "exhausted the available stack at depth \(depth)"
+        }
+        return nil
+    }
+
     private func resolveTypeAliasUnderlying(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
@@ -656,10 +672,10 @@ extension DataFlowSemaPhase {
         recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
-        guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
+        if let reason = DataFlowSemaPhase.structuralRecursionLimitReason(at: recursionDepth) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-TYPE-DEPTH",
-                "Type substitution nesting is too deep (exceeded maximum depth of \(DataFlowSemaPhase.maxStructuralRecursionDepth)).",
+                "Type substitution nesting is too deep (\(reason)).",
                 range: nil
             )
             return types.errorType

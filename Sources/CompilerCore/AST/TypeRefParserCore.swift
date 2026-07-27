@@ -34,13 +34,28 @@ enum TypeRefParserCore {
     /// growth on deeply nested untrusted source (a stack-overflow DoS).
     static let maxRecursionDepth = 512
 
+    /// Whether the mutually recursive type parser must stop at `depth`.
+    ///
+    /// The depth cap alone assumes a stack large enough for `maxRecursionDepth`
+    /// frames, which does not hold on the 512 KiB threads the frontend also runs
+    /// on (Dispatch workers for the parallel per-file passes, cooperative pool,
+    /// LSP requests); there the stack is gone long before the cap trips, turning
+    /// the guard into a crash. Probing the remaining stack keeps it a diagnostic.
+    static func exceedsRecursionLimit(_ depth: Int) -> Bool {
+        depth > maxRecursionDepth || StackHeadroom.isExhausted(atDepth: depth)
+    }
+
     private static func reportTypeRecursionDepthExceeded(
+        depth: Int,
         diagnostics: DiagnosticEngine?,
         range: SourceRange?
     ) {
+        let reason = depth > maxRecursionDepth
+            ? "exceeded maximum depth of \(maxRecursionDepth)"
+            : "exhausted the available stack at depth \(depth)"
         diagnostics?.error(
             "KSWIFTK-PARSE-TYPE-DEPTH",
-            "Type nesting is too deep (exceeded maximum depth of \(maxRecursionDepth))",
+            "Type nesting is too deep (\(reason))",
             range: range
         )
     }
@@ -84,8 +99,9 @@ enum TypeRefParserCore {
         diagnostics: DiagnosticEngine?,
         recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -147,8 +163,9 @@ enum TypeRefParserCore {
             return nil
         }
 
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -316,8 +333,9 @@ enum TypeRefParserCore {
             return nil
         }
 
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -397,8 +415,9 @@ enum TypeRefParserCore {
         diagnostics: DiagnosticEngine?,
         recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -533,8 +552,9 @@ enum TypeRefParserCore {
             return nil
         }
 
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -608,8 +628,9 @@ enum TypeRefParserCore {
         diagnostics: DiagnosticEngine?,
         recursionDepth: Int
     ) -> [TypeRefID]? {
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: range.lowerBound < tokens.count ? tokens[range.lowerBound].range : nil
             )
@@ -738,8 +759,9 @@ enum TypeRefParserCore {
             return nil
         }
 
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: start < tokens.count ? tokens[start].range : nil
             )
@@ -807,8 +829,9 @@ enum TypeRefParserCore {
             return nil
         }
 
-        guard recursionDepth <= maxRecursionDepth else {
+        guard !exceedsRecursionLimit(recursionDepth) else {
             reportTypeRecursionDepthExceeded(
+                depth: recursionDepth,
                 diagnostics: diagnostics,
                 range: parenStart < tokens.count ? tokens[parenStart].range : nil
             )
