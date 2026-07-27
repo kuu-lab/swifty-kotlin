@@ -307,6 +307,15 @@ extension ExprLowerer {
                 }
             }
             if let symbol = sema.bindings.identifierSymbols[exprID] {
+                if let delegateValue = lowerLocalStdlibDelegateRead(
+                    symbol: symbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    return delegateValue
+                }
                 if driver.ctx.isMutableCaptureBoxed(symbol),
                    let loadedValue = loadMutableCaptureCellValue(
                        symbol: symbol,
@@ -952,9 +961,31 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
+                    let delegateKind = StdlibDelegateKind.detect(
+                        delegateExpr: initializer, ast: ast, interner: interner
+                    )
                     let isCustomDelegateDecl = isDelegated
-                        && StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner) == .custom
+                        && delegateKind == .custom
                         && !sema.symbols.hasProvideDelegate(for: symbol)
+                    if isDelegated, delegateKind != .custom {
+                        // Local stdlib-delegate declaration (BUG-147): `initializerID`
+                        // is the runtime delegate handle produced by the factory
+                        // (`kk_lazy_create` & co., synthesized by
+                        // StdlibDelegateLoweringPass). Reads and writes of the local
+                        // go through `kk_<kind>_get_value`/`kk_<kind>_set_value` on
+                        // that handle — see `.nameRef`/`.localAssign` below. The
+                        // getter is deliberately *not* emitted here: `by lazy { }`
+                        // must not run its initializer until the local is first read.
+                        driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
+                        driver.ctx.setLocalStdlibDelegateKind(delegateKind, for: symbol)
+                        let propertyType = sema.symbols.propertyType(for: symbol)
+                            ?? sema.types.anyType
+                        driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
+                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                        instructions.append(.constValue(result: unit, value: .unit))
+                        return unit
+                    }
                     if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
                         // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
                         // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
@@ -1053,7 +1084,24 @@ extension ExprLowerer {
                 // Top-level properties have nil or .package parent.
                 // Object member properties have .object parent.
                 if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
-                   let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
+                   let stdlibKind = driver.ctx.localStdlibDelegateKind(for: symbol),
+                   let setValueName = Self.stdlibDelegateSetValueRuntimeName(for: stdlibKind)
+                {
+                    // Local stdlib-delegate `var` (BUG-147): `y = value` writes
+                    // through the runtime delegate handle so the delegate's own
+                    // behaviour (observable's callback, vetoable's rejection)
+                    // applies, exactly as it does for a member delegate.
+                    let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(setValueName),
+                        arguments: [delegateStorageID, valueID],
+                        result: setResultExprID,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                          let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
                 {
                     // Local custom-delegate `var` (BUG-014 / KSP-CAP-007): `x = value`
                     // calls `Prop().setValue(null, KProperty("x"), value)`, mirroring
@@ -1695,12 +1743,43 @@ extension ExprLowerer {
                 // variable branch below, which only updates the compiler's
                 // lowering-time local-value cache and never emits any
                 // instruction that writes the backing field's global storage.
-                if let symInfo = sema.symbols.symbol(symbol),
-                   symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
-                    let p = sema.symbols.parentSymbol(for: symbol)
-                    let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
-                    return pk == nil || pk == .package || pk == .object
-                }() {
+                if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                   let stdlibKind = driver.ctx.localStdlibDelegateKind(for: symbol),
+                   let setValueName = Self.stdlibDelegateSetValueRuntimeName(for: stdlibKind),
+                   let loadedValue = lowerLocalStdlibDelegateRead(
+                       symbol: symbol,
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   )
+                {
+                    // Local stdlib-delegate `var` compound assignment (BUG-147):
+                    // read-modify-write through the delegate handle. Without this
+                    // the generic local branch below would overwrite the register
+                    // that holds the handle itself with the arithmetic result.
+                    let valueType = driver.ctx.localDeclaredType(for: symbol) ?? sema.types.anyType
+                    let resultID = appendBuiltinCompoundResult(
+                        lhs: loadedValue,
+                        lhsType: valueType,
+                        rhs: rhsID,
+                        rhsType: arena.exprType(rhsID)
+                    )
+                    let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(setValueName),
+                        arguments: [delegateStorageID, resultID],
+                        result: setResultExprID,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
+                              let p = sema.symbols.parentSymbol(for: symbol)
+                              let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
+                              return pk == nil || pk == .package || pk == .object
+                          }() {
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                     let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))

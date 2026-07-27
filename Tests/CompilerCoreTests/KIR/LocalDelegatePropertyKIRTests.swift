@@ -140,11 +140,12 @@ struct LocalDelegatePropertyKIRTests {
         }
     }
 
-    @Test func testStdlibLazyLocalDelegateIsUnaffected() throws {
-        // Stdlib-special-cased delegate kinds (lazy/observable/vetoable/notNull)
-        // are explicitly out of scope for this fix (KSP-491/492) and must keep
-        // going through StdlibDelegateLoweringPass rather than the new
-        // getValue-operator call path.
+    // BUG-147: stdlib-special-cased delegate kinds (lazy/observable/vetoable/notNull)
+    // are dispatched structurally rather than through the getValue operator, so a
+    // local declaration bound them to the factory's raw runtime handle and never
+    // called kk_<kind>_get_value/set_value.
+
+    @Test func testStdlibLazyLocalDelegateReadsThroughRuntimeGetValue() throws {
         let source = """
         fun main() {
             val x by lazy { 42 }
@@ -153,10 +154,117 @@ struct LocalDelegatePropertyKIRTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            // Through Lowering: StdlibDelegateLoweringPass turns the factory call
+            // into kk_lazy_create.
+            try runToLowering(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("kk_lazy_create"), "expected the lazy handle to be created, got: \(callees)")
+            #expect(
+                callees.contains("kk_lazy_get_value"),
+                "reading a local lazy delegate must go through kk_lazy_get_value, got: \(callees)"
+            )
+
+            // println must consume kk_lazy_get_value's result, not the handle
+            // returned by kk_lazy_create.
+            // Values derived from kk_lazy_get_value's result, following the
+            // boxing call the Int value goes through before println.
+            var derivedValues: Set<KIRExprID> = []
+            var lastCallArguments: [KIRExprID] = []
+            for instruction in mainBody {
+                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
+                if ctx.interner.resolve(callee) == "kk_lazy_get_value", let result {
+                    derivedValues.insert(result)
+                } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
+                    derivedValues.insert(result)
+                }
+                lastCallArguments = arguments
+            }
+            #expect(!derivedValues.isEmpty, "expected a kk_lazy_get_value call in main")
+            #expect(
+                lastCallArguments.contains(where: { derivedValues.contains($0) }),
+                "println should print the lazily computed value, not the Lazy handle"
+            )
+        }
+    }
+
+    @Test func testStdlibLazyLocalDelegateInfersValueTypeFromFactory() throws {
+        // The local's type must come from `Lazy<T>`'s argument, otherwise member
+        // lookup on it (here `String.length`) fails.
+        let source = """
+        fun main() {
+            val s by lazy { "hello" }
+            println(s.length)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local lazy delegate should still compile without errors: \(diagnosticMessages)")
+            #expect(!(ctx.diagnostics.hasError), "`s` should be inferred as String: \(diagnosticMessages)")
+        }
+    }
+
+    @Test func testStdlibObservableLocalDelegateReadsAndWritesThroughRuntime() throws {
+        let source = """
+        import kotlin.properties.Delegates
+        fun main() {
+            var y by Delegates.observable(1) { _, old, new -> println("$old -> $new") }
+            y = 5
+            println(y)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local observable delegate should compile without errors: \(diagnosticMessages)")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("kk_observable_create"), "got: \(callees)")
+            #expect(callees.contains("kk_observable_set_value"), "assignment must notify the delegate, got: \(callees)")
+            #expect(callees.contains("kk_observable_get_value"), "read must query the delegate, got: \(callees)")
+            #expect(
+                !callees.contains("observable"),
+                "the Delegates.observable factory stub must be replaced by its runtime entry point, got: \(callees)"
+            )
+        }
+    }
+
+    @Test func testStdlibNotNullLocalDelegateUsesRuntimeEntryPoints() throws {
+        let source = """
+        import kotlin.properties.Delegates
+        fun main() {
+            var w by Delegates.notNull<Int>()
+            w = 3
+            println(w)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local notNull delegate should compile without errors: \(diagnosticMessages)")
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("kk_notNull_create"), "got: \(callees)")
+            #expect(callees.contains("kk_notNull_set_value"), "got: \(callees)")
+            #expect(callees.contains("kk_notNull_get_value"), "got: \(callees)")
         }
     }
 }

@@ -218,9 +218,22 @@ extension DeclTypeChecker {
         // resolving through the operator convention — that gap is tracked separately
         // (KSP-491/492) and must stay silent until those factories are wired to real
         // operator-based dispatch.
-        let isKnownStdlibDelegate = StdlibDelegateKind.detect(
+        let stdlibDelegateKind = StdlibDelegateKind.detect(
             delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
-        ) != .custom
+        )
+        let isKnownStdlibDelegate = stdlibDelegateKind != .custom
+        if result == nil, isKnownStdlibDelegate {
+            // These factories are dispatched structurally rather than through the
+            // getValue operator, so the property type has to be read off the
+            // factory's return type (`Lazy<T>` / `ReadWriteProperty<Any?, T>`)
+            // instead of a resolved getValue signature.
+            result = stdlibDelegateValueType(
+                delegateType: delegateType,
+                kind: stdlibDelegateKind,
+                sema: sema,
+                interner: interner
+            )
+        }
         if !getValueResolved, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
@@ -241,6 +254,45 @@ extension DeclTypeChecker {
         }
 
         return result
+    }
+
+    /// The value type a stdlib delegate factory's result exposes:
+    /// `Lazy<T>` → `T`, `ReadWriteProperty<Any?, T>` → `T`. Returns nil when the
+    /// delegate type is not (a subtype of) the expected interface, e.g. because
+    /// the factory call itself failed to resolve.
+    private func stdlibDelegateValueType(
+        delegateType: TypeID,
+        kind: StdlibDelegateKind,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let ownerFQName: [String] = switch kind {
+        case .lazy: ["kotlin", "Lazy"]
+        default: ["kotlin", "properties", "ReadWriteProperty"]
+        }
+        let valueArgIndex = kind == .lazy ? 0 : 1
+        guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName.map { interner.intern($0) }),
+              let delegateClass = resolveClassType(delegateType, sema: sema)
+        else {
+            return nil
+        }
+        let args: [TypeArg]
+        if delegateClass.classSymbol == ownerSymbol {
+            args = delegateClass.args
+        } else if let lifted = sema.types.liftedNominalSupertypeArgs(
+            from: delegateClass.classSymbol,
+            childArgs: delegateClass.args,
+            to: ownerSymbol
+        ) {
+            args = lifted
+        } else {
+            return nil
+        }
+        guard valueArgIndex < args.count else { return nil }
+        return switch args[valueArgIndex] {
+        case let .invariant(type), let .out(type), let .in(type): type
+        case .star: nil
+        }
     }
 
     private func resolvedDelegateMemberSignature(
