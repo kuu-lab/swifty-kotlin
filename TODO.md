@@ -501,7 +501,6 @@
   - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小
   - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `--filter NativeConcurrent` / `--filter RuntimeABIExternalLinkValidationTests` pass。`bash Scripts/validate_runtime_abi_links.sh` pass
 - [ ] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する（`HeaderHelpers+SyntheticNativeDataStubs.swift` の約69%: BitSet（`@ObsoleteNativeApi`+未実装・325行）/ ImmutableBlob（ERROR-deprecated+未実装・169行）/ Vector128+vectorOf（同・74行））
-- [ ] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`）
 - [~] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する — PR 作成中
   - 対象: `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` から
     `ExperimentalJsCollectionsApi` / `ExperimentalJsExport` / `ExperimentalJsReflectionCreateInstance` / `ExperimentalJsStatic` / `ExperimentalWasmJsInterop` / `ExperimentalWasmInterop` を削除
