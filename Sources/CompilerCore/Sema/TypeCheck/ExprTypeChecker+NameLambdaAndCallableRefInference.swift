@@ -777,6 +777,40 @@ extension ExprTypeChecker {
         return nil
     }
 
+    /// Resolves the explicit parameter type annotations recorded for a lambda
+    /// literal (`{ a: Int, b: String -> ... }`). Returns nil when the lambda has
+    /// no annotations or the recorded arity does not match the parameter list.
+    func resolveLambdaParamAnnotations(
+        _ id: ExprID,
+        ctx: TypeInferenceContext,
+        paramCount: Int
+    ) -> [TypeID?]? {
+        let sema = ctx.sema
+        guard let typeRefs = ctx.ast.arena.lambdaParamTypeRefs(for: id),
+              typeRefs.count == paramCount
+        else {
+            return nil
+        }
+        var resolved: [TypeID?] = []
+        resolved.reserveCapacity(typeRefs.count)
+        for typeRef in typeRefs {
+            guard let typeRef else {
+                resolved.append(nil)
+                continue
+            }
+            let type = driver.helpers.resolveTypeRef(
+                typeRef,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner,
+                scope: ctx.scope,
+                inferenceContext: ctx
+            )
+            resolved.append(type == sema.types.errorType ? nil : type)
+        }
+        return resolved.contains(where: { $0 != nil }) ? resolved : nil
+    }
+
     func inferLambdaLiteralExpr(
         _ id: ExprID,
         params: [InternedString],
@@ -833,7 +867,7 @@ extension ExprTypeChecker {
             params
         }
 
-        let parameterTypes: [TypeID] = if let expectedFunctionType,
+        let expectedParameterTypes: [TypeID] = if let expectedFunctionType,
                                           expectedFunctionType.params.count == effectiveParams.count
         {
             expectedFunctionType.params
@@ -848,9 +882,19 @@ extension ExprTypeChecker {
         } else {
             Array(repeating: sema.types.anyType, count: effectiveParams.count)
         }
+        // Explicit `{ a: Int -> ... }` annotations win over the expected type's
+        // parameter types, which may be unsubstituted type parameters when the
+        // expected type is a raw functional interface (BUG-046).
+        let annotatedParameterTypes = resolveLambdaParamAnnotations(id, ctx: ctx, paramCount: effectiveParams.count)
+        let parameterTypes: [TypeID] = effectiveParams.indices.map { offset in
+            if let annotated = annotatedParameterTypes?[offset] {
+                return annotated
+            }
+            return offset < expectedParameterTypes.count ? expectedParameterTypes[offset] : sema.types.anyType
+        }
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))
-            let parameterType = offset < parameterTypes.count ? parameterTypes[offset] : sema.types.anyType
+            let parameterType = parameterTypes[offset]
             lambdaLocals[param] = (
                 type: parameterType,
                 symbol: syntheticSymbol,
