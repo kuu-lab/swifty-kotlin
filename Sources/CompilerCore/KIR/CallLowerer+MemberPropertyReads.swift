@@ -240,6 +240,15 @@ extension CallLowerer {
         // interface's itable to the implementing type's getter, mirroring how
         // interface member functions are dispatched (see resolveItableDispatch).
         if ownerInfo.kind == .interface {
+            // Stdlib interfaces (e.g. `Collection.size`, `CharSequence.length`)
+            // are backed by runtime objects that never register itable property
+            // getters; their reads are lowered by the collection/runtime
+            // fallbacks that run after this helper. Only user-declared interface
+            // properties participate in itable getter dispatch, so let stdlib
+            // interfaces fall through.
+            if isStdlibDeclaredInterface(ownerInfo, interner: interner) {
+                return nil
+            }
             guard let methodSlot = kirInterfacePropertyGetterSlot(
                 interfaceProperty: propertySymbol,
                 interfaceSymbol: ownerSymbol,
@@ -397,6 +406,25 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    /// True when `interfaceInfo` is an interface declared by the Kotlin
+    /// standard library (its fully-qualified name is rooted at the `kotlin`/
+    /// `kotlinx` packages, or it is a known collection interface). Reads of such
+    /// interfaces' properties are serviced by dedicated runtime/collection
+    /// lowerings, not by user-registered itable getters (BUG-141).
+    func isStdlibDeclaredInterface(
+        _ interfaceInfo: SemanticSymbol,
+        interner: StringInterner
+    ) -> Bool {
+        if KnownCompilerNames(interner: interner).collectionKind(of: interfaceInfo) != nil {
+            return true
+        }
+        guard let root = interfaceInfo.fqName.first else {
+            return false
+        }
+        let rootName = interner.resolve(root)
+        return rootName == "kotlin" || rootName == "kotlinx"
     }
 
     func objectLiteralPropertyUsesAccessor(
