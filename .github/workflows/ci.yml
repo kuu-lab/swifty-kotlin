@@ -240,12 +240,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-diff:
-    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/3)
+    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 4
       matrix:
         include:
           - shard_index: 0
@@ -254,6 +254,8 @@ jobs:
             shard_label: 2
           - shard_index: 2
             shard_label: 3
+          - shard_index: 3
+            shard_label: 4
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
@@ -265,10 +267,10 @@ jobs:
           swift-version: "6.3"
       - name: Show toolchain versions
         run: swift --version
-      - name: Build compiler and tests
+      - name: Build kswiftc
         env:
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: swift build --product kswiftc -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
@@ -315,7 +317,7 @@ jobs:
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \
-              --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
+              --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
               --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize kotlinc diff artifacts
         if: always() && steps.diff_kotlinc.outcome != 'cancelled'
