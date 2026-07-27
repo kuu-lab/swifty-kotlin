@@ -1141,7 +1141,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatStringBuilderStringRuntimeCalls() throws {
+    func testLLVMBackendEmitsFlatStringBuilderBridgeRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let arena = KIRArena()
@@ -1149,8 +1149,6 @@ extension CodegenBackendIntegrationTests {
         let text = interner.intern("abcd")
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
         let builderExpr = arena.appendExpr(.intLiteral(44), type: types.intType)
-        let startExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
-        let endExpr = arena.appendExpr(.intLiteral(3), type: types.intType)
 
         var nextTemp: Int32 = 300
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -1161,8 +1159,6 @@ extension CodegenBackendIntegrationTests {
         var body: [KIRInstruction] = [
             .constValue(result: textExpr, value: .stringLiteral(text)),
             .constValue(result: builderExpr, value: .intLiteral(44)),
-            .constValue(result: startExpr, value: .intLiteral(1)),
-            .constValue(result: endExpr, value: .intLiteral(3)),
         ]
 
         func appendBuilderCall(_ calleeName: String, arguments: [KIRExprID]) {
@@ -1176,10 +1172,6 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendBuilderCall("kk_string_builder_append_flat", arguments: [textExpr])
-        appendBuilderCall("kk_string_builder_append_line_flat", arguments: [textExpr])
-        appendBuilderCall("kk_string_builder_append_range_flat", arguments: [textExpr, startExpr, endExpr])
-        appendBuilderCall("kk_string_builder_insert_flat", arguments: [startExpr, textExpr])
         appendBuilderCall("__kk_string_builder_new_from_string_flat", arguments: [textExpr])
         appendBuilderCall("__kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
         body.append(.returnUnit)
@@ -1212,10 +1204,6 @@ extension CodegenBackendIntegrationTests {
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
         let rawNames = [
-            "kk_string_builder_append",
-            "kk_string_builder_append_line",
-            "kk_string_builder_append_range",
-            "kk_string_builder_insert",
             "__kk_string_builder_new_from_string",
             "__kk_string_builder_append_obj",
         ]

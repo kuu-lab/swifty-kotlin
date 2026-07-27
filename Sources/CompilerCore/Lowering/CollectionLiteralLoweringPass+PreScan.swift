@@ -70,7 +70,6 @@ extension CollectionLiteralLoweringSupport {
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        let textName = ctx.interner.intern("text")
         let collectionsName = ctx.interner.intern("collections")
         let fqName = semanticSymbol.fqName
         guard fqName.count == 3,
@@ -80,10 +79,6 @@ extension CollectionLiteralLoweringSupport {
             return false
         }
 
-        if fqName[1] == textName {
-            return callee == lookup.buildStringName
-                || callee == lookup.buildStringBuilderName
-        }
         if fqName[1] == collectionsName {
             return callee == lookup.buildListName
                 || callee == lookup.buildSetName
