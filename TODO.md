@@ -144,11 +144,11 @@
   - 対象: `compareBy`×2, `compareByDescending`×2, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`
   - 削除: `RuntimeComparator.swift` の対応 `kk_comparator_*`（trampoline 含む）/ `HeaderHelpers+SyntheticComparatorStubs.swift` の同登録 / `CallLowerer+StdlibComparisons.swift` の同 case
   - 注意: Comparator SAM ディスパッチ対応が前提（未対応ならブロッカーとして報告）/ diff: `comparisons_edge_cases.kt`（既存）
-- [ ] KSP-311: StringBuilder を配線する（クラス + `append`系/`insert`/`delete`系/`reverse`/`toString` 等 34 関数）
+- [x] KSP-311: StringBuilder を配線する（クラス + `append`系/`insert`/`delete`系/`reverse`/`toString` 等 34 関数） (PR #5060)
   - 注意: コンストラクタは `CallSupportLowerer` 経由。可変内部バッファは `__kk_` ブリッジ最小集合（new/append_obj/toString/length など）に絞り、型別 append/insert/delete 系を Kotlin 化
   - 削除対象の確認: `rg -n 'kk_string_builder_' Sources/Runtime/RuntimeStringBuilder.swift Sources/CompilerCore` で全列挙 → 残留/削除を分類してから着手
   - 手順: T / diff: `ls Scripts/diff_cases | rg -i 'builder'` で確認・不足追加
-- [ ] KSP-312: RangeIterators / RangeMembership を配線する（`iterator`/`contains`/`isEmpty` 各 Range/Progression）
+- [x] KSP-312: RangeIterators / RangeMembership を配線する（`iterator`/`contains`/`isEmpty` 各 Range/Progression） (PR #5059)
   - 注意: `for (x in range)` は `ExprLowerer+ControlFlowAndBlocks.swift` が `.iterator()` を経由せず `kk_range_iterator`/`hasNext`/`next` へ直接特例化している（3 並列ディスパッチ）。本タスクは (1) 死蔵 2 ファイルの移設・配線 (2) `CallTypeChecker+RangeMemberFallback.swift` の該当特例削除まで。for-in 特例の撤去は KSP-452 で実施
   - 手順: T / diff: `range_basic.kt`, `range_contains.kt`（既存）
 
@@ -161,9 +161,7 @@
   - 完了: `rg '"kk_string_is|"kk_string_if|"kk_string_orEmpty|"kk_string_lines' Sources/CompilerCore` 0 件 + G
   - 追記（2026-07-13, PR #4578 / 発見元 KSP-401）: `Scripts/diff_cases/string_linesequence.kt` の `こんにちは\n世界\n` で、source-backed `String.replace` が `StringIndexOutOfBoundsException` 相当の未処理例外を起こし candidate が exit 1 になった。flat String の UTF-8 byte length と文字単位の走査長が不一致だったためで、`StringSearchReplace.kt` の走査を `toList()` ベースへ修正済み（マージ後に本項を `[x]` 化する）。
 - [x] KSP-404: prefix/suffix 系を Kotlin 化（`startsWith`, `endsWith`, `removePrefix`, `removeSuffix`, `removeSurrounding`） (PR #4999)
-  - 削除 kk_*: `kk_string_startsWith`, `kk_string_endsWith`, `kk_string_removePrefix`, `kk_string_removeSuffix`, `kk_string_removeSurrounding`, `kk_string_removeSurrounding_pair`
 - [x] KSP-405: take/drop 系を Kotlin 化（`take`, `takeLast`, `drop`, `dropLast`, `takeWhile`, `dropWhile`, `takeLastWhile`） (PR #5005)
-  - 削除 kk_*: `kk_string_take`, `kk_string_takeLast`, `kk_string_drop`, `kk_string_dropLast`, `kk_string_takeWhile`, `kk_string_dropWhile`, `kk_string_takeLastWhile`
 - [ ] KSP-406: substring/slice/range 編集系を Kotlin 化（`substring`, `subSequence`, `slice`, `removeRange`, `replaceRange`）
   - 削除 kk_*: `kk_string_substring`, `kk_string_subSequence`, `kk_string_slice_range`, `kk_string_slice_iterable`, `kk_string_removeRange`, `kk_string_removeRange_range`, `kk_string_replaceRange`, `kk_string_replaceRange_indices`（`RuntimeStringStdlib.swift`/`RuntimeStringSubstring.swift`）。基点の `substring(startIndex, endIndex)` のみ `__kk_` 降格可
 - [ ] KSP-407: substringBefore/After・replaceBefore/After 系を Kotlin 化（各 String/Char 版）
@@ -212,7 +210,7 @@
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
 - [ ] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
   - ブリッジ残留: 新規コレクション生成コアのみ（KSP-305 の `__kk_` 群を利用）
-- [ ] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`）
+- [x] KSP-430: Map HOF を Kotlin 化（`filter(Keys/Values/Not)`, `map(NotNull)`, `mapKeys(To)`, `mapValues(To)`, `flatMap`, `forEach`, `any`, `all`, `none`, `count`, `maxByOrNull`, `minByOrNull`, `plus`, `minus`） (PR #5023)
   - 削除 kk_*: `RuntimeCollectionHOF.swift` の `kk_map_*` HOF 18 関数 + `RuntimeSetAndMap.swift` の `kk_map_plus`, `kk_map_minus`
 - [ ] KSP-431: Map lookup・変換を Kotlin 化（`getValue`, `getOrDefault`, `getOrElse`, `getOrPut`, `containsKey/Value`, `keys`, `values`, `entries`, `toList`, `toMutableMap`, `orEmpty`, `withDefault`）
   - ブリッジ残留: `kk_map_get`（キー探索コア）→ `__kk_map_get`、iterator 状態 → `__kk_map_iterator*`。他は Kotlin 化
@@ -267,7 +265,7 @@
 
 #### kotlin.random [M7 実行体]
 
-- [~] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数）— PR 作成中
+- [x] KSP-467: SecureRandom 互換層を `__kk_` 降格する（`kk_secure_random_*` 4 関数） (PR #5027)
   - Kotlin 化: `Sources/CompilerCore/Stdlib/kotlin/random/SecureRandom.kt` に `SecureRandom` クラスと companion `getInstance()`、`setSeed`、`generateSeed`、`nextBytes` を追加。`@KsSymbolName` 経由で `__kk_secure_random_get_instance` / `__kk_secure_random_set_seed` / `__kk_secure_random_generate_seed` / `__kk_secure_random_next_bytes` ABI ブリッジを呼ぶ
   - クリーンアップ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift` から `SecureRandom` の synthetic class/companion/method 登録を除去
   - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `RuntimeABIExternalLinkValidationTests` / `RuntimeSecureRandomTests` pass。`Scripts/diff_cases/secure_random.kt` を `kswiftc` で実行確認
@@ -464,7 +462,7 @@
   - 完了 (branch `devin/ksp-668`): `kotlin.experimental.ExperimentalTypeInference` を bundled Kotlin source（`Stdlib/kotlin/experimental/TypeInference.kt`）へ移設。合成登録は `HeaderHelpers.swift`（contracts 経路）と `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` から削除。あわせて `collectAllHeaders` が bundled/residual stdlib ファイルをユーザーファイルより先に処理するよう順序を修正し、source-backed stdlib 宣言の解決を fileID 割り当て順に非依存化（`Phase.swift`）。挙動保存（opt-in / @Target union）を回帰テスト `ExperimentalAnnotationSourceMigrationTests` と既存 `AdvancedTypeInferenceTests` で固定。`kk_*` の削除・降格なし（注釈は runtime シンボルを持たない）。
   - `kotlin.experimental.ExperimentalNativeApi` は先行マージされた KSP-667 の `Stdlib/kotlin/experimental/NativeExperimentalAnnotations.kt` に収容済みのため本タスクでは重複を持たない。
   - スコープ外（別タスク）: `ExpectRefinement` は §9 分類 (c)（common opt-in marker）で残置。`HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` は全体が (c) 注釈インフラ（AnnotationTarget/AnnotationRetention/DeprecationLevel/RequiresOptIn.Level enum と property/constructor helper 群 = AnnotationTargetValidation・opt-in 機構が依存）であり、単独で切り出せる (b) 部分集合は存在しないため table 移行は据え置き（本家形の enum 化は注釈クラス群と結合するため別弾）。
-- [ ] KSP-669: Comparable/RandomAccess の interface 宣言を .kt 化する（`HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` の自己登録分のみ。プリミティブ型への Comparable 適合付与は c-hard 残留。死コード `compareToOrNull` は CLEANUP-STUB-098 側）
+- [x] KSP-669: Comparable/RandomAccess の interface 宣言を .kt 化する（`HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` の自己登録分のみ。プリミティブ型への Comparable 適合付与は c-hard 残留。死コード `compareToOrNull` は CLEANUP-STUB-098 側）。2026-07-24 完了: `kotlin.Comparable<in T>` を `Sources/CompilerCore/Stdlib/kotlin/Comparable.kt`、`kotlin.collections.RandomAccess` を `Sources/CompilerCore/Stdlib/kotlin/collections/RandomAccess.kt` に nominal 宣言として移設。`HeaderCollection.reusableSyntheticDeclarationSymbol` を interface 対応に拡張し、両ファイルを `reusableSyntheticSourceDeclarationKey` の allowlist に追加して synthetic shell シンボルを再利用（バンドル時に `.synthetic` フラグが外れ source-backed 化）。`compareTo` 演算子・プリミティブ Comparable 適合（c-hard）・range upper bound などの residual type hook は `docs/stdlib-pipeline.md` の (c) 区分どおり `HeaderHelpers+SyntheticComparableHelpers.swift`/`+SyntheticComparableAndCollectionStubs.swift` に残置（`compareTo` を .kt メンバとして宣言すると `T : Comparable<T>` 束縛の型パラメータ受け手に対するメンバ解決が壊れるため、bare-T レシーバ encoding の synthetic 登録を維持）。Golden（`comparable_interface`/`type_constraints`/`f_bound_generics`/`maxof_*`/`minof_*`/`in_range_operators` の `kotlin.Comparable` が `flags=synthetic`→`flags=_`）を更新。回帰ケース `Scripts/diff_cases/ksp669_comparable_randomaccess.kt` を追加。`compareToOrNull` は不変。作業中に既存の runtime バグ BUG-161 を発見（バグバックログに追跡）
 
 #### concurrent / coroutines（(c) 再監査 2026-07-10 の b-reclass 分。全 Atomic タスク共通注意: kk_atomic_* はスタブ側 prefix 補間 emit のため rg 完了チェックは補間を考慮）
 
@@ -482,7 +480,8 @@
 - [ ] KSP-676: StateFlow と share_in/state_in を Kotlin 化する（`kk_mutable_state_flow_create/emit/try_emit`, `kk_state_flow_value`, `kk_flow_share_in/state_in/release/retain`。前提: KSP-675。c-hard 残留: `kk_flow_stopped`/`kk_flow_emit_with_timestamp`）
 - [x] KSP-677: Mutex/Semaphore の (b) 分 9 関数を Kotlin 化する（withLock 等ラッパー層。カーネル同期コア 6 関数は c-soft 残留 — 分離仕様は `docs/stdlib-pipeline.md` §9 の再監査記録に従う）。完了: (b) 9 関数（`Mutex()`/`Mutex.isLocked`/`Mutex.tryLock`/`Mutex.withLock`, `Semaphore()`/`Semaphore.availablePermits`/`Semaphore.tryAcquire`/`Semaphore.withPermit`, `Lock.withLock`）を bundled Kotlin source 化（`Stdlib/kotlinx/coroutines/sync/Sync.kt`・`Stdlib/kotlin/concurrent/Lock.kt`）。factory/accessor/try 系は demoted `__kk_*` bridge へ委譲、`withLock`/`withPermit` は canonical generic `suspend fun <T> ...(action: () -> T): T` で lock/unlock・acquire/release を合成、`Lock.withLock` は general closure ABI の `__kk_lock_withLock` bridge へ委譲。専用 `kk_mutex_withLock`/`kk_semaphore_withPermit` は削除、`kk_mutex_create`/`kk_mutex_isLocked`/`kk_mutex_tryLock`/`kk_semaphore_create`/`kk_semaphore_availablePermits`/`kk_semaphore_tryAcquire`/`kk_lock_withLock` は `__kk_*` へ降格。c-soft 残留 6: `kk_mutex_lock`/`kk_mutex_unlock`/`kk_semaphore_acquire`/`kk_semaphore_release`/`kk_read_write_lock_read`/`kk_read_write_lock_write`。**副次修正（本 PR 内）**: generic 高階関数 `fun <T> f(action: () -> T): T` が Unit 本体ラムダから `T` を推論できず `KSWIFTK-TYPE-0001`/`KSWIFTK-SEMA-0002` になるバグを修正（`ExprTypeChecker+NameLambdaAndCallableRefInference.swift` の `inferLambdaLiteralExpr` で、未解決型パラメータの期待戻り値型をラムダ本体の expectedType として押し下げないよう変更）。回帰テスト: `BundledStdlibExecutionTests`（generic Unit/value ラムダ・Mutex.withLock・Semaphore.withPermit）+ `Scripts/diff_cases/generic_unit_lambda_inference.kt`。**発見した別バグは BUG-049 として追跡**（`launch { }` 本体からキャプチャ付き suspend 呼び出しが `KSWIFTK-CORO-0003` になる coroutine lowering の feature gap。`coroutine_mutex_semaphore.kt` はこのため引き続き SKIP-DIFF）。検証: `swift build`・`swift_test.sh --filter Golden`・`validate_runtime_abi_links.sh`・上記回帰テスト green。`diff_kotlinc.sh` は当環境に `kotlinc` 不在のため未実行（環境制約）
 - [x] KSP-678: Channel の (b) 分 7 関数を Kotlin 化する（iterator 層等。suspension コア 3 関数は c-soft 残留）
-- [ ] KSP-679: coroutineScope/supervisorScope の公開ラッパー 4 を Kotlin 化する（内部プリミティブ `kk_coroutine_scope_*`/`kk_supervisor_scope_*` は (c) のまま委譲。前提: KSP-CAP-012）
+- [x] KSP-679: coroutineScope/supervisorScope の公開ラッパー 4 を Kotlin 化する（内部プリミティブ `kk_coroutine_scope_*`/`kk_supervisor_scope_*` は (c) のまま委譲。前提: KSP-CAP-012）
+  - 完了(2026-07-24): 公開ラッパー `coroutineScope`/`supervisorScope` を `Sources/CompilerCore/Stdlib/kotlinx/coroutines/CoroutineScope.kt` の bundled Kotlin 実装へ移行し、scope lifecycle は (c) プリミティブ `kk_coroutine_scope_new`/`kk_supervisor_scope_new`/`kk_coroutine_scope_cancel`/`kk_coroutine_scope_wait` へ委譲。合成 stub 登録（`HeaderHelpers+SyntheticCoroutineRegistry.swift`）と lowering/型検査の特例（`CoroutineLoweringPass.swift`/`CoroutineLoweringPass+LauncherSupport.swift`/`CallTypeChecker.swift`）を削除。旧 convenience runtime 関数 `kk_coroutine_scope_run`/`kk_coroutine_scope_run_with_cont`/`kk_supervisor_scope_run`/`kk_supervisor_scope_run_with_cont` と対応する ABI spec・テストを削除。`kk_coroutine_scope_wait` を Kotlin `Throwable?` 契約に合わせ null sentinel を返すよう修正。ラッパーは既知の型推論制約（KSP-499: ジェネリック HOF のラムダ本体で入れ子ジェネリック呼び出しを行うと `evaluateCandidate` が外側の未束縛型パラメータを過剰制約する）を避けるため、従来の合成契約どおり `Any` を返す非ジェネリック形とした。同 PR で入れ子 suspend 関数値呼び出しの回帰（0/1 引数 invoke thunk の ABI 誤認、`kk_kxmini_run_blocking_with_cont` の outThrown/scope 伝播欠落、成功時に caller continuation の thrown slot を消去しない stale exception 漏れ）も修正。回帰は `Scripts/diff_cases/coroutine_scope_wrapper_regression.kt` と既存 `coroutine_scope.kt`/`supervisor_scope_basic.kt` で固定。**追加修正(2026-07-26)**: suspend 高階関数を自動 inline しなくなったことで、`InlineLoweringPass` の名前フォールバックが解決済みかつ非 inline な callee（`Mutex.withLock`）を同名 inline オーバーロード（`Lock.withLock`）へ差し替え、`__kk_lock_withLock` ブリッジを誤った ABI で呼び出して SIGSEGV する問題（`Scripts/diff_cases/mutex_basic.kt`）を修正。名前フォールバックはモジュール内に解決先関数が存在しない呼び出しに限定し、回帰テスト `LoweringPassRegressionTests.testNonInlineCallIsNotRedirectedToSameNamedInlineOverload` を追加。
 
 #### delegates / reflect
 
@@ -494,43 +493,142 @@
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
 
-- [x] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する — PR #5029
-- [~] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する — PR 作成中
+- [x] CLEANUP-STUB-096: kotlin.native.concurrent のレガシー群を削除する (PR #5029)
+  - 対象: `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` から Legacy AtomicInt/AtomicLong/AtomicNativePtr, FreezableAtomicReference 公開層, kotlin.native.concurrent.AtomicReference, MutableData, DetachedObjectGraph, WorkerBoundReference, atomicLazy, ObsoleteWorkersApi 系 3 (`waitForMultipleFutures`/`waitWorkerTermination`/`withWorker`), ensureNeverFrozen, freeze/isFrozen 公開層を削除
+  - 残留: `kk_freeze_object`/`kk_is_frozen` は TransferMode 用に残留
+  - テスト更新: `NativeConcurrentSyntheticStubTests.swift` から削除対象のテストを除去、`NativeConcurrentAPISurfaceInventoryTests.swift` の在籍リストを 15 エントリに縮小
+  - 検証: `swift build` / `bash Scripts/swift_test.sh --filter SmokeTests` / `--filter Golden` / `--filter NativeConcurrent` / `--filter RuntimeABIExternalLinkValidationTests` pass。`bash Scripts/validate_runtime_abi_links.sh` pass
+- [~] CLEANUP-STUB-097: NativeDataStubs のレガシー群を削除する — PR #5030
   - 対象: `HeaderHelpers+SyntheticNativeDataStubs.swift` から `registerSyntheticNativeBitSetStubs` / `registerSyntheticNativeImmutableBlobStubs` / `registerSyntheticNativeVector128Stubs`（`Vector128` 型エイリアス + `vectorOf`）を削除
   - 追随削除: `HeaderHelpers+SyntheticNativeInteropStubs.swift` から上記関数の呼び出しを削除。`HeaderHelpers+SyntheticNativeInteropHelpers.swift` から `cPointerType` / `deprecatedImmutableBlobAnnotations` / `deprecatedImmutableBlobFactoryAnnotations` / `deprecatedImmutableBlobPointerAnnotations` / `appendDeprecatedImmutableBlobAnnotations` / `deprecatedNativeVector128TypeAliasAnnotations` / `deprecatedNativeVectorOfAnnotations` を削除
   - テスト削除: `NativeBitSetSurfaceTests.swift` / `NativeImmutableBlobSurfaceTests.swift` / `NativeVector128SurfaceTests.swift` / `GoldenCases/Sema/cinterop_vectorof_int.kt` + `.golden` を削除
-- [ ] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`）
-- [~] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する — PR 作成中
+- [x] CLEANUP-STUB-098: Function 型の fiction ほかを削除する（`Function1.andThen`/`Function1.compose`/`Function2.curried` — 本家に存在しない Java 由来誤移植・参照ゼロ（`HeaderHelpers+SyntheticFunctionTypeStubs.swift` + `RuntimeFunctionTypes.swift`）+ `compareToOrNull`（ブリッジ未設定の死コード）+ `kotlin.jvm.isArrayOf`） — PR #5033
+- [x] CLEANUP-STUB-099: JS/Wasm 専用 opt-in マーカー6種を削除する（ExperimentalJsCollectionsApi/ExperimentalJsExport/ExperimentalJsReflectionCreateInstance/ExperimentalJsStatic/ExperimentalWasmJsInterop + ExperimentalWasmInterop — `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` 内） — PR #5035
   - 対象: `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` から
     `ExperimentalJsCollectionsApi` / `ExperimentalJsExport` / `ExperimentalJsReflectionCreateInstance` / `ExperimentalJsStatic` / `ExperimentalWasmJsInterop` / `ExperimentalWasmInterop` を削除
   - 追随削除: `CompilerKnownNames.swift` から `experimentalJsExport` / `experimentalJsStatic` / `experimentalJsReflectionCreateInstance` / `experimentalJsCollectionsApi` の enum ケースを削除
   - テスト更新: `ExperimentalMarkerStubTests.swift` から上記6種のテストを削除
-- [ ] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`）
+- [~] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`） — PR 作成中
 - [ ] CLEANUP-STUB-101: 監査で確定したデッドコードを一括削除する（`kk_math_round_mode` 系15（Sema 登録ゼロ・到達不能）/ `kotlin.experimental` Int 版登録一式（汎用特例が先に解決）/ `kk_check_not_null(_lazy)`/`kk_require_not_null(_lazy)` 4 / CLEANUP-STUB-084 取り残しの `registerSyntheticJvmAnnotationClass`・`registerSyntheticBooleanAnnotationPropertyAndConstructor` 2関数 / `kk_sequence_of_single` の生死判定。※`kk_system_measureTime*` 3 と `CallLowerer+CollectionStdlibMemberCalls.swift` は KSP-617/620 と重複するため先行した方で実施）
 - [ ] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除）
-- [~] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを再起票する — PR 作成中
-  - 対象表を確定し、以後 1 ファイル = 1 タスク（CLEANUP-STUB-104〜124）で消化する。
-  - 104: `HeaderHelpers+SyntheticBigIntegerStubs.swift`
-  - 105: `HeaderHelpers+SyntheticConcurrencyStubs.swift`
-  - 106: `HeaderHelpers+SyntheticDynamicStubs.swift`（CLEANUP-STUB-070/071 で既に削除済み — タスククローズのみ）
-  - 107: `HeaderHelpers+SyntheticFileIOStubs.swift`
-  - 108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift`
-  - 109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift`
-  - 110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift`
-  - 111: `HeaderHelpers+SyntheticJsFunctionStubs.swift`
-  - 112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift`
-  - 113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`
-  - 114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift`
-  - 115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）
-  - 116: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`
-  - 117: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`
-  - 118: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`
-  - 119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift`
-  - 120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift`
-  - 121: `HeaderHelpers+SyntheticSerializationStubs.swift`
-  - 122: `HeaderHelpers+SyntheticTestStubs.swift`
-  - 123: `HeaderHelpers+SyntheticURIStubs.swift`
-  - 124: `HeaderHelpers+SyntheticURLStubs.swift`
+- [x] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを確定し、CLEANUP-STUB-104 〜 CLEANUP-STUB-124 へ個別起票する（対象: BigInteger / Concurrency / Dynamic / FileIO / FileTreeWalk / FileWalkDirection / FilesUtility / JsFunction / LocaleConstructor / NativeFunctionAnnotation / OnErrorAction / PathStubs 本体+分割3 / PlatformObjectHelpers / ReadWriteLock / Serialization / Test / URI / URL）
+- [ ] CLEANUP-STUB-104: `HeaderHelpers+SyntheticBigIntegerStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBigIntegerStubs.swift`（650行）
+  - 削除内容: `registerSyntheticBigIntegerStubs(...)` および `java.math.BigInteger` クラス・コンストラクタ（String）・companion `valueOf`・四則/remainder/pow/abs/gcd/toInt/toLong 等のメンバ登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:272`（`bucket: .targetOutCleanup, name: "BigInteger"`）を削除
+  - 連動整理: bundled `Sources/CompilerCore/Stdlib/java/math/BigInteger.kt`、Runtime `Sources/Runtime/RuntimeBigInteger.swift`（`kk_biginteger_*` 58件）/ `Sources/Runtime/RuntimeStringConversion.swift`（`kk_string_to_biginteger` 等3件）、`Sources/RuntimeABI/RuntimeABISpec+BigInteger.swift` / `RuntimeABISpec+String.swift` 内 BigInteger 登録 / `RuntimeABISpec+ABIParity.swift` 該当行
+  - テスト影響: `Tests/CompilerCoreTests/Sema/BigIntegerSyntheticLinkTests.swift`、`StringToBigIntegerFunctionTests.swift`、`StringToBigIntegerOrNullFunctionTests.swift`、`Tests/CompilerCoreTests/Integration/KotlinCompilationBigIntegerTests.swift`、`Tests/RuntimeTests/RuntimeBigIntegerTests.swift`、Golden `big_integer_basic.golden` 等の削除または更新
+- [ ] CLEANUP-STUB-105: `HeaderHelpers+SyntheticConcurrencyStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticConcurrencyStubs.swift`（186行）
+  - 削除内容: `registerSyntheticConcurrencyStubs(...)` および `java.lang.Thread` / `kotlin.concurrent` パッケージ内 Thread/Timer/Executor 等の synthetic 登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:284`（`bucket: .targetOutCleanup, name: "Concurrency"`）を削除
+  - 連動整理: `java.util.concurrent` 互換部分は Atomic 系（CLEANUP-STUB-100/096 側）と重複しないよう整理
+  - テスト影響: `Tests/CompilerCoreTests/Sema/ConcurrencySyntheticStubTests.swift` など対象テストの削除/縮小
+- [ ] CLEANUP-STUB-106: Dynamic 用 `HeaderHelpers+SyntheticDynamicStubs.swift` は削除済みのため追跡のみ
+  - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticDynamicStubs.swift`（DEADCODE-CORE-009/010 で削除済み）
+  - 削除内容: `registerSyntheticDynamicStubs` および `registerDynamicIterator` は既に削除されている
+  - テスト影響: なし（`HeaderHelpers+SyntheticBucketedStubRegistry` 等からの残り呼び出しがないか確認）
+- [ ] CLEANUP-STUB-107: `HeaderHelpers+SyntheticFileIOStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`（2319行）
+  - 削除内容: `registerSyntheticFileIOStubs(...)` および `java.io.File` クラス・コンストラクタ・`readText`/`writeText`/`readLines`/`appendText`/`forEachLine`/`bufferedReader`/`delete`/`mkdirs`/`listFiles`/`walk`/`name`/`path`/`exists`/`isFile`/`isDirectory` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` / `HeaderHelpers+SyntheticOnErrorActionStubs.swift` 内のコメント参照を整理
+  - 連動整理: bundled `Stdlib/kotlin/io/FileIO.kt`（および `FileStreamExtensions.kt`/`FileTraversal.kt`）の出番確認、Runtime `Sources/Runtime/RuntimeFileIO.swift`（`kk_file_*`/`kk_files_*` 等）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`
+  - テスト影響: `Tests/CompilerCoreTests/GoldenCases/Sema/file_*.golden`・`file_tree_walk.golden`、`Tests/CompilerBackendTests/Codegen/*File*` テスト群、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、`Scripts/diff_cases/file_*.kt` 等の整理
+- [ ] CLEANUP-STUB-108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileTreeWalkStubs.swift`（291行）
+  - 削除内容: `registerSyntheticFileTreeWalkStubs(...)` および `kotlin.io.FileTreeWalk` クラス・`walkTopDown`/`walkBottomUp`/`walk`/`maxDepth`/`filter`/`onEnter`/`onLeave`/`onFail`/`toList`/`forEach` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1244`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:210`（`name: "FileTreeWalk"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 FileTreeWalk 関連 `kk_file_tree_walk_*`、該当 ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Sema/FileTreeWalkClassTests.swift`、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、Golden `file_tree_walk.golden`/`.kt`、diff case `file_walk.kt` の削除または更新
+- [ ] CLEANUP-STUB-109: `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileWalkDirectionStubs.swift`（113行）
+  - 削除内容: `registerSyntheticFileWalkDirectionStubs(...)` および `kotlin.io.FileWalkDirection` enum（`TOP_DOWN`/`BOTTOM_UP`）の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1243`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:207`（`name: "FileWalkDirection"`）を削除
+  - テスト影響: `Tests/CompilerCoreTests/Sema/FileWalkDirectionEnumTests.swift` の削除または更新
+- [ ] CLEANUP-STUB-110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFilesUtilityStubs.swift`（520行）
+  - 削除内容: `registerSyntheticFilesUtilityStubs(...)` および `java.nio.file.Files` singleton・`createFile`/`delete`/`copy`/`move`/`createDirectory`/`createDirectories`/`size`/`getLastModifiedTime`/`isRegularFile`/`isDirectory`/`exists`/`walk`/`list`/`newDirectoryStream`/`createTempFile`/`createTempDirectory` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1246`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:215`（`name: "FilesUtility"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `kk_files_*`（48件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`/`RuntimeABISpec+Path.swift` 該当 ABI
+  - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
+- [ ] CLEANUP-STUB-111: `HeaderHelpers+SyntheticJsFunctionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsFunctionStubs.swift`（77行）
+  - 削除内容: `registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` および Kotlin/JS `js(...)` 外部関数の synthetic 登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1228`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:174`（`name: "JsFunction"`）を削除
+  - テスト影響: 本家 Kotlin/JS 専用のためテストは少ない；`swift build` と Sema inventory テストの確認
+- [ ] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）
+  - 削除内容: `registerSyntheticLocaleConstructorStubs(...)` および `java.util.Locale` クラス・コンストラクタ / `forLanguageTag` / `getDefault` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:263`（`name: "LocaleConstructor"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeI18N.swift`（`kk_locale_*` 28件）、`Sources/RuntimeABI/RuntimeABISpec+Locale.swift`/`RuntimeABISpec+String.swift` 内 Locale ABI 登録
+  - テスト影響: diff case `locale_basic.kt`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+LLVMLinkingAndArtifacts.swift` などで Locale 使用箇所の確認
+- [ ] CLEANUP-STUB-113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`（85行）
+  - 削除内容: `registerSyntheticNativeGetterStubs(...)` / `registerSyntheticNativeSetterStubs(...)` および `kotlin.js.nativeGetter`/`nativeSetter`/`nativeInvoke` 注釈クラスの登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:302`（`name: "NativeGetter"`）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:281`（`name: "NativeSetter"`）を削除
+  - テスト影響: `Tests/CompilerCoreTests/Sema/NativeGetterAnnotationTests.swift`、`NativeSetterAnnotationTests.swift`、`NativeByteArraySetterSurfaceTests.swift`、`NativePrimitiveByteArraySetterSurfaceTests.swift`、`NativeUnsignedByteArraySetterSurfaceTests.swift` の削除または更新
+- [ ] CLEANUP-STUB-114: `HeaderHelpers+SyntheticOnErrorActionStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticOnErrorActionStubs.swift`（120行）
+  - 削除内容: `registerSyntheticOnErrorActionStubs(...)` および `kotlin.io.OnErrorAction` enum（`SKIP`/`TERMINATE`）の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1245`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:213`（`name: "OnErrorAction"`）を削除
+  - 連動整理: `RuntimeFileIO.swift` 内 `copyTo` 再帰処理で使われる OnErrorAction ordinal（`kk_file_copy_*`）があれば整理
+  - テスト影響: `Tests/RuntimeTests/RuntimeFileCopyRecursivelyTests.swift` の確認
+- [ ] CLEANUP-STUB-115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`（2102行）
+  - 削除内容: `registerSyntheticPathStubs(...)` および `kotlin.io.path.Path` クラス・companion `createTempFile`/`createTempDirectory`/`list`/`walk`/`readBytes`/`readText`/`writeText`/`writeBytes`/`copyTo`/`resolve`/`parent`/`fileName`/`extension` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1247`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:219`（`name: "Path"`）を削除
+  - 連動整理: 3つの split ファイル（CLEANUP-STUB-116〜118）も併せて削除；Runtime `Sources/Runtime/RuntimePath.swift`（`kk_path_*` 273件、`kk_uri_*`/`kk_url_*` も含む）、`Sources/RuntimeABI/RuntimeABISpec+Path.swift`（114件）
+  - テスト影響: `Tests/CompilerCoreTests/Sema/Path*FunctionTests.swift`（5ファイル）、`PathWalkOptionEnumTests.swift`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+PathCreateSymbolicLink.swift`、`Scripts/diff_cases/path_basic.kt`、Golden 該当ケースの整理
+- [ ] CLEANUP-STUB-116: `HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+GenericFunctionRegistration.swift`（548行）
+  - 削除内容: `registerPathUseLinesFunction(...)` 等の overload 群、`useLines`/`readLines`/`forEachLine` 等の generic function 登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 1364行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-117: `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift`（315行）
+  - 削除内容: `registerPathConstructor(...)` 等 Path コンストラクタ登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 599行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-118: `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs+TypeCreation.swift`（337行）
+  - 削除内容: `registerPathCopyActionContextSurface(...)` 等 `CopyActionContext` / `WalkOptions` 等の型登録ヘルパーを削除
+  - 呼び出し元: `HeaderHelpers+SyntheticPathStubs.swift` 内 190行付近の呼び出しを削除
+  - テスト影響: Path 系テストと連動
+- [ ] CLEANUP-STUB-119: `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPlatformObjectHelpers.swift`（216行）
+  - 削除内容: `registerSyntheticObjectProperty(...)` 等 Java `Class` / `Platform` object 向け helper を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticStringStubs.swift`（313, 3245行付近）と `HeaderHelpers+SyntheticTODOAndIOStubs.swift`（434-466行付近）から呼ばれているため、削除前に live 側へ移設/インライン化
+  - テスト影響: 上記 live ファイルを使う Sema / Golden テストへの影響を確認；削除前に参照切り替え
+- [ ] CLEANUP-STUB-120: `HeaderHelpers+SyntheticReadWriteLockStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticReadWriteLockStubs.swift`（216行）
+  - 削除内容: `registerSyntheticReadWriteLockStubs(...)` および `java.util.concurrent.locks.ReentrantReadWriteLock` クラス・`kotlin.concurrent.read` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:293`（`name: "ReadWriteLock"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeSync.swift` 内 `kk_reentrant_read_write_lock_*` / `kk_read_write_lock_*`（13件）、`RuntimePreconditions.swift`（2件）、該当 ABI 登録（`RuntimeABISpec+Coroutine.swift` 等）を整理
+  - テスト影響: `Tests/CompilerCoreTests/Sema/ReadWriteLockSyntheticLinkTests.swift`、`LockSyntheticMemberLinkTests.swift`、`Tests/CompilerCoreTests/KIR/BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ReadWriteLock.swift`、`Tests/RuntimeTests/RuntimeReadWriteLockTests.swift` の削除/更新
+- [ ] CLEANUP-STUB-121: `HeaderHelpers+SyntheticSerializationStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSerializationStubs.swift`（723行）
+  - 削除内容: `registerSyntheticSerializationStubs(...)` および `kotlinx.serialization`/`kotlinx.serialization.json` の `Json`/`JsonBuilder`/`JsonConfiguration`/`Serializers` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:254`（`name: "Serialization"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeSerialization.swift`（`kk_serialization_*`/`kk_json_*` 46件）、`Sources/RuntimeABI/RuntimeABISpec+Serialization.swift`
+  - テスト影響: `Tests/RuntimeTests/RuntimeSerializationTests.swift`、`Tests/CompilerCoreTests/Sema/LibMetadataSerializationTests*.swift`、diff cases `json_serialization.kt`/`dataclass_serialization.kt`/`collection_serialization.kt`/`custom_serializer.kt` の整理
+- [ ] CLEANUP-STUB-122: `HeaderHelpers+SyntheticTestStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTestStubs.swift`（184行）
+  - 削除内容: `registerSyntheticTestFrameworkStubs(...)` および `kotlin.test` 注釈（`Test`/`Before`/`After`/`Ignore` 等）・`assertEquals`/`assertTrue`/`assertNull`/`fail` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1203`（`kotlinPkg` 指定）、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:119`（`name: "TestFramework"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeTest.swift`（`kk_test_*` 12件）、`Sources/RuntimeABI/RuntimeABISpec+Test.swift`
+  - テスト影響: `Tests/CompilerCoreTests/Sema/TestFrameworkSyntheticStubTests.swift`、diff cases `test_framework_basic.kt`/`test_array_new_functions.kt` 等 `kotlin.test` 関連ケースの整理
+- [ ] CLEANUP-STUB-123: `HeaderHelpers+SyntheticURIStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURIStubs.swift`（178行）
+  - 削除内容: `registerSyntheticURIStubs(...)` および `java.net.URI` クラス・コンストラクタ / `toURL` / `resolve` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:257`（`name: "URI"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeURI.swift`（`kk_uri_*` 29件）、`Sources/Runtime/RuntimePath.swift` 内 URI 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URI ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURITests.swift`、`Tests/RuntimeTests/RuntimeURITests.swift`/`RuntimeURLTests.swift`、diff case `url_basic.kt` 内 URI 使用箇所の確認
+- [ ] CLEANUP-STUB-124: `HeaderHelpers+SyntheticURLStubs.swift` を削除する
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticURLStubs.swift`（332行）
+  - 削除内容: `registerSyntheticURLStubs(...)` および `java.net.URL` クラス・コンストラクタ / `readText` / `readBytes` / `openConnection` 等の登録を削除
+  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:260`（`name: "URL"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeNetwork.swift`（`kk_url_*`/`kk_uri_*` 36件）、`Sources/Runtime/RuntimePath.swift` 内 URL 変換（4件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift` 内 URL ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
@@ -623,3 +721,9 @@
 - [ ] BUG-158: プリミティブ配列（`ByteArray`/`IntArray`/`LongArray` 等）の `joinToString` に `transform` オーバーロードが無く、末尾ラムダ付きで呼ぶと transform が黙って捨てられる。`HeaderHelpers+SyntheticArrayStubs.swift` はプリミティブ配列に対しては `joinToString(separator, prefix, postfix)`（3引数版、`kk_*Array_joinToString`）のみを登録し、`transform: ((T) -> CharSequence)?` を含むオーバーロードを登録していない（generic `Array<T>` には `kk_array_joinToString_transform` が line 2032 付近で登録済みだが、プリミティブ配列には無い）。そのため末尾ラムダ付き呼び出しは 3引数版へ解決され、ラムダが無視される。最小再現: `fun main() { val a = byteArrayOf(10, 20, 30); println(a.joinToString(",") { (it + 1).toString() }) }` は `10,20,30` を出力する（本家 kotlinc は `11,21,31`）。`IntArray`/`LongArray` 等でも同様。発見元: KSP-660（BUG-019 の `ByteArray.joinToString`/`contentEquals` 吸収作業中に、`transform` 付き `ByteArray.joinToString` の挙動を検証して発覚）。BUG-019 の定義スコープ（`Scripts/diff_cases/string_tobytearray.kt` の `joinToString(sep)`/`contentEquals` ギャップ、#4671 で解消済み）には `transform` は含まれない。今回修正できない理由: 全プリミティブ配列型（12 種）横断で `joinToString(..., transform)` オーバーロードの Sema 登録・KIR lowering・runtime helper（または Kotlin 実装への移行）を一貫して追加する必要があり、本 PR の符号なしビュー変換移行スコープを大きく超えるため見送り
 - [ ] BUG-159: トップレベル宣言のシグネチャ（関数の値パラメータ型・戻り型・レシーバ型、プロパティ型）が `HeaderCollection.swift` の `collectHeader` 内で `resolveTypeRef` によりファイル単位で**インライン解決**され、`collectAllHeaders` は `ast.sortedFiles`（fileID 昇順）順にファイルを処理するため、あるファイルが後続 fileID のファイルで宣言された型を前方参照すると `KSWIFTK-SEMA-0025: Unresolved type` になる。ドライバは `LoadSourcesPhase` が bundled stdlib を先に注入する（＝低い fileID）ため bundled 型は解決できるが、ユーザーファイル間の前方参照はファイル指定順に依存して壊れる。最小再現: `printf 'fun useB(x: B?): Int = 0\n' > a.kt; printf 'class B\n' > b.kt` としたうえで `kswiftc a.kt b.kt`（→ `Unresolved type 'B'`）は失敗、`kswiftc b.kt a.kt` は成功する。発見元: KSP-668（`kotlin.experimental` 注釈の .kt 化）で source-backed 注釈クラスがテストハーネスのファイル追加順（ユーザーソースを先に addFile）で解決できなくなった調査中に判明。KSP-668 側は `collectAllHeaders` で bundled/residual stdlib ファイルをユーザーファイルより先に処理する順序修正で対応済み（source-backed stdlib 解決を fileID 割り当て順に非依存化）だが、ユーザー間前方参照の一般修正はヘッダ収集をシンボル定義パスとシグネチャ解決パスに分離する二段階化（全ファイルの top-level 宣言シンボルを登録してからシグネチャを解決）が必要で、Sema コアの構造変更を伴い KSP-668 の安全なスコープを超えるため見送り
 - [ ] BUG-160: `Double`/`Float` の `compareTo` が符号付きゼロの total order を実装しておらず、`(-0.0).compareTo(0.0)` が本家 kotlinc の `-1` に対して `0` を返す（`0.0` 側も `1` ではなく `0`）。このため `DoubleArray`/`FloatArray` の `sortedArray()` 等 compareTo ベースのソートで `-0.0` が `0.0` より前に並ばず、本家と順序が食い違う（NaN を最後に並べる挙動は正しい）。最小再現: `fun main() { println((-0.0).compareTo(0.0)); println((0.0).compareTo(-0.0)) }` は kswiftc で `0` / `0`、本家 kotlinc は `-1` / `1`。発見元: KSP-659（Array sorted*/binarySearch の Kotlin 化）の `Scripts/diff_cases/array_sorted_variants.kt` 検証中、`doubleArrayOf(0.0, -0.0, ...).sortedArray()` の並びが kotlinc と食い違い判明（暫定対応として当該 diff ケースからは符号付きゼロ要素を外し NaN-last のみ検証している）。今回修正できない理由: `Double`/`Float` の `compareTo` プリミティブ自体（boxed 比較を含む全比較経路）の挙動変更が必要で、Array sorting/search に限定した本 PR のスコープを超え、min/max・全 stdlib ソート等への影響評価が別途必要なため
+- [ ] BUG-161: ユーザー定義の `Comparable<T>` 実装クラスの `List` を `sorted()` すると実行時に SIGSEGV でクラッシュする（プリミティブや `String` の `List.sorted()` は正常）。`kk_list_sorted`（`Sources/Runtime/RuntimeCollectionHOFMaxMin.swift`）→ `runtimeCompareValues`（`Sources/Runtime/RuntimeCollectionHelpers.swift:790`）が要素の `compareTo` を呼ぶ際、ユーザー実装 `compareTo`（`kk_fn_compareTo_*`）へ渡すレシーバ/引数が boxed object ポインタではなく生の値（クラッシュ時 `rax=rbx=3`、`Bad pointer dereference at 0x3`）になっており、ABI 不整合で不正ポインタ参照する。最小再現:
+  ```kotlin
+  class V(val n: Int) : Comparable<V> { override fun compareTo(other: V): Int = n.compareTo(other.n) }
+  fun main() { println(listOf(V(2), V(1)).sorted().map { it.n }) }
+  ```
+  発見元: KSP-669（Comparable/RandomAccess の interface 宣言 .kt 化）の回帰ケース追加中（当初 BUG-155 で採番したが、master 側に同番号が先着し続けたため 161 に再採番）。**master（本変更なし）でも同一バックトレースで再現する既存バグ**であり、KSP-669 の宣言移設（Sema のシンボル登録）とは無関係な runtime/ABI 層の欠陥。今回修正できない理由: `runtimeCompareValues` からユーザー `compareTo` を呼ぶ際の値ボクシング／関数ポインタ ABI の是正が必要で、`kk_list_sorted` 以外の比較経路（`sortedBy`/`max`/`min`/`Comparator` 系）への波及調査を含むため、宣言移設 PR の安全なスコープを超える。回帰ケース `Scripts/diff_cases/ksp669_comparable_randomaccess.kt` は本クラッシュ行を除外して追加済み

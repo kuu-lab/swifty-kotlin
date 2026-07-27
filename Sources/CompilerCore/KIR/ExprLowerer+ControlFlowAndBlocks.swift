@@ -2178,24 +2178,12 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-            } else if let rhsType = rhsType,
-                      sema.types.makeNonNullable(rhsType) == sema.types.longType,
-                      sema.bindings.isRangeExpr(rhsExpr) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             } else {
                 appendContainsCall(
                     exprID: exprID,
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: result,
-                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2220,15 +2208,11 @@ extension ExprLowerer {
             } else if let notInRhsType = notInRhsType,
                       sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
                 notInContainsCallee = "kk_ulong_range_contains"
-            } else if let notInRhsType = notInRhsType,
-                      sema.types.makeNonNullable(notInRhsType) == sema.types.longType,
-                      sema.bindings.isRangeExpr(rhsExpr) {
-                notInContainsCallee = "kk_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" || notInContainsCallee == "kk_range_contains" {
+            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(notInContainsCallee),
@@ -2243,7 +2227,6 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: containsResult,
-                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2338,26 +2321,15 @@ extension ExprLowerer {
         elementID: KIRExprID,
         containerID: KIRExprID,
         resultID: KIRExprID,
-        forceRuntimeFallback: Bool = false,
         sema: SemaModule,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // Range membership is emitted through the bundled Kotlin kk_range_contains.
-        // Generic collection membership still falls back to kk_op_contains.
-        if forceRuntimeFallback {
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_range_contains"),
-                arguments: [containerID, elementID],
-                result: resultID,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return
-        }
-
-        if let callBinding = sema.bindings.callBindings[exprID],
+        // Dispatch to a source-backed operator fun contains when available
+        // (including range/progression members, STDLIB-OP-032), otherwise use the
+        // generic kk_op_contains runtime stub.
+        if
+           let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil

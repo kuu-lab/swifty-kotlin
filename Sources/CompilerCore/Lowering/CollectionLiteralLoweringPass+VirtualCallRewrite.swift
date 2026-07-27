@@ -49,6 +49,13 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
+            || callee == lookup.mapValuesName
+            || callee == lookup.mapValuesToName
+            || callee == lookup.mapKeysName
+            || callee == lookup.mapKeysToName
+            || callee == lookup.filterKeysName
+            || callee == lookup.filterValuesName
+            || callee == lookup.forEachName
             || callee == lookup.mapToName
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
@@ -75,7 +82,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.allName
             || callee == lookup.noneName
             || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName,
+            || callee == lookup.lastOrNullName
+            // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
+            || callee == lookup.isEmptyName
+            || callee == lookup.iteratorName,
             let symbol,
             let sema = context.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),

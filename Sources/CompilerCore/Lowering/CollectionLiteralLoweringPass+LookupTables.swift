@@ -491,7 +491,9 @@ struct CollectionLiteralLookupTables {
     let associateWithToName: InternedString
     let groupByToName: InternedString
     let mapValuesName: InternedString
+    let mapValuesToName: InternedString
     let mapKeysName: InternedString
+    let mapKeysToName: InternedString
     let filterKeysName: InternedString
     let filterValuesName: InternedString
     let zipName: InternedString
@@ -643,25 +645,17 @@ struct CollectionLiteralLookupTables {
     let kkTripleNewName: InternedString
 
     // Builder DSL names (STDLIB-002)
-    let buildStringName: InternedString
-    let buildStringBuilderName: InternedString
     let buildListName: InternedString
     let buildSetName: InternedString
     let buildMapName: InternedString
-    let kkBuildStringName: InternedString
-    let kkBuildStringWithCapacityName: InternedString
-    let kkBuildStringBuilderName: InternedString
-    let kkBuildStringBuilderWithCapacityName: InternedString
     let kkBuildListName: InternedString
     let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
     let kkBuildMapName: InternedString
 
     // Builder member function names (STDLIB-002)
-    let appendName: InternedString
     let addAllName: InternedString
     let putName: InternedString
-    let kkStringBuilderAppendName: InternedString
     let kkBuilderListAddName: InternedString
     let kkBuilderListAddAllName: InternedString
     let kkBuilderSetAddName: InternedString
@@ -670,18 +664,9 @@ struct CollectionLiteralLookupTables {
     let kkMutableSetAddName: InternedString
     let kkMutableSetRemoveName: InternedString
 
-    // StringBuilder enhancements (STDLIB-311)
-    let appendLineName: InternedString
-    let insertName: InternedString
+    // Shared member names used by File I/O (STDLIB-565)
     let deleteName: InternedString
     let lengthName: InternedString
-    let appendRangeName: InternedString
-    let kkStringBuilderAppendLineName: InternedString
-    let kkStringBuilderAppendLineNoargName: InternedString
-    let kkStringBuilderInsertName: InternedString
-    let kkStringBuilderDeleteName: InternedString
-    let kkStringBuilderLengthName: InternedString
-    let kkStringBuilderAppendRangeName: InternedString
 
     // File I/O names (STDLIB-565)
     let fileConstructorName: InternedString
@@ -753,7 +738,6 @@ struct CollectionLiteralLookupTables {
     let kkFileAbsolutePathName: InternedString
     let canonicalPathName: InternedString
     let kkFileCanonicalPathName: InternedString
-    // Note: lengthName is shared with StringBuilder section (defined above)
     let kkFileLengthName: InternedString
     let lastModifiedName: InternedString
     let kkFileLastModifiedName: InternedString
@@ -1251,7 +1235,9 @@ struct CollectionLiteralLookupTables {
         associateWithToName = interner.intern("associateWithTo")
         groupByToName = interner.intern("groupByTo")
         mapValuesName = interner.intern("mapValues")
+        mapValuesToName = interner.intern("mapValuesTo")
         mapKeysName = interner.intern("mapKeys")
+        mapKeysToName = interner.intern("mapKeysTo")
         filterKeysName = interner.intern("filterKeys")
         filterValuesName = interner.intern("filterValues")
         zipName = interner.intern("zip")
@@ -1395,24 +1381,16 @@ struct CollectionLiteralLookupTables {
         tripleName = interner.intern("Triple")
         kkTripleNewName = interner.intern("kk_triple_new")
 
-        buildStringName = interner.intern("buildString")
-        buildStringBuilderName = interner.intern("buildStringBuilder")
         buildListName = interner.intern("buildList")
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
-        kkBuildStringName = interner.intern("kk_build_string")
-        kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
-        kkBuildStringBuilderName = interner.intern("kk_build_string_builder")
-        kkBuildStringBuilderWithCapacityName = interner.intern("kk_build_string_builder_with_capacity")
         kkBuildListName = interner.intern("kk_build_list")
         kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("kk_build_set")
         kkBuildMapName = interner.intern("kk_build_map")
 
-        appendName = interner.intern("append")
         addAllName = interner.intern("addAll")
         putName = interner.intern("put")
-        kkStringBuilderAppendName = interner.intern("kk_string_builder_append")
         kkBuilderListAddName = interner.intern("kk_builder_list_add")
         kkBuilderListAddAllName = interner.intern("kk_builder_list_addAll")
         kkBuilderSetAddName = interner.intern("kk_builder_set_add")
@@ -1421,18 +1399,9 @@ struct CollectionLiteralLookupTables {
         kkMutableSetAddName = interner.intern("kk_mutable_set_add")
         kkMutableSetRemoveName = interner.intern("kk_mutable_set_remove")
 
-        // StringBuilder enhancements (STDLIB-311)
-        appendLineName = interner.intern("appendLine")
-        insertName = interner.intern("insert")
+        // Shared member names used by File I/O (STDLIB-565)
         deleteName = interner.intern("delete")
         lengthName = interner.intern("length")
-        appendRangeName = interner.intern("appendRange")
-        kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
-        kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
-        kkStringBuilderInsertName = interner.intern("kk_string_builder_insert_flat")
-        kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")
-        kkStringBuilderLengthName = interner.intern("kk_string_builder_length")
-        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range_flat")
 
         // File I/O names (STDLIB-565)
         fileConstructorName = interner.intern("File")
@@ -1529,8 +1498,6 @@ struct CollectionLiteralLookupTables {
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
         arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
         builderDSLNames = [
-            buildStringName,
-            buildStringBuilderName,
             buildListName,
             buildSetName,
             buildMapName,
@@ -1577,8 +1544,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_substringAfterLast_flat"),
             interner.intern("kk_string_substringAfterLast_char_flat"),
             kkStringFilterName,
-            interner.intern("kk_build_string"),
-            interner.intern("kk_build_string_with_capacity"),
         ]
     }
 
