@@ -45,6 +45,11 @@ extension DataFlowSemaPhase {
         types.comparableInterfaceSymbol = comparableSymbol
         types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
 
+        // KSP-669: the `Comparable<in T>` declaration is source-backed by
+        // `Stdlib/kotlin/Comparable.kt`, which reuses this synthetic shell on
+        // bundle load. The residual `compareTo` operator, primitive conformances
+        // (c-hard) and range upper bounds stay compiler-side (see
+        // `docs/stdlib-pipeline.md`).
         // Define type parameter T for Comparable<in T>.
         let tParamName = interner.intern("T")
         let tParamFQName = comparableFQName + [tParamName]
@@ -442,7 +447,9 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapSymbols.mapSymbol,
             keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
             valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         registerSyntheticArrayDequeStub(

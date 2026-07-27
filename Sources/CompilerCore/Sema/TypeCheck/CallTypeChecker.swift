@@ -1914,7 +1914,7 @@ final class CallTypeChecker {
         // (non-lambda) and the second is a lambda, treat it as the block argument.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard let name = coroutineLauncherName,
-                  ["runBlocking", "launch", "async", "coroutineScope", "supervisorScope"].contains(name)
+                  ["runBlocking", "launch", "async"].contains(name)
             else { return nil }
             if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
                case .lambdaLiteral = firstArgExpr {
@@ -2773,7 +2773,7 @@ final class CallTypeChecker {
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             var adjustedReturnType: TypeID = if let coroutineLauncherName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
-                ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
+                ["async"].contains(coroutineLauncherName),
                 args.indices.contains(launcherIndex)
             {
                 coroutineBuilderNarrowedReturnType(
