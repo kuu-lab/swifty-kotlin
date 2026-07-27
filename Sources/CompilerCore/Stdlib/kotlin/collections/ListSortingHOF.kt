@@ -38,15 +38,23 @@ public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
 }
 
 public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        var insertAt = result.size
-        while (insertAt > 0 && result[insertAt - 1].compareTo(element) > 0) {
-            insertAt--
+    val list = this.toMutableList()
+    if (list.size > 1) {
+        var i = 0
+        while (i < list.size - 1) {
+            var j = 0
+            while (j < list.size - i - 1) {
+                if (list[j + 1] < list[j]) {
+                    val tmp = list[j]
+                    list[j] = list[j + 1]
+                    list[j + 1] = tmp
+                }
+                j++
+            }
+            i++
         }
-        result.add(insertAt, element)
     }
-    return result
+    return list
 }
 
 public fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): List<T> {
