@@ -1449,12 +1449,11 @@ extension CallTypeChecker {
                         resultType = collectionElementType
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
                     case "withIndex":
-                        let pairSymbol = lookupStdlibSymbol("Pair", symbols: sema.symbols, interner: interner)
-                        let intType = sema.types.intType
-                        let indexedValueType: TypeID = if let pairSymbol {
+                        let indexedValueSymbol = lookupStdlibSymbol("IndexedValue", symbols: sema.symbols, interner: interner)
+                        let indexedValueType: TypeID = if let indexedValueSymbol {
                             sema.types.make(.classType(ClassType(
-                                classSymbol: pairSymbol,
-                                args: [.invariant(intType), .invariant(collectionElementType)],
+                                classSymbol: indexedValueSymbol,
+                                args: [.out(collectionElementType)],
                                 nullability: .nonNull
                             )))
                         } else {
@@ -1471,10 +1470,10 @@ extension CallTypeChecker {
                                 resultType: resultType,
                                 overrideTypeArguments: [collectionElementType]
                             )
-                        } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                        } else if let iterableSymbol = lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner) {
                             resultType = sema.types.make(.classType(ClassType(
-                                classSymbol: listSymbol,
-                                args: [.invariant(indexedValueType)],
+                                classSymbol: iterableSymbol,
+                                args: [.out(indexedValueType)],
                                 nullability: .nonNull
                             )))
                         } else {
