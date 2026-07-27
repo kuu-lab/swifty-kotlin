@@ -933,7 +933,12 @@ private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
         return -1
     }
     if lhs == rhs {
-        return 0
+        // IEEE equality treats -0.0 == 0.0, but Kotlin's `compareTo` follows
+        // the `Double.compare` total order where -0.0 sorts before 0.0.
+        if lhs.sign == rhs.sign {
+            return 0
+        }
+        return lhs.sign == .minus ? -1 : 1
     }
     return lhs < rhs ? -1 : 1
 }
