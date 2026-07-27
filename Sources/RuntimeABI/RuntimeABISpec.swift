@@ -83,7 +83,6 @@ public enum RuntimeABISpec {
         }.joined(separator: "\n")
         return SHA256.hex(Array(canonical.utf8))
     }()
-
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///
     /// The sub-arrays are listed in alphabetical order, one entry per line, so that

@@ -1,0 +1,20 @@
+fun main() {
+    val m = mapOf(1 to "one", 2 to "two", 3 to "three")
+    println(m.map { it.value.uppercase() })
+    println(m.filter { it.key > 1 })
+    println(m.filterKeys { it > 1 })
+    println(m.filterValues { it.startsWith("t") })
+    println(m.any { it.key == 2 })
+    println(m.all { it.key > 0 })
+    println(m.none { it.key == 5 })
+    println(m.count { it.key > 1 })
+    m.forEach { println(it.key) }
+    println(m + (4 to "four"))
+    println(m - 2)
+    println(m.mapValues { it.value + "!" })
+    println(m.mapKeys { it.key * 10 })
+    println(m.flatMap { listOf(it.key, it.value.length) })
+    println(m.maxByOrNull { it.value.length })
+    println(m.minByOrNull { it.key })
+    println(m.mapNotNull { if (it.key > 1) it.value else null })
+}

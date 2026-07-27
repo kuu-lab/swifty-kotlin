@@ -195,7 +195,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testBuildKIRKeepsRangeMembershipOnRuntimePath() throws {
+    @Test func testBuildKIRUsesSourceBackedRangeContains() throws {
         let source = """
         fun usesIn(): Boolean = 5 in (1..10).step(2)
         fun usesNotIn(): Boolean = 4 !in (1..10).step(2)
@@ -210,8 +210,16 @@ extension BuildKIRRegressionTests {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
 
-                #expect(callees.contains("kk_range_contains"), "Expected range membership runtime call, got: \(callees)")
-                #expect(!callees.contains("contains"), "Range membership must not target an unlinked source symbol")
+                // KSP-312: IntRange/IntProgression.contains is source-backed, so `in`/`!in`
+                // dispatches to the bundled Kotlin `contains()` member (external link name
+                // kk_range_contains) instead of the generic kk_op_contains runtime stub.
+                let hasSourceBackedRangeContains = body.contains { instruction in
+                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return ctx.interner.resolve(callee) == "kk_range_contains" && symbol != nil && symbol != .invalid
+                }
+                #expect(hasSourceBackedRangeContains, "Expected source-backed range contains call, got: \(callees)")
+                #expect(callees.contains("kk_range_contains"), "Expected kk_range_contains callee, got: \(callees)")
+                #expect(!callees.contains("kk_op_contains"), "Range membership must not fall back to runtime kk_op_contains, got: \(callees)")
             }
         }
     }
