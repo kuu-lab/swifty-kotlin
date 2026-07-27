@@ -234,6 +234,37 @@ extension CallLowerer {
             return result
         }
 
+        // BUG-141: an interface has no per-instance storage of its own, so a
+        // stored/abstract interface property read through an interface-typed
+        // receiver cannot use a concrete field offset. Dispatch through the
+        // interface's itable to the implementing type's getter, mirroring how
+        // interface member functions are dispatched (see resolveItableDispatch).
+        if ownerInfo.kind == .interface {
+            guard let methodSlot = kirInterfacePropertyGetterSlot(
+                interfaceProperty: propertySymbol,
+                interfaceSymbol: ownerSymbol,
+                sema: sema
+            ) else {
+                return nil
+            }
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: ownerSymbol, sema: sema, interner: interner
+            )
+            let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.virtualCall(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            ))
+            return result
+        }
+
         guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
             sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
         ] else {

@@ -1069,6 +1069,15 @@ final class CallLowerer {
                             ))
                         }
                     }
+                    // BUG-141: register interface property getters into the itable.
+                    appendObjectItablePropertyGetterRegistrations(
+                        objectValue: allocatedObj,
+                        nominalSymbol: ownerNominalSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                 }
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
