@@ -784,6 +784,9 @@ extension ExprTypeChecker {
     /// Whether an explicit lambda parameter annotation agrees with the parameter
     /// type the expected type declares. Type parameters the expected type leaves
     /// unsubstituted carry no information, so annotations always win there.
+    /// Otherwise only widening is allowed (function types are contravariant in
+    /// their parameters): `(String) -> Int = { s: Any -> ... }` is fine, while
+    /// `(Any) -> Int = { s: String -> ... }` is a mismatch.
     func lambdaAnnotationIsCompatible(annotated: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
         if annotated == declared || declared == sema.types.errorType || annotated == sema.types.errorType {
             return true
@@ -791,7 +794,7 @@ extension ExprTypeChecker {
         if typeMentionsTypeParameter(declared, sema: sema) {
             return true
         }
-        return sema.types.isSubtype(declared, annotated) || sema.types.isSubtype(annotated, declared)
+        return sema.types.isSubtype(declared, annotated)
     }
 
     private func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {

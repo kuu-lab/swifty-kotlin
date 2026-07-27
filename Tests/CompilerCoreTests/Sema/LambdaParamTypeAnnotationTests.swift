@@ -125,6 +125,54 @@ struct LambdaParamTypeAnnotationTests {
         )
     }
 
+    @Test func testAnnotationNarrowingExpectedParameterTypeIsRejected() throws {
+        let source = """
+        fun main() {
+            val f: (Any) -> Int = { s: String -> s.length }
+            println(f(42))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Narrowing the expected parameter type must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationDroppingExpectedNullabilityIsRejected() throws {
+        let source = """
+        fun main() {
+            val f: (String?) -> Int = { s: String -> s.length }
+            println(f(null))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "A non-null annotation for a nullable parameter must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationWideningExpectedParameterTypeIsAccepted() throws {
+        let source = """
+        fun main() {
+            val f: (String) -> Int = { s: Any -> s.toString().length }
+            println(f("hi"))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Widening annotations are legal in Kotlin, got: \\(errors)")
+    }
+
     @Test func testPartiallyAnnotatedLambdaKeepsExpectedTypesForUnannotatedParams() throws {
         let source = """
         fun main() {
