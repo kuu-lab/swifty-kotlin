@@ -20,6 +20,9 @@ Disk-backed TMPDIR is slower (full suite ~1.5–2h) but reliable. Clean straggle
 
 ## Diff gate needs JDK 21 + Kotlin 2.3.10 (not preinstalled)
 Default box has JDK 17 and no kotlinc; `diff_kotlinc.sh` needs JDK 21 + Kotlin 2.3.10.
+JDK 18 and older print non-shortest `Double`/`Float.toString()` (e.g. `1.23456792E8` instead
+of `1.2345679E8`, JDK-4511638 landed in JDK 19), which produces spurious numeric FAILs — the
+script now refuses to run on JDK < 21 (bypass: `DIFF_REQUIRE_JDK21=0`).
 Install to home (no sudo for /opt):
 - JDK21: download openjdk-21 tarball → `~/tools/jdk21`
 - Kotlin: `kotlin-compiler-2.3.10.zip` from JetBrains releases → unzip to `~/tools/` (`~/tools/kotlinc`)
