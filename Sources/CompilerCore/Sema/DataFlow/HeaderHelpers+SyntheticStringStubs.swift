@@ -140,23 +140,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-TEXT-TYPE-004: kotlin.text.CASE_INSENSITIVE_ORDER comparator ---
-        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
-        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
-            let caseInsensitiveOrderType = types.make(.classType(ClassType(
-                classSymbol: comparatorSymbol,
-                args: [.invariant(stringType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticStringTopLevelProperty(
-                named: "CASE_INSENSITIVE_ORDER",
-                packageFQName: kotlinTextPkg,
-                returnType: caseInsensitiveOrderType,
-                externalLinkName: "kk_string_case_insensitive_order",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // --- STDLIB-TEXT-TYPE-004: String.CASE_INSENSITIVE_ORDER comparator ---
+        // BUG-154: In real Kotlin this is `String.Companion.CASE_INSENSITIVE_ORDER`
+        // (accessed as `String.CASE_INSENSITIVE_ORDER`), *not* a top-level
+        // `kotlin.text.CASE_INSENSITIVE_ORDER`. It is registered as a member of
+        // String's companion object below (see STDLIB-TEXT-TYPE-004 companion
+        // block, after `stringClassSymbol` is established).
 
         registerSyntheticStringExtensionFunction(
             named: "length",
@@ -2472,6 +2461,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-TEXT-TYPE-004: String.Companion.CASE_INSENSITIVE_ORDER ---
+        // BUG-154: registered as a companion (static) member of String, matching
+        // real Kotlin's `String.Companion.CASE_INSENSITIVE_ORDER`. There is no
+        // top-level `kotlin.text.CASE_INSENSITIVE_ORDER`, so a bare reference must
+        // stay unresolved. Reads route through the object-member read path
+        // (`loadGlobal`) backed by the object-parented synthetic external-property
+        // global initializer, which calls `kk_string_case_insensitive_order()`
+        // once at module init -- giving referential identity via a single global.
+        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
+        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
+            let caseInsensitiveOrderType = types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                args: [.invariant(stringType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticCompanionExternalProperty(
+                named: "CASE_INSENSITIVE_ORDER",
+                companionFQName: stringCompanionFQName,
+                returnType: caseInsensitiveOrderType,
+                externalLinkName: "kk_string_case_insensitive_order",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
         // Kotlin: "...".format(vararg args: Any?) -> String
