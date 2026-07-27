@@ -261,4 +261,179 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
+
+    // BUG-151: a stdlib delegate's callback lambda declared with a parameter
+    // list (`{ property, old, new -> ... }`) lost its whole body, because the
+    // parameter list and arrow form their own CST statement node that the
+    // block-statement parser could not turn into an expression. The callback
+    // also never observed a value change, because assignment through an
+    // explicit receiver wrote the (unused) backing field slot directly instead
+    // of dispatching to the property's setter accessor.
+    func testCodegenMemberObservableDelegateReportsChanges() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class User {
+            var name: String by Delegates.observable("initial") { _, old, new ->
+                println("changed from $old to $new")
+            }
+        }
+
+        fun main() {
+            val u = User()
+            u.name = "hello"
+            println(u.name)
+            u.name = "world"
+            println(u.name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberObservableDelegate",
+            expected:
+                """
+                changed from initial to hello
+                hello
+                changed from hello to world
+                world
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: an `Int`-typed observable callback interpolating its value
+    // parameters used to concatenate the raw values as if they were string
+    // handles, because the synthetic callback parameters were all typed `Any`
+    // and Sema never binds a type to the (unvisited) callback body.
+    func testCodegenMemberObservableDelegateFormatsIntValues() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter {
+            var value: Int by Delegates.observable(1) { _, old, new ->
+                println("obs:$old->$new")
+            }
+        }
+
+        fun main() {
+            val c = Counter()
+            c.value = 2
+            c.value = 5
+            println(c.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberObservableDelegateIntValues",
+            expected:
+                """
+                obs:1->2
+                obs:2->5
+                5
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: the vetoable callback returns a Kotlin `Boolean`, which reaches
+    // the runtime boxed; a boxed `false` is a non-zero handle, so every change
+    // was accepted. Also covers compound assignment, which used to bypass the
+    // delegate entirely by reading and writing the backing field slot.
+    func testCodegenMemberVetoableDelegateRejectsChanges() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter {
+            var value: Int by Delegates.vetoable(0) { _, _, new -> new >= 0 }
+        }
+
+        fun main() {
+            val c = Counter()
+            c.value = 5
+            println(c.value)
+            c.value = -1
+            println(c.value)
+            c.value += 3
+            println(c.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberVetoableDelegate",
+            expected:
+                """
+                5
+                5
+                8
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: `Delegates.notNull()` reads crashed with
+    // "Property delegate must be assigned before being accessed" even after a
+    // write, because the write never reached `kk_notNull_set_value`.
+    func testCodegenMemberNotNullDelegateRoundTrips() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Box {
+            var value: String by Delegates.notNull()
+        }
+
+        fun main() {
+            val b = Box()
+            b.value = "abc"
+            println(b.value)
+            b.value = "def"
+            println(b.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberNotNullDelegate",
+            expected:
+                """
+                abc
+                def
+                """ + "\n"
+        )
+    }
+
+    // BUG-151: the same callback-body loss affected top-level delegated
+    // properties, which lower through a separate initializer path.
+    func testCodegenTopLevelObservableAndVetoableDelegates() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        var topName: String by Delegates.observable("t0") { _, old, new -> println("top $old->$new") }
+        var topCount: Int by Delegates.vetoable(1) { _, _, new -> new > 0 }
+        var topLate: Int by Delegates.notNull()
+
+        fun main() {
+            topName = "t1"
+            println(topName)
+            topCount = 9
+            println(topCount)
+            topCount = -5
+            println(topCount)
+            topLate = 3
+            println(topLate)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelStdlibDelegates",
+            expected:
+                """
+                top t0->t1
+                t1
+                9
+                9
+                3
+                """ + "\n"
+        )
+    }
 }

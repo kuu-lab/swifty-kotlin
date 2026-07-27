@@ -352,7 +352,10 @@ public func kk_vetoable_set_value(_ handle: Int, _ newValue: Int) -> Int {
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: vetoable callback threw")
         }
-        if accepted != 0 {
+        // The callback returns a Kotlin `Boolean`, which reaches the ABI either
+        // raw (0/1) or as a boxed `RuntimeBoolBox` handle; a boxed `false` is a
+        // non-zero pointer, so it must be unboxed before being tested.
+        if kk_unbox_bool(accepted) != 0 {
             box.currentValue = newValue
         }
     } else {

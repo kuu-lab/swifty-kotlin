@@ -369,6 +369,8 @@ extension KIRLoweringDriver {
     /// Creates a lambda function from the delegate body.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
+        delegateBodyParams: [InternedString] = [],
+        valueType: TypeID? = nil,
         propertySymbol: SymbolID,
         paramCount: Int,
         shared: KIRLoweringSharedContext,
@@ -385,14 +387,35 @@ extension KIRLoweringDriver {
             let paramSymbol = SymbolID(
                 rawValue: -(propertySymbol.rawValue + Int32(i + 1) * 1000 + 50000)
             )
-            params.append(KIRParameter(symbol: paramSymbol, type: sema.types.anyType))
+            // `(property, oldValue, newValue)`: only the two value parameters
+            // carry the property's type; typing them keeps operations on them
+            // (comparisons, string templates) from treating the raw value as an
+            // untyped object handle.
+            let paramType = i == 0 ? sema.types.anyType : (valueType ?? sema.types.anyType)
+            params.append(KIRParameter(symbol: paramSymbol, type: paramType))
         }
 
         var lambdaBody: KIRLoweringEmitContext = [.beginBlock]
-        for param in params {
+        let underscore = interner.intern("_")
+        // Names the callback lambda declared for its parameters
+        // (`{ property, old, new -> ... }`) must resolve to the synthetic
+        // parameters below while the body is lowered, then be restored so they
+        // do not leak into the enclosing function's name scope.
+        var savedParamBindings: [(name: InternedString, symbol: SymbolID?)] = []
+        for (index, param) in params.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(paramExpr, for: param.symbol)
+            guard index < delegateBodyParams.count else { continue }
+            let name = delegateBodyParams[index]
+            guard name != underscore else { continue }
+            savedParamBindings.append((name, ctx.lambdaParamSymbol(named: name)))
+            ctx.registerLambdaParam(symbol: param.symbol, forName: name)
+        }
+        defer {
+            for binding in savedParamBindings {
+                ctx.restoreLambdaParam(symbol: binding.symbol, forName: binding.name)
+            }
         }
 
         switch delegateBody {
