@@ -21,7 +21,6 @@ struct ReflectKMutableProperty1SyntheticTests {
     @Test func testKMutableProperty1SurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
-        let functionPackage = ["kotlin", "Function"].map { interner.intern($0) }
 
         let kProperty1Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KProperty1")]
@@ -32,13 +31,11 @@ struct ReflectKMutableProperty1SyntheticTests {
         let kMutableProperty1Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty1")]
         ))
-        let function1Symbol = try #require(sema.symbols.lookup(
-            fqName: functionPackage + [interner.intern("Function1")]
-        ))
 
         let kMutableProperty1Info = try #require(sema.symbols.symbol(kMutableProperty1Symbol))
         #expect(kMutableProperty1Info.kind == .interface)
-        #expect(kMutableProperty1Info.flags.contains(.synthetic))
+        // KSP-682: KMutableProperty1 is now bundled Kotlin source, not a synthetic stub.
+        #expect(!kMutableProperty1Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutableProperty1Symbol)
         #expect(typeParams.count == 2)
@@ -52,18 +49,17 @@ struct ReflectKMutableProperty1SyntheticTests {
             symbol: typeParams[1],
             nullability: .nonNull
         )))
+        // KSP-682: source declares `KMutableProperty1<T, V> : KProperty1<T, V>,
+        // KMutableProperty<V>`, so Function1 is a transitive supertype via
+        // KProperty1 rather than a direct one (matching Kotlin).
         let supertypes = sema.symbols.directSupertypes(for: kMutableProperty1Symbol)
         #expect(supertypes.contains(kProperty1Symbol))
         #expect(supertypes.contains(kMutablePropertySymbol))
-        #expect(supertypes.contains(function1Symbol))
         #expect(
             sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kProperty1Symbol) == [.invariant(receiverTypeParam), .invariant(valueType)]
         )
         #expect(
             sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kMutablePropertySymbol) == [.invariant(valueType)]
-        )
-        #expect(
-            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: function1Symbol) == [.out(valueType), .in(receiverTypeParam)]
         )
 
         let setSymbol = try #require(sema.symbols.lookup(
