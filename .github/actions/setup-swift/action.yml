@@ -1,5 +1,5 @@
-name: Setup Swift (Ubuntu)
-description: Install Swift toolchain only (no LLVM). For targets that do not link against LLVM.
+name: Setup Swift
+description: Install Swift toolchain only (no LLVM) on supported self-hosted and hosted runners.
 
 inputs:
   swift-version:
