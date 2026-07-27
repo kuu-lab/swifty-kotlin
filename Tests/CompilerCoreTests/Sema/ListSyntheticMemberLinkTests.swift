@@ -1571,7 +1571,12 @@ struct ListSyntheticMemberLinkTests {
             let randomAccessSymbol = try #require(sema.symbols.lookup(fqName: randomAccessFQName))
             let randomAccessInfo = try #require(sema.symbols.symbol(randomAccessSymbol))
             #expect(randomAccessInfo.kind == .interface)
-            #expect(randomAccessInfo.flags.contains(.synthetic))
+            // KSP-669: `kotlin.collections.RandomAccess` is source-backed by
+            // `Sources/CompilerCore/Stdlib/kotlin/collections/RandomAccess.kt`. When the
+            // bundled stdlib is loaded the source declaration reuses the synthetic shell
+            // symbol and clears the `.synthetic` flag, so the registered marker interface
+            // is no longer synthetic.
+            #expect(!randomAccessInfo.flags.contains(.synthetic))
             #expect(sema.types.nominalTypeParameterSymbols(for: randomAccessSymbol).isEmpty)
         }
     }

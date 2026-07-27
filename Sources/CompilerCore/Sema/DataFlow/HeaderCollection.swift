@@ -992,6 +992,10 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> [InternedString]? {
         switch sourceManager.path(of: file.fileID) {
+        case "__bundled_kotlin/Comparable.kt":
+            return ["kotlin", "Comparable"].map { interner.intern($0) }
+        case "__bundled_kotlin/collections/RandomAccess.kt":
+            return ["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }
         case "__bundled_kotlin/Result.kt":
             return ["kotlin", "Result"].map { interner.intern($0) }
         case "__bundled_kotlin/text/StringBuilder.kt":
