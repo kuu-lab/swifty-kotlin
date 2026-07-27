@@ -313,8 +313,14 @@ final class InlineLoweringPass: LoweringPass {
                 }
             }
 
+            // The name fallback only applies to calls whose callee symbol is
+            // unknown here. A call that resolves to a known non-inline function
+            // must not be redirected to a same-named inline overload from an
+            // unrelated receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`).
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
                 target
+            } else if let symbol, allFunctionsBySymbol[symbol] != nil {
+                nil
             } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
                 byName[0]
             } else {
