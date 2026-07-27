@@ -900,6 +900,7 @@ final class CallLowerer {
             )
         }
         var finalArgIDs = callNormalized.arguments
+        var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         // Compiler-generated lambdas/local functions use the compiler ABI
         // (including the hidden thrown channel), so route them through their
         // lowered symbol directly instead of Swift closure helpers.
@@ -1008,68 +1009,14 @@ final class CallLowerer {
                         thrownResult: nil
                     ))
                 }
-                if let objectLayout = sema.symbols.nominalLayout(for: ownerNominalSymbol) {
-                    for interfaceSymbol in sema.symbols.directSupertypes(for: ownerNominalSymbol) {
-                        guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
-                              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
-                        else {
-                            continue
-                        }
-                        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
-                        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                            symbol: interfaceSymbol,
-                            sema: sema,
-                            interner: interner
-                        )
-                        let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: intType)
-                        instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
-                        let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
-                        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-                        let registerIfaceResult = arena.appendTemporary(type: intType)
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern("kk_object_register_itable_iface"),
-                            arguments: [allocatedObj, interfaceTypeExpr, ifaceSlotExpr],
-                            result: registerIfaceResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
-                            let methodSlot = Int64(methodSlotInt)
-                            let implementationSymbol: SymbolID = {
-                                guard let methodSym = sema.symbols.symbol(methodSymbol),
-                                      let ownerSym = sema.symbols.symbol(ownerNominalSymbol)
-                                else {
-                                    return methodSymbol
-                                }
-                                let overrideFQName = ownerSym.fqName + [methodSym.name]
-                                for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-                                    guard let candidateSym = sema.symbols.symbol(candidate),
-                                          candidateSym.kind == .function,
-                                          sema.symbols.parentSymbol(for: candidate) == ownerNominalSymbol
-                                    else {
-                                        continue
-                                    }
-                                    return candidate
-                                }
-                                return methodSymbol
-                            }()
-                            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
-                            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
-                            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
-                            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
-                            let registerMethodResult = arena.appendTemporary(type: intType)
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern("kk_object_register_itable_method"),
-                                arguments: [allocatedObj, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
-                                result: registerMethodResult,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                        }
-                    }
-                }
+                appendObjectItableMethodRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
@@ -1095,6 +1042,18 @@ final class CallLowerer {
                   let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
         {
             finalArgIDs.insert(implicitReceiver, at: 0)
+            // An unqualified `compute()` inside a member body is `this.compute()`
+            // and must dispatch through the receiver's vtable/itable exactly like
+            // the explicit form: a subclass override, or a base-class
+            // implementation of an interface method, is otherwise bypassed.
+            if sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true {
+                implicitReceiverDispatch = resolveVirtualDispatch(
+                    callee: chosen,
+                    receiverTypeID: arena.exprType(implicitReceiver),
+                    sema: sema,
+                    interner: interner
+                ).map { (receiver: implicitReceiver, kind: $0) }
+            }
         }
         if loweredCallable == nil {
             materializeSourceBackedFunctionValueArguments(
@@ -1275,14 +1234,27 @@ final class CallLowerer {
                 }
                 return nil
             }()
-            instructions.append(.call(
-                symbol: callSymbol,
-                callee: loweredCalleeName,
-                arguments: finalArgIDs,
-                result: result,
-                canThrow: callCanThrow,
-                thrownResult: thrownResult
-            ))
+            if let implicitReceiverDispatch, finalArgIDs.first == implicitReceiverDispatch.receiver {
+                instructions.append(.virtualCall(
+                    symbol: callSymbol,
+                    callee: loweredCalleeName,
+                    receiver: implicitReceiverDispatch.receiver,
+                    arguments: Array(finalArgIDs.dropFirst()),
+                    result: result,
+                    canThrow: callCanThrow,
+                    thrownResult: thrownResult,
+                    dispatch: implicitReceiverDispatch.kind
+                ))
+            } else {
+                instructions.append(.call(
+                    symbol: callSymbol,
+                    callee: loweredCalleeName,
+                    arguments: finalArgIDs,
+                    result: result,
+                    canThrow: callCanThrow,
+                    thrownResult: thrownResult
+                ))
+            }
             if let thrownResult,
                shouldRethrowThrownChannelResult(calleeName: loweredCalleeName, interner: interner)
             {
