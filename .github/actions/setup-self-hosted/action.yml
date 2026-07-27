@@ -12,13 +12,34 @@ runs:
           exit 0
         fi
 
-        if ! command -v sudo >/dev/null 2>&1; then
-          echo "ripgrep is not installed and sudo is unavailable on this Linux runner." >&2
-          exit 1
+        if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          exit 0
         fi
 
-        sudo apt-get update
-        sudo apt-get install -y ripgrep
+        # Runner accounts without passwordless sudo cannot use apt-get, so fall
+        # back to the upstream static build in a user-writable directory.
+        case "$(uname -m)" in
+          x86_64) target="x86_64-unknown-linux-musl" ;;
+          aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+          *)
+            echo "ripgrep is not installed and no prebuilt binary exists for $(uname -m)." >&2
+            exit 1
+            ;;
+        esac
+
+        version="14.1.1"
+        archive="ripgrep-${version}-${target}"
+        workdir="${RUNNER_TEMP:-/tmp}"
+        install_dir="$HOME/.local/bin"
+        mkdir -p "$install_dir"
+
+        curl -fsSL -o "$workdir/$archive.tar.gz" \
+          "https://github.com/BurntSushi/ripgrep/releases/download/${version}/${archive}.tar.gz"
+        tar -xzf "$workdir/$archive.tar.gz" -C "$workdir"
+        install -m 0755 "$workdir/$archive/rg" "$install_dir/rg"
+        echo "$install_dir" >> "$GITHUB_PATH"
 
     - name: Prepare macOS runner
       if: runner.os == 'macOS'
