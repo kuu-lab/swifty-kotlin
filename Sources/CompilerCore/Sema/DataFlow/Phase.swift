@@ -136,22 +136,54 @@ final class DataFlowSemaPhase: CompilerPhase {
             return lhs.fileID.rawValue < rhs.fileID.rawValue
         }
         for file in orderedFiles {
-            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             registerFileAnnotations(
                 file: file,
                 symbols: symbols,
                 diagnostics: ctx.diagnostics,
                 interner: ctx.interner
             )
+        }
+
+        // BUG-159: define every top-level nominal type symbol across all files
+        // before any signature is resolved, so that a declaration may reference
+        // a type declared in a file processed later without hitting
+        // `KSWIFTK-SEMA-0025: Unresolved type`.
+        var predefinedSymbols: [DeclID: DataFlowSemaPhase.TopLevelDeclarationSymbol] = [:]
+        for file in orderedFiles {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            for declID in file.topLevelDecls where isNominalTypeDeclaration(declID, ast: ast) {
+                guard let defined = defineTopLevelDeclarationSymbol(
+                    declID: declID, file: file, ast: ast,
+                    symbols: symbols, bindings: bindings, scope: fileScope,
+                    sourceManager: ctx.sourceManager,
+                    diagnostics: ctx.diagnostics, interner: ctx.interner,
+                    ctx: ctx
+                ) else { continue }
+                predefinedSymbols[declID] = defined
+            }
+        }
+
+        for file in orderedFiles {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             for declID in file.topLevelDecls {
                 collectHeader(
                     declID: declID, file: file, ast: ast,
                     symbols: symbols, types: types, bindings: bindings,
                     scope: fileScope, sourceManager: ctx.sourceManager,
                     diagnostics: ctx.diagnostics, interner: ctx.interner,
-                    ctx: ctx
+                    ctx: ctx,
+                    predefinedSymbols: predefinedSymbols
                 )
             }
+        }
+    }
+
+    private func isNominalTypeDeclaration(_ declID: DeclID, ast: ASTModule) -> Bool {
+        switch ast.arena.decl(declID) {
+        case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+            return true
+        case .funDecl, .propertyDecl, .enumEntryDecl, nil:
+            return false
         }
     }
 

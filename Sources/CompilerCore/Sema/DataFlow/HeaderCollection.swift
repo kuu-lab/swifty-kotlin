@@ -42,24 +42,34 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// A top-level declaration symbol together with the declaration metadata
+    /// derived from its AST node.
+    struct TopLevelDeclarationSymbol {
+        let symbol: SymbolID
+        let kind: SymbolKind
+        let name: InternedString
+        let visibility: Visibility
+        let flags: SymbolFlags
+    }
+
+    /// Defines the symbol for a top-level declaration without resolving any of
+    /// its signature types. Running this over every file before signatures are
+    /// resolved makes cross-file forward references order-independent.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func collectHeader(
+    func defineTopLevelDeclarationSymbol(
         declID: DeclID,
         file: ASTFile,
         ast: ASTModule,
         symbols: SymbolTable,
-        types: TypeSystem,
         bindings: BindingTable,
         scope: Scope,
         sourceManager: SourceManager,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         ctx: CompilationContext
-    ) {
-        guard let decl = ast.arena.decl(declID) else { return }
+    ) -> TopLevelDeclarationSymbol? {
+        guard let decl = ast.arena.decl(declID) else { return nil }
         let package = file.packageFQName
-        let anyType = types.anyType
-        let unitType = types.unitType
 
         let declaration: (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)?
         switch decl {
@@ -160,7 +170,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        guard let declaration else { return }
+        guard let declaration else { return nil }
         let fqName = package + [declaration.name]
         let scopeExisting = scope.lookup(declaration.name).compactMap { symbolID -> SemanticSymbol? in
             guard let symbol = symbols.symbol(symbolID),
@@ -240,6 +250,54 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        return TopLevelDeclarationSymbol(
+            symbol: symbol,
+            kind: declaration.kind,
+            name: declaration.name,
+            visibility: declaration.visibility,
+            flags: declaration.flags
+        )
+    }
+
+    /// Resolves the signature of a top-level declaration (and collects its
+    /// members), reusing the symbol registered by
+    /// `defineTopLevelDeclarationSymbol` when one was predefined.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func collectHeader(
+        declID: DeclID,
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        ctx: CompilationContext,
+        predefinedSymbols: [DeclID: TopLevelDeclarationSymbol] = [:]
+    ) {
+        guard let decl = ast.arena.decl(declID) else { return }
+        let package = file.packageFQName
+        let anyType = types.anyType
+        let unitType = types.unitType
+
+        let declaration: TopLevelDeclarationSymbol
+        if let predefined = predefinedSymbols[declID] {
+            declaration = predefined
+        } else if let defined = defineTopLevelDeclarationSymbol(
+            declID: declID, file: file, ast: ast,
+            symbols: symbols, bindings: bindings, scope: scope,
+            sourceManager: sourceManager, diagnostics: diagnostics,
+            interner: interner, ctx: ctx
+        ) {
+            declaration = defined
+        } else {
+            return
+        }
+        let symbol = declaration.symbol
+        let fqName = package + [declaration.name]
 
         switch decl {
         case let .classDecl(classDecl):
