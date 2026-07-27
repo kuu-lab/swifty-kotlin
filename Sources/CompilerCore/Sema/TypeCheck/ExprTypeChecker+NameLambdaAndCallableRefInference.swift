@@ -777,6 +777,47 @@ extension ExprTypeChecker {
         return nil
     }
 
+    private func describe(_ type: TypeID, ctx: TypeInferenceContext) -> String {
+        ctx.sema.types.displayName(of: type, symbols: ctx.sema.symbols, interner: ctx.interner)
+    }
+
+    /// Whether an explicit lambda parameter annotation agrees with the parameter
+    /// type the expected type declares. Type parameters the expected type leaves
+    /// unsubstituted carry no information, so annotations always win there.
+    func lambdaAnnotationIsCompatible(annotated: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+        if annotated == declared || declared == sema.types.errorType || annotated == sema.types.errorType {
+            return true
+        }
+        if typeMentionsTypeParameter(declared, sema: sema) {
+            return true
+        }
+        return sema.types.isSubtype(declared, annotated) || sema.types.isSubtype(annotated, declared)
+    }
+
+    private func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    return typeMentionsTypeParameter(inner, sema: sema)
+                case .star:
+                    return false
+                }
+            }
+        case let .functionType(functionType):
+            return functionType.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+                || typeMentionsTypeParameter(functionType.returnType, sema: sema)
+                || (functionType.receiver.map { typeMentionsTypeParameter($0, sema: sema) } ?? false)
+        case let .intersection(members):
+            return members.contains { typeMentionsTypeParameter($0, sema: sema) }
+        default:
+            return false
+        }
+    }
+
     /// Resolves the explicit parameter type annotations recorded for a lambda
     /// literal (`{ a: Int, b: String -> ... }`). Returns nil when the lambda has
     /// no annotations or the recorded arity does not match the parameter list.
@@ -867,14 +908,21 @@ extension ExprTypeChecker {
             params
         }
 
-        let expectedParameterTypes: [TypeID] = if let expectedFunctionType,
-                                          expectedFunctionType.params.count == effectiveParams.count
-        {
-            expectedFunctionType.params
-        } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema),
-                  samFT.params.count == effectiveParams.count {
-            // Use SAM conversion parameter types
-            samFT.params
+        // Parameter types the expected type actually declares, as opposed to the
+        // `Any` fallback below; only these can contradict an explicit annotation.
+        let declaredParameterTypes: [TypeID]? = {
+            if let expectedFunctionType, expectedFunctionType.params.count == effectiveParams.count {
+                return expectedFunctionType.params
+            }
+            if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema),
+               samFT.params.count == effectiveParams.count
+            {
+                return samFT.params
+            }
+            return nil
+        }()
+        let expectedParameterTypes: [TypeID] = if let declaredParameterTypes {
+            declaredParameterTypes
         } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
             // For implicit `it` parameter, try to infer type from context
             inferredImplicitItType.map { [$0] }
@@ -884,13 +932,27 @@ extension ExprTypeChecker {
         }
         // Explicit `{ a: Int -> ... }` annotations win over the expected type's
         // parameter types, which may be unsubstituted type parameters when the
-        // expected type is a raw functional interface (BUG-046).
+        // expected type is a raw functional interface (BUG-046). An annotation
+        // that contradicts a concrete expected parameter type is an error.
         let annotatedParameterTypes = resolveLambdaParamAnnotations(id, ctx: ctx, paramCount: effectiveParams.count)
         let parameterTypes: [TypeID] = effectiveParams.indices.map { offset in
-            if let annotated = annotatedParameterTypes?[offset] {
+            let fallback = offset < expectedParameterTypes.count ? expectedParameterTypes[offset] : sema.types.anyType
+            guard let annotated = annotatedParameterTypes?[offset] else {
+                return fallback
+            }
+            guard let declared = declaredParameterTypes?[offset] else {
                 return annotated
             }
-            return offset < expectedParameterTypes.count ? expectedParameterTypes[offset] : sema.types.anyType
+            if lambdaAnnotationIsCompatible(annotated: annotated, declared: declared, sema: sema) {
+                return annotated
+            }
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0025",
+                "Lambda parameter '\(ctx.interner.resolve(effectiveParams[offset]))' is declared as "
+                    + "'\(describe(annotated, ctx: ctx))' but '\(describe(declared, ctx: ctx))' is expected.",
+                range: ast.arena.exprRange(id)
+            )
+            return declared
         }
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))

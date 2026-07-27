@@ -74,6 +74,71 @@ struct LambdaParamTypeAnnotationTests {
         #expect(errors.isEmpty, "Annotation matching the expected function type should type-check, got: \\(errors)")
     }
 
+    @Test func testAnnotationContradictingExpectedFunctionTypeIsRejected() throws {
+        let source = """
+        fun main() {
+            val g: (String) -> Int = { s: Int -> s + 1 }
+            println(g("hi"))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 1,
+            "Annotation contradicting the expected function type must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationContradictingSamTypeArgumentIsRejected() throws {
+        let source = """
+        fun interface Cmp<T> { fun compare(a: T, b: T): Int }
+
+        fun main() {
+            val c: Cmp<String> = Cmp { a: Int, b: Int -> a - b }
+            println(c.compare("a", "b"))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0025" }
+        #expect(
+            mismatches.count == 2,
+            "Both annotations contradicting Cmp<String> must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationContradictingHigherOrderParameterIsRejected() throws {
+        let source = """
+        fun main() {
+            println(listOf(1, 2, 3).map { s: String -> s.length })
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.hasError,
+            "`map { s: String -> ... }` on a List<Int> must not type-check"
+        )
+    }
+
+    @Test func testPartiallyAnnotatedLambdaKeepsExpectedTypesForUnannotatedParams() throws {
+        let source = """
+        fun main() {
+            val q: (Int, String) -> Int = { a: Int, b -> a + b.length }
+            println(q(7, "zz"))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Partially annotated lambda should type-check, got: \\(errors)")
+    }
+
     @Test func testParserRecordsLambdaParamTypeAnnotations() throws {
         let source = """
         fun main() {
