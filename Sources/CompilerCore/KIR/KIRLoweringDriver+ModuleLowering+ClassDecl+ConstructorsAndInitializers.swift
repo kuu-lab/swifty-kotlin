@@ -70,6 +70,13 @@ extension KIRLoweringDriver {
         }
         let isSecondary = sema.symbols.symbol(ctorSymbol)?.declSite != classDecl.range
         if !isSecondary {
+            emitSuperclassConstructorCall(
+                ownerSymbol: ownerSymbol,
+                ctorSymbol: ctorSymbol,
+                shared: shared,
+                compilationCtx: compilationCtx,
+                body: &body
+            )
             emitPrimaryConstructorPropertyInitializers(
                 classDecl: classDecl,
                 shared: shared,
@@ -100,6 +107,74 @@ extension KIRLoweringDriver {
         }
         body.append(.endBlock)
         return body
+    }
+
+    /// Runs the superclass constructor from a subclass primary constructor so
+    /// that inherited property initializers and `init` blocks execute before the
+    /// subclass initializes its own state (Kotlin initialization order).
+    ///
+    /// Only parameterless superclass constructors are invoked: the arguments of
+    /// `: Base(a, b)` are dropped while building the AST, so there is nothing to
+    /// forward for parameterized bases (see BUG-162).
+    private func emitSuperclassConstructorCall(
+        ownerSymbol: SymbolID,
+        ctorSymbol: SymbolID,
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        guard let receiverID = ctx.activeImplicitReceiverExprID(),
+              let superCtorSymbol = superclassParameterlessConstructor(
+                  ownerSymbol: ownerSymbol, ctorSymbol: ctorSymbol, sema: sema, interner: compilationCtx.interner
+              )
+        else {
+            return
+        }
+        let resultID = shared.arena.appendTemporary(type: sema.types.unitType)
+        body.append(.call(
+            symbol: superCtorSymbol,
+            callee: compilationCtx.interner.intern("<init>"),
+            arguments: [receiverID],
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    /// Finds the superclass' parameterless constructor when it has a body that
+    /// this module emits. Runtime-backed (`externalLinkName`) and synthetic
+    /// declarations have no lowered constructor to call.
+    private func superclassParameterlessConstructor(
+        ownerSymbol: SymbolID,
+        ctorSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let superclasses = sema.symbols.directSupertypes(for: ownerSymbol).filter { symbol in
+            let kind = sema.symbols.symbol(symbol)?.kind
+            return kind == .class || kind == .enumClass
+        }
+        guard let superclass = superclasses.first,
+              let superSymbol = sema.symbols.symbol(superclass),
+              !superSymbol.flags.contains(.synthetic),
+              superSymbol.fqName != [interner.intern("kotlin"), interner.intern("Any")]
+        else {
+            return nil
+        }
+        let ctorFQName = superSymbol.fqName + [interner.intern("<init>")]
+        return sema.symbols.lookupAll(fqName: ctorFQName).first { candidate in
+            guard candidate != ctorSymbol,
+                  let candidateSymbol = sema.symbols.symbol(candidate),
+                  candidateSymbol.kind == .constructor,
+                  !candidateSymbol.flags.contains(.synthetic),
+                  sema.symbols.externalLinkName(for: candidate)?.isEmpty ?? true,
+                  let signature = sema.symbols.functionSignature(for: candidate)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty
+        }
     }
 
     private func emitPrimaryConstructorPropertyInitializers(

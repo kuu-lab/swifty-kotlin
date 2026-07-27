@@ -52,6 +52,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `try_expression.kt`: `try` 式（multi-catch / partial catch / `finally` 実行順）の parity
 - `interface_default_method.kt`: interface default method（body あり fun）の default 実装呼び出しと concrete override の共存 parity
 - `abstract_class.kt`: abstract class / abstract member の制約と override 強制（abstract fun, multi-level inheritance chain）
+- `superclass_init_virtual_dispatch.kt`: 基底クラス constructor の実行（継承フィールドの初期化）と、implicit receiver 経由で呼ぶ overridable メンバの仮想ディスパッチ parity（BUG-155）
 - `tailrec_fun.kt`: `tailrec` 関数の再帰実行 parity
 - `collection_builders.kt`: `buildString` / `buildList` / `buildSet` / `buildMap` DSL builder の正常系 parity
 - `builder_dsl_invalid_arg.kt`: builder への不正引数（非 lambda）を compile error として扱う parity
