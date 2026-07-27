@@ -168,6 +168,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // BUG-152: `length` must also resolve when the static type is the
+        // `CharSequence` interface, not only the concrete `String` type.
+        registerSyntheticStringExtensionFunction(
+            named: "length",
+            externalLinkName: "kk_string_length",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // lowercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
         // uppercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
@@ -1350,6 +1362,17 @@ extension DataFlowSemaPhase {
             ],
             returnType: charType,
             flags: [.synthetic, .operatorFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // BUG-152: `subSequence` on a value statically typed as `CharSequence`.
+        registerSyntheticStringExtensionFunction(
+            named: "subSequence",
+            externalLinkName: "kk_string_subSequence_flat",
+            receiverType: charSequenceType,
+            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
+            returnType: charSequenceType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
