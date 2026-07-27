@@ -1,0 +1,56 @@
+name: Prepare self-hosted runner
+description: Install command-line prerequisites shared by Linux and macOS self-hosted runners.
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare Linux runner
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if command -v rg >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        if ! command -v sudo >/dev/null 2>&1; then
+          echo "ripgrep is not installed and sudo is unavailable on this Linux runner." >&2
+          exit 1
+        fi
+
+        sudo apt-get update
+        sudo apt-get install -y ripgrep
+
+    - name: Prepare macOS runner
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew_bin=""
+        for candidate in "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew; do
+          if [[ -n "$candidate" && -x "$candidate" ]]; then
+            brew_bin="$candidate"
+            break
+          fi
+        done
+
+        if [[ -z "$brew_bin" ]]; then
+          echo "Homebrew is required on macOS self-hosted runners to install CI prerequisites." >&2
+          exit 1
+        fi
+
+        brew_prefix="$($brew_bin --prefix)"
+        export PATH="$brew_prefix/bin:$PATH"
+
+        if ! command -v rg >/dev/null 2>&1; then
+          "$brew_bin" install ripgrep
+        fi
+
+        bash_major="$(bash -c 'printf "%s" "${BASH_VERSINFO[0]}"' 2>/dev/null || printf '0')"
+        if ! [[ "$bash_major" =~ ^[4-9][0-9]*$ ]] || ! "$brew_bin" list --formula bash >/dev/null 2>&1; then
+          "$brew_bin" install bash
+        fi
+
+        bash_prefix="$($brew_bin --prefix bash)"
+        {
+          echo "$bash_prefix/bin"
+          echo "$brew_prefix/bin"
+        } >> "$GITHUB_PATH"
