@@ -535,19 +535,6 @@ extension CallLowerer {
             finalArguments[1] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_string_replaceFirstChar_flat"),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[1] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
         case "kk_string_filter",
              "kk_string_map",
