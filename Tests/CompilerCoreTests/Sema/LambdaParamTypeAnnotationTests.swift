@@ -128,8 +128,8 @@ struct LambdaParamTypeAnnotationTests {
     @Test func testAnnotationNarrowingExpectedParameterTypeIsRejected() throws {
         let source = """
         fun main() {
-            val f: (Any) -> Int = { s: String -> s.length }
-            println(f(42))
+            val f: (CharSequence) -> Int = { s: String -> s.length }
+            println(f("ab"))
         }
         """
 
@@ -156,6 +156,26 @@ struct LambdaParamTypeAnnotationTests {
         #expect(
             mismatches.count == 1,
             "A non-null annotation for a nullable parameter must be reported, got: \\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testAnnotationIsKeptWhereInferenceFallsBackToAny() throws {
+        let source = """
+        fun main() {
+            val grouping: Grouping<Int, Int> = listOf(3, 1, 4, 2, 5).groupingBy { value: Int -> value % 2 }
+            println(grouping.fold(
+                initialValueSelector = { key: Int, element: Int -> key * 100 + element },
+                operation = { key: Int, accumulator: Int, element: Int -> accumulator + key + element }
+            ))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "An unsolved accumulator type falls back to Any and must not reject the annotation, got: \\(errors)"
         )
     }
 
