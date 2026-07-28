@@ -163,7 +163,50 @@ extension DataFlowSemaPhase {
         case let .named(refPath, refs, _):
             path = refPath
             argRefs = refs
-        case .functionType, .intersection, .annotated:
+        case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, _):
+            // KSP-682 / KSP-CAP-009: a function-type supertype such as
+            // `KProperty0<V> : () -> V` resolves to the kotlin.Function{N}
+            // nominal interface so property references inherit invoke(...).
+            // Suspend and context-receiver function types have no nominal
+            // Function{N} equivalent here, so they are left unbound.
+            guard !isSuspend, contextReceiverRefIDs.isEmpty else {
+                return nil
+            }
+            var paramTypes: [TypeID] = []
+            if let receiverRefID {
+                guard let receiverType = resolveTypeRefForInheritance(
+                    receiverRefID, currentPackage: currentPackage,
+                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    symbols: symbols, types: types, interner: interner
+                ) else { return nil }
+                paramTypes.append(receiverType)
+            }
+            for paramRef in paramRefIDs {
+                guard let paramType = resolveTypeRefForInheritance(
+                    paramRef, currentPackage: currentPackage,
+                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    symbols: symbols, types: types, interner: interner
+                ) else { return nil }
+                paramTypes.append(paramType)
+            }
+            guard let returnType = resolveTypeRefForInheritance(
+                returnRefID, currentPackage: currentPackage,
+                enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                symbols: symbols, types: types, interner: interner
+            ) else { return nil }
+            let functionFQName = [
+                interner.intern("kotlin"), interner.intern("Function"),
+                interner.intern("Function\(paramTypes.count)"),
+            ]
+            guard let functionSymbol = symbols.lookupAll(fqName: functionFQName)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            else {
+                return nil
+            }
+            let functionArgs: [TypeArg] = [.out(returnType)] + paramTypes.map { .in($0) }
+            return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
+        case .intersection, .annotated:
             return nil
         }
         guard !path.isEmpty else {

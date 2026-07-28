@@ -1,0 +1,92 @@
+name: Prepare self-hosted runner
+description: Install command-line prerequisites shared by Linux and macOS self-hosted runners.
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare Linux runner
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if command -v rg >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        ripgrep_version="15.2.0"
+        case "$(uname -m)" in
+          x86_64|amd64)
+            ripgrep_target="x86_64-unknown-linux-musl"
+            ripgrep_sha256="33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
+            ;;
+          aarch64|arm64)
+            ripgrep_target="aarch64-unknown-linux-musl"
+            ripgrep_sha256="800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915"
+            ;;
+          *)
+            echo "Unsupported Linux architecture for ripgrep: $(uname -m)" >&2
+            exit 1
+            ;;
+        esac
+
+        for prerequisite in curl tar sha256sum; do
+          if ! command -v "$prerequisite" >/dev/null 2>&1; then
+            echo "$prerequisite is required to install ripgrep without sudo." >&2
+            exit 1
+          fi
+        done
+
+        archive_name="ripgrep-${ripgrep_version}-${ripgrep_target}.tar.gz"
+        archive_path="${RUNNER_TEMP:?RUNNER_TEMP is required}/${archive_name}"
+        install_root="${RUNNER_TEMP}/ripgrep-${ripgrep_version}-${ripgrep_target}"
+        download_url="https://github.com/BurntSushi/ripgrep/releases/download/${ripgrep_version}/${archive_name}"
+
+        mkdir -p "$install_root"
+        curl --fail --location --retry 3 --retry-delay 2 \
+          --output "$archive_path" \
+          "$download_url"
+        printf '%s  %s\n' "$ripgrep_sha256" "$archive_path" | sha256sum --check -
+        tar --extract --gzip --file "$archive_path" --directory "$install_root"
+
+        ripgrep_bin_dir="$install_root/ripgrep-${ripgrep_version}-${ripgrep_target}"
+        if [[ ! -x "$ripgrep_bin_dir/rg" ]]; then
+          echo "Downloaded ripgrep archive did not contain an executable rg binary." >&2
+          exit 1
+        fi
+
+        echo "$ripgrep_bin_dir" >> "$GITHUB_PATH"
+        "$ripgrep_bin_dir/rg" --version
+
+    - name: Prepare macOS runner
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew_bin=""
+        for candidate in "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew; do
+          if [[ -n "$candidate" && -x "$candidate" ]]; then
+            brew_bin="$candidate"
+            break
+          fi
+        done
+
+        if [[ -z "$brew_bin" ]]; then
+          echo "Homebrew is required on macOS self-hosted runners to install CI prerequisites." >&2
+          exit 1
+        fi
+
+        brew_prefix="$($brew_bin --prefix)"
+        export PATH="$brew_prefix/bin:$PATH"
+
+        if ! command -v rg >/dev/null 2>&1; then
+          "$brew_bin" install ripgrep
+        fi
+
+        bash_major="$(bash -c 'printf "%s" "${BASH_VERSINFO[0]}"' 2>/dev/null || printf '0')"
+        if ! [[ "$bash_major" =~ ^[4-9][0-9]*$ ]] || ! "$brew_bin" list --formula bash >/dev/null 2>&1; then
+          "$brew_bin" install bash
+        fi
+
+        bash_prefix="$($brew_bin --prefix bash)"
+        {
+          echo "$bash_prefix/bin"
+          echo "$brew_prefix/bin"
+        } >> "$GITHUB_PATH"
