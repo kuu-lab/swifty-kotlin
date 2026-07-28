@@ -18,7 +18,7 @@ jobs:
   # Self-hosted TODO ID duplicate check. Gating once TODO.md duplicate IDs are cleaned up.
   verify-todo-ids:
     name: Verification 0/5 (TODO ID duplicate check)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -107,7 +107,7 @@ jobs:
 
   verify-self-hosted:
     name: Verification 2-4/5 (Backend, Runtime, CLI, LSP, and Repository Checks)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v7
