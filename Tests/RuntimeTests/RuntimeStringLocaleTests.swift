@@ -99,7 +99,7 @@ struct RuntimeStringLocaleTests {
         let result = flatLocaleStringValue(
             "I",
             locale: makeLocale("tr"),
-            using: kk_string_lowercase_locale_flat
+            using: __kk_lowercase_locale_flat
         )
         #expect(result == "ı")
     }
@@ -109,7 +109,7 @@ struct RuntimeStringLocaleTests {
         let result = flatLocaleStringValue(
             "i",
             locale: makeLocale("tr"),
-            using: kk_string_uppercase_locale_flat
+            using: __kk_uppercase_locale_flat
         )
         #expect(result == "İ")
     }
