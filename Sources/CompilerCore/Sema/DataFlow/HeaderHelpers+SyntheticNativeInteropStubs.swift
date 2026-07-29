@@ -11,5 +11,25 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerSyntheticNativeIdentityHashCodeStub(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNativeStackTraceAddressStub(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNativeUnhandledExceptionHookStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNativeByteArrayAccessorStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }
