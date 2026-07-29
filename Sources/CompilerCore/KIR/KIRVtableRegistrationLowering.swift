@@ -91,9 +91,7 @@ func appendObjectItableMethodRegistrations(
     }
 
     let intType = sema.types.intType
-    let interfaceSupertypes = sema.symbols.directSupertypes(for: nominalSymbol).filter { superSymbol in
-        sema.symbols.symbol(superSymbol)?.kind == .interface
-    }
+    let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
     for interfaceSymbol in interfaceSupertypes {
         guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
             continue
@@ -145,30 +143,86 @@ func appendObjectItableMethodRegistrations(
             ))
         }
     }
+
+    // BUG-141: also register interface property getters into the itable.
+    appendObjectItablePropertyGetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
 }
 
+/// Interfaces reachable from `nominalSymbol` through the whole supertype
+/// closure, including those implemented by base classes rather than by the
+/// nominal itself. The itable layout assigns slots for exactly this set
+/// (`LayoutSynthesis.collectInterfaceSupertypes`), so instances must register
+/// every one of them to be dispatchable through an interface static type.
+func kirTransitiveInterfaceSupertypes(
+    of nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> [SymbolID] {
+    var stack = sema.symbols.directSupertypes(for: nominalSymbol)
+    var visited: Set<SymbolID> = []
+    var interfaces: [SymbolID] = []
+
+    while let current = stack.popLast() {
+        guard visited.insert(current).inserted else {
+            continue
+        }
+        if sema.symbols.symbol(current)?.kind == .interface {
+            interfaces.append(current)
+        }
+        stack.append(contentsOf: sema.symbols.directSupertypes(for: current))
+    }
+
+    return interfaces.sorted { $0.rawValue < $1.rawValue }
+}
+
+/// Resolves the implementation an instance of `nominalSymbol` must expose for
+/// `interfaceMethod`. The override may live on the nominal itself or on any of
+/// its base classes (`class IntBox : AbstractBox<Int>()` inheriting
+/// `AbstractBox.get`), so the class chain is walked most-derived first.
 func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
     sema: SemaModule
 ) -> SymbolID? {
-    guard let methodSym = sema.symbols.symbol(interfaceMethod),
-          let ownerSym = sema.symbols.symbol(nominalSymbol)
-    else {
+    guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
         return nil
     }
 
-    let overrideFQName = ownerSym.fqName + [methodSym.name]
-    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-        guard let candidateSym = sema.symbols.symbol(candidate),
-              candidateSym.kind == .function,
-              sema.symbols.parentSymbol(for: candidate) == nominalSymbol
-        else {
-            continue
+    var visited: Set<SymbolID> = []
+    var current: SymbolID? = nominalSymbol
+    while let nominal = current, visited.insert(nominal).inserted {
+        if let ownerSym = sema.symbols.symbol(nominal) {
+            let overrideFQName = ownerSym.fqName + [methodSym.name]
+            for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+                guard let candidateSym = sema.symbols.symbol(candidate),
+                      candidateSym.kind == .function,
+                      sema.symbols.parentSymbol(for: candidate) == nominal
+                else {
+                    continue
+                }
+                return candidate
+            }
         }
-        return candidate
+        current = kirSuperclass(of: nominal, sema: sema)
     }
     return nil
+}
+
+private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+    sema.symbols.directSupertypes(for: nominalSymbol).first { superSymbol in
+        switch sema.symbols.symbol(superSymbol)?.kind {
+        case .class, .enumClass, .object:
+            true
+        default:
+            false
+        }
+    }
 }
 
 private func kirNominalDistance(
