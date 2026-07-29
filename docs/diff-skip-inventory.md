@@ -203,6 +203,8 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | kotlin.random synthetic overloads | `random_nextfloat_range_overloads.kt` | `Random.nextFloat(until)`/`Random.nextFloat(from, until)` は kswiftc 独自拡張（STDLIB-655）で、実 kotlinc の `Random` にはない | 対象として残すなら STDLIB API 拡張として明記、対象外なら target-out backlog |
 | java.security.SecureRandom synthetic overload | `secure_random.kt` | `SecureRandom.getInstance()`（無引数）は kswiftc 独自の convenience overload で、実 Java/Kotlin は algorithm 引数必須 | candidate-only test として扱うか API 意図を明記 |
 
+`case_insensitive_order_identity.kt` は 2026-07-27 に解除済み（BUG-154）: kswiftc は `CASE_INSENSITIVE_ORDER` を top-level `kotlin.text` プロパティとして誤登録していたが、実 Kotlin の `String.Companion.CASE_INSENSITIVE_ORDER`（`String.CASE_INSENSITIVE_ORDER`）と同じく String companion object のメンバとして登録するよう修正。ケースを `String.CASE_INSENSITIVE_ORDER` 参照へ書き換え、`SKIP-DIFF` marker を削除して通常 diff に戻した。
+
 `experimental_time_edge_cases.kt` は実行速度差で stdout が揺れるため、固定 clock / larger duration / unit test のどれかへ寄せてから diff に戻す。
 
 `property_delegate_edge_cases.kt` の詳細（2026-07-09 調査）: クラスメンバの `val/var x by lazy {...} / Delegates.observable(...)/vetoable(...)` は、トップレベルプロパティ用の実装（`KIRLoweringDriver+ModuleLowering+PropertyDecl.swift`）とは別系統の実装（`MemberLowerer` / `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift`）で lowering されており、そちらは `StdlibDelegateKind`（`lazy`/`observable`/`vetoable`/`notNull`）を想定していなかった。以下4件のバグを確認し、(1)(2) はワークツリーに修正を適用済み（未コミット）:
