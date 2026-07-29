@@ -83,12 +83,6 @@ public extension RuntimeABISpec {
             p("expect", .intptr),
             p("update", .intptr),
         ]),
-        abiParitySpec("kk_atomic_ref_array_fetchAndUpdateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_atomic_ref_array_loadAt", parameters: [
             p("receiver", .intptr),
             p("index", .intptr),
@@ -103,18 +97,6 @@ public extension RuntimeABISpec {
             p("receiver", .intptr),
             p("index", .intptr),
             p("value", .intptr),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_updateAndFetchAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_updateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_biginteger_modInverse", parameters: [
             p("selfRaw", .intptr),
