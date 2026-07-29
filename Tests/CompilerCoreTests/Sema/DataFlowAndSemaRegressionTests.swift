@@ -593,5 +593,71 @@ struct DataFlowAndSemaRegressionTests {
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    // MARK: - TypeCheck: DEBT-SEMA-001 (forward-declared member property)
+
+    // A member function that textually precedes a member property it
+    // references only sees that property's header placeholder (`Any?`) on
+    // typeCheckClassLikeMembers's first, source-order pass; the property's
+    // real inferred type isn't known until its own PropertyDecl is checked
+    // later in that same pass. A second, unconditional pass over every member
+    // function re-checks each one after all properties are resolved, but
+    // that recovers only the *type*, not the spurious KSWIFTK-TYPE-0001
+    // already committed by the first pass. Diagnostics from that first,
+    // speculative pass must be discarded so only the second, authoritative
+    // pass's diagnostics are kept.
+    @Test func testForwardDeclaredMemberPropertyReferencedFromEarlierMemberFunctionTypeChecks() throws {
+        let source = """
+        class Forward {
+            fun get(): Int = value
+            var value = 10
+        }
+        fun main(): Int = Forward().get()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
+
+    @Test func testMemberFunctionWithGenuinelyWrongReturnTypeStillErrorsAcrossPropertyForwardReference() throws {
+        // Guards against over-loosening: discarding the first pass's
+        // diagnostics must not hide a return-type mismatch that the second,
+        // authoritative pass still finds once `value`'s real type (`Int`) is
+        // known -- `get()` declares `String`, which `Int` never satisfies.
+        let source = """
+        class Forward {
+            fun get(): String = value
+            var value = 10
+        }
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
+
+    @Test func testForwardReferencedPropertyOwnInitializerMismatchStillErrors() throws {
+        // Guards against over-truncation: only the speculative member
+        // *function* pass's diagnostics are discarded. A member property's
+        // own initializer type mismatch is checked once, in source order,
+        // and must still be reported even though it textually follows a
+        // function that refers to it.
+        let source = """
+        class Forward {
+            fun get(): Int = value
+            var value: Int = "oops"
+        }
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
 }
 #endif
