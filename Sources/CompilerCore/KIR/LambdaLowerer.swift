@@ -915,6 +915,111 @@ final class LambdaLowerer {
         return abstractMethods[0]
     }
 
+    /// Lowers a SAM-converted callable reference (`Comparator<Int>(::myCompare)`)
+    /// into a wrapper object implementing the functional interface.  A thunk with
+    /// the lambda calling convention `(captures..., params...) -> R` is generated
+    /// so the shared SAM wrapper synthesis can delegate to the referenced callable.
+    private func lowerCallableRefSamWrapperValue(
+        _ exprID: ExprID,
+        targetSymbol: SymbolID,
+        captureArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let interfaceTypeID = sema.bindings.samInterfaceType(for: exprID),
+              case let .classType(interfaceType) = sema.types.kind(of: interfaceTypeID),
+              let samFunctionTypeID = sema.bindings.samUnderlyingFunctionType(for: exprID),
+              case let .functionType(samFunctionType) = sema.types.kind(of: samFunctionTypeID)
+        else {
+            return nil
+        }
+
+        let samMethodParamTypes = samFunctionType.params
+        let returnType = samFunctionType.returnType
+
+        let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
+        let thunkSymbol = sema.symbols.define(
+            kind: .function,
+            name: thunkName,
+            fqName: [thunkName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let captureParams: [KIRParameter] = captureArguments.enumerated().map { index, captureExpr in
+            KIRParameter(
+                symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: index),
+                type: arena.exprType(captureExpr) ?? sema.types.anyType
+            )
+        }
+        let valueParams: [KIRParameter] = samMethodParamTypes.enumerated().map { index, type in
+            KIRParameter(
+                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                type: type
+            )
+        }
+
+        var body: [KIRInstruction] = [.beginBlock]
+        var callArguments: [KIRExprID] = []
+        for param in captureParams + valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            callArguments.append(paramExpr)
+        }
+        let callResult = arena.appendTemporary(type: returnType)
+        body.append(.call(
+            symbol: targetSymbol,
+            callee: callableTargetName(for: targetSymbol, sema: sema, interner: interner),
+            arguments: callArguments,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        switch sema.types.kind(of: returnType) {
+        case .unit, .nothing(.nonNull), .nothing(.nullable):
+            body.append(.returnUnit)
+        default:
+            body.append(.returnValue(callResult))
+        }
+        body.append(.endBlock)
+
+        let thunkDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: thunkSymbol,
+                    name: thunkName,
+                    params: captureParams + valueParams,
+                    returnType: returnType,
+                    body: body,
+                    isSuspend: samFunctionType.isSuspend,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(thunkDecl)
+
+        let captureBindings = zip(captureParams, captureArguments).map { param, valueExpr in
+            (capturedSymbol: param.symbol, param: param, valueExpr: valueExpr, declaredType: param.type)
+        }
+
+        return lowerSamWrapperValue(
+            exprID,
+            interfaceType: interfaceType,
+            lambdaSymbol: thunkSymbol,
+            lambdaName: thunkName,
+            lambdaReturnType: returnType,
+            captureBindings: captureBindings,
+            samMethodParamTypes: samMethodParamTypes,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func lowerCallableRefExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID?,
@@ -952,6 +1057,25 @@ final class LambdaLowerer {
             memberName: memberName,
             sema: sema
         )
+
+        // BUG-048: A callable reference in SAM-conversion position must become an
+        // object implementing the functional interface (with an itable entry), the
+        // same way a SAM-converted lambda literal does.  Lowering it as a bare
+        // callable value makes interface dispatch on the result fail at runtime.
+        if sema.bindings.isSamConversion(exprID),
+           let targetSymbol,
+           let samValue = lowerCallableRefSamWrapperValue(
+               exprID,
+               targetSymbol: targetSymbol,
+               captureArguments: captureArguments,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return samValue
+        }
 
         // REFL-003: When a callable ref is used as a collection HOF argument
         // (e.g. `list.map(::double)`), we must generate a wrapper thunk with the
