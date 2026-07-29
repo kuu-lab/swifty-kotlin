@@ -523,6 +523,13 @@ extension DataFlowSemaPhase {
 
         guard let ownerSym = symbols.symbol(delegatesSymbol) else { return }
 
+        // `observable`/`vetoable`/`notNull` are declared generic in `T` and
+        // return `ReadWriteProperty<Any?, T>`, so that the delegated property's
+        // type can be recovered from the factory's return type (BUG-147). The
+        // callback parameter must be part of the signature as well: a call with
+        // a trailing lambda is resolved with two arguments inside a function
+        // body, so a one-parameter stub made every local
+        // `by Delegates.observable(v) { ... }` fail overload resolution.
         for memberName in ["observable", "vetoable"] {
             let internedName = interner.intern(memberName)
             let fqName = ownerSym.fqName + [internedName]
@@ -532,9 +539,50 @@ extension DataFlowSemaPhase {
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
             symbols.setParentSymbol(delegatesSymbol, for: funcSymbol)
+            let valueTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: interner.intern("T"),
+                fqName: fqName + [interner.intern("T")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(funcSymbol, for: valueTypeParamSymbol)
+            let valueType = types.make(.typeParam(TypeParamType(
+                symbol: valueTypeParamSymbol, nullability: .nonNull
+            )))
+            let onChangeType = types.make(.functionType(FunctionType(
+                params: [anyType, valueType, valueType],
+                returnType: memberName == "vetoable" ? types.booleanType : types.unitType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let parameterSymbols = ["initialValue", "onChange"].map { paramName in
+                let paramSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: interner.intern(paramName),
+                    fqName: fqName + [interner.intern(paramName)],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(funcSymbol, for: paramSymbol)
+                return paramSymbol
+            }
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: delegatesType, parameterTypes: [anyType], returnType: rwPropertyType
+                    receiverType: delegatesType,
+                    parameterTypes: [valueType, onChangeType],
+                    returnType: readWriteDelegateType(
+                        of: valueType, rwPropertySymbol: rwPropertySymbol, types: types
+                    ),
+                    valueParameterSymbols: parameterSymbols,
+                    // The callback is modelled as defaulted so the factory also
+                    // resolves where the trailing lambda is not counted as an
+                    // argument (property-delegate position).
+                    valueParameterHasDefaultValues: [false, true],
+                    valueParameterIsVararg: [false, false],
+                    typeParameterSymbols: [valueTypeParamSymbol]
                 ),
                 for: funcSymbol
             )
@@ -548,9 +596,26 @@ extension DataFlowSemaPhase {
                 declSite: nil, visibility: .public, flags: [.synthetic]
             )
             symbols.setParentSymbol(delegatesSymbol, for: notNullSymbol)
+            let valueTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: interner.intern("T"),
+                fqName: notNullFQName + [interner.intern("T")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(notNullSymbol, for: valueTypeParamSymbol)
+            let valueType = types.make(.typeParam(TypeParamType(
+                symbol: valueTypeParamSymbol, nullability: .nonNull
+            )))
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: delegatesType, parameterTypes: [], returnType: rwPropertyType
+                    receiverType: delegatesType,
+                    parameterTypes: [],
+                    returnType: readWriteDelegateType(
+                        of: valueType, rwPropertySymbol: rwPropertySymbol, types: types
+                    ),
+                    typeParameterSymbols: [valueTypeParamSymbol]
                 ),
                 for: notNullSymbol
             )
@@ -628,6 +693,20 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             symbols.setPropertyType(enumType, for: entrySymbol)
         }
+    }
+
+    /// `ReadWriteProperty<Any?, valueType>` — the delegate type the
+    /// `kotlin.properties.Delegates` factories are declared to return.
+    private func readWriteDelegateType(
+        of valueType: TypeID,
+        rwPropertySymbol: SymbolID,
+        types: TypeSystem
+    ) -> TypeID {
+        types.make(.classType(ClassType(
+            classSymbol: rwPropertySymbol,
+            args: [.in(types.makeNullable(types.anyType)), .invariant(valueType)],
+            nullability: .nonNull
+        )))
     }
 
     private func registerPropertyDelegateInterfaceTypeParameters(

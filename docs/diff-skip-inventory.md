@@ -203,6 +203,8 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | kotlin.random synthetic overloads | `random_nextfloat_range_overloads.kt` | `Random.nextFloat(until)`/`Random.nextFloat(from, until)` は kswiftc 独自拡張（STDLIB-655）で、実 kotlinc の `Random` にはない | 対象として残すなら STDLIB API 拡張として明記、対象外なら target-out backlog |
 | java.security.SecureRandom synthetic overload | `secure_random.kt` | `SecureRandom.getInstance()`（無引数）は kswiftc 独自の convenience overload で、実 Java/Kotlin は algorithm 引数必須 | candidate-only test として扱うか API 意図を明記 |
 
+`case_insensitive_order_identity.kt` は 2026-07-27 に解除済み（BUG-154）: kswiftc は `CASE_INSENSITIVE_ORDER` を top-level `kotlin.text` プロパティとして誤登録していたが、実 Kotlin の `String.Companion.CASE_INSENSITIVE_ORDER`（`String.CASE_INSENSITIVE_ORDER`）と同じく String companion object のメンバとして登録するよう修正。ケースを `String.CASE_INSENSITIVE_ORDER` 参照へ書き換え、`SKIP-DIFF` marker を削除して通常 diff に戻した。
+
 `experimental_time_edge_cases.kt` は実行速度差で stdout が揺れるため、固定 clock / larger duration / unit test のどれかへ寄せてから diff に戻す。
 
 `property_delegate_edge_cases.kt` の詳細（2026-07-09 調査）: クラスメンバの `val/var x by lazy {...} / Delegates.observable(...)/vetoable(...)` は、トップレベルプロパティ用の実装（`KIRLoweringDriver+ModuleLowering+PropertyDecl.swift`）とは別系統の実装（`MemberLowerer` / `KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift`）で lowering されており、そちらは `StdlibDelegateKind`（`lazy`/`observable`/`vetoable`/`notNull`）を想定していなかった。以下4件のバグを確認し、(1)(2) はワークツリーに修正を適用済み（未コミット）:
@@ -212,7 +214,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 3. **[修正済み・BUG-151]** パラメータ付きトレーリングラムダ（`Delegates.observable(1) { _, old, new -> println(...) }` のような `_, old, new ->` prefix 付き）の `delegateBody` 抽出（`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` → `blockExpressions`）が、文単位区切りを前提にした汎用パーサーのため、パラメータリスト+アロー構文を正しく扱えず、コールバック本文が `unit` として消えていた（`println`/比較式が一切実行されない）。`lazy` のようにパラメータなしの trailing block は正しく抽出できていた。BUG-151 で block トークン列を `parseLambdaLiteral()` で再パースし、パラメータ名を KIR の synthetic パラメータへ束縛するよう修正。
 4. **[未修正・delegate と無関係の一般バグ]** bare-name（暗黙 `this`）の compound assign / inc-dec（`count += 1`, `count++`）がクラスメンバフィールドに対して書き込みを永続化しない。`ExprLowerer+ControlFlowAndBlocks.swift` の `.compoundAssign` 処理は top-level/object-member（親 kind が nil/`.package`/`.object`）と mutable-capture-boxed のケースのみ扱い、`.class`/`.interface` 所有のフィールドは「ephemeral local」フォールバックに落ちて `ctx` 上でのみ更新され実フィールドへの `kk_array_set` を発行しない。`this.count += 1`（明示レシーバ、PR #4633 で修正済みの経路）は正しく動く。`property_delegate_edge_cases.kt` の `lazy { initCount += 1; "ready" }` はこれに該当し、`token` の値自体は (1)(2) 修正で "ready" に直ったが `initCount` は 0 のまま。最小再現: `class C { var n = 0; fun f() { n += 1 } }` で `f()` 後も `n` が 0。
 
-5. **[未修正]** delegate のトレーリングラムダは受信者を取らない top-level thunk へ lowering されるため、本文からクラスメンバ（暗黙 `this`）へ書き込めない。`lazy { initCount += 1; "ready" }` の `initCount += 1` は KIR から消え、`initCount` が 0 のままになる（4 の一般バグ自体は解消済みで、`class C { var n = 0; fun f() { n += 1 } }` は正しく 1 を返す）。本ケースが SKIP-DIFF のまま残る唯一の理由（BUG-165）。
+5. **[未修正]** delegate のトレーリングラムダは受信者を取らない top-level thunk へ lowering されるため、本文からクラスメンバ（暗黙 `this`）へ書き込めない。`lazy { initCount += 1; "ready" }` の `initCount += 1` は KIR から消え、`initCount` が 0 のままになる（4 の一般バグ自体は解消済みで、`class C { var n = 0; fun f() { n += 1 } }` は正しく 1 を返す）。本ケースが SKIP-DIFF のまま残る唯一の理由（BUG-166）。
 
 3 は BUG-151 で修正済み。残る 5 は delegate ラムダの受信者キャプチャという別レイヤの課題のため、本ケースは引き続き SKIP-DIFF とする。
 
