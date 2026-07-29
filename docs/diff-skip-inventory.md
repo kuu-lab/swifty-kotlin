@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-21
+最終更新: 2026-07-29
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -33,7 +33,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立、外部 jar / runtime-only | keep / runner / dependency injection を個別決定 |
-| DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
+| DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 11 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件と `channel_basic.kt` は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 6 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
@@ -72,16 +72,28 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 `uuid_basic.kt` は本表に未記載だが `DEBT-DIFF-001` skip 済みで、"keep skip" 表にも含まれていない。skip 理由コメントは「KSwiftK UUID APIs」としているが、実体は `kotlin.uuid.Uuid`（`@OptIn(ExperimentalUuidApi)` 付き）という標準 stdlib API であり、`path_basic.kt` と同様に reference 側の import/opt-in 不足が真因の可能性がある。要再判定（別 backlog 化）。
 
-## DEBT-DIFF-002: script-style cases
+## DEBT-DIFF-002: script-style cases（解消済み、2026-07-29）
 
-| グループ | cases | blocker | 次アクション |
+対象だった7ケースとも `SKIP-DIFF` を解除し、通常の `diff_kotlinc.sh` 経路で green。
+
+| グループ | cases | 解消日 | 根本原因と対応 |
 | --- | --- | --- | --- |
-| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | script mode は `kotlinc -script` の compile + run を `RUN_TIMEOUT` で縛っている | script 専用 timeout を `COMPILE_TIMEOUT` 系へ分離し、再実行して pass なら skip を外す |
-| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | KSwiftK 側の top-level script execution と kotlinc script mode の一致未確認 | timeout 分離後に `--force-run-skipped` で実測し、失敗が Sema / lowering 起因なら通常 `.kt` parity case へ分割 |
+| timeout-only suspect | `script_imports.kt`, `script_repl_interactive.kt`, `script_repl_patterns.kt` | 2026-07-09 | script mode (`kotlinc -script`) の JVM 起動 + compile + run を `RUN_TIMEOUT`（デフォルト10s）で縛っていたのが原因。`--script-timeout` を `COMPILE_TIMEOUT` 系へ分離して解決 |
+| top-level functions / custom declarations | `script_function_basic.kt`, `script_function_advanced.kt`, `script_toplevel_functions.kt`, `script_import_custom.kt` | 2026-07-29 | 下記「top-level functions / custom declarations 詳細」を参照 |
 
-既に skip されていない `script_*.kt` が複数あるため、script 全体ではなく上記 7 件だけを再判定する。
+### top-level functions / custom declarations 詳細（2026-07-29）
 
-`script_import_stdlib.kt` は解除済み: `shuffled()` を `shuffled(Random(42)).sorted()` に変更し、出力順序に依存しない決定論的検証にした(`sequence_shuffled.kt` と同じ idiom)。KSwiftK の `Random` は JVM kotlinc と PRNG アルゴリズムが異なる(xorshift64\* 系の自前実装で XorWow ではない、`KSP-466`)ため、seed を固定しても生の並び順は一致しない。なお、ローカル既定の `RUN_TIMEOUT=10s` は `kotlinc -script` の起動コストだけで超過する(`script_import_stdlib.kt` に限らず `script_hello.kt` など他の非 skip ケースでも同様に再現する、この環境固有の傾向)。CI は `DIFF_RUN_TIMEOUT=30` を使用しており、その設定なら安定して pass する — timeout-only suspect グループの再判定でも同じ値を使うとよい。
+症状: candidate (kswiftc) が `KSWIFTK-LINK-0002: No entry point 'main' function found for executable emission.` でコンパイル失敗し続けていた（reference の `kotlinc -script` は成功）。
+
+根本原因: `KotlinParser.parseFile()`（`Sources/CompilerCore/Parser/KotlinParser.swift`）の script 判定が、top-level に `fun` / `class` / `data class` / 拡張関数などの宣言が1つでもあると、たとえ top-level 実行文（`println(...)` 等）が存在してもルート種別を `.script` ではなく `.kotlinFile` に倒す実装だった（`sawNonPropertyDecl` フラグ）。`.kotlinFile` 扱いになると top-level の bare statement は `BuildASTPhase`（`Sources/CompilerCore/Driver/FrontendPhases.swift`）のどの case にもマッチせず黙って破棄され、`main` も合成されないため、link 段階で「エントリポイントが無い」エラーになっていた。実 Kotlin の `.kts` スクリプトは `package` 宣言以外の任意の宣言を top-level 文と自由に混在できるため、この判定は過度に狭かった（この判定は2026-02-17時点で「まず val/var だけ許可する」形で段階的に導入されたもので、fun/class 等への拡張は本チケットまで未着手だった）。
+
+対応:
+1. `sawNonPropertyDecl` を `sawPackageHeader` に置き換え、script 判定条件を「top-level 実行文が存在し、かつ `package` 宣言が無い」まで単純化。
+2. top-level `fun` 宣言は元々 `.funDecl` として通常の top-level `FunDecl` に登録される一方、`isStatementLikeKind`（`Sources/CompilerCore/AST/BuildASTPhase+BodyParsing.swift`）は `.funDecl` も「文」として扱うため、(1) だけでは script root 合成時に同じ関数が合成 `main()` 内のローカル関数宣言としても二重登録されてしまう。`blockExpressions` / `collectBlockStatementGroups` に `excludingTopLevelFunDecls` オプションを追加し、script root からの呼び出し（`FrontendPhases.swift`）でのみ `.funDecl` を除外して二重登録を防いだ。`class` / `interface` / `object` / `typealias` / `enumEntry` は元々 `isStatementLikeKind` に含まれておらず対象外（重複しない）。
+
+回帰確認: 4 ケースを `--force-run-skipped` で green 化した後、既存の非 skip `script_*.kt`（13件）にも回帰がないことを個別確認。`Tests/CompilerCoreTests/Integration/ScriptModeTests.swift` に、top-level 宣言と top-level 文が混在するパターンの root kind 判定・二重登録防止・実際の KIR コンパイルを固定する回帰テストを追加。
+
+`script_import_stdlib.kt` は2026-07-09に解除済み（本チケットの7件には含まれないが同じ調査の過程で解消): `shuffled()` を `shuffled(Random(42)).sorted()` に変更し、出力順序に依存しない決定論的検証にした(`sequence_shuffled.kt` と同じ idiom)。KSwiftK の `Random` は JVM kotlinc と PRNG アルゴリズムが異なる(xorshift64\* 系の自前実装で XorWow ではない、`KSP-466`)ため、seed を固定しても生の並び順は一致しない。なお、ローカル既定の `RUN_TIMEOUT=10s` は `kotlinc -script` の起動コストだけで超過する(`script_import_stdlib.kt` に限らず `script_hello.kt` など他の非 skip ケースでも同様に再現する、この環境固有の傾向)。CI は `DIFF_RUN_TIMEOUT=30` を使用しており、その設定なら安定して pass する。
 
 ## DEBT-DIFF-003: advanced coroutine / channel / Flow
 
