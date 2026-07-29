@@ -774,14 +774,14 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_lowercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_lowercase_locale_flat",
+                "__kk_lowercase_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_lowercase_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
-                "kk_string_uppercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_uppercase_locale_flat",
+                "__kk_uppercase_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_uppercase_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: false
@@ -824,12 +824,6 @@ extension NativeEmitter {
                 ),
                 "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_ifEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_replaceFirstChar_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceFirstChar_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true

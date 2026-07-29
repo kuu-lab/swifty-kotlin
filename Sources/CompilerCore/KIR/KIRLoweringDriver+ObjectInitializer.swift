@@ -146,6 +146,15 @@ extension KIRLoweringDriver {
                         ))
                     }
                 }
+                // BUG-141: register interface property getters into the itable.
+                appendObjectItablePropertyGetterRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: objectSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &body.instructions
+                )
             }
             appendObjectVtableMethodRegistrations(
                 objectValue: allocatedObj,
