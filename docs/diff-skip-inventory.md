@@ -36,7 +36,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 11 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件と `channel_basic.kt` は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
-| DEBT-DIFF-005 | 2（解消・分割済み、2026-07-29） | 大半は既に解消/移設済み。残るのは property delegate lowering の実バグ（BUG-151/BUG-164）と CASE_INSENSITIVE_ORDER 誤登録（BUG-154）の2件のみ | 個別 BUG 番号で追跡（本節参照） |
+| DEBT-DIFF-005 | 1（解消・分割済み、2026-07-29） | 大半は既に解消/移設済み。CASE_INSENSITIVE_ORDER 誤登録（BUG-154）は `origin/master` 側で解消済み。残るのは property delegate lowering の実バグ（BUG-151/BUG-168）の1件のみ | 個別 BUG 番号で追跡（本節参照） |
 | DEBT-DIFF-006 | 1 | type inference / boxed numeric lowering / compiler-plugin API | diagnostic case または parity regression へ分解 |
 | DEBT-DIFF-007 | 73 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage |
 
@@ -195,7 +195,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | `java.math.BigInteger` | `big_integer.kt` | 解消済み | PR #4667 で `not`/`shiftLeft`/`shiftRight` の未登録とエンディアン不整合バグを修正、SKIP-DIFF 解除済み |
 | KSwiftK synthetic Sequence surface | ~~`sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt`~~ | 解消済み（移設） | PR #4660 で JVM kotlinc に無い synthetic surface と確定し、`Scripts/diff_cases` から削除して `CodegenBackendIntegrationTests+Sequence{TakeLast,TakeLastWhile,Subtract}.swift` の candidate-only テストへ移設済み |
 | Scope functions | `scope_functions_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後 `--force-run-skipped` で green、SKIP-DIFF 解除 |
-| Property delegates | `property_delegate_edge_cases.kt` | **未解消（真のバグ2件、skip 継続）** | `BUG-151`（observable/vetoable コールバック本体の消失）と `BUG-164`（delegate 本体固有の bare-name 複合代入バグ）。詳細は下記 |
+| Property delegates | `property_delegate_edge_cases.kt` | **未解消（真のバグ2件、skip 継続）** | `BUG-151`（observable/vetoable コールバック本体の消失）と `BUG-168`（delegate 本体固有の bare-name 複合代入バグ。本 PR のマージ時に `origin/master` 側の別バグと番号衝突したため 164→168 に再採番）。詳細は下記 |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後 `--force-run-skipped` で green、SKIP-DIFF 解除 |
 | ByteArray helpers | `string_tobytearray.kt` | 解消済み（BUG-019 / KSP-660） | `joinToString(sep)` / `contentEquals` は #4671 で合成スタブ化され、SKIP-DIFF 無しで通常 diff を通過。`transform` 付き overload の gap は別課題として BUG-158 に切り出し |
 | File/use | `file_use_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後、通常 diff で green、SKIP-DIFF 解除 |
@@ -204,7 +204,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | ByteBuffer UUID interop | `uuid_put_uuid.kt` | 解消済み（KSP-508） | `java.nio.ByteBuffer` の最小 bundled 実装を追加し、実 Kotlin 2.4 API の `ByteBuffer.getUuid`/`putUuid` 拡張に置き換えた |
 | kotlin.random synthetic overloads | ~~`random_nextfloat_range_overloads.kt`~~ | 解消済み（移設、2026-07-29） | `Random.nextFloat(until)`/`Random.nextFloat(from, until)`（STDLIB-655）は実 kotlinc の `Random` に無い kswiftc 独自拡張と確定（`--force-run-skipped` で reference 側が `too many arguments for 'fun nextFloat(): Float'` で確実に compile error になることを再確認）。PR #4660 と同じ方針で `Scripts/diff_cases` から削除し、`CodegenBackendIntegrationTests+RandomOverloadEdgeCases.swift` の `testCodegenCompilesRandomNextFloatRangeOverloads` へ移設 |
 | java.security.SecureRandom synthetic overload | ~~`secure_random.kt`~~ | 解消済み（移設、2026-07-29） | `SecureRandom.getInstance()`（無引数、KSP-467 で意図的に追加した convenience overload）は実 Java/Kotlin が algorithm 引数必須のため JVM reference が原理的に oracle になれないと確定。PR #4660 と同じ方針で `Scripts/diff_cases` から削除し、新設 `CodegenBackendIntegrationTests+SecureRandom.swift` の `testCodegenCompilesSecureRandomNoArgGetInstance` へ移設 |
-| `kotlin.text.CASE_INSENSITIVE_ORDER` トップレベル誤登録 | `case_insensitive_order_identity.kt` | **未解消（真のバグ、skip 継続）** | `BUG-154`: kswiftc が本来 `String` companion member としてのみ存在する `CASE_INSENSITIVE_ORDER` を `kotlin.text` トップレベルにも誤登録しており、JVM kotlinc は正しく `unresolved reference` で拒否する（`--force-run-skipped` で再確認済み）。TODO.md に既存の詳細あり。修正は `HeaderHelpers+SyntheticStringStubs.swift` の synthetic property 登録パターン全体に関わる設計判断を要するため別タスクのまま（未マージの `devin/1785117965-fix-bug-154` で対応進行中） |
+| `kotlin.text.CASE_INSENSITIVE_ORDER` トップレベル誤登録 | `case_insensitive_order_identity.kt` | 解消済み（BUG-154、`origin/master` #5077） | kswiftc が `CASE_INSENSITIVE_ORDER` を `kotlin.text` トップレベルにも誤登録していた問題を、本 PR のマージ時点で `origin/master` に既に着地していた #5077 が解消。登録経路を top-level property から `String` companion object member（`String.CASE_INSENSITIVE_ORDER`）へ変更し、ケースも書き換えた上で `SKIP-DIFF` を解除済み |
 
 ### `property_delegate_edge_cases.kt` 詳細（2026-07-09 調査 → 2026-07-29 再検証）
 
@@ -213,9 +213,9 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 1. **[修正確認済み]** `lowerDelegateAccessor` の delegate ハンドル引数欠落。2026-07-09 時点は「ワークツリーに適用済み、未コミット」だったが、2026-07-29 の再実行で `token`（`lazy` の戻り値）が正しく `"ready"` を返すことを確認し、現行 HEAD で解消済みと確定した。
 2. **[修正確認済み]** `emitDelegatePropertyInitializer` が `delegateBody` を参照しない問題。同じく 2026-07-29 の再実行で解消を確認した（`lazy` の初期化ブロック自体は実行され、戻り値も正しい）。
 3. **旧課題は BUG-151 に統合**: 2026-07-09 時点では「パラメータ付きトレーリングラムダの `delegateBody` 抽出が AST パーサー層で打ち切られる」という仮説だったが、その後の別セッション（バグバックログ一括対応）の調査で、`observable`/`vetoable`/`notNull` のメンバ委譲は KIR lowering 段階でコールバック本体を丸ごと落とす（`kk_delegate_lambda_NNNN` の body が `return unit` のみになる）ことがより精密に特定され、`BUG-151` として TODO.md に登録済み（未修正、未マージの `devin/1785118661-fix-bug-151` で対応進行中）。旧仮説（AST パーサーの打ち切り）が独立にまだ残っているかは BUG-151 の修正時に再確認が必要。
-4. **BUG-164 として再特定**: bare-name（暗黙 `this`）の compound assign（`initCount += 1`）がクラスメンバフィールドへ永続化しない問題。2026-07-09 時点は「delegate と無関係の一般バグ」としていたが、2026-07-29 に `run { n += 1 }` のような通常のクロージャ捕捉で同じパターンを試したところ正しく動作することを確認した — つまり一般的なクロージャ捕捉の compound assign バグは(2026-07-09から今回までの間に)既に解消済みで、`lazy { }` 等の delegate 本体専用の lowering 経路だけがその修正の恩恵を受けていない。delegate 固有の欠陥として `BUG-164` に再登録した。
+4. **BUG-168 として再特定**: bare-name（暗黙 `this`）の compound assign（`initCount += 1`）がクラスメンバフィールドへ永続化しない問題。2026-07-09 時点は「delegate と無関係の一般バグ」としていたが、2026-07-29 に `run { n += 1 }` のような通常のクロージャ捕捉で同じパターンを試したところ正しく動作することを確認した — つまり一般的なクロージャ捕捉の compound assign バグは(2026-07-09から今回までの間に)既に解消済みで、`lazy { }` 等の delegate 本体専用の lowering 経路だけがその修正の恩恵を受けていない。delegate 固有の欠陥として当初 `BUG-164` に登録したが、本 PR のマージ時に `origin/master` 側で別セッションが独立に「fun interface パラメータへの callable reference 実引数」を BUG-164 として追加済みだったため、`BUG-168` に再登録し直した（2026-07-30）。
 
-`property_delegate_edge_cases.kt` は BUG-151 と BUG-164 の両方が解消するまで SKIP-DIFF を維持する。両バグとも同じ delegate lowering コード領域（`KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` 等）に触れる可能性が高く、まとめて1つの修正 PR で解消するのが効率的と見込まれる。
+`property_delegate_edge_cases.kt` は BUG-151 と BUG-168 の両方が解消するまで SKIP-DIFF を維持する。両バグとも同じ delegate lowering コード領域（`KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` 等）に触れる可能性が高く、まとめて1つの修正 PR で解消するのが効率的と見込まれる。
 
 ## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API
 
