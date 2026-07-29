@@ -326,8 +326,13 @@ func runtimeIsolationLockSerializesConcurrentContenders() async {
 
     #expect(probe.maxObserved == 1)
     // The single token is back (balanced release, no leak).
-    #expect(mutex.wait(timeout: .now()) == .success)
-    mutex.signal()
+    let reacquired = (try? acquireSemaphoresBlocking(
+        [mutex],
+        testName: "serialize-regression-postcondition",
+        timeout: .nanoseconds(0)
+    )) ?? []
+    #expect(reacquired.count == 1)
+    releaseSemaphores(reacquired)
 }
 
 /// Use this base class for runtime tests that mutate global runtime state or

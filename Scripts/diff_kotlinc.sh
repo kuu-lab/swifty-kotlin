@@ -38,6 +38,9 @@ RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
 SCRIPT_TIMEOUT="${DIFF_SCRIPT_TIMEOUT:-}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
 LLDB_BIN="${LLDB_BIN:-lldb}"
+# Set to 0 to skip the JDK >= 21 requirement check (reference outputs differ on
+# older JDKs; see the check below).
+DIFF_REQUIRE_JDK21="${DIFF_REQUIRE_JDK21:-1}"
 
 usage() {
   cat <<USAGE
@@ -449,6 +452,22 @@ fi
 if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
   echo "java command not found: $JAVA_BIN" >&2
   exit 1
+fi
+
+# The reference outputs depend on the JDK version: Double/Float.toString()
+# only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
+# Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
+# which produces spurious FAILs against kswiftc. CI pins java-version 21.
+java_major="$("$JAVA_BIN" -version 2>&1 \
+  | awk -F'"' '/version/ { print $2; exit }' \
+  | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
+if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
+  if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
+    echo "java is too old for the diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2
+    echo "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs." >&2
+    echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
+    exit 1
+  fi
 fi
 
 if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
