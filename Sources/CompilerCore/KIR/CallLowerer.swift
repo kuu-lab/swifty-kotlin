@@ -102,22 +102,18 @@ final class CallLowerer {
         let boundType = sema.types.makeNonNullable(receiverType)
         let firstExpr = arena.appendTemporary(type: boundType)
         let lastExpr = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_first"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: firstExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        instructions.append(.call(
-            symbol: nil,
+            into: &instructions
+        )
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_last"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: lastExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(prefix + "_coerceIn"),
@@ -558,14 +554,12 @@ final class CallLowerer {
                     thrownResult: nil
                 ))
             } else {
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("invoke"),
-                    arguments: [loweredLambdaID],
+                    arg: loweredLambdaID,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             }
             return result
         }
@@ -969,14 +963,12 @@ final class CallLowerer {
             if let ownerNominalSymbol {
                 if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
                     let registerDataClassResult = arena.appendTemporary(type: intType)
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_runtime_register_data_class"),
-                        arguments: [classIDExpr],
+                        arg: classIDExpr,
                         result: registerDataClassResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                 }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
@@ -1770,14 +1762,12 @@ final class CallLowerer {
         }
 
         let result = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: runtimeCallee,
-            arguments: [loweredArgumentID],
+            arg: loweredArgumentID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

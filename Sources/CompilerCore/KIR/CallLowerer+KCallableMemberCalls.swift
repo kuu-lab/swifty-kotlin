@@ -46,14 +46,12 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.types.stringType
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("__kk_kproperty_stub_name"),
-            arguments: [receiverID],
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 
@@ -118,14 +116,12 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
         let result = arena.appendTemporary(type: resultType
         )
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern(runtimeFunc),
-            arguments: [receiverID],
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 
@@ -178,14 +174,12 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
         let result = arena.appendTemporary(type: resultType
         )
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern(runtimeFunc),
-            arguments: [receiverID],
+            arg: receiverID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

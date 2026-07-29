@@ -346,14 +346,12 @@ final class ControlFlowLowerer {
         )
 
         let sizeID = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_size"),
-            arguments: [arrayID],
+            arg: arrayID,
             result: sizeID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
         let indexSlot = arena.appendTemporary(type: intType)
         let zeroID = arena.appendExpr(.intLiteral(0), type: intType)
@@ -1003,14 +1001,12 @@ final class ControlFlowLowerer {
                 if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                     // Cancellation check only needs falseValue for the jump;
                     // trueValue/sharedUnknownToken are not used.
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_throwable_is_cancellation"),
-                        arguments: [exceptionSlot],
+                        arg: exceptionSlot,
                         result: matchResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                 } else {
                     // Only emit trueValue/sharedUnknownToken when actually needed
                     // by emitExceptionTypeCheck (avoids dead constValue instructions).
@@ -1136,14 +1132,12 @@ final class ControlFlowLowerer {
                     if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                         // Cancellation check only needs falseValue for the jump;
                         // trueValue/sharedUnknownToken are not used.
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_throwable_is_cancellation"),
-                            arguments: [exceptionSlot],
+                            arg: exceptionSlot,
                             result: matchResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                     } else {
                         // Safe to force-unwrap: needsRuntimeTypeCheck guarantees these are set
                         let tv = trueValue!
@@ -1318,14 +1312,12 @@ final class ControlFlowLowerer {
 
         instructions.append(.label(rethrowLabel))
         let cancellationCheckResult = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_throwable_is_cancellation"),
-            arguments: [exceptionSlot],
+            arg: exceptionSlot,
             result: cancellationCheckResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         instructions.append(.rethrow(value: exceptionSlot))
 
         instructions.append(.label(endLabel))
@@ -1886,14 +1878,12 @@ final class ControlFlowLowerer {
             } else {
                 componentName
             }
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: resolvedCallee,
-                arguments: [nextValueID],
+                arg: nextValueID,
                 result: componentResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))
