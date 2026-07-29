@@ -1758,11 +1758,6 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "__kk_string_toBigDecimalOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigDecimalOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
