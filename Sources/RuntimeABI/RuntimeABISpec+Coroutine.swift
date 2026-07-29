@@ -766,6 +766,19 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // Variant of kk_coroutine_scope_launch that accepts a pre-built continuation
+        // carrying the launched suspend lambda's captured outer variables (BUG-049).
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_scope_launch_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_job_new",
             parameters: [],

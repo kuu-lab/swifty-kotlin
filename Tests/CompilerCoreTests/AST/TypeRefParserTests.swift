@@ -13,18 +13,7 @@ struct TypeRefParserTests {
 
         let intName = interner.intern("Int")
         let depth = TypeRefParserCore.maxRecursionDepth + 1
-
-        var tokens: [Token] = []
-        var offset = 0
-        for _ in 0..<depth {
-            tokens.append(makeToken(kind: .symbol(.lParen), start: offset, end: offset + 1))
-            offset += 1
-            tokens.append(makeToken(kind: .symbol(.rParen), start: offset, end: offset + 1))
-            offset += 1
-            tokens.append(makeToken(kind: .symbol(.arrow), start: offset, end: offset + 2))
-            offset += 2
-        }
-        tokens.append(makeToken(kind: .identifier(intName), start: offset, end: offset + 1))
+        let tokens = makeFunctionTypeTokens(depth: depth, intName: intName)
 
         let options = TypeRefParserCore.Options(
             allowQualifiedPath: true,
@@ -44,6 +33,36 @@ struct TypeRefParserTests {
 
         #expect(result == nil)
         #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-TYPE-DEPTH" })
+    }
+
+    @Test("Function types at the recursion limit still parse")
+    func testFunctionTypeAtDepthLimitParses() {
+        let interner = StringInterner()
+        let arena = ASTArena()
+        let diagnostics = DiagnosticEngine()
+
+        let intName = interner.intern("Int")
+        let depth = TypeRefParserCore.maxRecursionDepth
+        let tokens = makeFunctionTypeTokens(depth: depth, intName: intName)
+
+        let options = TypeRefParserCore.Options(
+            allowQualifiedPath: true,
+            allowFunctionType: true,
+            allowKeywordIdentifiers: false,
+            reserveVarianceKeywords: false,
+            allowTypeAnnotations: false
+        )
+
+        let result = TypeRefParserCore.parseTypeRefPrefix(
+            tokens[...],
+            interner: interner,
+            astArena: arena,
+            options: options,
+            diagnostics: diagnostics
+        )
+
+        #expect(result != nil)
+        #expect(!diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-TYPE-DEPTH" })
     }
 
     @Test("Shallow nested generic types still parse successfully")
@@ -83,6 +102,21 @@ struct TypeRefParserTests {
 
         #expect(result != nil)
         #expect(diagnostics.diagnostics.isEmpty)
+    }
+
+    private func makeFunctionTypeTokens(depth: Int, intName: InternedString) -> [Token] {
+        var tokens: [Token] = []
+        var offset = 0
+        for _ in 0..<depth {
+            tokens.append(makeToken(kind: .symbol(.lParen), start: offset, end: offset + 1))
+            offset += 1
+            tokens.append(makeToken(kind: .symbol(.rParen), start: offset, end: offset + 1))
+            offset += 1
+            tokens.append(makeToken(kind: .symbol(.arrow), start: offset, end: offset + 2))
+            offset += 2
+        }
+        tokens.append(makeToken(kind: .identifier(intName), start: offset, end: offset + 1))
+        return tokens
     }
 }
 #endif
