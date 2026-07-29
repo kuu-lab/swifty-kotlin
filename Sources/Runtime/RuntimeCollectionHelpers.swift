@@ -22,6 +22,17 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
+let mapRuntimeTypeID: Int64 = {
+    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+    for byte in "kotlin.collections.Map".utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 0x100_0000_01B3
+    }
+    let payloadMask: Int64 = (1 << 55) - 1
+    let payload = Int64(bitPattern: hash) & payloadMask
+    return payload == 0 ? 1 : payload
+}()
+
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
@@ -255,6 +266,10 @@ func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     let raw = registerRuntimeObject(box)
     runtimeRegisterObjectType(rawValue: raw, classID: typeID)
     return raw
+}
+
+func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
+    registerRuntimeObject(box, typeID: mapRuntimeTypeID)
 }
 
 func maybeUnbox(_ value: Int) -> Int {
@@ -882,15 +897,30 @@ private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
         return nil
     }
 
-    // Comparable has a single compareTo method, so the first interface slot
-    // is enough for direct runtime dispatch when the value's nominal type
-    // implements Comparable.
-    let compareToFnPtr = kk_itable_lookup(lhs, 0, 0)
+    // Comparable has a single compareTo method (method slot 0). Resolve the
+    // interface slot from the object's own registration so classes that
+    // implement several interfaces dispatch to the right table; hand-built
+    // runtime objects without that registration keep using slot 0.
+    var compareToFnPtr = kk_itable_lookup_dynamic(lhs, Int(comparableRuntimeTypeID), 0)
+    if compareToFnPtr == 0 {
+        compareToFnPtr = kk_itable_lookup(lhs, 0, 0)
+    }
     guard compareToFnPtr != 0 else {
         return nil
     }
-    let compareToFn = unsafeBitCast(compareToFnPtr, to: (@convention(c) (Int, Int) -> Int).self)
-    return compareToFn(lhs, rhs)
+    // Compiler-emitted members follow the (receiver, args..., outThrown) ABI
+    // and may return a boxed Int, so pass the thrown channel explicitly and
+    // normalize the result instead of treating it as a bare Int.
+    let compareToFn = unsafeBitCast(
+        compareToFnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = compareToFn(lhs, rhs, &thrown)
+    if thrown != 0 {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Comparable.compareTo threw during a runtime comparison")
+    }
+    return maybeUnbox(result)
 }
 
 enum RuntimePrimitiveCompareKind {
@@ -918,7 +948,12 @@ private func runtimeCompareFloatingValues(_ lhs: Double, _ rhs: Double) -> Int {
         return -1
     }
     if lhs == rhs {
-        return 0
+        // IEEE equality treats -0.0 == 0.0, but Kotlin's `compareTo` follows
+        // the `Double.compare` total order where -0.0 sorts before 0.0.
+        if lhs.sign == rhs.sign {
+            return 0
+        }
+        return lhs.sign == .minus ? -1 : 1
     }
     return lhs < rhs ? -1 : 1
 }

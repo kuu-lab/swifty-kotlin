@@ -303,7 +303,14 @@ extension ExprLowerer {
                    !driver.ctx.isMutableCaptureBoxed(symbol),
                    let localValue = driver.ctx.localValue(for: symbol)
                 {
-                    return localValue
+                    return loadLocalStdlibDelegateValue(
+                        symbol: symbol,
+                        delegateHandle: localValue,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? localValue
                 }
             }
             if let symbol = sema.bindings.identifierSymbols[exprID] {
@@ -323,7 +330,14 @@ extension ExprLowerer {
                     return loadedValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
-                    return localValue
+                    return loadLocalStdlibDelegateValue(
+                        symbol: symbol,
+                        delegateHandle: localValue,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? localValue
                 }
                 // Inline constant initializers only for immutable (val) properties.
                 // Mutable (var) properties must always load from global store at runtime.
@@ -952,9 +966,28 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
+                    let delegateKind = StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner)
+                    let hasProvideDelegate = sema.symbols.hasProvideDelegate(for: symbol)
                     let isCustomDelegateDecl = isDelegated
-                        && StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner) == .custom
-                        && !sema.symbols.hasProvideDelegate(for: symbol)
+                        && delegateKind == .custom
+                        && !hasProvideDelegate
+                    if isDelegated, delegateKind != .custom, !hasProvideDelegate {
+                        // Local stdlib-delegated declaration (BUG-052): keep the local
+                        // bound to the delegate handle produced by the factory, and
+                        // record the kind so each read goes through the matching
+                        // `kk_*_get_value` accessor. Without this the raw handle was
+                        // used as the value itself (`println(x)` printing
+                        // `<object 0x...>` instead of the lazily computed value).
+                        driver.ctx.setLocalStdlibDelegateKind(delegateKind, for: symbol)
+                        driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
+                        if let propertyType = sema.symbols.propertyType(for: symbol) {
+                            driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
+                        }
+                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                        instructions.append(.constValue(result: unit, value: .unit))
+                        return unit
+                    }
                     if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
                         // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
                         // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
@@ -1053,7 +1086,21 @@ extension ExprLowerer {
                 // Top-level properties have nil or .package parent.
                 // Object member properties have .object parent.
                 if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
-                   let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
+                   storeLocalStdlibDelegateValue(
+                       symbol: symbol,
+                       delegateHandle: delegateStorageID,
+                       valueID: valueID,
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   )
+                {
+                    // Local stdlib-delegated `var` (BUG-052): the delegate owns the
+                    // storage, so the write goes to `kk_*_set_value` and the local
+                    // stays bound to the delegate handle for subsequent reads.
+                } else if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                          let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
                 {
                     // Local custom-delegate `var` (BUG-014 / KSP-CAP-007): `x = value`
                     // calls `Prop().setValue(null, KProperty("x"), value)`, mirroring
@@ -2178,24 +2225,12 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-            } else if let rhsType = rhsType,
-                      sema.types.makeNonNullable(rhsType) == sema.types.longType,
-                      sema.bindings.isRangeExpr(rhsExpr) {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             } else {
                 appendContainsCall(
                     exprID: exprID,
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: result,
-                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2220,15 +2255,11 @@ extension ExprLowerer {
             } else if let notInRhsType = notInRhsType,
                       sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
                 notInContainsCallee = "kk_ulong_range_contains"
-            } else if let notInRhsType = notInRhsType,
-                      sema.types.makeNonNullable(notInRhsType) == sema.types.longType,
-                      sema.bindings.isRangeExpr(rhsExpr) {
-                notInContainsCallee = "kk_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" || notInContainsCallee == "kk_range_contains" {
+            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(notInContainsCallee),
@@ -2243,7 +2274,6 @@ extension ExprLowerer {
                     elementID: lhsID,
                     containerID: rhsID,
                     resultID: containsResult,
-                    forceRuntimeFallback: sema.bindings.isRangeExpr(rhsExpr),
                     sema: sema,
                     interner: interner,
                     instructions: &instructions
@@ -2338,26 +2368,15 @@ extension ExprLowerer {
         elementID: KIRExprID,
         containerID: KIRExprID,
         resultID: KIRExprID,
-        forceRuntimeFallback: Bool = false,
         sema: SemaModule,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // Range membership is emitted through the bundled Kotlin kk_range_contains.
-        // Generic collection membership still falls back to kk_op_contains.
-        if forceRuntimeFallback {
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_range_contains"),
-                arguments: [containerID, elementID],
-                result: resultID,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return
-        }
-
-        if let callBinding = sema.bindings.callBindings[exprID],
+        // Dispatch to a source-backed operator fun contains when available
+        // (including range/progression members, STDLIB-OP-032), otherwise use the
+        // generic kk_op_contains runtime stub.
+        if
+           let callBinding = sema.bindings.callBindings[exprID],
            callBinding.chosenCallee != .invalid,
            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
            signature.receiverType != nil

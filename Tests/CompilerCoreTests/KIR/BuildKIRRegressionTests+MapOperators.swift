@@ -24,7 +24,8 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_map_minus"), "Expected Map.minus(key) to lower to kk_map_minus, got: \(callees)")
+            #expect(callees.contains("minus"), "Expected Map.minus(key) to lower to bundled source minus, got: \(callees)")
+            #expect(!callees.contains("kk_map_minus"), "Map.minus(key) must not use legacy kk_map_minus, got: \(callees)")
             #expect(!callees.contains("kk_op_sub"), "Map.minus(key) must not fall back to generic subtraction, got: \(callees)")
         }
     }

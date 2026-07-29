@@ -243,6 +243,18 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
+        // variables. The receiver scope is finalArguments[0] and the suspend lambda
+        // reference is finalArguments[1]; inject the lambda's captures after it so the
+        // coroutine lowering can thread them through the continuation (mirrors the free
+        // launch/withContext capture injection in CallLowerer).
+        if loweredCallee == interner.intern("kk_coroutine_scope_launch"),
+           finalArguments.count >= 2,
+           let callableInfo = driver.ctx.callableValueInfo(for: finalArguments[1]),
+           !callableInfo.captureArguments.isEmpty
+        {
+            finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
+        }
         let receiverIsRandom = isRandomType(
             sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema, interner: interner
@@ -511,19 +523,6 @@ extension CallLowerer {
         }
         if (loweredCallee == interner.intern("kk_string_zipWithNextTransform")
             || loweredCallee == interner.intern("kk_string_zipWithNextTransform_flat")),
-           finalArguments.count == 2
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[1] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-        }
-        if loweredCallee == interner.intern("kk_string_replaceFirstChar_flat"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(

@@ -1480,22 +1480,14 @@ extension ListSyntheticMemberLinkTests {
             let mapFQ = kotlinCollections + [interner.intern("Map")]
             let mutableMapFQ = kotlinCollections + [interner.intern("MutableMap")]
 
+            // KSP-430: Map higher-order functions are source-backed in
+            // MapHOF.kt, so only non-migrated Map members appear here.
             let expectedLinks: [(fqName: [InternedString], memberName: String, externalLink: String)] = [
                 (mapFQ, "containsKey", "kk_map_contains_key"),
                 (mapFQ, "containsValue", "kk_map_contains_value"),
-                (mapFQ, "forEach", "kk_map_forEach"),
-                (mapFQ, "map", "kk_map_map"),
-                (mapFQ, "filter", "kk_map_filter"),
-                (mapFQ, "filterNot", "kk_map_filterNot"),
                 (mapFQ, "keys", "kk_map_keys"),
                 (mapFQ, "values", "kk_map_values"),
                 (mapFQ, "entries", "kk_map_entries"),
-                (mapFQ, "mapValues", "kk_map_mapValues"),
-                (mapFQ, "mapValuesTo", "kk_map_mapValuesTo"),
-                (mapFQ, "mapKeys", "kk_map_mapKeys"),
-                (mapFQ, "mapKeysTo", "kk_map_mapKeysTo"),
-                (mapFQ, "filterKeys", "kk_map_filterKeys"),
-                (mapFQ, "filterValues", "kk_map_filterValues"),
                 (mapFQ, "getValue", "kk_map_getValue"),
                 (mapFQ, "withDefault", "kk_map_withDefault"),
                 (mapFQ, "toList", "kk_map_toList"),
@@ -1651,25 +1643,49 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let mapFQName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("Map"),
+            let interner = ctx.interner
+            let packageFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
             ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
 
-            for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
-                let symbolID = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]))
-                let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
-                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+            func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+                switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+                case let .classType(classType):
+                    return sema.symbols.symbol(classType.classSymbol)?.fqName
+                default:
+                    return nil
+                }
             }
 
-            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")]))
+            for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
+                let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern(memberName)]).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          nominalOwnerFQName(for: receiverType) == mapFQName
+                    else {
+                        return false
+                    }
+                    return true
+                }
+                let symbolID = try #require(candidates.first, "Expected bundled source for Map.\(memberName)")
+                let symbol = try #require(sema.symbols.symbol(symbolID))
+                #expect(symbol.flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == nil)
+                #expect(symbol.fqName == packageFQName + [interner.intern(memberName)])
+            }
+
+            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [interner.intern("toList")]))
             let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
                 Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
             }
             let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
-            #expect(ctx.interner.resolve(listName) == "List")
+            #expect(interner.resolve(listName) == "List")
             let firstListArg = try #require(listType.args.first)
             guard case let .out(pairTypeID) = firstListArg,
                   case let .classType(pairType) = sema.types.kind(of: pairTypeID)
@@ -1677,7 +1693,7 @@ extension ListSyntheticMemberLinkTests {
                 Issue.record("Expected Map.toList element type to be Pair"); return
             }
             let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
-            #expect(ctx.interner.resolve(pairName) == "Pair")
+            #expect(interner.resolve(pairName) == "Pair")
         }
     }
 
@@ -1839,10 +1855,37 @@ extension ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Map.mapKeysTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Map", "mapKeysTo"]
-                .map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapKeysTo")
+            let interner = ctx.interner
+            let packageFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+                switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+                case let .classType(classType):
+                    return sema.symbols.symbol(classType.classSymbol)?.fqName
+                default:
+                    return nil
+                }
+            }
+
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("mapKeysTo")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      nominalOwnerFQName(for: receiverType) == mapFQName
+                else {
+                    return false
+                }
+                return true
+            }
+            let symbol = try #require(candidates.first, "Expected bundled source for Map.mapKeysTo")
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(sema.symbols.symbol(symbol)?.fqName == packageFQName + [interner.intern("mapKeysTo")])
 
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.parameterTypes.count == 2)
@@ -1867,10 +1910,37 @@ extension ListSyntheticMemberLinkTests {
             #expect(!(ctx.diagnostics.hasError), "Expected Map.mapValuesTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "collections", "Map", "mapValuesTo"]
-                .map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapValuesTo")
+            let interner = ctx.interner
+            let packageFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func nominalOwnerFQName(for typeID: TypeID) -> [InternedString]? {
+                switch sema.types.kind(of: sema.types.makeNonNullable(typeID)) {
+                case let .classType(classType):
+                    return sema.symbols.symbol(classType.classSymbol)?.fqName
+                default:
+                    return nil
+                }
+            }
+
+            let candidates = sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("mapValuesTo")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      nominalOwnerFQName(for: receiverType) == mapFQName
+                else {
+                    return false
+                }
+                return true
+            }
+            let symbol = try #require(candidates.first, "Expected bundled source for Map.mapValuesTo")
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(sema.symbols.symbol(symbol)?.fqName == packageFQName + [interner.intern("mapValuesTo")])
 
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.parameterTypes.count == 2)
