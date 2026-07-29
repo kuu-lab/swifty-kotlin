@@ -235,7 +235,12 @@ extension CallTypeChecker {
             {
                 interfaceArgs = expectedClassType.args
             } else {
-                interfaceArgs = []
+                interfaceArgs = inferInterfaceArgsFromLambdaAnnotations(
+                    interfaceSymID,
+                    typeParameters: interfaceTypeParameters,
+                    argExpr: argExpr,
+                    ctx: ctx
+                )
             }
         } else {
             guard explicitTypeArgs.count == interfaceTypeParameters.count else {
@@ -264,10 +269,46 @@ extension CallTypeChecker {
         // Mark the lambda as SAM-converted and bind the underlying function type.
         sema.bindings.markSamConversion(argExpr)
         sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
+        sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
         // The whole call expression has the interface type.
         sema.bindings.bindExprType(id, type: interfaceType)
         return interfaceType
+    }
+
+    /// Infers a raw SAM constructor's type arguments from the lambda's explicit
+    /// parameter type annotations (`Cmp { a: Int, b: Int -> ... }`), which are the
+    /// only source of that information when neither explicit type arguments nor an
+    /// expected type are available (BUG-046).
+    private func inferInterfaceArgsFromLambdaAnnotations(
+        _ interfaceSymID: SymbolID,
+        typeParameters: [SymbolID],
+        argExpr: ExprID,
+        ctx: TypeInferenceContext
+    ) -> [TypeArg] {
+        let sema = ctx.sema
+        guard !typeParameters.isEmpty,
+              let signature = driver.helpers.samMethodSignature(for: interfaceSymID, sema: sema),
+              let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+                  argExpr,
+                  ctx: ctx,
+                  paramCount: signature.parameterTypes.count
+              )
+        else {
+            return []
+        }
+        var bindings: [SymbolID: TypeID] = [:]
+        for (index, parameterType) in signature.parameterTypes.enumerated() {
+            guard let annotated = annotations[index],
+                  case let .typeParam(typeParam) = sema.types.kind(of: parameterType),
+                  bindings[typeParam.symbol] == nil
+            else {
+                continue
+            }
+            bindings[typeParam.symbol] = annotated
+        }
+        let inferredArgs: [TypeArg] = typeParameters.compactMap { bindings[$0].map { .invariant($0) } }
+        return inferredArgs.count == typeParameters.count ? inferredArgs : []
     }
 
     private func isSamConvertibleArgument(_ exprID: ExprID, ast: ASTModule) -> Bool {

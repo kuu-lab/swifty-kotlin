@@ -135,22 +135,47 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
             return lhs.fileID.rawValue < rhs.fileID.rawValue
         }
+        // BUG-143: forward-declare every top-level nominal type first, so a
+        // signature may reference a class/interface/object declared later in the
+        // same file (or in a file collected later).
+        var predeclared: [DeclID: SymbolID] = [:]
         for file in orderedFiles {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
-            registerFileAnnotations(
-                file: file,
-                symbols: symbols,
-                diagnostics: ctx.diagnostics,
-                interner: ctx.interner
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclared
             )
-            for declID in file.topLevelDecls {
-                collectHeader(
-                    declID: declID, file: file, ast: ast,
-                    symbols: symbols, types: types, bindings: bindings,
-                    scope: fileScope, sourceManager: ctx.sourceManager,
-                    diagnostics: ctx.diagnostics, interner: ctx.interner,
-                    ctx: ctx
-                )
+        }
+        // Type aliases are collected before the remaining headers so that their
+        // underlying type is available to signatures that mention the alias.
+        for collectsTypeAliases in [true, false] {
+            for file in orderedFiles {
+                guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+                if collectsTypeAliases {
+                    registerFileAnnotations(
+                        file: file,
+                        symbols: symbols,
+                        diagnostics: ctx.diagnostics,
+                        interner: ctx.interner
+                    )
+                }
+                for declID in file.topLevelDecls {
+                    let isTypeAlias: Bool
+                    if case .typeAliasDecl = ast.arena.decl(declID) {
+                        isTypeAlias = true
+                    } else {
+                        isTypeAlias = false
+                    }
+                    guard isTypeAlias == collectsTypeAliases else { continue }
+                    collectHeader(
+                        declID: declID, file: file, ast: ast,
+                        symbols: symbols, types: types, bindings: bindings,
+                        scope: fileScope, sourceManager: ctx.sourceManager,
+                        diagnostics: ctx.diagnostics, interner: ctx.interner,
+                        ctx: ctx, predeclaredSymbol: predeclared[declID]
+                    )
+                }
             }
         }
     }
