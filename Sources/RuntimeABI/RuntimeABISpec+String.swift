@@ -920,7 +920,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_lowercase_locale_flat",
+            name: "__kk_lowercase_locale_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -935,7 +935,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_uppercase_locale_flat",
+            name: "__kk_uppercase_locale_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -2188,7 +2188,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        flatStringHOFReturnSpec(name: "kk_string_replaceFirstChar_flat"),
         // KSP-404: removePrefix/removeSuffix/removeSurrounding flat bridges removed;
         // implemented in bundled Kotlin source (StringPrefixSuffix.kt).
         // STDLIB-191

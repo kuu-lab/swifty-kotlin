@@ -1069,6 +1069,15 @@ final class CallLowerer {
                             ))
                         }
                     }
+                    // BUG-141: register interface property getters into the itable.
+                    appendObjectItablePropertyGetterRegistrations(
+                        objectValue: allocatedObj,
+                        nominalSymbol: ownerNominalSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                 }
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
@@ -1126,9 +1135,14 @@ final class CallLowerer {
         // the continuation via launcherArgs and forward them through the thunk.
         // Guard on chosen == nil && loweredCallable == nil to avoid misfiring
         // on user-defined functions that happen to share a launcher name.
-        // Only expand captures for the first argument (the launcher entry
-        // function reference); subsequent arguments are value args for the
-        // referenced suspend function and should not be expanded.
+        // Only expand captures for the launcher entry function reference; the
+        // remaining arguments are value args for the referenced suspend
+        // function and should not be expanded. The entry reference is normally
+        // arguments[0], but a dispatcher-aware `launch(dispatcher) { ... }`
+        // carries the dispatcher at arguments[0] and the suspend lambda at
+        // arguments[1] (matching rewriteLauncherCall's dispatcher-aware path),
+        // so scan for the first argument that actually is a callable value and
+        // insert its captures right after it.
         if loweredCallable == nil {
             let isSyntheticCoroutineLauncher: Bool = if let chosen,
                                                         let chosenInfo = sema.symbols.symbol(chosen)
@@ -1144,12 +1158,20 @@ final class CallLowerer {
                sourceCalleeName == knownNames.runBlocking
                || sourceCalleeName == knownNames.launch
                || sourceCalleeName == knownNames.async
-               || sourceCalleeName == knownNames.produce,
-               let firstArg = finalArgIDs.first,
-               let callableInfo = driver.ctx.callableValueInfo(for: firstArg),
-               !callableInfo.captureArguments.isEmpty
+               || sourceCalleeName == knownNames.produce
             {
-                finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 1)
+                // A leading dispatcher (only valid for `launch`) pushes the
+                // entry reference to index 1; otherwise it is index 0.
+                let entryIndex = finalArgIDs.indices.first { index in
+                    driver.ctx.callableValueInfo(for: finalArgIDs[index]) != nil
+                }
+                if let entryIndex,
+                   entryIndex <= 1,
+                   let callableInfo = driver.ctx.callableValueInfo(for: finalArgIDs[entryIndex]),
+                   !callableInfo.captureArguments.isEmpty
+                {
+                    finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: entryIndex + 1)
+                }
             }
         }
         if sourceCalleeName == knownNames.withContext,

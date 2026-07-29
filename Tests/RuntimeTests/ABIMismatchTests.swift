@@ -554,28 +554,15 @@ final class ABIMismatchTests: XCTestCase {
         }
     }
 
-    func testKKStringReplaceFirstCharPointerABIRemoved() {
+    func testKKStringReplaceFirstCharABIRemoved() {
         XCTAssertFalse(
             RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar" },
-            "kk_string_replaceFirstChar should use the flattened string ABI instead of the legacy pointer ABI"
+            "kk_string_replaceFirstChar should be removed now that replaceFirstChar is source-backed"
         )
-    }
-
-    func testKKStringReplaceFirstCharFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replaceFirstChar_flat")
-        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-        XCTAssertEqual(spec.parameters.map(\.type), [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
+        XCTAssertFalse(
+            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar_flat" },
+            "kk_string_replaceFirstChar_flat should be removed now that replaceFirstChar is source-backed"
+        )
     }
 
     func testKKStringCommonPrefixSuffixRuntimeABIRemoved() {

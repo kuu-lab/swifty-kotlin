@@ -1352,27 +1352,6 @@ public func kk_string_replace_char_ignoreCase_flat(
     )
 }
 
-@_cdecl("kk_string_replaceFirstChar_flat")
-public func kk_string_replaceFirstChar_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        kk_string_replaceFirstChar(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
 @_cdecl("kk_string_asIterable_flat")
 public func kk_string_asIterable_flat(
     _ data: UnsafePointer<UInt8>?,
