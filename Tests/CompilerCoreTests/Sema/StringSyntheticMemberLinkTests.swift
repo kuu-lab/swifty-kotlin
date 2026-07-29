@@ -134,46 +134,19 @@ struct StringSyntheticMemberLinkTests {
             externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == "kk_string_findLastAnyOf",
             "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf"
         )
-        #expect(
-            externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_flat"),
-            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_char_flat"),
-            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_flat"),
-            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_char_flat"),
-            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_flat"),
-            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_char_flat"),
-            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_flat"),
-            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_flat"
-        )
-        #expect(
-            externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_char_flat"),
-            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char_flat"
-        )
+        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+        // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
+        // (StringSearchReplace.kt) and carry no runtime link.
+        for member in [
+            "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
+            "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
+        ] {
+            let links = externalLinks(for: member, sema: sema, interner: interner)
+            #expect(
+                links.isEmpty,
+                "String.\(member) should be source-backed after KSP-407, got \(links.sorted())"
+            )
+        }
         // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
         #expect(
             externalLinks(for: "plus", sema: sema, interner: interner)
@@ -1102,15 +1075,16 @@ struct StringSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "replaceAfter"
             }
             #expect(callExprs.count == 4)
-            let links = try callExprs.map { callExpr -> String in
+            for callExpr in callExprs {
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceAfter"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected replaceAfter to resolve to bundled Kotlin source with no C external link"
+                )
             }
-            #expect(links.filter { $0 == "kk_string_replaceAfter_flat" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceAfter_char_flat" }.count == 2)
         }
     }
 
@@ -1143,15 +1117,16 @@ struct StringSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "replaceAfterLast"
             }
             #expect(callExprs.count == 4)
-            let links = try callExprs.map { callExpr -> String in
+            for callExpr in callExprs {
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceAfterLast"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected replaceAfterLast to resolve to bundled Kotlin source with no C external link"
+                )
             }
-            #expect(links.filter { $0 == "kk_string_replaceAfterLast_flat" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceAfterLast_char_flat" }.count == 2)
         }
     }
 
@@ -1184,15 +1159,16 @@ struct StringSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "replaceBefore"
             }
             #expect(callExprs.count == 4)
-            let links = try callExprs.map { callExpr -> String in
+            for callExpr in callExprs {
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceBefore"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected replaceBefore to resolve to bundled Kotlin source with no C external link"
+                )
             }
-            #expect(links.filter { $0 == "kk_string_replaceBefore_flat" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceBefore_char_flat" }.count == 2)
         }
     }
 
@@ -1225,15 +1201,16 @@ struct StringSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "replaceBeforeLast"
             }
             #expect(callExprs.count == 4)
-            let links = try callExprs.map { callExpr -> String in
+            for callExpr in callExprs {
                 let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceBeforeLast"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected replaceBeforeLast to resolve to bundled Kotlin source with no C external link"
+                )
             }
-            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_flat" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_char_flat" }.count == 2)
         }
     }
 

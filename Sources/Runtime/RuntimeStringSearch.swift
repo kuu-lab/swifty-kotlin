@@ -340,7 +340,11 @@ public func kk_string_lastIndexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let other = runtimeStringScalars(otherRaw)
 
     if other.isEmpty {
-        return source.count
+        // BUG-165: Kotlin's default `startIndex` for this overload is `lastIndex`
+        // (`length - 1`), not `length`, so an empty needle matches one position
+        // before the end (and never matches on an empty receiver, since
+        // `lastIndex` is then -1). Confirmed against kotlinc 2.4.10.
+        return source.count - 1
     }
     if other.count > source.count {
         return -1

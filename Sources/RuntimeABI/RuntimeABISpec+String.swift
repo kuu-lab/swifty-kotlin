@@ -355,78 +355,9 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBefore_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBefore_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBeforeLast_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBeforeLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfter_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfter_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfterLast_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfterLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfter_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfter_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfterLast_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfterLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBefore_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBefore_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBeforeLast_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBeforeLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
+        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+        // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
+        // (StringSearchReplace.kt); their flat ABI entries were removed.
         // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
         // (StringTakeDrop.kt); their flat ABI entries were removed.
         RuntimeABIFunctionSpec(
