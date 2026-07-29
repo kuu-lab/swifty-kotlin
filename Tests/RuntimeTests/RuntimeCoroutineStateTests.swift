@@ -350,6 +350,27 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_job_join(jobHandle, 0), 7)
     }
 
+    func testCoroutineScopeLaunchWithContForwardsCaptureArgs() {
+        // BUG-049: a capturing suspend lambda launched via CoroutineScope.launch must
+        // thread its captured outer variables through the launcher continuation.
+        let scopeHandle = kk_coroutine_scope_new()
+        XCTAssertNotEqual(scopeHandle, 0)
+
+        let functionID = 5008
+        let continuation = kk_coroutine_continuation_new(functionID)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 63)
+
+        let entryRaw = unsafeBitCast(
+            runtime_test_suspend_with_arg as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+        let jobHandle = kk_coroutine_scope_launch_with_cont(scopeHandle, entryRaw, continuation)
+        XCTAssertNotEqual(jobHandle, 0)
+        // runtime_test_suspend_with_arg returns launcherArg(0) + 10 == 73.
+        XCTAssertEqual(kk_job_join(jobHandle, 0), 73)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+    }
+
     func testAsyncWithContReturnsAwaitableResult() {
         let functionID = 5004
         let continuation = kk_coroutine_continuation_new(functionID)

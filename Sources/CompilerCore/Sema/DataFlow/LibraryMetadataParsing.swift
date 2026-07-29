@@ -275,7 +275,9 @@ extension DataFlowSemaPhase {
         private let metadataPath: String
         private let ownerFQName: [InternedString]
         private let syntheticTypeParameterBase: Int32 = DataFlowSemaPhase.syntheticTypeParameterBase
-        private static let maxDepth: Int = 512
+        // Keep enough headroom for the smaller stacks used by macOS test workers.
+        // A signature with more than 63 nested wrappers is not practical metadata.
+        private static let maxDepth: Int = 64
         private static let maxSourceLength: Int = 1_048_576
 
         init(

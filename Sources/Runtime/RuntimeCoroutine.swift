@@ -2752,6 +2752,54 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
     }
     return Int(bitPattern: jobPtr)
 }
+
+/// Variant of kk_coroutine_scope_launch that accepts a pre-built continuation carrying
+/// the launched suspend lambda's captured outer variables (BUG-049). Mirrors
+/// kk_coroutine_scope_launch except that the continuation (with its capture slots
+/// already populated by the caller) is threaded through the launcher thunk instead of
+/// being freshly allocated from a functionID.
+@_cdecl("kk_coroutine_scope_launch_with_cont")
+public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_launch_with_cont received invalid scope handle")
+    }
+    let job = RuntimeJobHandle()
+    let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: jobPtr))
+    }
+    job.markStarted()
+    if let state = runtimeContinuationState(from: continuation) {
+        job.continuationState = state
+        state.jobHandle = job
+        // Propagate the explicit receiver scope (not whatever is ambient) to the
+        // child continuation's context so nested launch/async inside the block
+        // discover `scope`, matching kk_coroutine_scope_launch above.
+        state.scope = scope
+    }
+    scope.registerChild(Int(bitPattern: jobPtr))
+
+    KxMiniRuntime.launch {
+        if job.cancellationSnapshot() {
+            _ = job.complete(with: 0)
+            return
+        }
+        RuntimeCoroutineScope.current = scope
+        var thrown = 0
+        let result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            outThrown: &thrown
+        )
+        RuntimeCoroutineScope.current = nil
+        if thrown != 0 {
+            _ = job.completeExceptionally(with: thrown)
+        } else {
+            _ = job.complete(with: result)
+        }
+    }
+    return Int(bitPattern: jobPtr)
+}
 /// Backing for the bare `kotlinx.coroutines.Job(): Job` factory (no parent argument --
 /// the only shape currently registered in Sema).
 @_cdecl("kk_job_new")
