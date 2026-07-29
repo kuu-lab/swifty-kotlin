@@ -480,42 +480,33 @@ struct DataFlowAndSemaRegressionTests {
 
     // MARK: - BodyAnalysis: structural recursion depth guard
 
-    @Test func testDeeplyNestedGenericTypeRefEmitsDepthDiagnostic() throws {
-        let interner = StringInterner()
-        let listName = interner.intern("List")
-        let intName = interner.intern("Int")
+    @Test func testNestedGenericTypeRefAtSemaDepthLimitResolves() throws {
+        let source = nestedListParameterSource(depth: DataFlowSemaPhase.maxStructuralRecursionDepth)
 
-        let symbols = SymbolTable()
-        _ = symbols.define(
-            kind: .class,
-            name: listName,
-            fqName: [listName],
-            declSite: nil,
-            visibility: .public
-        )
-
-        let types = TypeSystem()
-        let diagnostics = DiagnosticEngine()
-        let arena = ASTArena()
-
-        var innerRef = arena.appendTypeRef(.named(path: [intName], args: [], nullable: false))
-        for _ in 0..<600 {
-            let arg = TypeArgRef.invariant(innerRef)
-            innerRef = arena.appendTypeRef(.named(path: [listName], args: [arg], nullable: false))
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-TYPE-DEPTH", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-TYPE-DEPTH", in: ctx)
         }
+    }
 
-        let ast = ASTModule(files: [], arena: arena, declarationCount: 0, tokenCount: 0)
-        let phase = DataFlowSemaPhase()
-        _ = phase.resolveTypeRef(
-            innerRef,
-            ast: ast,
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            diagnostics: diagnostics
-        )
+    @Test func testNestedGenericTypeRefBeyondSemaDepthLimitEmitsDiagnostic() throws {
+        let source = nestedListParameterSource(depth: DataFlowSemaPhase.maxStructuralRecursionDepth + 1)
 
-        #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TYPE-DEPTH" })
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-TYPE-DEPTH", in: ctx)
+            assertDiagnosticCount("KSWIFTK-SEMA-TYPE-DEPTH", expected: 1, in: ctx)
+        }
+    }
+
+    private func nestedListParameterSource(depth: Int) -> String {
+        let type = String(repeating: "List<", count: depth)
+            + "Int"
+            + String(repeating: ">", count: depth)
+        return "fun consume(value: \(type)) {}\n"
     }
 
     // KNOWN GAP (DEBT-SEMA-003): self-referential top-level initializers are

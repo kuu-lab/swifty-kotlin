@@ -143,6 +143,16 @@ func appendObjectItableMethodRegistrations(
             ))
         }
     }
+
+    // BUG-141: also register interface property getters into the itable.
+    appendObjectItablePropertyGetterRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
 }
 
 /// Interfaces reachable from `nominalSymbol` through the whole supertype
