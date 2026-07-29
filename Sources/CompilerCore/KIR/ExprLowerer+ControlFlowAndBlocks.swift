@@ -1056,6 +1056,18 @@ extension ExprLowerer {
                             if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
                                 driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
                             }
+                        } else if !isDelegated, isBareVariableRead(initializer, ast: ast) {
+                            // `val a = b` must snapshot `b`'s current value. Binding the
+                            // new local directly to the initializer register would alias
+                            // the two, so a later in-place update of `b` (`b += 1`, which
+                            // copies into the same register) would retroactively change
+                            // `a` as well.
+                            let localSlot = arena.appendTemporary(type: declaredType)
+                            instructions.append(.copy(from: initializerID, to: localSlot))
+                            driver.ctx.setLocalValue(localSlot, for: symbol)
+                            if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
+                                driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
+                            }
                         } else {
                             driver.ctx.setLocalValue(initializerID, for: symbol)
                         }
@@ -2436,5 +2448,15 @@ extension ExprLowerer {
                 thrownResult: nil
             ))
         }
+    }
+
+    /// Whether the expression is a plain read of a variable (`b` in `val a = b`).
+    /// Such initializers must be snapshotted into their own register instead of
+    /// aliasing the source variable's storage.
+    func isBareVariableRead(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        if case .nameRef = ast.arena.expr(exprID) {
+            return true
+        }
+        return false
     }
 }
