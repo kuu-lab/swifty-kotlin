@@ -774,14 +774,14 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_lowercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_lowercase_locale_flat",
+                "__kk_lowercase_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_lowercase_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: false
                 ),
-                "kk_string_uppercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_uppercase_locale_flat",
+                "__kk_uppercase_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "__kk_uppercase_locale_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: false
@@ -824,12 +824,6 @@ extension NativeEmitter {
                 ),
                 "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_ifEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_replaceFirstChar_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceFirstChar_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
@@ -1288,27 +1282,6 @@ extension NativeEmitter {
                 ),
                 "kk_regex_matches_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_matches_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "kk_string_builder_append_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_builder_append_line_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_line_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_builder_append_range_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_append_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_builder_insert_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_builder_insert_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]

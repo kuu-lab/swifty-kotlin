@@ -310,6 +310,27 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_job_join(jobHandle, 0), 7)
     }
 
+    func testCoroutineScopeLaunchWithContForwardsCaptureArgs() {
+        // BUG-049: a capturing suspend lambda launched via CoroutineScope.launch must
+        // thread its captured outer variables through the launcher continuation.
+        let scopeHandle = kk_coroutine_scope_new()
+        XCTAssertNotEqual(scopeHandle, 0)
+
+        let functionID = 5008
+        let continuation = kk_coroutine_continuation_new(functionID)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 63)
+
+        let entryRaw = unsafeBitCast(
+            runtime_test_suspend_with_arg as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+        let jobHandle = kk_coroutine_scope_launch_with_cont(scopeHandle, entryRaw, continuation)
+        XCTAssertNotEqual(jobHandle, 0)
+        // runtime_test_suspend_with_arg returns launcherArg(0) + 10 == 73.
+        XCTAssertEqual(kk_job_join(jobHandle, 0), 73)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
+    }
+
     func testAsyncWithContReturnsAwaitableResult() {
         let functionID = 5004
         let continuation = kk_coroutine_continuation_new(functionID)
@@ -347,8 +368,9 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
     func testCoroutineScopeNewAndWaitLifecycle() {
         let scopeHandle = kk_coroutine_scope_new()
         XCTAssertNotEqual(scopeHandle, 0)
-        // Scope with no children should complete immediately
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
+        // Scope with no children should complete immediately; wait returns the
+        // nullable-Throwable null sentinel (not raw 0) when there is no failure.
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
     }
 
     func testCoroutineScopeWaitsForLaunchedChild() {
@@ -370,17 +392,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         )
 
         // scope_wait should return after all children complete
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
-    }
-
-    func testCoroutineScopeRunExecutesBlockAndWaitsForChildren() {
-        let entryRaw = unsafeBitCast(
-            runtime_test_suspend_with_delay as RuntimeTestSuspendEntry,
-            to: Int.self
-        )
-        // kk_coroutine_scope_run creates scope, runs block, waits for children
-        let result = kk_coroutine_scope_run(entryRaw, runtimeKxMiniDelayFunctionID, nil)
-        XCTAssertEqual(result, 42)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
     }
 
     func testJobJoinWaitsForCompletion() {
@@ -414,7 +426,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_coroutine_scope_cancel(scopeHandle), 0)
 
         // Wait should complete (children are cancelled so they exit early)
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
 
         let end = DispatchTime.now()
         let elapsedSeconds = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
@@ -449,7 +461,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 73)
 
         // Wait for children — scope releases remaining retains for the child
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
     }
 
     func testJobJoinWithinScopeAndScopeWaitsForChild() {
@@ -470,7 +482,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 73)
 
         // Scope wait should also complete successfully after the child has finished
-        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(scopeHandle), runtimeNullSentinelInt)
     }
 
     func testNestedCoroutineScopesRestoreParent() {
@@ -481,10 +493,10 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(innerScope, 0)
 
         // Inner scope wait should pop inner and restore outer as current
-        XCTAssertEqual(kk_coroutine_scope_wait(innerScope), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(innerScope), runtimeNullSentinelInt)
 
         // Outer scope wait should pop outer
-        XCTAssertEqual(kk_coroutine_scope_wait(outerScope), 0)
+        XCTAssertEqual(kk_coroutine_scope_wait(outerScope), runtimeNullSentinelInt)
     }
 
     // MARK: - CORO-002: Cancellation Tests

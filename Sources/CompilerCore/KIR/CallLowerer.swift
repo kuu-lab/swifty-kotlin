@@ -35,63 +35,6 @@ final class CallLowerer {
         return nil
     }
 
-    func boxBuildStringTextArgumentIfNeeded(
-        _ argument: KIRExprID,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) -> KIRExprID {
-        guard let argumentType = arena.exprType(argument) else {
-            return argument
-        }
-        let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-            for: sema.types.kind(of: argumentType),
-            requireNonNull: true
-        )
-        guard let boxCallee else {
-            return argument
-        }
-        let boxedArgument = emitNonThrowingCall(
-            callee: boxCallee,
-            arg: argument,
-            resultType: sema.types.anyType,
-            arena: arena,
-            into: &instructions
-        )
-        return boxedArgument
-    }
-
-    private func buildStringAppendRuntimeCall(
-        for argument: KIRExprID,
-        flatCallee: String,
-        objectCallee: String,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) -> (callee: String, arguments: [KIRExprID]) {
-        if let argumentType = arena.exprType(argument),
-           sema.types.nullability(of: argumentType) == .nonNull,
-           sema.types.isSubtype(argumentType, sema.types.stringType)
-        {
-            return (flatCallee, [argument])
-        }
-
-        return (
-            objectCallee,
-            [
-                boxBuildStringTextArgumentIfNeeded(
-                    argument,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                ),
-            ]
-        )
-    }
-
     private func isStringBuilderConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -845,19 +788,6 @@ final class CallLowerer {
         if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
             let sourceName = interner.resolve(sourceCalleeName)
             let builderRuntimeCallee: String? = switch builderKind {
-            case .buildString, .buildStringBuilder:
-                switch (sourceName, loweredArgIDs.count) {
-                case ("append", 1):
-                    "kk_string_builder_append_flat"
-                case ("appendLine", 0):
-                    "kk_string_builder_append_line_noarg"
-                case ("appendLine", 1):
-                    "kk_string_builder_append_line_flat"
-                case ("appendRange", 3):
-                    "kk_string_builder_append_range_flat"
-                default:
-                    nil
-                }
             case .buildList:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("add", 1):
@@ -885,43 +815,12 @@ final class CallLowerer {
                 }
             }
             if let builderRuntimeCallee {
-                let runtimeArguments: [KIRExprID]
-                let runtimeCallee: String
-                switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-                case ("append", 1):
-                    let appendCall = buildStringAppendRuntimeCall(
-                        for: loweredArgIDs[0],
-                        flatCallee: "kk_string_builder_append_flat",
-                        objectCallee: "kk_string_builder_append",
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeCallee = appendCall.callee
-                    runtimeArguments = appendCall.arguments
-                case ("appendLine", 1):
-                    let appendCall = buildStringAppendRuntimeCall(
-                        for: loweredArgIDs[0],
-                        flatCallee: "kk_string_builder_append_line_flat",
-                        objectCallee: "kk_string_builder_append_line",
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeCallee = appendCall.callee
-                    runtimeArguments = appendCall.arguments
-                default:
-                    runtimeCallee = builderRuntimeCallee
-                    runtimeArguments = loweredArgIDs
-                }
                 let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern(runtimeCallee),
-                    arguments: runtimeArguments,
+                    callee: interner.intern(builderRuntimeCallee),
+                    arguments: loweredArgIDs,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -1001,6 +900,7 @@ final class CallLowerer {
             )
         }
         var finalArgIDs = callNormalized.arguments
+        var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         // Compiler-generated lambdas/local functions use the compiler ABI
         // (including the hidden thrown channel), so route them through their
         // lowered symbol directly instead of Swift closure helpers.
@@ -1109,68 +1009,23 @@ final class CallLowerer {
                         thrownResult: nil
                     ))
                 }
-                if let objectLayout = sema.symbols.nominalLayout(for: ownerNominalSymbol) {
-                    for interfaceSymbol in sema.symbols.directSupertypes(for: ownerNominalSymbol) {
-                        guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
-                              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
-                        else {
-                            continue
-                        }
-                        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
-                        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                            symbol: interfaceSymbol,
-                            sema: sema,
-                            interner: interner
-                        )
-                        let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: intType)
-                        instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
-                        let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
-                        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-                        let registerIfaceResult = arena.appendTemporary(type: intType)
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern("kk_object_register_itable_iface"),
-                            arguments: [allocatedObj, interfaceTypeExpr, ifaceSlotExpr],
-                            result: registerIfaceResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
-                            let methodSlot = Int64(methodSlotInt)
-                            let implementationSymbol: SymbolID = {
-                                guard let methodSym = sema.symbols.symbol(methodSymbol),
-                                      let ownerSym = sema.symbols.symbol(ownerNominalSymbol)
-                                else {
-                                    return methodSymbol
-                                }
-                                let overrideFQName = ownerSym.fqName + [methodSym.name]
-                                for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-                                    guard let candidateSym = sema.symbols.symbol(candidate),
-                                          candidateSym.kind == .function,
-                                          sema.symbols.parentSymbol(for: candidate) == ownerNominalSymbol
-                                    else {
-                                        continue
-                                    }
-                                    return candidate
-                                }
-                                return methodSymbol
-                            }()
-                            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
-                            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
-                            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
-                            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
-                            let registerMethodResult = arena.appendTemporary(type: intType)
-                            instructions.append(.call(
-                                symbol: nil,
-                                callee: interner.intern("kk_object_register_itable_method"),
-                                arguments: [allocatedObj, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
-                                result: registerMethodResult,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
-                        }
-                    }
-                }
+                appendObjectItableMethodRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                // BUG-141: register interface property getters into the itable.
+                appendObjectItablePropertyGetterRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 appendObjectVtableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
@@ -1196,6 +1051,18 @@ final class CallLowerer {
                   let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
         {
             finalArgIDs.insert(implicitReceiver, at: 0)
+            // An unqualified `compute()` inside a member body is `this.compute()`
+            // and must dispatch through the receiver's vtable/itable exactly like
+            // the explicit form: a subclass override, or a base-class
+            // implementation of an interface method, is otherwise bypassed.
+            if sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true {
+                implicitReceiverDispatch = resolveVirtualDispatch(
+                    callee: chosen,
+                    receiverTypeID: arena.exprType(implicitReceiver),
+                    sema: sema,
+                    interner: interner
+                ).map { (receiver: implicitReceiver, kind: $0) }
+            }
         }
         if loweredCallable == nil {
             materializeSourceBackedFunctionValueArguments(
@@ -1227,9 +1094,14 @@ final class CallLowerer {
         // the continuation via launcherArgs and forward them through the thunk.
         // Guard on chosen == nil && loweredCallable == nil to avoid misfiring
         // on user-defined functions that happen to share a launcher name.
-        // Only expand captures for the first argument (the launcher entry
-        // function reference); subsequent arguments are value args for the
-        // referenced suspend function and should not be expanded.
+        // Only expand captures for the launcher entry function reference; the
+        // remaining arguments are value args for the referenced suspend
+        // function and should not be expanded. The entry reference is normally
+        // arguments[0], but a dispatcher-aware `launch(dispatcher) { ... }`
+        // carries the dispatcher at arguments[0] and the suspend lambda at
+        // arguments[1] (matching rewriteLauncherCall's dispatcher-aware path),
+        // so scan for the first argument that actually is a callable value and
+        // insert its captures right after it.
         if loweredCallable == nil {
             let isSyntheticCoroutineLauncher: Bool = if let chosen,
                                                         let chosenInfo = sema.symbols.symbol(chosen)
@@ -1245,12 +1117,20 @@ final class CallLowerer {
                sourceCalleeName == knownNames.runBlocking
                || sourceCalleeName == knownNames.launch
                || sourceCalleeName == knownNames.async
-               || sourceCalleeName == knownNames.produce,
-               let firstArg = finalArgIDs.first,
-               let callableInfo = driver.ctx.callableValueInfo(for: firstArg),
-               !callableInfo.captureArguments.isEmpty
+               || sourceCalleeName == knownNames.produce
             {
-                finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 1)
+                // A leading dispatcher (only valid for `launch`) pushes the
+                // entry reference to index 1; otherwise it is index 0.
+                let entryIndex = finalArgIDs.indices.first { index in
+                    driver.ctx.callableValueInfo(for: finalArgIDs[index]) != nil
+                }
+                if let entryIndex,
+                   entryIndex <= 1,
+                   let callableInfo = driver.ctx.callableValueInfo(for: finalArgIDs[entryIndex]),
+                   !callableInfo.captureArguments.isEmpty
+                {
+                    finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: entryIndex + 1)
+                }
             }
         }
         if sourceCalleeName == knownNames.withContext,
@@ -1343,6 +1223,22 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: nullCauseExpr, value: .intLiteral(0)))
                 finalArgIDs.append(nullCauseExpr)
+            } else if loweredCalleeName == interner.intern("kk_string_substring_flat"),
+                      finalArgIDs.count == 2 || finalArgIDs.count == 3
+            {
+                // BUG-145: implicit-receiver `substring(...)` inside a String
+                // extension reaches this path instead of the member-like
+                // lowering, which normally supplies the trailing
+                // (endIndex, hasEndIndex) pair the flat runtime ABI expects.
+                let hasEndValue: Int64 = finalArgIDs.count == 3 ? 1 : 0
+                if finalArgIDs.count == 2 {
+                    let endExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: endExpr, value: .intLiteral(0)))
+                    finalArgIDs.append(endExpr)
+                }
+                let hasEndExpr = arena.appendExpr(.intLiteral(hasEndValue), type: sema.types.intType)
+                instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(hasEndValue)))
+                finalArgIDs.append(hasEndExpr)
             } else if loweredCalleeName == interner.intern("kk_channel_send")
                 || loweredCalleeName == interner.intern("kk_channel_receive")
                 || loweredCalleeName == interner.intern("kk_mutex_lock")
@@ -1376,14 +1272,27 @@ final class CallLowerer {
                 }
                 return nil
             }()
-            instructions.append(.call(
-                symbol: callSymbol,
-                callee: loweredCalleeName,
-                arguments: finalArgIDs,
-                result: result,
-                canThrow: callCanThrow,
-                thrownResult: thrownResult
-            ))
+            if let implicitReceiverDispatch, finalArgIDs.first == implicitReceiverDispatch.receiver {
+                instructions.append(.virtualCall(
+                    symbol: callSymbol,
+                    callee: loweredCalleeName,
+                    receiver: implicitReceiverDispatch.receiver,
+                    arguments: Array(finalArgIDs.dropFirst()),
+                    result: result,
+                    canThrow: callCanThrow,
+                    thrownResult: thrownResult,
+                    dispatch: implicitReceiverDispatch.kind
+                ))
+            } else {
+                instructions.append(.call(
+                    symbol: callSymbol,
+                    callee: loweredCalleeName,
+                    arguments: finalArgIDs,
+                    result: result,
+                    canThrow: callCanThrow,
+                    thrownResult: thrownResult
+                ))
+            }
             if let thrownResult,
                shouldRethrowThrownChannelResult(calleeName: loweredCalleeName, interner: interner)
             {

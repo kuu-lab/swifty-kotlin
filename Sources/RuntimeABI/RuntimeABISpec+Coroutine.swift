@@ -766,6 +766,19 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // Variant of kk_coroutine_scope_launch that accepts a pre-built continuation
+        // carrying the launched suspend lambda's captured outer variables (BUG-049).
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_scope_launch_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_job_new",
             parameters: [],
@@ -823,46 +836,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_run",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "functionID", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_run_with_cont",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_supervisor_scope_run",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "functionID", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_supervisor_scope_run_with_cont",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
         ),
         // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
         RuntimeABIFunctionSpec(
@@ -1025,12 +998,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_reentrant_read_write_lock_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+
         RuntimeABIFunctionSpec(
             name: "kk_mutex_lock",
             parameters: [

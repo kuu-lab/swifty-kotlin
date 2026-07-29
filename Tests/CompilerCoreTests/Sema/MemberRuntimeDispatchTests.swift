@@ -48,8 +48,6 @@ struct MemberRuntimeDispatchTests {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "kk_iterable_firstNotNullOf"),
             (.set, "map", 1, "kk_list_map"),
-            (.map, "filterKeys", 1, "kk_map_filterKeys"),
-            (.map, "mapValuesTo", 2, "kk_map_mapValuesTo"),
             (.sequence, "firstNotNullOf", 1, "kk_sequence_firstNotNullOf"),
         ]
 
@@ -75,6 +73,38 @@ struct MemberRuntimeDispatchTests {
             #expect(
                 MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == nil,
                 "\(receiverKind.rawValue).\(memberName)/\(arity)"
+            )
+        }
+    }
+
+    @Test func testCollectionRuntimeDispatchDoesNotOverrideSourceBackedMapHOFMembers() {
+        // KSP-430: Map higher-order functions are now bundled Kotlin source.
+        for (memberName, arity) in [
+            ("forEach", 1),
+            ("map", 1),
+            ("mapNotNull", 1),
+            ("flatMap", 1),
+            ("filter", 1),
+            ("filterNot", 1),
+            ("filterKeys", 1),
+            ("filterValues", 1),
+            ("mapValues", 1),
+            ("mapKeys", 1),
+            ("mapValuesTo", 2),
+            ("mapKeysTo", 2),
+            ("any", 1),
+            ("all", 1),
+            ("none", 1),
+            ("count", 1),
+            ("maxByOrNull", 1),
+            ("minByOrNull", 1),
+            ("plus", 1),
+            ("minus", 1),
+        ] {
+            let key = MemberDispatchKey(receiverKind: .map, memberName: memberName, arity: arity)
+            #expect(
+                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == nil,
+                "Map.\(memberName)/\(arity) should be source-backed after KSP-430"
             )
         }
     }

@@ -334,6 +334,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return false
         case .classType, .any:
             return true
+        case .typeParam:
+            // Type parameters have an Any? upper bound by default, so equality on them
+            // must use structural equality (e.g. String values in a generic Map function).
+            return true
         default:
             return false
         }

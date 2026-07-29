@@ -39,7 +39,6 @@ private fun rangeIsEmptyLong(first: Long, last: Long, step: Long): Boolean =
 private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
     if (step > 0L) first > last else if (step < 0L) first < last else true
 
-@KsSymbolName("kk_range_isEmpty")
 public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
