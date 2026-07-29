@@ -114,7 +114,8 @@ struct LibraryMetadataSignatureParsingTests {
         let libDir = baseDir.appendingPathExtension("kklib")
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        let nesting = 500
+        // The leaf adds one parser call, so 63 wrappers exercise the 64-call limit.
+        let nesting = 63
         let prefix = String(repeating: "Q<", count: nesting)
         let suffix = String(repeating: ">", count: nesting)
         let sig = prefix + "I" + suffix
@@ -153,7 +154,7 @@ struct LibraryMetadataSignatureParsingTests {
             )
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
-            #expect(warnings.isEmpty, "Expected a 500-deep nullable signature to parse within the depth limit: \(diagnostics.diagnostics.map(\.code))")
+            #expect(warnings.isEmpty, "Expected a 63-deep nullable signature to parse within the depth limit: \(diagnostics.diagnostics.map(\.code))")
             let xSymbol = symbols.allSymbols().first { symbol in
                 interner.resolve(symbol.name) == "x" && symbol.kind == .property
             }

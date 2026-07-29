@@ -238,7 +238,7 @@ extension DataFlowSemaPhase {
         // MIGRATION-TEXT-005: private primitives called from bundled Kotlin wrappers.
         registerSyntheticStringExtensionFunction(
             named: "__kk_lowercase_locale",
-            externalLinkName: "kk_string_lowercase_locale",
+            externalLinkName: "__kk_lowercase_locale",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),
@@ -251,7 +251,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_uppercase_locale",
-            externalLinkName: "kk_string_uppercase_locale",
+            externalLinkName: "__kk_uppercase_locale",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),

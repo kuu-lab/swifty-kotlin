@@ -127,11 +127,30 @@ extension CodegenRuntimeSupport {
     }
 
     private static func discoverScratchRuntimeObjectPaths(target: TargetTriple) -> [String] {
-        let searchRoots = [
-            runtimeBuildDirectory(target: target),
-            runtimeBuildRootDirectory(target: target),
-        ]
-        return discoverRuntimeObjectPaths(in: searchRoots)
+        discoverRuntimeObjectPaths(
+            inScratchBuildDirectory: runtimeBuildDirectory(target: target),
+            scratchRootDirectory: runtimeBuildRootDirectory(target: target)
+        )
+    }
+
+    // Exposed for testing so the discovery/fallback logic can be exercised
+    // against synthesized on-disk layouts without running a real build.
+    static func discoverRuntimeObjectPaths(
+        inScratchBuildDirectory buildDirectory: URL,
+        scratchRootDirectory rootDirectory: URL
+    ) -> [String] {
+        let discovered = discoverRuntimeObjectPaths(in: [buildDirectory, rootDirectory])
+        if !discovered.isEmpty {
+            return discovered
+        }
+
+        // Whole-module-optimization (WMO) toolchains emit a single
+        // consolidated object for the Runtime module instead of a
+        // "Runtime.build" directory full of per-file `.swift.o` objects.
+        // Some toolchains place that single object directly in the build
+        // directory rather than inside a "*.build" products directory, so
+        // the directory-name based discovery above finds nothing (BUG-051).
+        return discoverWholeModuleRuntimeObjectPaths(nearBuildDirectory: buildDirectory)
     }
 
     private static func discoverPackageBuildRuntimeObjectPaths(target: TargetTriple) -> [String] {
@@ -219,6 +238,33 @@ extension CodegenRuntimeSupport {
             paths.append(fileURL.path)
         }
         return paths.sorted()
+    }
+
+    // File names a WMO build uses for the Runtime module's single
+    // consolidated object. Scoped to exact names so the fallback never
+    // grabs per-file `.swift.o` objects, another target's object (e.g.
+    // "RuntimeABI.o"), or the AST-wrapper debug object SwiftPM emits under
+    // "Modules/Runtime.o" (which contains only "__Swift_AST", no code).
+    private static let wholeModuleRuntimeObjectNames: Set<String> = ["Runtime.o", "Runtime.swift.o"]
+
+    // The single WMO object, when it isn't nested in a "*.build" products
+    // directory, sits directly in the build (e.g. "debug") directory that
+    // otherwise contains "Runtime.build". Scan only that directory's direct
+    // children so the "Modules/" AST-wrapper object stays excluded.
+    private static func discoverWholeModuleRuntimeObjectPaths(nearBuildDirectory buildDirectory: URL) -> [String] {
+        let enclosingDirectory = buildDirectory.deletingLastPathComponent()
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: enclosingDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return entries
+            .filter { wholeModuleRuntimeObjectNames.contains($0.lastPathComponent) }
+            .map(\.path)
+            .sorted()
     }
 
     private static func runtimeBuildDirectory(target: TargetTriple) -> URL {
