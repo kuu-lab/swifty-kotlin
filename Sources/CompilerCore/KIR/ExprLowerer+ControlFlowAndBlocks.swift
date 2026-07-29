@@ -303,7 +303,14 @@ extension ExprLowerer {
                    !driver.ctx.isMutableCaptureBoxed(symbol),
                    let localValue = driver.ctx.localValue(for: symbol)
                 {
-                    return localValue
+                    return loadLocalStdlibDelegateValue(
+                        symbol: symbol,
+                        delegateHandle: localValue,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? localValue
                 }
             }
             if let symbol = sema.bindings.identifierSymbols[exprID] {
@@ -323,7 +330,14 @@ extension ExprLowerer {
                     return loadedValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
-                    return localValue
+                    return loadLocalStdlibDelegateValue(
+                        symbol: symbol,
+                        delegateHandle: localValue,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) ?? localValue
                 }
                 // Inline constant initializers only for immutable (val) properties.
                 // Mutable (var) properties must always load from global store at runtime.
@@ -952,9 +966,28 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
+                    let delegateKind = StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner)
+                    let hasProvideDelegate = sema.symbols.hasProvideDelegate(for: symbol)
                     let isCustomDelegateDecl = isDelegated
-                        && StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner) == .custom
-                        && !sema.symbols.hasProvideDelegate(for: symbol)
+                        && delegateKind == .custom
+                        && !hasProvideDelegate
+                    if isDelegated, delegateKind != .custom, !hasProvideDelegate {
+                        // Local stdlib-delegated declaration (BUG-052): keep the local
+                        // bound to the delegate handle produced by the factory, and
+                        // record the kind so each read goes through the matching
+                        // `kk_*_get_value` accessor. Without this the raw handle was
+                        // used as the value itself (`println(x)` printing
+                        // `<object 0x...>` instead of the lazily computed value).
+                        driver.ctx.setLocalStdlibDelegateKind(delegateKind, for: symbol)
+                        driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
+                        if let propertyType = sema.symbols.propertyType(for: symbol) {
+                            driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
+                        }
+                        driver.ctx.setLocalValue(initializerID, for: symbol)
+                        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                        instructions.append(.constValue(result: unit, value: .unit))
+                        return unit
+                    }
                     if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
                         // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
                         // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
@@ -1053,7 +1086,21 @@ extension ExprLowerer {
                 // Top-level properties have nil or .package parent.
                 // Object member properties have .object parent.
                 if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
-                   let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
+                   storeLocalStdlibDelegateValue(
+                       symbol: symbol,
+                       delegateHandle: delegateStorageID,
+                       valueID: valueID,
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   )
+                {
+                    // Local stdlib-delegated `var` (BUG-052): the delegate owns the
+                    // storage, so the write goes to `kk_*_set_value` and the local
+                    // stays bound to the delegate handle for subsequent reads.
+                } else if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                          let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
                 {
                     // Local custom-delegate `var` (BUG-014 / KSP-CAP-007): `x = value`
                     // calls `Prop().setValue(null, KProperty("x"), value)`, mirroring

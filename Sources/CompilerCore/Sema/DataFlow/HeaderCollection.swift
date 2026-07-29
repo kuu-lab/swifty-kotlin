@@ -42,36 +42,13 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// A top-level declaration symbol together with the declaration metadata
-    /// derived from its AST node.
-    struct TopLevelDeclarationSymbol {
-        let symbol: SymbolID
-        let kind: SymbolKind
-        let name: InternedString
-        let visibility: Visibility
-        let flags: SymbolFlags
-    }
-
-    /// Defines the symbol for a top-level declaration without resolving any of
-    /// its signature types. Running this over every file before signatures are
-    /// resolved makes cross-file forward references order-independent.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func defineTopLevelDeclarationSymbol(
-        declID: DeclID,
-        file: ASTFile,
-        ast: ASTModule,
-        symbols: SymbolTable,
-        bindings: BindingTable,
-        scope: Scope,
-        sourceManager: SourceManager,
-        diagnostics: DiagnosticEngine,
-        interner: StringInterner,
-        ctx: CompilationContext
-    ) -> TopLevelDeclarationSymbol? {
-        guard let decl = ast.arena.decl(declID) else { return nil }
-        let package = file.packageFQName
-
-        let declaration: (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)?
+    /// Describes the symbol a top-level declaration introduces, without touching
+    /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
+    /// so both agree on kind/visibility/flags.
+    private func topLevelDeclarationDescriptor(
+        for decl: Decl,
+        diagnostics: DiagnosticEngine?
+    ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
         switch decl {
         case let .classDecl(classDecl):
             var classFlags = flags(from: classDecl.modifiers)
@@ -82,14 +59,14 @@ extension DataFlowSemaPhase {
 
             // STDLIB-CLASS-010: Check for conflicting modifiers
             if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
-                diagnostics.error(
+                diagnostics?.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Class cannot be both 'abstract' and 'final'.",
                     range: classDecl.range
                 )
             }
             if classDecl.modifiers.contains(.sealed) && classDecl.modifiers.contains(.final) {
-                diagnostics.error(
+                diagnostics?.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Class cannot be both 'sealed' and 'final'.",
                     range: classDecl.range
@@ -105,7 +82,7 @@ extension DataFlowSemaPhase {
                 classFlags.insert(.abstractType)
                 classFlags.insert(.openType)
             }
-            declaration = (
+            return (
                 kind: classSymbolKind(for: classDecl),
                 name: classDecl.name,
                 range: classDecl.range,
@@ -117,7 +94,7 @@ extension DataFlowSemaPhase {
             if interfaceDecl.isFunInterface {
                 interfaceFlags.insert(.funInterface)
             }
-            declaration = (
+            return (
                 kind: .interface,
                 name: interfaceDecl.name,
                 range: interfaceDecl.range,
@@ -125,7 +102,7 @@ extension DataFlowSemaPhase {
                 flags: interfaceFlags
             )
         case let .objectDecl(objectDecl):
-            declaration = (
+            return (
                 kind: .object,
                 name: objectDecl.name,
                 range: objectDecl.range,
@@ -133,7 +110,7 @@ extension DataFlowSemaPhase {
                 flags: flags(from: objectDecl.modifiers)
             )
         case let .funDecl(funDecl):
-            declaration = (
+            return (
                 kind: .function,
                 name: funDecl.name,
                 range: funDecl.range,
@@ -145,7 +122,7 @@ extension DataFlowSemaPhase {
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
-            declaration = (
+            return (
                 kind: .property,
                 name: propertyDecl.name,
                 range: propertyDecl.range,
@@ -153,7 +130,7 @@ extension DataFlowSemaPhase {
                 flags: propertyFlags
             )
         case let .typeAliasDecl(typeAliasDecl):
-            declaration = (
+            return (
                 kind: .typeAlias,
                 name: typeAliasDecl.name,
                 range: typeAliasDecl.range,
@@ -161,7 +138,7 @@ extension DataFlowSemaPhase {
                 flags: flags(from: typeAliasDecl.modifiers)
             )
         case let .enumEntryDecl(entry):
-            declaration = (
+            return (
                 kind: .field,
                 name: entry.name,
                 range: entry.range,
@@ -169,9 +146,19 @@ extension DataFlowSemaPhase {
                 flags: []
             )
         }
+    }
 
-        guard let declaration else { return nil }
-        let fqName = package + [declaration.name]
+    private func defineTopLevelSymbol(
+        declaration: (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags),
+        decl: Decl,
+        file: ASTFile,
+        symbols: SymbolTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> SymbolID {
+        let fqName = file.packageFQName + [declaration.name]
         let scopeExisting = scope.lookup(declaration.name).compactMap { symbolID -> SemanticSymbol? in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.fqName == fqName
@@ -223,6 +210,83 @@ extension DataFlowSemaPhase {
         }
         symbols.setSourceFileID(file.fileID, for: symbol)
         scope.insert(symbol)
+        return symbol
+    }
+
+    /// BUG-143: Registers the symbols of top-level nominal type declarations
+    /// (class/interface/object/typealias) before any signature type annotation is
+    /// resolved, so declarations can reference types declared further down in the
+    /// same file. Returns the pre-registered symbols keyed by declaration so that
+    /// `collectHeader` reuses them instead of defining a second symbol.
+    func predeclareNominalTypeHeaders(
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        for declID in file.topLevelDecls {
+            guard let decl = ast.arena.decl(declID) else { continue }
+            switch decl {
+            case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                break
+            case .funDecl, .propertyDecl, .enumEntryDecl:
+                continue
+            }
+            guard let declaration = topLevelDeclarationDescriptor(for: decl, diagnostics: nil) else {
+                continue
+            }
+            predeclared[declID] = defineTopLevelSymbol(
+                declaration: declaration,
+                decl: decl,
+                file: file,
+                symbols: symbols,
+                scope: scope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner
+            )
+        }
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func collectHeader(
+        declID: DeclID,
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        scope: Scope,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        ctx: CompilationContext,
+        predeclaredSymbol: SymbolID? = nil
+    ) {
+        guard let decl = ast.arena.decl(declID) else { return }
+        let package = file.packageFQName
+        let anyType = types.anyType
+        let unitType = types.unitType
+
+        guard let declaration = topLevelDeclarationDescriptor(
+            for: decl,
+            diagnostics: diagnostics
+        ) else { return }
+        let fqName = package + [declaration.name]
+        let symbol = predeclaredSymbol ?? defineTopLevelSymbol(
+            declaration: declaration,
+            decl: decl,
+            file: file,
+            symbols: symbols,
+            scope: scope,
+            sourceManager: sourceManager,
+            diagnostics: diagnostics,
+            interner: interner
+        )
         bindings.bindDecl(declID, symbol: symbol)
 
         if case let .funDecl(funDecl) = decl {
@@ -250,54 +314,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        return TopLevelDeclarationSymbol(
-            symbol: symbol,
-            kind: declaration.kind,
-            name: declaration.name,
-            visibility: declaration.visibility,
-            flags: declaration.flags
-        )
-    }
-
-    /// Resolves the signature of a top-level declaration (and collects its
-    /// members), reusing the symbol registered by
-    /// `defineTopLevelDeclarationSymbol` when one was predefined.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func collectHeader(
-        declID: DeclID,
-        file: ASTFile,
-        ast: ASTModule,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        bindings: BindingTable,
-        scope: Scope,
-        sourceManager: SourceManager,
-        diagnostics: DiagnosticEngine,
-        interner: StringInterner,
-        ctx: CompilationContext,
-        predefinedSymbols: [DeclID: TopLevelDeclarationSymbol] = [:]
-    ) {
-        guard let decl = ast.arena.decl(declID) else { return }
-        let package = file.packageFQName
-        let anyType = types.anyType
-        let unitType = types.unitType
-
-        let declaration: TopLevelDeclarationSymbol
-        if let predefined = predefinedSymbols[declID] {
-            declaration = predefined
-        } else if let defined = defineTopLevelDeclarationSymbol(
-            declID: declID, file: file, ast: ast,
-            symbols: symbols, bindings: bindings, scope: scope,
-            sourceManager: sourceManager, diagnostics: diagnostics,
-            interner: interner, ctx: ctx
-        ) {
-            declaration = defined
-        } else {
-            return
-        }
-        let symbol = declaration.symbol
-        let fqName = package + [declaration.name]
 
         switch decl {
         case let .classDecl(classDecl):
