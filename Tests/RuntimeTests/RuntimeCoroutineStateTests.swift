@@ -236,6 +236,46 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_kxmini_async_await(handle, 0), 73)
     }
 
+    func testAwaitPropagatesExceptionFromAlreadyCompletedTask() {
+        let task = RuntimeAsyncTask()
+        let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+        defer { Unmanaged<RuntimeAsyncTask>.fromOpaque(taskPtr).release() }
+        let handle = Int(bitPattern: taskPtr)
+
+        let throwable = runtimeAllocateThrowable(message: "child-fail")
+        task.completeExceptionally(with: throwable)
+
+        let callerContinuation = kk_coroutine_continuation_new(9110)
+        defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+
+        let awaited = kk_kxmini_async_await(handle, callerContinuation)
+
+        XCTAssertEqual(
+            awaited,
+            Int(bitPattern: kk_coroutine_suspended()),
+            "Awaiting an already-failed task must hand control back to the resume label."
+        )
+        XCTAssertEqual(
+            kk_coroutine_state_get_thrown_exception(callerContinuation),
+            throwable,
+            "The child failure must be published on the caller state instead of being swallowed."
+        )
+    }
+
+    func testAwaitReturnsResultDirectlyForAlreadyCompletedTask() {
+        let task = RuntimeAsyncTask()
+        let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+        defer { Unmanaged<RuntimeAsyncTask>.fromOpaque(taskPtr).release() }
+        let handle = Int(bitPattern: taskPtr)
+        task.complete(with: 55)
+
+        let callerContinuation = kk_coroutine_continuation_new(9111)
+        defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
+
+        XCTAssertEqual(kk_kxmini_async_await(handle, callerContinuation), 55)
+        XCTAssertEqual(kk_coroutine_state_get_thrown_exception(callerContinuation), 0)
+    }
+
     func testDirectSuspendCallReturnsImmediateChildResult() {
         let callerContinuation = kk_coroutine_continuation_new(9108)
         defer { _ = kk_coroutine_state_exit(callerContinuation, 0) }
