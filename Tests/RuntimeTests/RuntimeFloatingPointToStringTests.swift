@@ -74,6 +74,20 @@ struct RuntimeFloatingPointToStringTests {
         #expect(runtimeFormatFloatingPoint(Float.greatestFiniteMagnitude) == "3.4028235E38")
     }
 
+    /// BUG-157: values whose Float shortest round-trip form is one digit
+    /// shorter than the legacy (pre-JDK 19) FloatingDecimal rendering.
+    /// JDK 19+ (JDK-4511638) prints the shortest form, which is what the
+    /// runtime must emit: 1.2345679E8, not 1.23456792E8.
+    @Test
+    func testFloatShortestRoundTrip() {
+        #expect(runtimeFormatFloatingPoint(Float(123_456_790.0)) == "1.2345679E8")
+        #expect(runtimeFormatFloatingPoint(Float(Int32.max)) == "2.1474836E9")
+        #expect(runtimeFormatFloatingPoint(Float(1234.5677)) == "1234.5677")
+        // Each rendering must parse back to the same bit pattern.
+        #expect(Float("1.2345679E8") == Float(123_456_790.0))
+        #expect(Float("2.1474836E9") == Float(Int32.max))
+    }
+
     @Test
     func testFloatSpecialValues() {
         #expect(runtimeFormatFloatingPoint(Float.nan) == "NaN")

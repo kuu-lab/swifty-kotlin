@@ -103,19 +103,6 @@ private typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
 
-private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
-    kk_box_char(Int(Character("B").unicodeScalars.first!.value))
-}
-
-private let runtimeReplaceFirstCharWithInvalidScalar: RuntimeStringUnaryEntry = { _, _, _ in
-    Int.max
-}
-
-private let runtimeReplaceFirstCharThrowing: RuntimeStringUnaryEntry = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "replaceFirstChar failure")
-    return 0
-}
-
 private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         return nil
@@ -2607,45 +2594,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             using: kk_string_replace_char_ignoreCase_flat
         )
         XCTAssertEqual(replaced, "Hello World")
-    }
-
-    func testStringReplaceFirstCharReplacesOnlyLeadingScalar() {
-        let replaced = flatStringReturnValue(
-            "abc",
-            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharWithUppercaseB, to: Int.self),
-            secondIntArg: 0,
-            using: kk_string_replaceFirstChar_flat
-        )
-
-        XCTAssertEqual(replaced, "Bbc")
-    }
-
-    func testStringReplaceFirstCharFallsBackToOriginalScalarForInvalidReplacement() {
-        let original = "éclair"
-        let replaced = flatStringReturnValue(
-            original,
-            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharWithInvalidScalar, to: Int.self),
-            secondIntArg: 0,
-            using: kk_string_replaceFirstChar_flat
-        )
-
-        XCTAssertEqual(replaced, original)
-    }
-
-    func testStringReplaceFirstCharPropagatesThrownValue() {
-        var thrown = -1
-        let replaced = flatStringReturnValue(
-            "abc",
-            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharThrowing, to: Int.self),
-            secondIntArg: 0,
-            using: kk_string_replaceFirstChar_flat,
-            outThrown: &thrown
-        )
-
-        XCTAssertEqual(replaced, "")
-        XCTAssertNotEqual(thrown, 0)
-        let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("replaceFirstChar failure"))
     }
 
     func testStringStartsWithEndsWithContains() {

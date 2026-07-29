@@ -502,7 +502,7 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.arguments.count == 2 else {
+        guard call.arguments.count >= 2 else {
             rewrite.ctx.diagnostics.error(
                 "KSWIFTK-CORO-0001",
                 "CoroutineScope.launch expects a receiver and a suspend function reference argument.",
@@ -528,25 +528,107 @@ extension CoroutineLoweringPass {
             return [call.instruction]
         }
 
-        // Only a non-capturing block is supported so far -- a lambda that closes
-        // over outer variables would need a with-continuation runtime entry point
-        // analogous to kk_kxmini_launch_with_cont, which is not implemented yet.
+        // Captured outer variables of the launched lambda are appended after the
+        // suspend function reference (see the kk_coroutine_scope_launch capture
+        // injection in CallLowerer). Non-capturing blocks take the simple
+        // functionID path; capturing blocks thread their captures through a
+        // continuation like the dispatcher-aware launch does.
         let targetArity = rewrite.suspendFunctionArityBySymbol[suspendSymbol] ?? 0
-        guard targetArity == 0 else {
+        let extraArgs = Array(call.arguments.dropFirst(2))
+        guard extraArgs.count == targetArity else {
             rewrite.ctx.diagnostics.error(
                 "KSWIFTK-CORO-0003",
-                "CoroutineScope.launch does not yet support a suspend lambda that captures outer variables.",
+                "Coroutine launcher 'launch' passed \(extraArgs.count) capture argument(s) but referenced suspend function expects \(targetArity).",
                 range: nil
             )
             return [call.instruction]
         }
 
-        return rewriteZeroArgCoroutineScopeLauncherCall(
+        if targetArity == 0 {
+            return rewriteZeroArgCoroutineScopeLauncherCall(
+                scopeExpr: scopeExpr,
+                loweredTarget: loweredTarget,
+                call: call,
+                using: rewrite
+            )
+        }
+
+        guard let thunk = rewrite.launcherThunkByOriginalSymbol[suspendSymbol] else {
+            assertionFailure("Internal compiler error: launcher thunk missing for capturing CoroutineScope.launch")
+            return [call.instruction]
+        }
+        return rewriteArgBearingCoroutineScopeLauncherCall(
             scopeExpr: scopeExpr,
             loweredTarget: loweredTarget,
+            thunk: thunk,
+            extraArgs: extraArgs,
             call: call,
             using: rewrite
         )
+    }
+
+    // Receiver-aware counterpart to rewriteArgBearingDispatcherLauncherCall: threads
+    // the launched lambda's captured outer variables through a fresh continuation and
+    // routes to kk_coroutine_scope_launch_with_cont, keeping the explicit receiver
+    // scope in front of the thunk reference (BUG-049).
+    func rewriteArgBearingCoroutineScopeLauncherCall(
+        scopeExpr: KIRExprID,
+        loweredTarget: LoweredSuspendFunction,
+        thunk: LoweredSuspendFunction,
+        extraArgs: [KIRExprID],
+        call: CallRewriteInput,
+        using rewrite: SuspendRewriteContext
+    ) -> [KIRInstruction] {
+        let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        let runtimeCallee = rewrite.ctx.interner.intern("kk_coroutine_scope_launch_with_cont")
+
+        var rewritten: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: rewrite.continuationFactory,
+                arguments: [loweredFunctionIDExpr],
+                result: continuationExpr,
+                canThrow: false,
+                thrownResult: nil
+            ),
+        ]
+
+        for (index, argExpr) in extraArgs.enumerated() {
+            let slotExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(Int64(index)),
+                type: rewrite.intType
+            )
+            rewritten.append(
+                .call(
+                    symbol: nil,
+                    callee: rewrite.launcherArgSetCallee,
+                    arguments: [continuationExpr, slotExpr, argExpr],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
+        )
+        rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
+        rewritten.append(
+            .call(
+                symbol: nil,
+                callee: runtimeCallee,
+                arguments: [scopeExpr, thunkRefExpr, continuationExpr],
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult
+            )
+        )
+        return rewritten
     }
 
     func rewriteZeroArgCoroutineScopeLauncherCall(

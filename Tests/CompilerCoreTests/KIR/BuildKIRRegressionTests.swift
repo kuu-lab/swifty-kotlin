@@ -138,6 +138,49 @@ struct BuildKIRRegressionTests {
         }
     }
 
+    /// BUG-145: `substring(...)` called with an implicit receiver inside a
+    /// `String` extension must pass the same flat runtime ABI arguments
+    /// (receiver, startIndex, endIndex, hasEndIndex) as the explicit
+    /// `this.substring(...)` form.
+    @Test func testBuildKIRLowersImplicitReceiverSubstringWithFlatABIArguments() throws {
+        let source = """
+        fun String.implicitOneArg(n: Int): String = substring(n)
+        fun String.implicitTwoArgs(a: Int, b: Int): String = substring(a, b)
+        fun String.explicitOneArg(n: Int): String = this.substring(n)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+
+            for functionName in ["implicitOneArg", "implicitTwoArgs", "explicitOneArg"] {
+                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+                let constants: [KIRExprID: KIRExprKind] = body.reduce(into: [:]) { partial, instruction in
+                    guard case let .constValue(result, value) = instruction else { return }
+                    partial[result] = value
+                }
+                let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_string_substring_flat"
+                    else {
+                        return nil
+                    }
+                    return arguments
+                }.first, "\(functionName) should lower to a kk_string_substring_flat call")
+
+                #expect(
+                    substringCall.count == 4,
+                    "\(functionName) should pass (receiver, startIndex, endIndex, hasEndIndex), got \(substringCall.count)"
+                )
+                let expectedHasEnd: Int64 = functionName == "implicitTwoArgs" ? 1 : 0
+                #expect(
+                    constants[substringCall[3]] == .intLiteral(expectedHasEnd),
+                    "\(functionName) should pass hasEndIndex=\(expectedHasEnd)"
+                )
+            }
+        }
+    }
+
     @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
         let source = """
         fun main(): Int {
