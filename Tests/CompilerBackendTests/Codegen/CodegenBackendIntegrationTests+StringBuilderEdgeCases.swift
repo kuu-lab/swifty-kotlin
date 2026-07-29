@@ -384,4 +384,64 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // BUG-043: Inside `buildString { ... }` / `buildStringBuilder { ... }`, member
+    // calls on the implicit StringBuilder receiver other than the six that used to
+    // be rewritten to the global builder-state DSL (append/appendLine/insert/
+    // delete/length/appendRange) fell back to the source-backed StringBuilder
+    // methods, but the DSL executor passed `0` as the implicit receiver, leaving
+    // `this` an invalid handle and corrupting execution at runtime. The
+    // StringBuilder source migration removed the global builder-state path
+    // entirely: `buildString`/`buildStringBuilder` are now plain Kotlin that
+    // construct a real StringBuilder object and invoke the receiver lambda with
+    // that object as `this`. This pins the previously-broken methods
+    // (reverse/clear/toString/deleteAt/deleteCharAt/setCharAt/set/get/capacity/
+    // ensureCapacity/trimToSize/setRange/deleteRange) through the builder lambda
+    // so the regression cannot return. `replace`/`insertRange` are omitted here
+    // because they currently fail overload resolution on an *implicit* receiver
+    // (even inside a plain `with(StringBuilder()) { ... }`); that is a separate
+    // pre-existing Sema issue unrelated to the BUG-043 runtime `this` handle.
+    func testCodegenBuildStringReceiverMethodsUseValidThisHandle() throws {
+        let source = """
+        fun main() {
+            println(buildString { append("x"); reverse() })
+            println(buildString { append("abc"); reverse() })
+            println(buildString { append("abc"); clear(); append("z") })
+            println(buildString { append("abc"); deleteAt(1) })
+            println(buildString { append("abc"); deleteCharAt(0) })
+            println(buildString { append("abc"); setCharAt(1, 'Y') })
+            println(buildString { append("abc"); set(2, 'Z') })
+            println(buildString { append("abc"); append(get(1)) })
+            println(buildString { append("ab"); append(capacity() > 0) })
+            println(buildString { append("ab"); ensureCapacity(64); trimToSize(); append("c") })
+            println(buildString { append("abcd"); setRange(1, 3, "XY") })
+            println(buildString { append("abcd"); deleteRange(1, 3) })
+            println(buildString { append("hello"); append(toString().length) })
+            println(buildStringBuilder { append("hi"); reverse() }.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BuildStringReceiverMethodsUseValidThisHandle",
+            expected:
+                """
+                x
+                cba
+                z
+                ac
+                bc
+                aYc
+                abZ
+                abcb
+                abtrue
+                abc
+                aXYd
+                ad
+                hello5
+                ih
+                """
+                + "\n"
+        )
+    }
 }
