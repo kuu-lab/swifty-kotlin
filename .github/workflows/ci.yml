@@ -18,7 +18,7 @@ jobs:
   # Self-hosted TODO ID duplicate check. Gating once TODO.md duplicate IDs are cleaned up.
   verify-todo-ids:
     name: Verification 0/5 (TODO ID duplicate check)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -32,7 +32,7 @@ jobs:
   # that the expensive SwiftPM products are reused within that lane.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false

@@ -40,7 +40,7 @@ extension BuildASTPhase {
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
-        static let maxRecursionDepth = 512
+        static let maxRecursionDepth = 64
 
         /// Current expression-parser recursion depth. Incremented on entry to the
         /// mutually recursive expression parsing functions and decremented on exit.
