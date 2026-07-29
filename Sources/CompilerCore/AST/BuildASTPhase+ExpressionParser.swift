@@ -49,6 +49,15 @@ extension BuildASTPhase {
         /// Ensures the depth-limit diagnostic is emitted at most once per parse.
         private var depthLimitReported = false
 
+        /// Counter used to name the temporaries introduced by the `x++` / `x--`
+        /// desugaring (see `BuildASTPhase+ExpressionParserIncDec.swift`).
+        private var incDecTempCounter = 0
+
+        func nextIncDecTempID() -> Int {
+            incDecTempCounter += 1
+            return incDecTempCounter
+        }
+
         /// Increments the recursion counter and reports whether parsing may continue.
         /// Returns `false` (emitting a diagnostic once) once the maximum depth is
         /// exceeded so callers abort gracefully instead of overflowing the stack.
@@ -222,6 +231,11 @@ extension BuildASTPhase {
                 guard let operand = parsePrefixUnary() else { return nil }
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
                 return astArena.appendExpr(.unaryExpr(op: .unaryPlus, operand: operand, range: range))
+            case .symbol(.plusPlus), .symbol(.minusMinus):
+                if let prefixMutation = tryParsePrefixIncrementDecrement() {
+                    return prefixMutation
+                }
+                return parsePostfixOrPrimary()
             default:
                 return parsePostfixOrPrimary()
             }
