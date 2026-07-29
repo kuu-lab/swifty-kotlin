@@ -1,5 +1,7 @@
+#if canImport(Testing)
+import Testing
 @testable import Runtime
-import XCTest
+import Foundation
 
 // STDLIB-ASSERT-ABI-001: Runtime entry points for checkNotNull / requireNotNull.
 //
@@ -59,152 +61,167 @@ private let notNullStringThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?)
     }
 }
 
-final class RuntimeNotNullAssertionTests: XCTestCase {
+@Suite(.serialized)
+struct RuntimeNotNullAssertionTests {
 
-    override func setUp() {
-        super.setUp()
+    init() {
         notNullLazyCounter = 0
     }
 
     // MARK: - kk_check_not_null: non-null passthrough
 
+    @Test
     func testCheckNotNullPassthroughNonNull() {
         let value = makeNonNullValue()
         var thrown = 0
         let result = kk_check_not_null(value, &thrown)
-        XCTAssertEqual(thrown, 0, "checkNotNull(nonNull) must not throw")
-        XCTAssertEqual(result, value, "checkNotNull(nonNull) must return the value unchanged")
+        #expect(thrown == 0, "checkNotNull(nonNull) must not throw")
+        #expect(result == value, "checkNotNull(nonNull) must return the value unchanged")
     }
 
     // MARK: - kk_check_not_null: null throws IllegalStateException
 
+    @Test
     func testCheckNotNullThrowsIllegalStateOnNull() throws {
         var thrown = 0
         _ = kk_check_not_null(runtimeNullSentinelInt, &thrown)
-        XCTAssertNotEqual(thrown, 0, "checkNotNull(null) must throw")
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
-                       "checkNotNull must throw IllegalStateException on null")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+        #expect(thrown != 0, "checkNotNull(null) must throw")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException",
+                "checkNotNull must throw IllegalStateException on null")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
             "checkNotNull must NOT throw IllegalArgumentException"
         )
     }
 
+    @Test
     func testCheckNotNullDefaultMessage() throws {
         var thrown = 0
         _ = kk_check_not_null(runtimeNullSentinelInt, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Required value was null.",
-                       "checkNotNull default message must be \"Required value was null.\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "Required value was null.",
+                "checkNotNull default message must be \"Required value was null.\"")
     }
 
     // MARK: - kk_require_not_null: non-null passthrough
 
+    @Test
     func testRequireNotNullPassthroughNonNull() {
         let value = makeNonNullValue()
         var thrown = 0
         let result = kk_require_not_null(value, &thrown)
-        XCTAssertEqual(thrown, 0, "requireNotNull(nonNull) must not throw")
-        XCTAssertEqual(result, value, "requireNotNull(nonNull) must return the value unchanged")
+        #expect(thrown == 0, "requireNotNull(nonNull) must not throw")
+        #expect(result == value, "requireNotNull(nonNull) must return the value unchanged")
     }
 
     // MARK: - kk_require_not_null: null throws IllegalArgumentException
 
+    @Test
     func testRequireNotNullThrowsIllegalArgumentOnNull() throws {
         var thrown = 0
         _ = kk_require_not_null(runtimeNullSentinelInt, &thrown)
-        XCTAssertNotEqual(thrown, 0, "requireNotNull(null) must throw")
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException",
-                       "requireNotNull must throw IllegalArgumentException on null")
-        XCTAssertFalse(
-            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+        #expect(thrown != 0, "requireNotNull(null) must throw")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalArgumentException",
+                "requireNotNull must throw IllegalArgumentException on null")
+        #expect(
+            !runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
             "requireNotNull must NOT throw IllegalStateException"
         )
     }
 
+    @Test
     func testRequireNotNullDefaultMessage() throws {
         var thrown = 0
         _ = kk_require_not_null(runtimeNullSentinelInt, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "Required value was null.",
-                       "requireNotNull default message must be \"Required value was null.\"")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "Required value was null.",
+                "requireNotNull default message must be \"Required value was null.\"")
     }
 
     // MARK: - Lazy variants: message NOT evaluated when non-null
 
+    @Test
     func testCheckNotNullLazyNotEvaluatedWhenNonNull() {
         let value = makeNonNullValue()
         var thrown = 0
         let result = kk_check_not_null_lazy(value, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "checkNotNull(nonNull) { ... } must not throw")
-        XCTAssertEqual(result, value, "checkNotNull(nonNull) must return the value unchanged")
-        XCTAssertEqual(notNullLazyCounter, 0,
-                       "Lazy message lambda must NOT be evaluated when value is non-null")
+        #expect(thrown == 0, "checkNotNull(nonNull) { ... } must not throw")
+        #expect(result == value, "checkNotNull(nonNull) must return the value unchanged")
+        #expect(notNullLazyCounter == 0,
+                "Lazy message lambda must NOT be evaluated when value is non-null")
     }
 
+    @Test
     func testRequireNotNullLazyNotEvaluatedWhenNonNull() {
         let value = makeNonNullValue()
         var thrown = 0
         let result = kk_require_not_null_lazy(value, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        XCTAssertEqual(thrown, 0, "requireNotNull(nonNull) { ... } must not throw")
-        XCTAssertEqual(result, value, "requireNotNull(nonNull) must return the value unchanged")
-        XCTAssertEqual(notNullLazyCounter, 0,
-                       "Lazy message lambda must NOT be evaluated when value is non-null")
+        #expect(thrown == 0, "requireNotNull(nonNull) { ... } must not throw")
+        #expect(result == value, "requireNotNull(nonNull) must return the value unchanged")
+        #expect(notNullLazyCounter == 0,
+                "Lazy message lambda must NOT be evaluated when value is non-null")
     }
 
     // MARK: - Lazy variants: message evaluated on null
 
+    @Test
     func testCheckNotNullLazyEvaluatedOnNull() {
         var thrown = 0
         _ = kk_check_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "checkNotNull(null) { ... } must throw")
-        XCTAssertEqual(notNullLazyCounter, 1,
-                       "Lazy message lambda must be evaluated exactly once when value is null")
+        #expect(thrown != 0, "checkNotNull(null) { ... } must throw")
+        #expect(notNullLazyCounter == 1,
+                "Lazy message lambda must be evaluated exactly once when value is null")
     }
 
+    @Test
     func testRequireNotNullLazyEvaluatedOnNull() {
         var thrown = 0
         _ = kk_require_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "requireNotNull(null) { ... } must throw")
-        XCTAssertEqual(notNullLazyCounter, 1,
-                       "Lazy message lambda must be evaluated exactly once when value is null")
+        #expect(thrown != 0, "requireNotNull(null) { ... } must throw")
+        #expect(notNullLazyCounter == 1,
+                "Lazy message lambda must be evaluated exactly once when value is null")
     }
 
     // MARK: - Lazy variants: custom string message included in exception
 
+    @Test
     func testCheckNotNullLazyStringMessageIncluded() throws {
         var thrown = 0
         _ = kk_check_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullStringThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "custom-null-msg",
-                       "checkNotNull lazy message must be included in IllegalStateException")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "custom-null-msg",
+                "checkNotNull lazy message must be included in IllegalStateException")
     }
 
+    @Test
     func testRequireNotNullLazyStringMessageIncluded() throws {
         var thrown = 0
         _ = kk_require_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullStringThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.message, "custom-null-msg",
-                       "requireNotNull lazy message must be included in IllegalArgumentException")
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.message == "custom-null-msg",
+                "requireNotNull lazy message must be included in IllegalArgumentException")
     }
 
     // MARK: - Exception type discrimination for lazy variants
 
+    @Test
     func testCheckNotNullLazyThrowsIllegalStateException() throws {
         var thrown = 0
         _ = kk_check_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException")
-        XCTAssertFalse(runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self))
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(!runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self))
     }
 
+    @Test
     func testRequireNotNullLazyThrowsIllegalArgumentException() throws {
         var thrown = 0
         _ = kk_require_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
-        let box = try XCTUnwrap(throwableBox(from: thrown))
-        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
-        XCTAssertFalse(runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
+        let box = try #require(throwableBox(from: thrown))
+        #expect(box.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(!runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
     }
 }
+#endif
