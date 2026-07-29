@@ -54,10 +54,16 @@ extension BuildASTPhase.ExpressionParser {
                 )
             }
 
-            let params = parseLambdaParamNames(from: paramTokens)
+            let parsedParams = parseLambdaParams(from: paramTokens)
             let bodyExpr = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
             let range = SourceRange(start: start ?? openBrace.range.start, end: end)
-            return astArena.appendExpr(.lambdaLiteral(params: params, body: bodyExpr, label: label, range: range))
+            let lambdaID = astArena.appendExpr(.lambdaLiteral(
+                params: parsedParams.map(\.name), body: bodyExpr, label: label, range: range
+            ))
+            if parsedParams.contains(where: { $0.typeRef != nil }) {
+                astArena.setLambdaParamTypeRefs(parsedParams.map(\.typeRef), for: lambdaID)
+            }
+            return lambdaID
         }
 
         // No-arrow lambda: `{ body }`.
@@ -170,7 +176,12 @@ extension BuildASTPhase.ExpressionParser {
         return candidate
     }
 
-    private func parseLambdaParamNames(from tokens: [Token]) -> [InternedString] {
+    struct LambdaParam {
+        let name: InternedString
+        let typeRef: TypeRefID?
+    }
+
+    private func parseLambdaParams(from tokens: [Token]) -> [LambdaParam] {
         let normalized = stripEnclosingParentheses(from: tokens)
         guard !normalized.isEmpty else {
             return []
@@ -194,20 +205,42 @@ extension BuildASTPhase.ExpressionParser {
             segments.append(currentSegment)
         }
 
-        var params: [InternedString] = []
+        var params: [LambdaParam] = []
         for segment in segments {
-            if let token = segment.first(where: { token in
+            guard let nameIndex = segment.firstIndex(where: { token in
                 switch token.kind {
                 case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
                     true
                 default:
                     false
                 }
-            }), let name = lambdaParameterName(from: token) {
-                params.append(name)
+            }), let name = lambdaParameterName(from: segment[nameIndex]) else {
+                continue
             }
+            params.append(LambdaParam(
+                name: name,
+                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex)
+            ))
         }
         return params
+    }
+
+    /// Parses the `: Type` annotation of a lambda parameter segment, if present.
+    private func parseLambdaParamTypeAnnotation(in segment: [Token], after nameIndex: Int) -> TypeRefID? {
+        let colonIndex = nameIndex + 1
+        guard colonIndex < segment.count, segment[colonIndex].kind == .symbol(.colon) else {
+            return nil
+        }
+        var options = TypeRefParserCore.Options.expressionInline
+        options.allowFunctionType = true
+        return TypeRefParserCore.parseTypeRefPrefix(
+            segment[(colonIndex + 1)...],
+            interner: interner,
+            astArena: astArena,
+            options: options,
+            diagnostics: diagnostics,
+            recursionDepth: recursionDepth
+        )?.ref
     }
 
     private func stripEnclosingParentheses(from tokens: [Token]) -> [Token] {
