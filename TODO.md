@@ -38,7 +38,7 @@
 ### CompilerCore: 参照ゼロの独立シンボル
 
 - [~] DEADCODE-CORE-005: [R0] `CallLowerer+StringBuilderMemberCalls.swift:5` の `tryLowerStringBuilderMemberCall(...)` を削除する（240 行の orphan legacy entrypoint）。2026-07-17: 削除完了（宣言のみ・呼び出し箇所0を`rg`で確認、ファイル全体がこの関数のみだったためファイルごと削除。使用先ヘルパー`isStringBuilderLikeType`/`isThrowingStringBuilderRuntimeFunction`は他ファイルで存続）。`swift build` green、StringBuilder関連 Sema/Lowering テスト4スイート69件 green（serial）。`diff_kotlinc.sh` はCI側のfull gate結果待ち — 完了ゲート未達につき`[x]`は見送り
-- [ ] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869 open
+- [x] DEADCODE-CORE-044: [R0/local] `CoroutineLoweringPass+Flow.swift:198` の local `isSymbolBackedFlowExpr(_:)` を削除する。別ファイルの同名 local は live — PR #4869, merged
 - [x] DEADCODE-CORE-045: [R0/local] `CoroutineLoweringPass+FlowInstructionRewrite.swift:51` の local `isFlowTransformEmitCall(_:_:)` を削除する。`CoroutineLoweringPass+Flow.swift` の同名 local は live
 
 ### Runtime: 完全到達不能 export / legacy bridge
@@ -508,7 +508,7 @@
   - テスト更新: `ExperimentalMarkerStubTests.swift` から上記6種のテストを削除
 - [~] CLEANUP-STUB-100: Atomic の Java interop fiction を削除する（恒等関数の `kk_atomic_int/long/bool/ref_asJavaAtomic` 4 + `kk_atomic_int/long/ref_array_asJavaAtomicArray` 3 + `kk_java_atomic_long_array_asKotlinAtomicArray` + 未使用重複 `kk_reentrant_read_write_lock_new`） — PR 作成中
 - [ ] CLEANUP-STUB-101: 監査で確定したデッドコードを一括削除する（`kk_math_round_mode` 系15（Sema 登録ゼロ・到達不能）/ `kotlin.experimental` Int 版登録一式（汎用特例が先に解決）/ `kk_check_not_null(_lazy)`/`kk_require_not_null(_lazy)` 4 / CLEANUP-STUB-084 取り残しの `registerSyntheticJvmAnnotationClass`・`registerSyntheticBooleanAnnotationPropertyAndConstructor` 2関数 / `kk_sequence_of_single` の生死判定。※`kk_system_measureTime*` 3 と `CallLowerer+CollectionStdlibMemberCalls.swift` は KSP-617/620 と重複するため先行した方で実施）
-- [ ] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除）
+- [x] CLEANUP-STUB-102: cinterop 未配線外殻を削除する（`HeaderHelpers+SyntheticCInteropStubs.swift` 3,065行中、実働12関数（ポインタ⇔Long 変換・pin/unpin・配列⇄CValues・文字列変換 — `__kk_` 降格で残留）以外の alloc/nativeHeap/Arena/MemScope/StableRef/CPointer.get/set/pointed/value/reinterpret/Vector128 アクセサ等、externalLinkName 未設定で「コンパイルは通るが動かない」外殻を削除。必要になったら本家 .def ベースで再実装する方針（2026-07-10 決定）。`+SyntheticNativeInteropHelpers.swift`（1292行）の get/set/pointed 系ビルダーも道連れ削除） — PR #5058, verified `swift build`, `SmokeTests`, `NativeCInterop` green
 - [x] CLEANUP-STUB-103: 削除タスク未起票の (a) 21 ファイルを確定し、CLEANUP-STUB-104 〜 CLEANUP-STUB-124 へ個別起票する（対象: BigInteger / Concurrency / Dynamic / FileIO / FileTreeWalk / FileWalkDirection / FilesUtility / JsFunction / LocaleConstructor / NativeFunctionAnnotation / OnErrorAction / PathStubs 本体+分割3 / PlatformObjectHelpers / ReadWriteLock / Serialization / Test / URI / URL）
 - [ ] CLEANUP-STUB-104: `HeaderHelpers+SyntheticBigIntegerStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBigIntegerStubs.swift`（650行）
