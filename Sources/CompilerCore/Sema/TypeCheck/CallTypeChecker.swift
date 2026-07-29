@@ -414,6 +414,11 @@ final class CallTypeChecker {
            locals[calleeName] == nil
         {
             let argumentExprID = args[0].expr
+            // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
+            // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
+            // launcher-continuation rewrite (BUG-049), not the generic
+            // escaping-callable-value (kk_function_create_N) ABI.
+            sema.bindings.markCoroutineLauncherLambdaExpr(argumentExprID)
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
@@ -1914,7 +1919,7 @@ final class CallTypeChecker {
         // (non-lambda) and the second is a lambda, treat it as the block argument.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard let name = coroutineLauncherName,
-                  ["runBlocking", "launch", "async"].contains(name)
+                  ["runBlocking", "launch", "async", "coroutineScope", "supervisorScope"].contains(name)
             else { return nil }
             if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
                case .lambdaLiteral = firstArgExpr {
@@ -1945,6 +1950,24 @@ final class CallTypeChecker {
             )))
         } else {
             coroutineLauncherExpectedLambdaType = nil
+        }
+        // Mark lambda arguments passed to KIR-level coroutine launchers so
+        // LambdaLowerer skips the generic escaping-callable-value
+        // materialization path for them: CoroutineLoweringPass+
+        // LauncherSupport.swift's rewriteLauncherCall expects their captures
+        // forwarded via its own launcher-continuation convention (BUG-049),
+        // not bundled into a kk_function_create_N closure object. `produce`
+        // has its own dedicated builder branch above (CORO-075) with an early
+        // return, so it never reaches this general path and is marked there
+        // instead.
+        if let coroutineLauncherName,
+           ["runBlocking", "launch", "async"].contains(coroutineLauncherName)
+        {
+            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
+            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
+            }
         }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
                                                         calleeName == knownNames.withContext
@@ -2773,7 +2796,7 @@ final class CallTypeChecker {
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             var adjustedReturnType: TypeID = if let coroutineLauncherName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
-                ["async"].contains(coroutineLauncherName),
+                ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
                 args.indices.contains(launcherIndex)
             {
                 coroutineBuilderNarrowedReturnType(

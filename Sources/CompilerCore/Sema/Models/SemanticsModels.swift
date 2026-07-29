@@ -1186,6 +1186,12 @@ public final class BindingTable {
     public private(set) var takeIfTakeUnlessKinds: [ExprID: TakeIfTakeUnlessKind] = [:]
     /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Tracks lambda literals passed to a KIR-level coroutine launcher
+    /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
+    /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
+    /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
+    /// escaping-callable-value (`kk_function_create_N`) ABI.
+    public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1604,6 +1610,17 @@ public final class BindingTable {
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
+    public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
+        coroutineLauncherLambdaExprIDs.insert(expr)
+    }
+
+    /// Whether the lambda literal is a KIR-level coroutine launcher's block
+    /// argument (see `coroutineLauncherLambdaExprIDs`).
+    public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
+        coroutineLauncherLambdaExprIDs.contains(expr)
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.
