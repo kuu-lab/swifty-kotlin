@@ -353,6 +353,51 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // Candidate-only: Random.nextFloat(until) / nextFloat(from, until) (STDLIB-655) are
+    // KSwiftK-only extensions with no JVM kotlin-stdlib equivalent (real kotlinc rejects both
+    // as "too many arguments for 'fun nextFloat(): Float'"), so this isn't verified via
+    // diff_kotlinc.sh. Moved from Scripts/diff_cases/random_nextfloat_range_overloads.kt.
+    func testCodegenCompilesRandomNextFloatRangeOverloads() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            var okFloatUntil = true
+            repeat(100) {
+                val f = Random.nextFloat(5.0f)
+                if (f < 0.0f || f >= 5.0f) {
+                    okFloatUntil = false
+                }
+            }
+            println(okFloatUntil)
+
+            var okFloatRange = true
+            repeat(100) {
+                val f = Random.nextFloat(1.0f, 10.0f)
+                if (f < 1.0f || f >= 10.0f) {
+                    okFloatRange = false
+                }
+            }
+            println(okFloatRange)
+
+            val r = Random(7)
+            val floatVal = r.nextFloat(1.0f, 2.0f)
+            println(floatVal >= 1.0f && floatVal < 2.0f)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextFloatRangeOverloads",
+            expected:
+                """
+                true
+                true
+                true
+                """ + "\n"
+        )
+    }
+
     func testCodegenCompilesRandomNextDoubleRejectsNaNBounds() throws {
         // KSP-466 review follow-up: nextDouble(from, until) matches upstream's own
         // `checkRangeBounds(from, until) = require(until > from) { ... }` — no
