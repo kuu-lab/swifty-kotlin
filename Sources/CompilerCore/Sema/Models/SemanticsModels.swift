@@ -1172,6 +1172,11 @@ public final class BindingTable {
     /// Maps SAM-converted lambda expressions to their underlying function type,
     /// so KIR lowering can generate the correct callable signature.
     public private(set) var samUnderlyingFunctionTypes: [ExprID: TypeID] = [:]
+    /// Maps SAM-converted expressions to the target functional interface type.
+    /// Lambda literals bind the interface type as their expression type, but
+    /// callable references keep their function type, so the interface must be
+    /// recorded separately for KIR lowering.
+    public private(set) var samInterfaceTypes: [ExprID: TypeID] = [:]
     /// Tracks call expressions that are builder DSL calls (buildList/buildSet/buildMap).
     public private(set) var builderDSLExprIDs: Set<ExprID> = []
     /// Maps builder DSL call expression IDs to their builder kind.
@@ -1547,6 +1552,16 @@ public final class BindingTable {
     /// KIR lowering can generate the callable with the correct signature.
     public func bindSamUnderlyingFunctionType(_ expr: ExprID, type: TypeID) {
         samUnderlyingFunctionTypes[expr] = type
+    }
+
+    /// Store the functional interface type targeted by a SAM conversion.
+    public func bindSamInterfaceType(_ expr: ExprID, type: TypeID) {
+        samInterfaceTypes[expr] = type
+    }
+
+    /// Retrieve the functional interface type targeted by a SAM conversion.
+    public func samInterfaceType(for expr: ExprID) -> TypeID? {
+        samInterfaceTypes[expr]
     }
 
     /// Retrieve the underlying function type for a SAM-converted lambda.
