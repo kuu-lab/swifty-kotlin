@@ -65,7 +65,7 @@
 
 - [ ] DEADCODE-RUNTIME-043: [R0 requirement] `RuntimeRangeSharedHOF.swift:12` の `RuntimeRangeHOFKind.count(_:)` protocol requirement を削除する。**2026-07-22 監査結果を否定・未実施**: `RuntimeSignedRangeHOFKind.count(_:)`/`RuntimeUnsignedRangeHOFKind.count(_:)` は `kk_long_range_count`/`kk_range_count`/`kk_ulong_range_count`/`kk_uint_range_count`（いずれも `@_cdecl` export 済み）から直接呼ばれている live コードであることを確認。削除すると該当 `@_cdecl` 関数がビルド不能になるため見送り。RUNTIME-044/045 も同様に見送り。元監査（2026-07-11〜12）がこの witness 呼び出しを見落としたと考えられる。要 `Scripts/dead_code_audit.sh` 側の再監査（DEADCODE-AUDIT-001 関連）
 - [ ] DEADCODE-RUNTIME-044: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:42` の `RuntimeSignedRangeHOFKind.count(_:)` witness を削除する。**2026-07-22 未実施**: `kk_long_range_count`/`kk_range_count` から直接呼ばれる live コード。RUNTIME-043 の注記参照
-- [ ] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する。**2026-07-22 未実施**: `kk_ulong_range_count`/`kk_uint_range_count` から直接呼ばれる live コード。RUNTIME-043 の注記参照
+- [ ] DEADCODE-RUNTIME-045: [D: RUNTIME-043] `RuntimeRangeSharedHOF.swift:95` の `RuntimeUnsignedRangeHOFKind.count(_:)` witness を削除する。**2026-07-22 未実施**: `kk_ulong_range_count`/`kk_uint_range_count` から直接呼ばれる live コード。RUNTIME-043 の注記参照。**2026-07-29 再検証・結論変わらず**: 現行 HEAD でも `kk_uint_range_count`（`RuntimeRangeUIntULongRange.swift:117-122`）・`kk_ulong_range_count`（`RuntimeRangeLongRange.swift:183-188`）が `RuntimeUnsignedRangeHOFKind.count(range)` を直接呼び出していることをソースで確認済み。witness 削除には呼び出し側を `runtimeUnsignedRangeCount(range)` の直接呼びへ書き換える設計変更が必要で、単純な dead code 削除の範囲外のため見送りを継続
 
 ### Tests: 未使用 helper / closure / enum case
 
