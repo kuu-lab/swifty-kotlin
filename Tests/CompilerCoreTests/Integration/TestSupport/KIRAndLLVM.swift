@@ -2,9 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// Type token symbols use this negative offset to avoid collision with real symbol IDs.
-let typeTokenSymbolOffset: Int = -20000
-
 /// Coroutine state machine dispatch labels start at this offset.
 let coroutineDispatchLabelBase: Int32 = 1000
 
