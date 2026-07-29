@@ -1458,7 +1458,7 @@ extension CallTypeChecker {
         }
     }
 
-    private func sourceLevelRangeMemberLookupType(
+    func sourceLevelRangeMemberLookupType(
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
