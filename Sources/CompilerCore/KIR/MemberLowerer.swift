@@ -114,6 +114,42 @@ final class MemberLowerer {
                 )
             }
 
+            // BUG-141: give properties that participate in interface itable
+            // dispatch a getter accessor function. A plain interface property
+            // (no custom getter, no delegate) gets a stub whose signature the
+            // dispatch site targets; a concrete `override` stored property gets
+            // a field-reading getter that is registered into the itable so an
+            // interface-typed receiver can dispatch to it. Custom-getter and
+            // delegated properties already emit their own accessor above.
+            let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
+            let hasDelegate = propertyDecl.delegateExpression != nil
+            if !hasCustomGetterBody, !hasDelegate,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
+            {
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    synthesizeInterfacePropertyGetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext,
+                          sema.symbols.symbol(symbol)?.flags.contains(.overrideMember) == true
+                {
+                    synthesizeStoredPropertyGetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
+            }
+
             // Lower delegated property: emit delegate storage global and
             // synthesise getter (and setter for var) that call getValue/setValue
             // on the delegate instance.

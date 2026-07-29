@@ -20,13 +20,6 @@ final class KIRLoweringContext {
     /// `setValue` on the same instance instead of overwriting the local's
     /// value register directly.
     var localDelegateStorageBySymbol: [SymbolID: KIRExprID] = [:]
-    /// Delegate kind of a local `by`-delegated declaration whose dispatch is
-    /// hardcoded to the stdlib runtime entry points (`lazy`,
-    /// `Delegates.observable/vetoable/notNull`) rather than resolved through
-    /// the getValue/setValue operator convention. Reads and writes of such a
-    /// local are lowered to `kk_<kind>_get_value`/`kk_<kind>_set_value` on the
-    /// handle in `localDelegateStorageBySymbol`.
-    var localStdlibDelegateKindBySymbol: [SymbolID: StdlibDelegateKind] = [:]
     /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
     /// (e.g. collection HOF lambdas inferred via fallback).
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
@@ -54,6 +47,13 @@ final class KIRLoweringContext {
     // MARK: - Module-Level State (accumulated across entire pass)
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
+    /// Stdlib delegate kind (`lazy`/`observable`/`vetoable`/`notNull`) of a local
+    /// `by`-delegated declaration, keyed by the local's own symbol. Reads of such a
+    /// local go through the matching `kk_*_get_value` runtime accessor instead of
+    /// using the delegate handle itself as the value. Kept module-level rather than
+    /// scope-local so that a delegated local captured by a nested lambda is still
+    /// recognized while lowering the lambda body under a fresh scope.
+    private var localStdlibDelegateKindsBySymbol: [SymbolID: StdlibDelegateKind] = [:]
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
@@ -72,7 +72,6 @@ final class KIRLoweringContext {
         let localDeclaredTypesBySymbol: [SymbolID: TypeID]
         let mutableCaptureCellsBySymbol: [SymbolID: KIRExprID]
         let localDelegateStorageBySymbol: [SymbolID: KIRExprID]
-        let localStdlibDelegateKindBySymbol: [SymbolID: StdlibDelegateKind]
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
@@ -89,7 +88,6 @@ final class KIRLoweringContext {
             localDeclaredTypesBySymbol: localDeclaredTypesBySymbol,
             mutableCaptureCellsBySymbol: mutableCaptureCellsBySymbol,
             localDelegateStorageBySymbol: localDelegateStorageBySymbol,
-            localStdlibDelegateKindBySymbol: localStdlibDelegateKindBySymbol,
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
@@ -106,7 +104,6 @@ final class KIRLoweringContext {
         localDeclaredTypesBySymbol = snapshot.localDeclaredTypesBySymbol
         mutableCaptureCellsBySymbol = snapshot.mutableCaptureCellsBySymbol
         localDelegateStorageBySymbol = snapshot.localDelegateStorageBySymbol
-        localStdlibDelegateKindBySymbol = snapshot.localStdlibDelegateKindBySymbol
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
@@ -131,7 +128,6 @@ final class KIRLoweringContext {
         localDeclaredTypesBySymbol.removeAll(keepingCapacity: true)
         mutableCaptureCellsBySymbol.removeAll(keepingCapacity: true)
         localDelegateStorageBySymbol.removeAll(keepingCapacity: true)
-        localStdlibDelegateKindBySymbol.removeAll(keepingCapacity: true)
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
         currentImplicitReceiverSymbol = nil
@@ -155,23 +151,22 @@ final class KIRLoweringContext {
         localDeclaredTypesBySymbol.removeValue(forKey: symbol)
         mutableCaptureCellsBySymbol.removeValue(forKey: symbol)
         localDelegateStorageBySymbol.removeValue(forKey: symbol)
-        localStdlibDelegateKindBySymbol.removeValue(forKey: symbol)
     }
 
     func localDelegateStorage(for symbol: SymbolID) -> KIRExprID? {
         localDelegateStorageBySymbol[symbol]
     }
 
-    func setLocalDelegateStorage(_ exprID: KIRExprID, for symbol: SymbolID) {
-        localDelegateStorageBySymbol[symbol] = exprID
-    }
-
     func localStdlibDelegateKind(for symbol: SymbolID) -> StdlibDelegateKind? {
-        localStdlibDelegateKindBySymbol[symbol]
+        localStdlibDelegateKindsBySymbol[symbol]
     }
 
     func setLocalStdlibDelegateKind(_ kind: StdlibDelegateKind, for symbol: SymbolID) {
-        localStdlibDelegateKindBySymbol[symbol] = kind
+        localStdlibDelegateKindsBySymbol[symbol] = kind
+    }
+
+    func setLocalDelegateStorage(_ exprID: KIRExprID, for symbol: SymbolID) {
+        localDelegateStorageBySymbol[symbol] = exprID
     }
 
     func localDeclaredType(for symbol: SymbolID) -> TypeID? {
