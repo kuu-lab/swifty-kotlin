@@ -25,7 +25,6 @@ extension CallLowerer {
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
-            "replaceFirstChar",
             "ifEmpty",
             "ifBlank",
             "chunked", "chunkedSequence", "windowed", "copyOf",
