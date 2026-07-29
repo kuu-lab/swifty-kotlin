@@ -353,10 +353,6 @@ struct DataFlowAndSemaRegressionTests {
     }
 
     @Test func testFunctionThenSameNamedClassDoesNotConflict() throws {
-        // The return type is deliberately not `Box` here: a same-file
-        // function-signature forward reference to a later-declared type is a
-        // separate, pre-existing limitation (BUG-141) unrelated to the
-        // declaration-conflict check this test targets.
         let source = """
         fun Box(seed: Long): Int = seed.toInt()
         class Box(val value: Int)
@@ -480,42 +476,108 @@ struct DataFlowAndSemaRegressionTests {
 
     // MARK: - BodyAnalysis: structural recursion depth guard
 
-    @Test func testDeeplyNestedGenericTypeRefEmitsDepthDiagnostic() throws {
-        let interner = StringInterner()
-        let listName = interner.intern("List")
-        let intName = interner.intern("Int")
+    @Test func testNestedGenericTypeRefAtSemaDepthLimitResolves() throws {
+        let source = nestedListParameterSource(depth: DataFlowSemaPhase.maxStructuralRecursionDepth)
 
-        let symbols = SymbolTable()
-        _ = symbols.define(
-            kind: .class,
-            name: listName,
-            fqName: [listName],
-            declSite: nil,
-            visibility: .public
-        )
-
-        let types = TypeSystem()
-        let diagnostics = DiagnosticEngine()
-        let arena = ASTArena()
-
-        var innerRef = arena.appendTypeRef(.named(path: [intName], args: [], nullable: false))
-        for _ in 0..<600 {
-            let arg = TypeArgRef.invariant(innerRef)
-            innerRef = arena.appendTypeRef(.named(path: [listName], args: [arg], nullable: false))
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-TYPE-DEPTH", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-TYPE-DEPTH", in: ctx)
         }
+    }
 
-        let ast = ASTModule(files: [], arena: arena, declarationCount: 0, tokenCount: 0)
-        let phase = DataFlowSemaPhase()
-        _ = phase.resolveTypeRef(
-            innerRef,
-            ast: ast,
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            diagnostics: diagnostics
-        )
+    @Test func testNestedGenericTypeRefBeyondSemaDepthLimitEmitsDiagnostic() throws {
+        let source = nestedListParameterSource(depth: DataFlowSemaPhase.maxStructuralRecursionDepth + 1)
 
-        #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-TYPE-DEPTH" })
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-TYPE-DEPTH", in: ctx)
+            assertDiagnosticCount("KSWIFTK-SEMA-TYPE-DEPTH", expected: 1, in: ctx)
+        }
+    }
+
+    private func nestedListParameterSource(depth: Int) -> String {
+        let type = String(repeating: "List<", count: depth)
+            + "Int"
+            + String(repeating: ">", count: depth)
+        return "fun consume(value: \(type)) {}\n"
+    }
+
+    // MARK: - BUG-143: forward references to later declarations
+
+    @Test func testTopLevelFunctionSignatureResolvesLaterDeclaredClass() throws {
+        let source = """
+        fun make(seed: Long): Box = Box(seed.toInt())
+        class Box(val value: Int)
+        fun main(): Int = make(3L).value
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
+        }
+    }
+
+    @Test func testTopLevelPropertyTypeResolvesLaterDeclaredClass() throws {
+        let source = """
+        val shared: Box = Box(1)
+        class Box(val value: Int)
+        fun main(): Int = shared.value
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
+        }
+    }
+
+    @Test func testMemberSignatureResolvesLaterDeclaredTopLevelType() throws {
+        let source = """
+        class Holder {
+            fun wrap(value: Int): Payload = Payload(value)
+            fun paint(): Shape = Circle
+        }
+        class Payload(val value: Int)
+        interface Shape
+        object Circle : Shape
+        fun main(): Int = Holder().wrap(2).value
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
+        }
+    }
+
+    @Test func testSignatureResolvesLaterDeclaredTypeAlias() throws {
+        // Type aliases are collected before the remaining headers, so the alias
+        // resolves to its underlying type rather than to a bare alias symbol.
+        let source = """
+        fun step(value: Meters): Meters = value + 1
+        typealias Meters = Int
+        fun main(): Int = step(1)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func testGenuinelyUnknownTypeStillErrors() throws {
+        // Guards against the forward-declaration pass silently accepting names
+        // that no declaration ever introduces.
+        let source = """
+        fun make(): Missing = TODO()
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
+        }
     }
 
     // KNOWN GAP (DEBT-SEMA-003): self-referential top-level initializers are
