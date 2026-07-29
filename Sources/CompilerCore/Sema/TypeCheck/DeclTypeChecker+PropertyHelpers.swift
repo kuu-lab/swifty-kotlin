@@ -46,9 +46,21 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var result = inferredPropertyType
+        let stdlibDelegateKind = StdlibDelegateKind.detect(
+            delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
+        )
+        // `var name: String by Delegates.notNull()` has nothing to infer the
+        // factory's type argument from except the declared property type, so
+        // feed it back in as the expected delegate type (`Lazy<String>` /
+        // `ReadWriteProperty<Any?, String>`).
+        let expectedDelegateType = inferredPropertyType.flatMap { valueType in
+            stdlibDelegateInterfaceType(
+                of: valueType, kind: stdlibDelegateKind, sema: sema, interner: interner
+            )
+        }
         let delegateType = driver.inferExpr(
             delegateExpr, ctx: ctx, locals: &locals,
-            expectedType: nil
+            expectedType: expectedDelegateType
         )
 
         // Record the delegate type for KIR lowering.
@@ -218,9 +230,6 @@ extension DeclTypeChecker {
         // resolving through the operator convention — that gap is tracked separately
         // (KSP-491/492) and must stay silent until those factories are wired to real
         // operator-based dispatch.
-        let stdlibDelegateKind = StdlibDelegateKind.detect(
-            delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
-        )
         let isKnownStdlibDelegate = stdlibDelegateKind != .custom
         if result == nil, isKnownStdlibDelegate {
             // These factories are dispatched structurally rather than through the
@@ -256,6 +265,34 @@ extension DeclTypeChecker {
         return result
     }
 
+    /// The interface a stdlib delegate factory's result conforms to for a given
+    /// value type: `Lazy<T>` for `lazy`, `ReadWriteProperty<Any?, T>` for the
+    /// `Delegates` factories. Nil for `.custom` delegates.
+    private func stdlibDelegateInterfaceType(
+        of valueType: TypeID,
+        kind: StdlibDelegateKind,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard kind != .custom,
+              let ownerSymbol = sema.symbols.lookup(
+                  fqName: stdlibDelegateInterfaceFQName(for: kind).map { interner.intern($0) }
+              )
+        else {
+            return nil
+        }
+        let args: [TypeArg] = kind == .lazy
+            ? [.out(valueType)]
+            : [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)]
+        return sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol, args: args, nullability: .nonNull
+        )))
+    }
+
+    private func stdlibDelegateInterfaceFQName(for kind: StdlibDelegateKind) -> [String] {
+        kind == .lazy ? ["kotlin", "Lazy"] : ["kotlin", "properties", "ReadWriteProperty"]
+    }
+
     /// The value type a stdlib delegate factory's result exposes:
     /// `Lazy<T>` → `T`, `ReadWriteProperty<Any?, T>` → `T`. Returns nil when the
     /// delegate type is not (a subtype of) the expected interface, e.g. because
@@ -266,10 +303,7 @@ extension DeclTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        let ownerFQName: [String] = switch kind {
-        case .lazy: ["kotlin", "Lazy"]
-        default: ["kotlin", "properties", "ReadWriteProperty"]
-        }
+        let ownerFQName = stdlibDelegateInterfaceFQName(for: kind)
         let valueArgIndex = kind == .lazy ? 0 : 1
         guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName.map { interner.intern($0) }),
               let delegateClass = resolveClassType(delegateType, sema: sema)
