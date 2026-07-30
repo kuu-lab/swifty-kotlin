@@ -166,39 +166,33 @@ extension ExprLowerer {
                 // String properties
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("__string_struct_get_length"),
-                            arguments: [receiverExprID],
+                            arg: receiverExprID,
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         return result
                     }
                 }
 
                 // Collection properties: size, isEmpty
                 if memberStr == "size" {
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_collection_size"),
-                        arguments: [receiverExprID],
+                        arg: receiverExprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                     return result
                 }
                 if memberStr == "isEmpty" {
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_collection_isEmpty"),
-                        arguments: [receiverExprID],
+                        arg: receiverExprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                     return result
                 }
 
@@ -2365,14 +2359,12 @@ extension ExprLowerer {
                 ])
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: calleeName,
-                    arguments: [rhsID],
+                    arg: rhsID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {

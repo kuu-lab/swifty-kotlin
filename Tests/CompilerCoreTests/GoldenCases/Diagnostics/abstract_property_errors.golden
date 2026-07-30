@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 4, "character": 4 },
+        "end": { "line": 4, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Abstract property 'name' cannot have an initializer.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 9, "character": 4 },
+        "end": { "line": 10, "character": 17 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Abstract property 'count' cannot have an explicit backing field.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 15, "character": 4 },
+        "end": { "line": 15, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Abstract property 'data' cannot have a delegate expression.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 21, "character": 23 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Abstract property 'value' cannot have a getter body.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 27, "character": 8 },
+        "end": { "line": 27, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Abstract property 'mutable' cannot have a setter body.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 35, "character": 0 },
+        "end": { "line": 37, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Class 'Derived' must override abstract member 'required' or be declared abstract.",
+      "codeActions": []
+    },
+    {
+      "file": "abstract_property_errors.kt",
+      "range": {
+        "start": { "line": 45, "character": 0 },
+        "end": { "line": 48, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Class 'Child' must override abstract member 'parentProp' or be declared abstract.",
+      "codeActions": []
+    }
+  ]
+}
