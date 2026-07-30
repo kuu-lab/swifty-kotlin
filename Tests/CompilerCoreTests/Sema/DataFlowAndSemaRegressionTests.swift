@@ -580,11 +580,25 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
-    // KNOWN GAP (DEBT-SEMA-003): self-referential top-level initializers are
-    // currently accepted although kotlinc reports use before initialization.
-    @Test func testSelfReferentialTopLevelInitializerIsNotYetDetected() throws {
+    // DEBT-SEMA-003: a top-level `val` initializer that reads its own symbol
+    // (directly, e.g. via a call argument) is a use before initialization —
+    // matching kotlinc's "variable must be initialized before use" diagnostic.
+    @Test func testSelfReferentialTopLevelInitializerIsDetected() throws {
         let source = """
         val cyclic: List<*> = listOf(cyclic)
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0031", in: ctx)
+        }
+    }
+
+    @Test func testNonSelfReferentialTopLevelInitializerStillCompiles() throws {
+        let source = """
+        val greeting: String = "hello"
+        val shout: String = greeting.uppercase()
         fun main() {}
         """
         try withTemporaryFile(contents: source) { path in

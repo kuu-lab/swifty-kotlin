@@ -244,14 +244,12 @@ extension CallLowerer {
         let currentValue: KIRExprID
         if let syntheticLinks {
             let result = arena.appendTemporary(type: propType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern(syntheticLinks.load),
-                arguments: [receiverID],
+                arg: receiverID,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             currentValue = result
         } else if isObjectOwned, let propertySymbol {
             let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
@@ -301,14 +299,12 @@ extension CallLowerer {
                 interner: interner
             )
             let result = arena.appendTemporary(type: propType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: getterName,
-                arguments: [receiverID],
+                arg: receiverID,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             currentValue = result
         }
 

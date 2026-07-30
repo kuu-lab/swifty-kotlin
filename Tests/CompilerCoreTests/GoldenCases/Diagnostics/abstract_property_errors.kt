@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // Test cases for abstract property error conditions
 
 // ERROR: Abstract property with initializer
@@ -6,7 +5,7 @@ abstract class BadClass1 {
     abstract val name: String = "error"  // Should error: cannot have initializer
 }
 
-// ERROR: Abstract property with explicit backing field  
+// ERROR: Abstract property with explicit backing field
 abstract class BadClass2 {
     abstract val count: Int
         field = 0  // Should error: cannot have explicit backing field

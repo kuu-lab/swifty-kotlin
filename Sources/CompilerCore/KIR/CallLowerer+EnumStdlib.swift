@@ -77,14 +77,12 @@ extension CallLowerer {
         let enumValuesArray = arena.appendTemporary(type: sema.types.anyType)
         let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_new"),
-            arguments: [entriesCountExpr],
+            arg: entriesCountExpr,
             result: enumValuesArray,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
         let stringType = sema.types.stringType
         for (index, entry) in entries.enumerated() {
