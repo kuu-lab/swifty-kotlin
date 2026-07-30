@@ -637,26 +637,22 @@ extension CallLowerer {
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
                         let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [lhs],
+                            arg: lhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
                         let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [rhs],
+                            arg: rhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         rhs = converted
                     }
                 }
@@ -3632,14 +3628,12 @@ extension CallLowerer {
                         type: sema.types.nullableAnyType
                     )
                     if let boxCallee {
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern(boxCallee),
-                            arguments: [loweredArgID],
+                            arg: loweredArgID,
                             result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                     } else {
                         instructions.append(.copy(from: loweredArgID, to: boxedArg))
                     }
