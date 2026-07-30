@@ -1413,20 +1413,22 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    // BUG-154: `CASE_INSENSITIVE_ORDER` is a member of the `String` companion
+    // object (`String.CASE_INSENSITIVE_ORDER`), matching real Kotlin's
+    // `String.Companion.CASE_INSENSITIVE_ORDER`. There is no top-level
+    // `kotlin.text.CASE_INSENSITIVE_ORDER`.
     @Test func testCaseInsensitiveOrderSurfaceResolves() throws {
         let source = """
-        import kotlin.text.CASE_INSENSITIVE_ORDER
-
         fun caseInsensitiveComparator(): Comparator<String> {
-            return CASE_INSENSITIVE_ORDER
+            return String.CASE_INSENSITIVE_ORDER
         }
 
         fun compareIgnoringCase(): Int {
-            return CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA")
+            return String.CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA")
         }
 
         fun sortIgnoringCase(values: List<String>): List<String> {
-            return values.sortedWith(CASE_INSENSITIVE_ORDER)
+            return values.sortedWith(String.CASE_INSENSITIVE_ORDER)
         }
         """
 
@@ -1436,15 +1438,23 @@ struct StringSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
             #expect(
                 !ctx.diagnostics.hasError,
-                "Expected CASE_INSENSITIVE_ORDER surface to resolve cleanly, got: \(diagnosticSummary)"
+                "Expected String.CASE_INSENSITIVE_ORDER surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
             let sema = try #require(ctx.sema)
-            let propertyFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { ctx.interner.intern($0) }
-            let propertySymbol = try #require(sema.symbols.lookup(fqName: propertyFQName))
+            // The property lives on String's companion object, not top-level kotlin.text.
+            let companionPropertyFQName = ["kotlin", "String", "Companion", "CASE_INSENSITIVE_ORDER"]
+                .map { ctx.interner.intern($0) }
+            let propertySymbol = try #require(sema.symbols.lookup(fqName: companionPropertyFQName))
             #expect(
                 sema.symbols.externalLinkName(for: propertySymbol) == "kk_string_case_insensitive_order"
             )
+            let parentSymbol = try #require(sema.symbols.parentSymbol(for: propertySymbol))
+            #expect(sema.symbols.symbol(parentSymbol)?.kind == .object)
+
+            // The buggy top-level kotlin.text.CASE_INSENSITIVE_ORDER must not exist.
+            let topLevelFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { ctx.interner.intern($0) }
+            #expect(sema.symbols.lookup(fqName: topLevelFQName) == nil)
 
             let comparatorFQName = ["kotlin", "Comparator"].map { ctx.interner.intern($0) }
             let comparatorSymbol = try #require(sema.symbols.lookup(fqName: comparatorFQName))
@@ -1454,6 +1464,27 @@ struct StringSyntheticMemberLinkTests {
                 nullability: .nonNull
             )))
             #expect(sema.symbols.propertyType(for: propertySymbol) == expectedType)
+        }
+    }
+
+    // BUG-154: a bare/top-level `CASE_INSENSITIVE_ORDER` (as opposed to
+    // `String.CASE_INSENSITIVE_ORDER`) must stay unresolved, matching kotlinc.
+    @Test func testTopLevelCaseInsensitiveOrderIsUnresolved() throws {
+        let source = """
+        import kotlin.text.CASE_INSENSITIVE_ORDER
+
+        fun caseInsensitiveComparator(): Comparator<String> {
+            return CASE_INSENSITIVE_ORDER
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                ctx.diagnostics.hasError,
+                "Expected bare top-level CASE_INSENSITIVE_ORDER to be rejected (no such top-level symbol in Kotlin)"
+            )
         }
     }
 

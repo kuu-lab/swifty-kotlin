@@ -996,7 +996,7 @@ extension CodegenBackendIntegrationTests {
             // lastIndexOf: not found
             println("hello".lastIndexOf("x"))
 
-            // lastIndexOf: empty target (BUG-165: matches kotlinc's default
+            // lastIndexOf: empty target (BUG-169: matches kotlinc's default
             // `startIndex = lastIndex`, i.e. `length - 1`, not `length`)
             println("hello".lastIndexOf(""))
 
@@ -1988,13 +1988,11 @@ extension CodegenBackendIntegrationTests {
 
     func testKotlinTextCaseInsensitiveOrderEdgeCases() throws {
         let source = """
-        import kotlin.text.CASE_INSENSITIVE_ORDER
-
         fun main() {
-            println(CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA"))
-            println(CASE_INSENSITIVE_ORDER.compare("apple", "banana") < 0)
-            println(CASE_INSENSITIVE_ORDER.compare("Zoo", "apple") > 0)
-            println(listOf("b", "A", "c", "a").sortedWith(CASE_INSENSITIVE_ORDER))
+            println(String.CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA"))
+            println(String.CASE_INSENSITIVE_ORDER.compare("apple", "banana") < 0)
+            println(String.CASE_INSENSITIVE_ORDER.compare("Zoo", "apple") > 0)
+            println(listOf("b", "A", "c", "a").sortedWith(String.CASE_INSENSITIVE_ORDER))
         }
         """
 
@@ -2012,20 +2010,16 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    // BUG-036: `CASE_INSENSITIVE_ORDER` is a top-level `val` in real Kotlin,
-    // so repeated reads must observe the same instance. The synthetic
-    // property had no backing global to cache into and called
-    // `kk_string_case_insensitive_order()` directly on every read, minting a
-    // fresh comparator object each time. Fixed by caching the singleton
-    // handle in the runtime, cleared on `kk_runtime_force_reset` for test
-    // isolation.
+    // BUG-036/BUG-154: `String.CASE_INSENSITIVE_ORDER` is a companion `val` in
+    // real Kotlin, so repeated reads must observe the same instance. It is now
+    // backed by a module-init global (initialized once via
+    // `kk_string_case_insensitive_order()`); the runtime also caches the
+    // singleton handle, cleared on `kk_runtime_force_reset` for test isolation.
     func testKotlinTextCaseInsensitiveOrderIsReferentiallyStable() throws {
         let source = """
-        import kotlin.text.CASE_INSENSITIVE_ORDER
-
         fun main() {
-            val a = CASE_INSENSITIVE_ORDER
-            val b = CASE_INSENSITIVE_ORDER
+            val a = String.CASE_INSENSITIVE_ORDER
+            val b = String.CASE_INSENSITIVE_ORDER
             println(a === b)
         }
         """

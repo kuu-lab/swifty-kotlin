@@ -1522,11 +1522,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_uppercase"),
             interner.intern("kk_string_replace_flat"),
             interner.intern("kk_string_replaceFirst_flat"),
-            interner.intern("kk_string_substring_flat"),
-            interner.intern("kk_string_slice_range"),
-            interner.intern("kk_string_slice_iterable"),
-            interner.intern("kk_string_removeRange_flat"),
-            interner.intern("kk_string_removeRange_range_flat"),
             kkStringFilterName,
         ]
     }

@@ -289,6 +289,42 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
 
+                // Factory calls that are not the initializer of a `$delegate_`
+                // field — i.e. local delegated declarations
+                // (`fun f() { val x by lazy { 42 } }`, BUG-147), whose handle
+                // lives in a register instead of a global. The delegate kind is
+                // taken from the resolved callee symbol so that a user-defined
+                // function that merely shares the name is left alone.
+                if case let .call(symbol, _, callArgs, callResult, _, _, _, _) = instruction,
+                   let symbol,
+                   let kind = delegatesObjectFactoryKind(symbol, sema: sema, interner: interner),
+                   let callResult
+                {
+                    let createArgs: [KIRExprID] = switch kind {
+                    // Strip the `Delegates` receiver (arg0) inserted by member
+                    // call lowering; keep (initialValue, callbackFnPtr).
+                    case .observable, .vetoable: callArgs.count > 2 ? Array(callArgs.suffix(2)) : callArgs
+                    default: []
+                    }
+                    let createName: InternedString? = switch kind {
+                    case .observable: observableCreateName
+                    case .vetoable: vetoableCreateName
+                    case .notNull: notNullCreateName
+                    default: nil
+                    }
+                    if let createName {
+                        finalBody.append(.call(
+                            symbol: nil,
+                            callee: createName,
+                            arguments: createArgs,
+                            result: callResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        continue
+                    }
+                }
+
                 if case let .call(symbol, callee, callArgs, callResult, _, _, _, _) = instruction,
                    interner.resolve(callee) == "lazy",
                    symbol != nil,
@@ -320,6 +356,23 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
             return updated
         }
         module.recordLowering(Self.name)
+    }
+
+    /// Returns the delegate kind when `symbol` is one of the
+    /// `kotlin.properties.Delegates` factory functions, or nil otherwise.
+    private func delegatesObjectFactoryKind(
+        _ symbol: SymbolID,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> StdlibDelegateKind? {
+        guard let sema, let info = sema.symbols.symbol(symbol) else { return nil }
+        let fqName = info.fqName.map { interner.resolve($0) }
+        guard fqName.count == 4,
+              Array(fqName.dropLast()) == ["kotlin", "properties", "Delegates"]
+        else {
+            return nil
+        }
+        return delegateFactoryKind(fqName[3])
     }
 
     /// Returns the delegate kind for a known factory function name, or nil.
