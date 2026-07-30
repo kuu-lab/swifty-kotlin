@@ -2304,8 +2304,22 @@ extension CallLowerer {
         if args.count <= 4, interner.resolve(calleeName) == "joinToString" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            // `Collection`/`Set` are "concrete" per isConcreteCollectionLikeType (unlike
+            // `Iterable`, which isn't), so the disjunct below would normally exclude them.
+            // But neither has its own registered `joinToString` symbol the way `List` does
+            // (see HeaderHelpers+SyntheticIterableRegistry.swift's Collection member list),
+            // so a `Collection<T>`/`Set<T>`-typed receiver's `joinToString` call never
+            // resolves to a real Sema symbol either — same as Iterable — and must also be
+            // admitted here, or it falls through all the way to KIR's generic
+            // "unresolved member" fallback, which emits a call to the literal, never-defined
+            // external symbol "joinToString" and fails at link time (DEBT-KIR-006 follow-up).
+            let collectionKind = MemberRuntimeDispatch.collectionReceiverKind(
+                receiverType: nonNullReceiverType, sema: sema, interner: interner
+            )
             if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-                || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                || sema.bindings.isCollectionExpr(receiverExpr)
+                    && (!isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                        || collectionKind == .collection || collectionKind == .set)
             {
                 let lastArgIsLambda: Bool = if let lastArgExpr = args.last?.expr,
                                                 let lastArgNode = ast.arena.expr(lastArgExpr) {
