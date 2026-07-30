@@ -202,10 +202,6 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol[name] = symbol
     }
 
-    func restoreLambdaParam(symbol: SymbolID?, forName name: InternedString) {
-        lambdaParamNameToSymbol[name] = symbol
-    }
-
     func activeImplicitReceiverExprID() -> KIRExprID? {
         currentImplicitReceiverExprID
     }

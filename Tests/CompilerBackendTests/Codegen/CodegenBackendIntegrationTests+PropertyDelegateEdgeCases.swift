@@ -233,6 +233,63 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
+
+    // A class member's `by lazy { ... }` body used to lower into a standalone
+    // function with no way to reach the enclosing instance, so any reference
+    // to an instance member inside the block (here, the primary-constructor
+    // property `label`) silently resolved to nothing instead of the captured
+    // value.
+    func testMemberLazyDelegateCapturesEnclosingInstanceProperty() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            println(a.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegateCapturesLabel",
+            expected:
+                """
+                a
+                """ + "\n"
+        )
+    }
+
+    // The delegate handle (`$delegate_x`, holding the `Lazy` instance) used to
+    // be stored in a single module-global slot shared by every instance of the
+    // class, so constructing a second `Foo` clobbered the first instance's
+    // delegate — both `a.x` and `b.x` observed whichever instance was
+    // constructed last instead of their own captured `label`.
+    func testMemberLazyDelegateUsesPerInstanceStorage() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            val b = Foo("b")
+            println(a.x)
+            println(b.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegatePerInstanceStorage",
+            expected:
+                """
+                a
+                b
+                """ + "\n"
+        )
+    }
+
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
         // Regression guard: member-property custom delegates already worked
         // before this fix and share DeclTypeChecker+PropertyHelpers.swift's

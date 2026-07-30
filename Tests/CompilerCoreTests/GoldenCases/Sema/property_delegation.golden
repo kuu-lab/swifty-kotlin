@@ -10,6 +10,7 @@ file fproperty_delegation package=golden.sema
   decl golden.sema.CustomDelegate class CustomDelegate sym=golden.sema.CustomDelegate
   decl golden.sema.Holder class Holder sym=golden.sema.Holder
 expr e@4:19 name(lazy) type=kotlin.Lazy<kotlin.lazy.T> ref=kotlin.lazy
+expr e@4:26 int(42) type=Int
 expr e@8:68 string(hello) type=String
 expr e@13:25 call callee=e@13:25#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
 expr e@14:28 call callee=e@14:28#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
