@@ -151,7 +151,7 @@ final class DeclTypeChecker {
         if let initializer = property.initializer {
             var locals: LocalBindings = initialLocals
             let initializerType = driver.inferExpr(
-                initializer, ctx: ctx, locals: &locals,
+                initializer, ctx: ctx.with(initializingPropertySymbol: symbol), locals: &locals,
                 expectedType: inferredPropertyType
             )
             if let declaredType = inferredPropertyType {
