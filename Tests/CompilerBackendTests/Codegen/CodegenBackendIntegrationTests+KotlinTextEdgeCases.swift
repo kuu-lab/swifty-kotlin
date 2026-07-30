@@ -7,6 +7,32 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
+    func testKotlinTextStringSearchDefaultArgumentsAndImplicitReceiver() throws {
+        let source = """
+        fun String.findDelimiter(delimiter: String): Int = indexOf(delimiter)
+
+        fun main() {
+            println("hello".findDelimiter("ll"))
+            println("hello".lastIndexOf('l'))
+            println("hello".lastIndexOf('l', 2))
+            println("hello".lastIndexOf('x'))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextStringSearchDefaultArgumentsAndImplicitReceiver",
+            expected:
+                """
+                2
+                3
+                2
+                -1
+                """
+                + "\n"
+        )
+    }
+
     func testKotlinTextSplitEdgeCases() throws {
         let source = """
         fun main() {
