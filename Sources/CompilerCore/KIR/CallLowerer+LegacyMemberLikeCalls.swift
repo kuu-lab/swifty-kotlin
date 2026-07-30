@@ -4,6 +4,19 @@
 ///
 /// This remains deliberately isolated while narrower families continue to move out.
 extension CallLowerer {
+    /// Array-receiver member names this file's by-name switch (below) still
+    /// redirects to a raw `kk_array_*`/`kk_iterable_*` runtime bridge that invokes
+    /// its single lambda argument as `(closureEnv, value, outThrown)`. Used both to
+    /// mark the lambda so it is compiled with the matching closure-env parameter
+    /// slot, and to pad the call's own argument list with a closureEnv placeholder
+    /// when the resolved callee's real (source-backed) signature only carries the
+    /// single Kotlin-visible argument.
+    static let arrayRuntimeBridgeHOFNames: Set<String> = [
+        "map", "filter", "forEach", "any", "all", "none", "count",
+        "reduce", "reduceOrNull", "reduceIndexed", "flatMap",
+        "firstNotNullOf", "firstNotNullOfOrNull",
+    ]
+
     // swiftlint:disable cyclomatic_complexity function_body_length
     /// This shared lowering path still centralizes legacy stdlib/member special cases.
     func lowerMemberLikeCallExpr(
@@ -54,6 +67,32 @@ extension CallLowerer {
         }
 
         let boundType = sema.bindings.exprTypes[exprID]
+        // This function's own by-name switch further below still redirects Array
+        // receiver calls like `any`/`all`/`none`/`count`/`map`/`filter`/`forEach`/
+        // `reduce(OrNull/Indexed)`/`flatMap` straight to their raw `kk_array_*`
+        // runtime bridges, which invoke the lambda argument as `(closureEnv, value,
+        // outThrown)`. That calling convention requires the lambda's own compiled
+        // parameter list to include the closure-env slot, which only happens when
+        // it is marked via `markCollectionHOFLambdaExpr` -- normally done by
+        // `tryArrayMemberFallback` in Sema, but that fallback only runs when normal
+        // candidate resolution fails to find a callee. Once one of these names gets
+        // a real, source-backed declaration (e.g. `any`/`none` in
+        // ArrayAnyNoneHOF.kt), normal resolution succeeds directly and that Sema
+        // fallback -- and its marking -- is skipped entirely, even though this
+        // function still redirects the call to the same raw bridge. Mark it here,
+        // before the argument gets lowered below, so the lambda is compiled with
+        // the closure-env slot the bridge's calling convention requires.
+        if args.count == 1,
+           let onlyLambdaArg = args.first,
+           ast.arena.expr(onlyLambdaArg.expr)?.isLambdaOrCallableRef == true
+        {
+            let receiverTypeForHOFMarking = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            if isConcreteArrayLikeType(sema.types.makeNonNullable(receiverTypeForHOFMarking), sema: sema, interner: interner),
+               Self.arrayRuntimeBridgeHOFNames.contains(interner.resolve(calleeName))
+            {
+                sema.bindings.markCollectionHOFLambdaExpr(onlyLambdaArg.expr)
+            }
+        }
         let loweredReceiverID = driver.lowerExpr(
             receiverExpr,
             ast: ast,
@@ -637,26 +676,22 @@ extension CallLowerer {
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
                         let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [lhs],
+                            arg: lhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
                         let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [rhs],
+                            arg: rhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         rhs = converted
                     }
                 }
@@ -2411,10 +2446,27 @@ extension CallLowerer {
                             type: sema.types.nullableAnyType
                         )
                         : nil
+                    // These runtime bridges all take the predicate/transform lambda as a
+                    // (fnPtr, closureRaw) pair -- e.g. `kk_array_any(arrayRaw, fnPtr,
+                    // closureRaw, outThrown)` -- rather than a single boxed callable.
+                    // `normalizedArgIDs` only carries one lambda-argument slot when the
+                    // callee resolved to a real, source-backed declaration (its Kotlin
+                    // signature has exactly one parameter, e.g. `any(predicate)` in
+                    // ArrayAnyNoneHOF.kt), so the closureRaw slot must be synthesized here
+                    // instead of silently dropped -- omitting it shifts every argument
+                    // after it (including the ABI's own outThrown pointer) and crashes.
+                    let hofArgIDs: [KIRExprID]
+                    if Self.arrayRuntimeBridgeHOFNames.contains(calleeStr), normalizedArgIDs.count < 2 {
+                        let closureRawExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                        instructions.append(.constValue(result: closureRawExpr, value: .intLiteral(0)))
+                        hofArgIDs = normalizedArgIDs + [closureRawExpr]
+                    } else {
+                        hofArgIDs = normalizedArgIDs
+                    }
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        arguments: [loweredReceiverID] + hofArgIDs,
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult
@@ -3588,14 +3640,12 @@ extension CallLowerer {
                         type: sema.types.nullableAnyType
                     )
                     if let boxCallee {
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern(boxCallee),
-                            arguments: [loweredArgID],
+                            arg: loweredArgID,
                             result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                     } else {
                         instructions.append(.copy(from: loweredArgID, to: boxedArg))
                     }

@@ -93,14 +93,12 @@ extension CallLowerer {
         )
 
         let arrayExpr = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: createCallee,
-            arguments: [sizeExpr],
+            arg: sizeExpr,
             result: arrayExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
         let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)

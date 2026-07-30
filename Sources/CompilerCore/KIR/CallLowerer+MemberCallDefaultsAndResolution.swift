@@ -64,14 +64,12 @@ extension CallLowerer {
             ) ?? interner.intern("__kk_list_size")
             let sizeExpr = arena.appendTemporary(type: intType
             )
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: sizeCallee,
-                arguments: [loweredReceiverID],
+                arg: loweredReceiverID,
                 result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             cachedSizeExpr = sizeExpr
             return sizeExpr
         }
@@ -134,14 +132,12 @@ extension CallLowerer {
 
         if (defaultMask & endIndexMaskBit) != 0 {
             let sizeExpr = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_size"),
-                arguments: [arguments[0]],
+                arg: arguments[0],
                 result: sizeExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             arguments[4] = sizeExpr
         }
     }
@@ -170,14 +166,12 @@ extension CallLowerer {
         }
         let intType = sema.types.intType
         let sizeExpr = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_size"),
-            arguments: [arguments[0]],
+            arg: arguments[0],
             result: sizeExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         arguments[2] = sizeExpr
     }
 
