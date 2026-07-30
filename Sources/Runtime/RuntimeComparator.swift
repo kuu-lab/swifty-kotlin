@@ -249,11 +249,13 @@ public func kk_comparator_nulls_first_comparable() -> Int {
 
 private final class RuntimeCaseInsensitiveStringComparatorBox {}
 
-// BUG-036: `CASE_INSENSITIVE_ORDER` is a top-level `val` in real Kotlin, so
-// every read must observe the same instance. The synthetic property has no
-// backing field to cache into (see `registerSyntheticStringTopLevelProperty`),
-// so cache the singleton handle here instead -- cleared by `kk_runtime_reset_gc`
-// since a runtime reset drops GC tracking for the handle it points at.
+// BUG-036/BUG-154: `String.CASE_INSENSITIVE_ORDER` is a companion `val` in real
+// Kotlin, so every read must observe the same instance. The synthetic companion
+// property is backed by a module-init global that calls this once (see
+// `registerSyntheticCompanionExternalProperty`); cache the singleton handle here
+// as well so any direct call also observes the same instance -- cleared by
+// `kk_runtime_reset_gc` since a runtime reset drops GC tracking for the handle
+// it points at.
 private let caseInsensitiveOrderCacheLock = NSLock()
 nonisolated(unsafe) private var cachedCaseInsensitiveOrderHandle = 0
 
