@@ -1311,17 +1311,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // BUG-152: `subSequence` on a value statically typed as `CharSequence`.
-        registerSyntheticStringExtensionFunction(
-            named: "subSequence",
-            externalLinkName: "kk_string_subSequence_flat",
-            receiverType: charSequenceType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: charSequenceType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // BUG-152: `subSequence` on a value statically typed as `CharSequence` is
+        // provided by bundled Kotlin source (StringSubstringSlice.kt).
 
         // --- STDLIB-141: String.compareTo ---
 
