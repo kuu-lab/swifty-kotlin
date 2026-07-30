@@ -1,10 +1,14 @@
 import kotlin.properties.Delegates
 
 class User {
+    val prefix: String = "user"
+    var callbackCount: Int = 0
     var name: String by Delegates.observable("initial") { _, old, new ->
-        println("changed from $old to $new")
+        callbackCount += 1
+        println("$prefix changed from $old to $new ($callbackCount)")
     }
-    var count: Int by Delegates.vetoable(0) { _, _, new -> new >= 0 }
+    var minimum: Int = 0
+    var count: Int by Delegates.vetoable(0) { _, _, new -> new >= minimum }
     var late: String by Delegates.notNull()
 }
 
@@ -17,6 +21,7 @@ fun main() {
     println(u.name)
     u.name = "world"
     println(u.name)
+    println(u.callbackCount)
 
     u.count = 5
     println(u.count)

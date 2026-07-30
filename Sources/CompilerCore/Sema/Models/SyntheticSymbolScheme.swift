@@ -5,6 +5,8 @@ enum SyntheticSymbolScheme {
     static let propertySetterAccessorOffset: Int32 = -13000
     static let propertyGetterAccessorOffset: Int32 = -12000
     static let receiverParameterOffset: Int32 = -10000
+    static let delegateLambdaParameterBaseOffset: Int32 = -50000
+    static let delegateLambdaParameterStride: Int32 = -1000
 
     private static func makeSymbol(offset: Int32, original: SymbolID) -> SymbolID {
         SymbolID(rawValue: offset - original.rawValue)
@@ -32,6 +34,17 @@ enum SyntheticSymbolScheme {
 
     static func receiverParameterSymbol(for functionSymbol: SymbolID) -> SymbolID {
         makeSymbol(offset: receiverParameterOffset, original: functionSymbol)
+    }
+
+    static func delegateLambdaParameterSymbol(
+        for propertySymbol: SymbolID,
+        at index: Int
+    ) -> SymbolID {
+        SymbolID(
+            rawValue: delegateLambdaParameterBaseOffset
+                + Int32(index + 1) * delegateLambdaParameterStride
+                - propertySymbol.rawValue
+        )
     }
 
     static func propertyGetterAccessorSymbol(for propertySymbol: SymbolID) -> SymbolID {

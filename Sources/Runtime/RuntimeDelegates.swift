@@ -294,9 +294,8 @@ public func kk_observable_set_value(_ handle: Int, _ newValue: Int) -> Int {
     // Invoke callback: (property, oldValue, newValue) -> void
     // property arg is 0 (KProperty stub) to match Kotlin's 3-param lambda signature.
     if box.callbackFnPtr != 0 {
-        let callback = unsafeBitCast(box.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
         var thrown = 0
-        _ = callback(0, oldValue, newValue, &thrown)
+        _ = kk_function_invoke_3(box.callbackFnPtr, 0, oldValue, newValue, &thrown)
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: observable callback threw")
         }
@@ -346,9 +345,8 @@ public func kk_vetoable_set_value(_ handle: Int, _ newValue: Int) -> Int {
     // Invoke callback: (property, oldValue, newValue) -> intptr_t (boolean)
     // property arg is 0 (KProperty stub) to match Kotlin's 3-param lambda signature.
     if box.callbackFnPtr != 0 {
-        let callback = unsafeBitCast(box.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
         var thrown = 0
-        let accepted = callback(0, oldValue, newValue, &thrown)
+        let accepted = kk_function_invoke_3(box.callbackFnPtr, 0, oldValue, newValue, &thrown)
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: vetoable callback threw")
         }

@@ -381,13 +381,9 @@ extension KIRLoweringDriver {
     /// `LambdaLowerer.materializeEscapingCallableValue`'s `(closureRaw) -> T`
     /// adapter pattern.
     ///
-    /// `observable`/`vetoable` callbacks (`paramCount == 3`) are invoked
-    /// through a raw `unsafeBitCast` to a fixed-arity thunk type in
-    /// `RuntimeDelegates.swift` that has no such dispatch — materializing a
-    /// closure there would misinterpret the closure wrapper as executable code
-    /// and crash, so capture stays unsupported for those (tracked with the
-    /// rest of the observable/vetoable gaps in docs/diff-skip-inventory.md
-    /// DEBT-DIFF-005) and this function leaves their lowering untouched.
+    /// Observable/vetoable callbacks use the same representation through
+    /// `kk_function_invoke_3`: a non-capturing callback remains a raw thunk,
+    /// while a member callback is a boxed Function3 carrying the receiver.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
         delegateBodyParams: [InternedString] = [],
@@ -400,7 +396,7 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
-        let outerReceiver = paramCount == 0 ? ctx.activeImplicitReceiver() : nil
+        let outerReceiver = ctx.activeImplicitReceiver()
 
         let scopeSnapshot = ctx.saveScope()
         defer { ctx.restoreScope(scopeSnapshot) }
@@ -411,8 +407,9 @@ extension KIRLoweringDriver {
 
         var numberedParams: [KIRParameter] = []
         for i in 0 ..< paramCount {
-            let paramSymbol = SymbolID(
-                rawValue: -(propertySymbol.rawValue + Int32(i + 1) * 1000 + 50000)
+            let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                for: propertySymbol,
+                at: i
             )
             // `(property, oldValue, newValue)`: only the two value parameters
             // carry the property's type; typing them keeps operations on them
@@ -492,6 +489,7 @@ extension KIRLoweringDriver {
             innerLambdaSymbol: lambdaSymbol,
             innerLambdaName: lambdaName,
             receiverExpr: outerReceiver.exprID,
+            valueParamTypes: numberedParams.map(\.type),
             returnType: sema.types.anyType,
             sema: sema,
             arena: arena,
@@ -500,15 +498,15 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Wraps `innerLambdaSymbol` (a `(receiver) -> T` function) into a boxed
-    /// `Function0` closure value carrying `receiverExpr` as captured state, so
-    /// it can be invoked through `kk_function_invoke_0`'s boxed-closure path
-    /// with no receiver argument at the call site. See `lowerDelegateLambdaBody`
-    /// for why this is needed instead of a plain extra KIR parameter.
+    /// Wraps `innerLambdaSymbol` into a boxed function value carrying
+    /// `receiverExpr` as captured state. The adapter receives the closure
+    /// object followed by the delegate callback's regular arguments, reloads
+    /// the receiver, and calls the inner function with both.
     private func materializeCapturingDelegateLambda(
         innerLambdaSymbol: SymbolID,
         innerLambdaName: InternedString,
         receiverExpr: KIRExprID,
+        valueParamTypes: [TypeID],
         returnType: TypeID,
         sema: SemaModule,
         arena: KIRArena,
@@ -518,11 +516,19 @@ extension KIRLoweringDriver {
         let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
         let adapterName = interner.intern("kk_delegate_lambda_adapter_\(adapterSymbol.rawValue)")
         let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
+        let valueParams = valueParamTypes.map { type in
+            KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: type)
+        }
         let captureOffset = Int64(2)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+        let valueExprs = valueParams.map { param in
+            let expr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
+            return expr
+        }
 
         let receiverType = arena.exprType(receiverExpr) ?? sema.types.anyType
         let loadOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
@@ -541,7 +547,7 @@ extension KIRLoweringDriver {
         body.append(.call(
             symbol: innerLambdaSymbol,
             callee: innerLambdaName,
-            arguments: [loadedReceiver],
+            arguments: [loadedReceiver] + valueExprs,
             result: callResult,
             canThrow: false,
             thrownResult: nil
@@ -550,7 +556,7 @@ extension KIRLoweringDriver {
         body.append(.endBlock)
 
         let adapterDecl = arena.appendDecl(.function(KIRFunction(
-            symbol: adapterSymbol, name: adapterName, params: [closureParam],
+            symbol: adapterSymbol, name: adapterName, params: [closureParam] + valueParams,
             returnType: returnType, body: body, isSuspend: false, isInline: false
         )))
         ctx.appendGeneratedCallableDecl(adapterDecl)
@@ -583,9 +589,16 @@ extension KIRLoweringDriver {
         let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
+        let createCallee: InternedString = switch valueParams.count {
+        case 0: interner.intern("kk_function_create_0")
+        case 1: interner.intern("kk_function_create_1")
+        case 2: interner.intern("kk_function_create_2")
+        case 3: interner.intern("kk_function_create_3")
+        default: preconditionFailure("Unsupported delegate callback arity: \(valueParams.count)")
+        }
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_function_create_0"),
+            callee: createCallee,
             arguments: [adapterExpr, closureObj],
             result: materializedExpr,
             canThrow: false,
