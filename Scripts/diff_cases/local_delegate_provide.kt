@@ -27,6 +27,10 @@ class IntBoxFactory(private val initial: Int) {
     operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): IntBox = IntBox(initial)
 }
 
+class Holder {
+    val memberName by StrFactory("member")
+}
+
 fun main() {
     val name by StrFactory("hello")
     println(name)
@@ -37,4 +41,7 @@ fun main() {
     println(counter)
     counter = counter + 1
     println(counter)
+
+    val holder = Holder()
+    println(holder.memberName)
 }

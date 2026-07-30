@@ -327,6 +327,34 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testCodegenMemberProvideDelegateUsesResolvedOperator() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val value: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = value
+        }
+        class StrFactory(private val value: String) {
+            operator fun provideDelegate(thisRef: Any?, property: KProperty<*>): StrDelegate =
+                StrDelegate(value.uppercase())
+        }
+        class Holder {
+            val name by StrFactory("member")
+        }
+        fun main() {
+            println(Holder().name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberProvideDelegateResolvedOperator",
+            expected:
+                """
+                MEMBER
+                """ + "\n"
+        )
+    }
+
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
         // Regression guard: member-property custom delegates already worked
         // before this fix and share DeclTypeChecker+PropertyHelpers.swift's
