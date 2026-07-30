@@ -42,8 +42,8 @@
 ### Runtime: 完全到達不能 export / legacy bridge
 
 - [x] DEADCODE-RUNTIME-002: [E0] `RuntimeStringStdlib.swift:117` の `kk_string_capitalize(_:)` を削除し、`RuntimeABISpec+String.swift:1007` も消す。source-backed 実装は既存で external link nil（KSP-412 の子タスク）— PR #5024, verified
-- [ ] DEADCODE-RUNTIME-003: [E0] `RuntimeStringHOF.swift:1355` の `kk_string_onEach_flat(...)` を削除する。raw `kk_string_onEach` は compiler emit + ABI spec ありのため残す
-- [ ] DEADCODE-RUNTIME-004: [E0] `RuntimeStringHOF.swift:1561` の `kk_string_onEachIndexed_flat(...)` を削除する。raw 版は残す
+- [x] DEADCODE-RUNTIME-003: [E0] `RuntimeStringHOF.swift:1355` の `kk_string_onEach_flat(...)` を削除する。raw `kk_string_onEach` は compiler emit + ABI spec ありのため残す — PR #5021 (0f88effb88) で削除済み、raw 版の ABI spec/compiler 参照存続をリポジトリ全体検索で確認。TODO 未更新だっただけと判明
+- [x] DEADCODE-RUNTIME-004: [E0] `RuntimeStringHOF.swift:1561` の `kk_string_onEachIndexed_flat(...)` を削除する。raw 版は残す — PR #5021 (0f88effb88) で削除済み、raw `kk_string_onEachIndexed` の ABI spec 登録・compiler 参照存続をリポジトリ全体検索で確認。TODO 未更新だっただけと判明
 - [ ] DEADCODE-RUNTIME-005: [E0] `RuntimeStringConversion.swift:603` の `__kk_string_toBigDecimalOrNull_flat(...)` を削除する。raw `__kk_string_toBigDecimalOrNull` は bundled source / compiler fallback / runtime test から到達するため残す
 - [x] DEADCODE-RUNTIME-006: [E0] `RuntimeStringConversion.swift:644` の `__kk_string_toBigIntegerOrNull_flat(...)` を削除する。raw `__kk_string_toBigIntegerOrNull` は bundled source / compiler fallback / runtime test から到達するため残す — Runtime 側の実装は PR #5020 で既に削除済みだったが、`NativeEmitter+FunctionEmission.swift` の `FlatScalarReturnCallSpec` と `RuntimeABISpec+String.swift` に参照が残存（CompilerCore はこの flat 名を一切 emit しないため到達不能な死んだエントリだった）。両方を削除して整合。
 - [x] DEADCODE-RUNTIME-008: [E0] `RuntimeStringStdlib.swift:237` の raw `__kk_string_normalize` を削除する。旧 `ABIMismatchTests+NonThrowingParity.swift` の legacy snapshot は f922ed768b で削除済み。live な `_flat` 版は残す — PR #5024, verified
