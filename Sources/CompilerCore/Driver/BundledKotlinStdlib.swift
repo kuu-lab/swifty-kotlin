@@ -60,10 +60,13 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
 }
 """
 
-    // repeat / reversed / padStart / padEnd are pure Kotlin but not yet in .kt files.
-    // encodeToByteArray / decodeToString delegate to C-bridge primitives (__kk_*).
-    // The case-conversion functions (lowercase, uppercase, capitalize, replaceFirstChar,
-    // locale variants) have been migrated to StringCaseConversion.kt.
+    // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
+    // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
+    // StringEncoding.kt (delegating to the __kk_-prefixed bridges in RuntimeStringEncoding.swift);
+    // kotlinx.cinterop.ByteArray.toKString has been migrated to CInteropExtensions.kt.
+    // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
+    // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
+    // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
     static let kotlinTextSource = ""
 
     // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
