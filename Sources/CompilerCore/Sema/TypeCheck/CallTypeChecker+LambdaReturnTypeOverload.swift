@@ -138,8 +138,41 @@ extension CallTypeChecker {
             return driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
         }
 
+        // An inline range literal (e.g. `1..3`) is bound with its element type
+        // (Int) plus a range-expr marker, so it does not match a range-class
+        // parameter (IntRange) by subtyping alone. When a candidate expects a
+        // range-like parameter at this position, report the argument as the
+        // corresponding range class type so source-backed overloads such as
+        // String.slice(IntRange) resolve.
+        let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
+            let type = argTypes[index]
+            guard !lambdaLiteralIndices.contains(index),
+                  let rangeClassType = sourceLevelRangeMemberLookupType(
+                      receiverExpr: argument.expr,
+                      receiverType: type,
+                      sema: sema,
+                      interner: ctx.interner
+                  ),
+                  candidates.contains(where: { candidate in
+                      guard let signature = sema.symbols.functionSignature(for: candidate),
+                            let parameterType = parameterTypeForArgument(at: index, in: signature)
+                      else {
+                          return false
+                      }
+                      return driver.helpers.isRangeLikeType(
+                          sema.types.makeNonNullable(parameterType),
+                          sema: sema,
+                          interner: ctx.interner
+                      )
+                  })
+            else {
+                return type
+            }
+            return rangeClassType
+        }
+
         return PreparedCallArguments(
-            argTypes: argTypes,
+            argTypes: refinedArgTypes,
             lambdaLiteralIndices: lambdaLiteralIndices,
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
             blockedLambdaRefinement: blockedLambdaRefinement

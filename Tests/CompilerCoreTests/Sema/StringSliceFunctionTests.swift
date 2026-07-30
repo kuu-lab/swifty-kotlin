@@ -4,7 +4,8 @@ import Testing
 
 /// STDLIB-TEXT-FN-068: Validates that `kotlin.text.String.slice` resolves
 /// through Sema for both the IntRange overload and the Iterable<Int> overload.
-/// Runtime link names involved: `kk_string_slice_range`, `kk_string_slice_iterable`.
+/// After KSP-406 both overloads are bundled Kotlin source (StringSubstringSlice.kt)
+/// with no String-specific runtime helper.
 @Suite
 struct StringSliceFunctionTests {
     @Test func testSliceRangeOverloadResolvesInSource() throws {
