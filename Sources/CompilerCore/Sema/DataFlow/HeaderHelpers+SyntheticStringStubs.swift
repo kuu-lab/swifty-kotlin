@@ -140,23 +140,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-TEXT-TYPE-004: kotlin.text.CASE_INSENSITIVE_ORDER comparator ---
-        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
-        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
-            let caseInsensitiveOrderType = types.make(.classType(ClassType(
-                classSymbol: comparatorSymbol,
-                args: [.invariant(stringType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticStringTopLevelProperty(
-                named: "CASE_INSENSITIVE_ORDER",
-                packageFQName: kotlinTextPkg,
-                returnType: caseInsensitiveOrderType,
-                externalLinkName: "kk_string_case_insensitive_order",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // --- STDLIB-TEXT-TYPE-004: String.CASE_INSENSITIVE_ORDER comparator ---
+        // BUG-154: In real Kotlin this is `String.Companion.CASE_INSENSITIVE_ORDER`
+        // (accessed as `String.CASE_INSENSITIVE_ORDER`), *not* a top-level
+        // `kotlin.text.CASE_INSENSITIVE_ORDER`. It is registered as a member of
+        // String's companion object below (see STDLIB-TEXT-TYPE-004 companion
+        // block, after `stringClassSymbol` is established).
 
         registerSyntheticStringExtensionFunction(
             named: "length",
@@ -536,25 +525,8 @@ extension DataFlowSemaPhase {
         )
 
 
-        registerSyntheticStringExtensionFunction(
-            named: "subSequence",
-            externalLinkName: "kk_string_subSequence_flat",
-            receiverType: stringType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use substring(startIndex, endIndex) instead.\"",
-                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
-                    ]
-                ),
-            ],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: subSequence/substring are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
@@ -579,33 +551,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
@@ -1486,99 +1431,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-188: replaceRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_indices",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-008: removeRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_range_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
-        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
-        // KIR lowering distinguishes the two via isRangeExpr on the argument.
-        let listOfIntTypeForSlice = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_range",
-            receiverType: stringType,
-            parameters: [
-                ("indices", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_iterable",
-            receiverType: stringType,
-            parameters: [
-                ("indices", listOfIntTypeForSlice, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // --- STDLIB-189: String HOF (filter, map, count, any, all, none) ---
         let charToBoolType = types.make(.functionType(FunctionType(
@@ -2495,6 +2349,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-TEXT-TYPE-004: String.Companion.CASE_INSENSITIVE_ORDER ---
+        // BUG-154: registered as a companion (static) member of String, matching
+        // real Kotlin's `String.Companion.CASE_INSENSITIVE_ORDER`. There is no
+        // top-level `kotlin.text.CASE_INSENSITIVE_ORDER`, so a bare reference must
+        // stay unresolved. Reads route through the object-member read path
+        // (`loadGlobal`) backed by the object-parented synthetic external-property
+        // global initializer, which calls `kk_string_case_insensitive_order()`
+        // once at module init -- giving referential identity via a single global.
+        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
+        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
+            let caseInsensitiveOrderType = types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                args: [.invariant(stringType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticCompanionExternalProperty(
+                named: "CASE_INSENSITIVE_ORDER",
+                companionFQName: stringCompanionFQName,
+                returnType: caseInsensitiveOrderType,
+                externalLinkName: "kk_string_case_insensitive_order",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
         // Kotlin: "...".format(vararg args: Any?) -> String
