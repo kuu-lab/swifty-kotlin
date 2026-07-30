@@ -1,0 +1,23 @@
+fun main() {
+    // A transform lambda's Boolean/Char result must stay boxed when a HOF
+    // stores/forwards it into a generically-typed List for later rendering
+    // (kk_array_map and friends used to call maybeUnbox on it, which stripped
+    // the type tag and made these print as a raw 0/1 or code point instead of
+    // true/false or the character).
+    println(intArrayOf(1, 6, 3).map { it > 5 })
+    println(booleanArrayOf(true, false).map { it == true })
+    println(booleanArrayOf(true, false).map { it })
+    println(booleanArrayOf(true, false).map { !it })
+    println(charArrayOf('a', 'b').map { it })
+
+    // Same bug class in the Sequence eager-fallback and lazy per-step map
+    // paths (applyMapStep/runtimeApplyMapElement and the .mapStep/.mapIndexedStep
+    // cases in runtimeSequenceTransformElement).
+    println(sequenceOf(1, 6, 3).map { it > 5 }.toList())
+    println(intArrayOf(1, 6, 3).asSequence().map { it > 5 }.toList())
+    println(sequenceOf(1, 6, 3).mapIndexed { idx, v -> idx == 1 || v > 5 }.toList())
+
+    // mapNotNull/mapIndexed share the same runtimeMapNotNullResultValue helper.
+    println(listOf(1, 6, 3).mapNotNull { if (it > 10) null else it > 5 })
+    println(listOf(1, 6, 3).mapIndexed { idx, v -> idx == 1 || v > 5 })
+}
