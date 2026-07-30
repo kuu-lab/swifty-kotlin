@@ -1300,7 +1300,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "get",
-            externalLinkName: "kk_string_get_flat",
+            externalLinkName: "kk_char_sequence_get",
             receiverType: charSequenceType,
             parameters: [
                 ("index", intType, false, false),
