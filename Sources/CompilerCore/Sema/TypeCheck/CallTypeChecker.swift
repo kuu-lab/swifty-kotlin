@@ -2739,9 +2739,25 @@ final class CallTypeChecker {
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
             if let diagnostic = resolved.diagnostic {
+                if let calleeName,
+                   let recovered = tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
+                       id,
+                       calleeName: calleeName,
+                       args: args,
+                       argTypes: argTypes,
+                       range: range,
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: expectedType,
+                       scopeCandidates: candidates,
+                       ctx: ctx
+                   )
+                {
+                    return recovered
+                }
                 ctx.semaCtx.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType

@@ -499,9 +499,11 @@ extension KIRLoweringDriver {
             delegateValue
         }
         if let storageSym = delegateStorageSym {
-            let delegateType = sema.types.anyType
-            let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-            body.append(.copy(from: valueToStore, to: fieldRef))
+            emitFieldStore(
+                propSymbol: propSymbol, targetSymbol: storageSym,
+                value: valueToStore, valueType: sema.types.anyType,
+                shared: shared, compilationCtx: compilationCtx, body: &body
+            )
         }
     }
 
@@ -570,8 +572,11 @@ extension KIRLoweringDriver {
             preconditionFailure("emitStdlibDelegatePropertyInitializer must not be called for .custom")
         }
 
-        let fieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-        body.append(.copy(from: createResult, to: fieldRef))
+        emitFieldStore(
+            propSymbol: propSymbol, targetSymbol: storageSym,
+            value: createResult, valueType: delegateType,
+            shared: shared, compilationCtx: compilationCtx, body: &body
+        )
     }
 
     private func emitProvideDelegateCall(
@@ -590,8 +595,11 @@ extension KIRLoweringDriver {
             return delegateValue
         }
         let delegateType = sema.types.anyType
-        let tempFieldRef = arena.appendExpr(.symbolRef(storageSym), type: delegateType)
-        body.append(.copy(from: delegateValue, to: tempFieldRef))
+        emitFieldStore(
+            propSymbol: propSymbol, targetSymbol: storageSym,
+            value: delegateValue, valueType: delegateType,
+            shared: shared, compilationCtx: compilationCtx, body: &body
+        )
         let propertyName = sema.symbols.symbol(propSymbol)?.name
             ?? compilationCtx.interner.intern("")
         let thisRefExprID: KIRExprID

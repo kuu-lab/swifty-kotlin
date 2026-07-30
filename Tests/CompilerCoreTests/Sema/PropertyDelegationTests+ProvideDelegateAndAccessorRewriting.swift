@@ -5,6 +5,24 @@ import Testing
 
 // MARK: - SymbolTable Delegate Storage Tests
 
+/// DEBT-KIR-008: class-member delegate storage (`$delegate_x`) now writes
+/// through `kk_array_set` at the field's instance offset instead of a
+/// module-global `.copy`, so "delegate storage was initialized" must accept
+/// either shape — `.copy` still covers top-level/object delegates, which
+/// intentionally keep a single shared global slot.
+private func hasDelegateStorageWrite(_ body: [KIRInstruction], interner: StringInterner) -> Bool {
+    body.contains { instruction in
+        switch instruction {
+        case .copy:
+            return true
+        case let .call(_, callee, _, _, _, _, _, _):
+            return interner.resolve(callee) == "kk_array_set"
+        default:
+            return false
+        }
+    }
+}
+
 extension DelegateStorageSymbolTableTests {
     @Test func testConstructorInitializesDelegateStorage() throws {
         let source = """
@@ -28,13 +46,14 @@ extension DelegateStorageSymbolTableTests {
             }
             #expect(!constructors.isEmpty, "Expected constructor to be emitted")
 
-            // Verify the constructor body has a copy instruction (delegate storage init).
+            // Verify the constructor body initializes delegate storage (either
+            // a `.copy` to a global slot, or a `kk_array_set` instance-field
+            // write — see DEBT-KIR-008).
             if let ctor = constructors.first {
-                let hasCopy = ctor.body.contains { instruction in
-                    if case .copy = instruction { return true }
-                    return false
-                }
-                #expect(hasCopy, "Constructor should have a copy instruction to initialize delegate storage")
+                #expect(
+                    hasDelegateStorageWrite(ctor.body, interner: interner),
+                    "Constructor should have an instruction to initialize delegate storage"
+                )
             }
         }
     }
@@ -94,14 +113,14 @@ extension DelegateStorageSymbolTableTests {
             }
             #expect(!constructors.isEmpty, "Expected Foo constructor")
 
-            // Verify the constructor body has a copy instruction
-            // (delegate storage initialization).
+            // Verify the constructor body initializes delegate storage (either
+            // a `.copy` to a global slot, or a `kk_array_set` instance-field
+            // write — see DEBT-KIR-008).
             if let ctor = constructors.first {
-                let hasCopy = ctor.body.contains { instruction in
-                    if case .copy = instruction { return true }
-                    return false
-                }
-                #expect(hasCopy, "Constructor should initialize delegate storage")
+                #expect(
+                    hasDelegateStorageWrite(ctor.body, interner: interner),
+                    "Constructor should initialize delegate storage"
+                )
 
                 let callees = extractCallees(from: ctor.body, interner: interner)
                 // provideDelegate emission depends on type resolution;
