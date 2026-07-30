@@ -315,7 +315,9 @@ final class InlineLoweringPass: LoweringPass {
 
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
                 target
-            } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
+            } else if symbol == nil || symbol == .invalid,
+                      let byName = inlineFunctionsByName[callee], byName.count == 1
+            {
                 byName[0]
             } else {
                 nil

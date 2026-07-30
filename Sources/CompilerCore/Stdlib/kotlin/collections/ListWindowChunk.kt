@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
 // MIGRATION-COL-009
 // List window/chunk HOFs migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
@@ -103,3 +105,27 @@ public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> =
 
 public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> =
     __kk_list_zip_transform(this, other, transform)
+
+@KsSymbolName("kk_indexed_value_new")
+private external fun <T> kk_indexed_value_new(index: Int, value: T): IndexedValue<T>
+
+public fun <T> List<T>.withIndex(): Iterable<IndexedValue<T>> {
+    val result = mutableListOf<IndexedValue<T>>()
+    var i = 0
+    while (i < size) {
+        result.add(kk_indexed_value_new(i, this[i]))
+        i += 1
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
+    val list = this.toMutableList()
+    val result = mutableListOf<IndexedValue<T>>()
+    var i = 0
+    while (i < list.size) {
+        result.add(kk_indexed_value_new(i, list[i]))
+        i += 1
+    }
+    return result
+}

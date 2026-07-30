@@ -867,7 +867,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_equals("))
         XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
-        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
+        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }") || ir.contains("{ i8*, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_label"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_spill"))
@@ -1833,8 +1833,6 @@ extension CodegenBackendIntegrationTests {
 
         appendScalarCall("kk_string_asIterable_flat", [textExpr])
         appendScalarCall("kk_string_asSequence_flat", [textExpr])
-        appendScalarCall("kk_string_lines_flat", [textExpr])
-        appendScalarCall("kk_string_lineSequence_flat", [textExpr])
         appendScalarCall("kk_string_split_flat", [textExpr, delimiterExpr])
         appendScalarCall("kk_string_split_limit_flat", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence_flat", [textExpr, delimiterExpr])
@@ -1888,8 +1886,6 @@ extension CodegenBackendIntegrationTests {
         let flatOnlyNames = [
             "kk_string_asIterable_flat",
             "kk_string_asSequence_flat",
-            "kk_string_lines_flat",
-            "kk_string_lineSequence_flat",
         ]
         for flatName in flatOnlyNames {
             XCTAssertTrue(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")

@@ -260,7 +260,7 @@ extension KIRLoweringDriver {
             case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
                  "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
-                 "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+                 "reversed", "shuffled":
                 return true
             default:
                 return false

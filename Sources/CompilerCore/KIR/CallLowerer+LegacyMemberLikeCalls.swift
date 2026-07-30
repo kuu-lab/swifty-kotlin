@@ -198,37 +198,8 @@ extension CallLowerer {
             return selected
         }()
 
-        if args.count == 1,
-           interner.resolve(calleeName) == "sortedWith"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let isComparatorLambdaArg = ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef ?? false
-            if isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isComparatorLambdaArg
-            {
-                let sortedWithArguments = adaptComparatorBackedCollectionArguments(
-                    loweredCallee: interner.intern("kk_list_sortedWith"),
-                    finalArguments: [loweredReceiverID] + normalizedArgIDs,
-                    sourceArgExprs: args.map(\.expr),
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_sortedWith"),
-                    arguments: sortedWithArguments,
-                    result: result,
-                    canThrow: true,
-                    thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
-                    )
-                ))
-                return result
-            }
-        }
-
+        // KSP-426: List.sortedWith is now bundled Kotlin source that accepts Comparator<T>.
+        // Keep only Array.sortedArrayWith as a runtime-backed helper.
         if args.count == 1,
            interner.resolve(calleeName) == "sortedArrayWith"
         {
@@ -2537,6 +2508,30 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCallee {
+                    let runtimeHOFWithLambdaCallees: Set<String> = [
+                        "kk_array_map", "kk_array_filter", "kk_array_forEach",
+                        "kk_array_any", "kk_array_all", "kk_array_none", "kk_array_count",
+                        "kk_iterable_firstNotNullOf", "kk_iterable_firstNotNullOfOrNull",
+                        "kk_array_reduce", "kk_array_reduceOrNull", "kk_array_reduceIndexed",
+                        "kk_array_fold", "kk_array_foldIndexed", "kk_array_flatMap",
+                    ]
+                    let callArguments: [KIRExprID]
+                    if runtimeHOFWithLambdaCallees.contains(runtimeCallee),
+                       normalizedArgIDs.count == 1,
+                       args.count == 1
+                    {
+                        let expandedArgs = makeCollectionHOFExpandedArguments(
+                            loweredArgID: normalizedArgIDs[0],
+                            argExprID: args[0].expr,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        callArguments = [loweredReceiverID] + expandedArgs
+                    } else {
+                        callArguments = [loweredReceiverID] + normalizedArgIDs
+                    }
                     let canThrow = runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
                         || runtimeCallee == "kk_array_reduce"
@@ -2545,6 +2540,11 @@ extension CallLowerer {
                         || runtimeCallee == "kk_array_fold"
                         || runtimeCallee == "kk_array_foldIndexed"
                         || runtimeCallee == "kk_array_flatMap"
+                        || runtimeCallee == "kk_array_any"
+                        || runtimeCallee == "kk_array_all"
+                        || runtimeCallee == "kk_array_none"
+                        || runtimeCallee == "kk_array_forEach"
+                        || runtimeCallee == "kk_array_count"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
                             .temporary(Int32(arena.expressions.count)),
@@ -2554,7 +2554,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        arguments: callArguments,
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult
@@ -3129,62 +3129,21 @@ extension CallLowerer {
                 }()
                 if !isSourceBackedListCall {
                 let calleeStr = interner.resolve(calleeName)
-                let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
+                // KSP-426: List sort/max/min HOFs are now bundled Kotlin source.
                 let runtimeCallee: String? = switch calleeStr {
-                case "sortedBy":
-                    primitiveSelectorKind != nil ? "kk_list_sortedBy_primitive" : "kk_list_sortedBy"
-                case "sortedByDescending":
-                    primitiveSelectorKind != nil ? "kk_list_sortedByDescending_primitive" : "kk_list_sortedByDescending"
                 case "distinctBy":
                     "kk_list_distinctBy"
                 case "dropLastWhile":
                     "kk_list_dropLastWhile"
-                case "sortedWith":
-                    "kk_list_sortedWith"
-                case "maxOf":
-                    "kk_list_maxOf"
-                case "minOf":
-                    "kk_list_minOf"
-                case "max":
-                    "kk_list_max"
-                case "min":
-                    "kk_list_min"
-                case "maxWith":
-                    "kk_list_maxWith"
-                case "maxWithOrNull":
-                    "kk_list_maxWithOrNull"
-                case "minWith":
-                    "kk_list_minWith"
-                case "minWithOrNull":
-                    "kk_list_minWithOrNull"
-                case "maxOfWith":
-                    "kk_list_maxOfWith"
-                case "maxOfWithOrNull":
-                    "kk_list_maxOfWithOrNull"
-                case "minOfWith":
-                    "kk_list_minOfWith"
-                case "minOfWithOrNull":
-                    "kk_list_minOfWithOrNull"
-                case "minBy":
-                    "kk_list_minBy"
                 case "intersect":
                     "kk_list_intersect"
                 default:
                     nil
                 }
                 if let runtimeCallee {
-                    var callArguments = [loweredReceiverID] + normalizedArgIDs
-                    if let primitiveSelectorKind,
-                       runtimeCallee == "kk_list_sortedBy_primitive" || runtimeCallee == "kk_list_sortedByDescending_primitive"
-                    {
-                        let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveSelectorKind.rawValue)), type: sema.types.intType)
-                        instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
-                        callArguments.append(kindExpr)
-                    }
+                    let callArguments = [loweredReceiverID] + normalizedArgIDs
                     let canThrow = runtimeCallee == "kk_list_distinctBy"
                         || runtimeCallee == "kk_list_dropLastWhile"
-                        || runtimeCallee == "kk_list_minBy"
-                        || runtimeCallee == "kk_list_min"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
@@ -3194,8 +3153,8 @@ extension CallLowerer {
                         thrownResult: nil
                     ))
                     return result
-                    }
                 }
+            }
             }
             if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let calleeStr = interner.resolve(calleeName)

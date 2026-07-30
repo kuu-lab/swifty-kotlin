@@ -1,5 +1,7 @@
 package kotlin.ranges
 
+import kotlin.internal.KsSymbolName
+
 // MIGRATION-RANGE-001
 // contains(value) / isEmpty() for IntRange, LongRange, CharRange, IntProgression,
 // LongProgression, CharProgression.
@@ -37,6 +39,7 @@ private fun rangeIsEmptyLong(first: Long, last: Long, step: Long): Boolean =
 private fun rangeIsEmptyChar(first: Char, last: Char, step: Long): Boolean =
     if (step > 0L) first > last else if (step < 0L) first < last else true
 
+@KsSymbolName("kk_range_isEmpty")
 public fun IntRange.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun IntProgression.isEmpty(): Boolean = rangeIsEmptyInt(first, last, step.toLong())
 public fun LongRange.isEmpty(): Boolean = rangeIsEmptyLong(first, last, step)
@@ -81,10 +84,21 @@ private fun containsChar(value: Char, first: Char, last: Char, step: Int): Boole
     return (value - first) % step == 0
 }
 
+@KsSymbolName("kk_range_contains")
 public operator fun IntRange.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun IntProgression.contains(value: Int): Boolean = containsInt(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun LongRange.contains(value: Long): Boolean = containsLong(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun LongProgression.contains(value: Long): Boolean =
     containsLong(value, first, last, step.toLong())
+
+@KsSymbolName("kk_range_contains")
 public operator fun CharRange.contains(value: Char): Boolean = containsChar(value, first, last, step)
+
+@KsSymbolName("kk_range_contains")
 public operator fun CharProgression.contains(value: Char): Boolean = containsChar(value, first, last, step)

@@ -400,12 +400,11 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testNewPaddingStubsHaveCorrectExternalLinks() throws {
+    @Test func testSourceBackedStringStubsHaveNoExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        // padStart and padEnd are now bundled Kotlin functions with a default parameter.
-        // They have a single symbol with no C external link.
-        for member in ["padStart", "padEnd"] {
+        // These bundled Kotlin source extensions should not have any C external link.
+        for member in ["padStart", "padEnd", "lines", "lineSequence"] {
             let fq = ["kotlin", "text", member].map { interner.intern($0) }
             let symbols = sema.symbols.lookupAll(fqName: fq)
             #expect(!symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
@@ -421,8 +420,6 @@ struct StringSyntheticMemberLinkTests {
             ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
             ("toCollection", 1, "kk_string_toCollection_flat"),
             ("asIterable", 0, "kk_string_asIterable_flat"),
-            ("lines", 0, "kk_string_lines_flat"),
-            ("lineSequence", 0, "kk_string_lineSequence_flat"),
 
             ("toByteArray", 0, "kk_string_toByteArray_flat"),
             ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),

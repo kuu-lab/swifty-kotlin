@@ -30,6 +30,7 @@ struct CollectionHOFManifestDecodeErrorTests {
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
             ]
+
             // mapIndexed is now provided by bundled Kotlin source (top-level extension).
             let mapIndexedSource = sema.symbols.lookup(
                 fqName: collectionsFQ + [ctx.interner.intern("mapIndexed")]

@@ -231,23 +231,16 @@ enum MemberRuntimeDispatch {
         case "contains":
             if kind.isULongRangeLike { return "kk_ulong_range_contains" }
             if kind.isUIntRangeLike { return "kk_uint_range_contains" }
-            if kind.isLongRangeLike { return "kk_long_range_contains" }
-            return "kk_op_contains"
+            return "kk_range_contains"
         case "isEmpty":
-            return rangeRuntimeName(
-                kind: kind,
-                member: "isEmpty",
-                longMember: "isEmpty",
-                charMember: "isEmpty",
-                charProgressionUsesChar: true
-            )
+            return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
             return "kk_range_endExclusive"
         case "sum":
             if kind.isUIntRangeLike { return "kk_uint_range_sum" }
             return "kk_range_sum"
         case "count":
-            return rangeRuntimeName(kind: kind, member: "count", longMember: "count")
+            return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
             return rangeRuntimeName(
                 kind: kind,
@@ -333,7 +326,7 @@ enum MemberRuntimeDispatch {
         case "sorted":
             return rangeRuntimeName(kind: kind, member: "sorted", longMember: "sorted", charMember: "sorted")
         case "reversed":
-            return rangeRuntimeName(kind: kind, member: "reversed", longMember: "reversed")
+            return rangeRuntimeName(kind: kind, member: "reversed")
         case "step":
             if key.arity == 0 {
                 return rangeRuntimeName(
@@ -396,8 +389,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCharArray_flat")
         case ("toRegex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toRegex_flat")
-        case ("lines", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lines_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):

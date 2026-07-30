@@ -37,6 +37,26 @@ public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
     return result
 }
 
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val list = this.toMutableList()
+    if (list.size > 1) {
+        var i = 0
+        while (i < list.size - 1) {
+            var j = 0
+            while (j < list.size - i - 1) {
+                if (list[j + 1] < list[j]) {
+                    val tmp = list[j]
+                    list[j] = list[j + 1]
+                    list[j + 1] = tmp
+                }
+                j++
+            }
+            i++
+        }
+    }
+    return list
+}
+
 public fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): List<T> {
     val result = mutableListOf<T>()
     val keys = mutableListOf<R>()
@@ -73,19 +93,151 @@ public fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R)
     return result
 }
 
-public fun <T> List<T>.sortedWith(comparator: (T, T) -> Int): List<T> {
+public fun <T> List<T>.sortedWith(comparator: Comparator<T>): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     while (i < size) {
         val element = this[i]
         var insertAt = result.size
-        while (insertAt > 0 && comparator(result[insertAt - 1], element) > 0) {
+        while (insertAt > 0 && comparator.compare(result[insertAt - 1], element) > 0) {
             insertAt--
         }
         result.add(insertAt, element)
         i++
     }
     return result
+}
+
+public fun <T : Comparable<T>> List<T>.sortedDescending(): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && result[insertAt - 1].compareTo(element) < 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> MutableList<T>.sort() {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (this[j + 1] < this[j]) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+}
+
+public fun <T : Comparable<T>> MutableList<T>.sortDescending() {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (this[j + 1] > this[j]) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+}
+
+public fun <T, R : Comparable<R>> MutableList<T>.sortBy(selector: (T) -> R) {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (selector(this[j + 1]) < selector(this[j])) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+}
+
+public fun <T, R : Comparable<R>> MutableList<T>.sortByDescending(selector: (T) -> R) {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (selector(this[j + 1]) > selector(this[j])) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+}
+
+public fun <T> MutableList<T>.sortWith(comparator: Comparator<T>) {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (comparator.compare(this[j + 1], this[j]) < 0) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+}
+
+public fun <T> List<T>.sortedWith(comparison: (T, T) -> Int): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && comparison(result[insertAt - 1], element) > 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T> MutableList<T>.sortWith(comparison: (T, T) -> Int) {
+    if (size <= 1) return
+    var i = 0
+    while (i < size - 1) {
+        var j = 0
+        while (j < size - i - 1) {
+            if (comparison(this[j + 1], this[j]) < 0) {
+                val tmp = this[j]
+                this[j] = this[j + 1]
+                this[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
 }
 
 public fun <T> List<T>.shuffled(): List<T> = shuffled(Random.Default)

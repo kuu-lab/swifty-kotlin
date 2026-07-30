@@ -8,14 +8,20 @@ import Foundation
 enum BundledKotlinStdlib {
     /// Bundled `.kt` files under `Stdlib/` that are discovered by
     /// `LoadSourcesPhase` but should not be injected into the compilation.
+    ///
+    /// KSP-301: ghost entries (ResultExtensions, AdvancedLogger,
+    /// KClassAnnotationRegistration, StringBasics, StringEncoding) were already
+    /// removed from this list. KSP-312 wired RangeIterators and KSP-305 wires
+    /// CollectionFactories, so no bundled stdlib files are currently excluded.
     static let excludedBundledStdlibFiles: Set<String> = [
     ]
 
-    // sumOf / maxByOrNull / minByOrNull are not yet in standalone .kt files.
+    // sumOf is not yet in a standalone .kt file.
     // count / any / all / none / contains / containsAll / lastIndexOf have been
-    // migrated to ListSearchHOF.kt. The remaining collection HOFs (aggregate,
-    // filter, sorting, set) are in ListAggregateHOF.kt, ListFilterHOF.kt,
-    // ListSortingHOF.kt, and SetHOF.kt respectively.
+    // migrated to ListSearchHOF.kt. maxByOrNull / minByOrNull and the rest of
+    // the extrema family are in ListExtremaHOF.kt. The remaining collection
+    // HOFs (aggregate, filter, sorting, set) are in ListAggregateHOF.kt,
+    // ListFilterHOF.kt, ListSortingHOF.kt, and SetHOF.kt respectively.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
@@ -24,34 +30,6 @@ public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var i = 0
     while (i < size) { sum += selector(this[i]); i += 1 }
     return sum
-}
-
-public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key > bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
-}
-
-public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
-    if (size == 0) return null
-    var bestElem = this[0]
-    var bestKey = selector(bestElem)
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        val key = selector(elem)
-        if (key < bestKey) { bestElem = elem; bestKey = key }
-        i += 1
-    }
-    return bestElem
 }
 """
 

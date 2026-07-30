@@ -54,8 +54,32 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
+            // KSP-426: List sorting and extrema HOFs have Kotlin source implementations.
+            || callee == lookup.sortedName
+            || callee == lookup.sortedDescendingName
+            || callee == lookup.sortedByName
+            || callee == lookup.sortedByDescendingName
+            || callee == lookup.sortedWithName
+            || callee == lookup.maxName
+            || callee == lookup.minName
+            || callee == lookup.maxOrNullName
+            || callee == lookup.minOrNullName
+            || callee == lookup.maxByName
+            || callee == lookup.minByName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
+            || callee == lookup.maxOfName
+            || callee == lookup.minOfName
+            || callee == lookup.maxOfOrNullName
+            || callee == lookup.minOfOrNullName
+            || callee == lookup.maxWithName
+            || callee == lookup.minWithName
+            || callee == lookup.maxWithOrNullName
+            || callee == lookup.minWithOrNullName
+            || callee == lookup.maxOfWithName
+            || callee == lookup.minOfWithName
+            || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithOrNullName
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
@@ -702,138 +726,34 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
-        guard callee == lookup.groupByName || callee == lookup.sortedByName
+        // KSP-426: List sorting and extrema HOFs are now bundled Kotlin source.
+        // Only groupBy/associate*/distinctBy still route to runtime helpers here.
+        guard callee == lookup.groupByName
             || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
-            || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
-            || callee == lookup.maxByName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
-            || callee == lookup.maxOfOrNullName || callee == lookup.minOfOrNullName
-            || callee == lookup.maxOfName || callee == lookup.minOfName
-            || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
-            || callee == lookup.minWithName || callee == lookup.minWithOrNullName
-            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
             || callee == lookup.distinctByName
         else {
             return false
         }
-        let acceptsTwoArguments = callee == lookup.sortedWithName
-            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
-        guard arguments.count == 1 || (acceptsTwoArguments && arguments.count == 2),
-              listExprIDs.contains(receiver.rawValue)
-        else { return false }
+        guard arguments.count == 1, listExprIDs.contains(receiver.rawValue) else { return false }
 
         let kkName: InternedString = switch callee {
         case lookup.groupByName: lookup.kkListGroupByName
-        case lookup.sortedByName: lookup.kkListSortedByName
-        case lookup.sortedByDescendingName: lookup.kkListSortedByDescendingName
-        case lookup.sortedWithName: lookup.kkListSortedWithName
         case lookup.associateByName: lookup.kkListAssociateByName
         case lookup.associateWithName: lookup.kkListAssociateWithName
         case lookup.associateName: lookup.kkListAssociateName
-        case lookup.maxByName: lookup.kkListMaxByName
-        case lookup.maxByOrNullName: lookup.kkListMaxByOrNullName
-        case lookup.minByOrNullName: lookup.kkListMinByOrNullName
-        case lookup.maxOfOrNullName: lookup.kkListMaxOfOrNullName
-        case lookup.minOfOrNullName: lookup.kkListMinOfOrNullName
-        case lookup.maxOfName: lookup.kkListMaxOfName
-        case lookup.minOfName: lookup.kkListMinOfName
-        case lookup.maxWithName: lookup.kkListMaxWithName
-        case lookup.maxWithOrNullName: lookup.kkListMaxWithOrNullName
-        case lookup.minWithName: lookup.kkListMinWithName
-        case lookup.minWithOrNullName: lookup.kkListMinWithOrNullName
-        case lookup.maxOfWithName: lookup.kkListMaxOfWithName
-        case lookup.maxOfWithOrNullName: lookup.kkListMaxOfWithOrNullName
-        case lookup.minOfWithName: lookup.kkListMinOfWithName
-        case lookup.minOfWithOrNullName: lookup.kkListMinOfWithOrNullName
         case lookup.distinctByName: lookup.kkListDistinctByName
         default: callee
         }
 
-        var hofArgs: [KIRExprID]
-        if callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
-            || callee == lookup.minWithName || callee == lookup.minWithOrNullName, arguments.count == 1 {
-            let comparatorExpr = arguments[0]
-            let source = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
-            if let (trampolineName, closureExpr) = retainedComparatorRuntimePair(
-                source: source,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
-                loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                hofArgs = [trampolineExpr, closureExpr]
-            } else {
-                let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
-                hofArgs = [comparatorExpr, zero]
-            }
-        } else if callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName, arguments.count == 2 {
-            let comparatorExpr = arguments[0]
-            let selectorExpr = arguments[1]
-            let cmpSource = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: context.functionBody,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            if let (cmpTrampolineName, cmpClosureExpr) = retainedComparatorRuntimePair(
-                source: cmpSource,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let cmpTrampolineExpr = module.arena.appendExpr(.externSymbolAddress(cmpTrampolineName), type: nil)
-                loweredBody.append(.constValue(result: cmpTrampolineExpr, value: .externSymbolAddress(cmpTrampolineName)))
-                hofArgs = [cmpTrampolineExpr, cmpClosureExpr, selectorExpr, zeroExpr]
-            } else {
-                hofArgs = [comparatorExpr, zeroExpr, selectorExpr, zeroExpr]
-            }
-        } else {
-            hofArgs = arguments
-        }
-        let needsClosureRaw = callee != lookup.maxByName
-            && callee != lookup.maxByOrNullName && callee != lookup.minByOrNullName
-            && callee != lookup.maxOfOrNullName && callee != lookup.minOfOrNullName
-            && callee != lookup.maxOfWithName && callee != lookup.maxOfWithOrNullName
-            && callee != lookup.minOfWithName && callee != lookup.minOfWithOrNullName
-        if needsClosureRaw {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            hofArgs.append(zeroExpr)
-        }
-
+        let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+        loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let hofResult = emitHOFCall(
-            kkName: kkName, receiver: receiver, arguments: hofArgs,
+            kkName: kkName, receiver: receiver, arguments: arguments + [zeroExpr],
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module,
             loweredBody: &loweredBody
         )
-        if callee == lookup.sortedByName || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
-            || callee == lookup.distinctByName,
-           let result
-        {
+        if callee == lookup.distinctByName, let result {
             listExprIDs.insert(result.rawValue)
             listExprIDs.insert(hofResult.rawValue)
         }

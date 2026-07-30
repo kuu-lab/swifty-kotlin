@@ -2,10 +2,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-PROP-013: Validates that `kotlin.text.isLowerCase` resolves
-/// through Sema as a Char extension (Kotlin spec defines it as `fun
-/// Char.isLowerCase(): Boolean`). The runtime link name involved is
-/// `kk_char_isLowerCase`.
+/// STDLIB-TEXT-PROP-013 / KSP-661: Validates that `kotlin.text.isLowerCase`
+/// resolves through Sema as a Char extension (`fun Char.isLowerCase(): Boolean`).
+/// The predicate is implemented in bundled Kotlin (kotlin.text.CharPredicates).
 @Suite
 struct CharIsLowerCaseFunctionTests {
     @Test func testIsLowerCaseResolvesOnCharLiteralReceiver() throws {

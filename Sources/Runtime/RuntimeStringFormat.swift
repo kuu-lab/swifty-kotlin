@@ -418,15 +418,6 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 
 // MARK: - Public @_cdecl functions: String.format
 
-@_cdecl("__kk_string_format")
-public func __kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
-    let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments))
-}
-
 @_cdecl("kk_string_format_flat")
 public func kk_string_format_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -499,66 +490,6 @@ public func kk_string_format_locale_flat(
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
-    )
-}
-
-// MARK: - Public @_cdecl functions: Indent operations
-
-@_cdecl("__kk_string_trimIndent")
-public func kk_string_trimIndent(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeTrimIndent(source))
-}
-
-@_cdecl("__kk_string_trimMargin")
-public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
-    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "marginPrefix must be non-blank string."
-        )
-        return runtimeMakeStringRaw("")
-    }
-    return runtimeMakeStringRaw(runtimeTrimMargin(source, marginPrefix: marginPrefix))
-}
-
-// MARK: - STDLIB-191: prependIndent / replaceIndent
-
-@_cdecl("__kk_string_prependIndent")
-public func kk_string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let indent = runtimeStringFromRaw(indentRaw) ?? " "
-    return runtimeMakeStringRaw(runtimePrependIndent(source, indent: indent))
-}
-
-@_cdecl("__kk_string_replaceIndent")
-public func kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let newIndent = runtimeStringFromRawOrPanic(newIndentRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeReplaceIndent(source, newIndent: newIndent))
-}
-
-@_cdecl("__kk_string_replaceIndentByMargin")
-public func kk_string_replaceIndentByMargin(
-    _ strRaw: Int,
-    _ newIndentRaw: Int,
-    _ marginPrefixRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let newIndent = runtimeStringFromRaw(newIndentRaw) ?? ""
-    let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
-    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "marginPrefix must be non-blank string."
-        )
-        return runtimeMakeStringRaw("")
-    }
-    return runtimeMakeStringRaw(
-        runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
     )
 }
 

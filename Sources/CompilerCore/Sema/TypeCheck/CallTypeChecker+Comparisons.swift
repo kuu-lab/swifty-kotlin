@@ -15,7 +15,13 @@ extension CallTypeChecker {
             return nil
         }
         let expectedPrefix = [ctx.interner.intern("kotlin"), ctx.interner.intern("comparisons")]
-        let onlyStdlibComparisonCandidates = visibleCandidates.allSatisfy { symbolID in
+        let topLevelCandidates = visibleCandidates.filter { symbolID in
+            ctx.sema.symbols.functionSignature(for: symbolID)?.receiverType == nil
+        }
+        guard !topLevelCandidates.isEmpty else {
+            return nil
+        }
+        let onlyStdlibComparisonCandidates = topLevelCandidates.allSatisfy { symbolID in
             guard let symbol = ctx.sema.symbols.symbol(symbolID) else {
                 return false
             }

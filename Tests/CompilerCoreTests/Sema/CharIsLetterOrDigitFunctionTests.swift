@@ -2,8 +2,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-PROP-012: Validates that `Char.isLetterOrDigit()` resolves through Sema
-/// and links to the runtime helper `kk_char_isLetterOrDigit`.
+/// STDLIB-TEXT-PROP-012 / KSP-661: Validates that `Char.isLetterOrDigit()`
+/// resolves through Sema. The predicate is implemented in bundled Kotlin
+/// (kotlin.text.CharPredicates), so it carries no synthetic runtime link.
 @Suite
 struct CharIsLetterOrDigitFunctionTests {
     @Test func testCharIsLetterOrDigitResolvesInSource() throws {
@@ -59,7 +60,8 @@ struct CharIsLetterOrDigitFunctionTests {
             },
             "Expected synthetic kotlin.text.isLetterOrDigit extension on Char"
         )
-        #expect(sema.symbols.externalLinkName(for: sym) == "kk_char_isLetterOrDigit")
+        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
+        #expect(sema.symbols.externalLinkName(for: sym) == nil)
     }
 
     @Test func testCharIsLetterOrDigitReturnsBoolean() throws {

@@ -103,7 +103,7 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKThrowableNewSignature() throws {
-        let spec = try requireSpec("kk_throwable_new")
+        let spec = try requireSpec("__kk_throwable_new")
         XCTAssertEqual(spec.returnType, .opaquePointer)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
@@ -680,38 +680,6 @@ final class ABIMismatchTests: XCTestCase {
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
-    }
-
-    func testKKStringIndentSourceBridgeSignatures() throws {
-        let trimIndent = try requireSpec("__kk_string_trimIndent")
-        XCTAssertEqual(trimIndent.returnType, .intptr)
-        XCTAssertEqual(trimIndent.parameters.map(\.type), [.intptr])
-
-        let trimMargin = try requireSpec("__kk_string_trimMargin")
-        XCTAssertEqual(trimMargin.returnType, .intptr)
-        XCTAssertEqual(trimMargin.parameters.map(\.type), [
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-        ])
-
-        for name in ["__kk_string_prependIndent", "__kk_string_replaceIndent"] {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .intptr)
-            XCTAssertEqual(spec.parameters.map(\.type), [
-                .intptr,
-                .intptr,
-            ])
-        }
-
-        let replaceByMargin = try requireSpec("__kk_string_replaceIndentByMargin")
-        XCTAssertEqual(replaceByMargin.returnType, .intptr)
-        XCTAssertEqual(replaceByMargin.parameters.map(\.type), [
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-        ])
     }
 
     func testKKStringIndentFlatABIRemoved() {

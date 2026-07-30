@@ -301,6 +301,30 @@ extension CallLowerer {
             instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
             finalArguments.append(radixExpr)
         }
+        // Array predicate HOFs (any/none/all/count/forEach) are lowered to runtime
+        // functions whose native signature is (arrayRaw, fnPtr, closureRaw, outThrown).
+        // When Sema resolves these through the unresolved-member fallback, the lambda
+        // argument is not yet split into fnPtr + closureRaw, so expand it now.
+        let arrayPredicateHOFRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_array_any"),
+            interner.intern("kk_array_none"),
+            interner.intern("kk_array_all"),
+            interner.intern("kk_array_count"),
+            interner.intern("kk_array_forEach"),
+        ]
+        if arrayPredicateHOFRuntimeCallees.contains(loweredCallee),
+           finalArguments.count == 2
+        {
+            let callbackArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs.first ?? ExprID(rawValue: finalArguments[1].rawValue),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + callbackArgs
+        }
         // Array.count() with no predicate: kk_array_count's native signature always
         // takes (arrayRaw, fnPtr, closureRaw, outThrown); when there's no source-level
         // lambda argument, finalArguments only has the receiver. Without this padding,
@@ -812,24 +836,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0]] + successArgs + failureArgs
         }
-        if let primitiveKind = collectionElementPrimitiveCompareKind(
-            of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema
-        ) {
-            let primitiveSortCallees: Set<InternedString> = [
-                interner.intern("kk_list_sorted_primitive"),
-                interner.intern("kk_list_sortedDescending_primitive"),
-                interner.intern("kk_mutable_list_sort_primitive"),
-                interner.intern("kk_mutable_list_sortDescending_primitive"),
-            ]
-            if primitiveSortCallees.contains(loweredCallee),
-               finalArguments.count == 1
-            {
-                let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveKind.rawValue)), type: sema.types.intType)
-                instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveKind.rawValue))))
-                finalArguments.append(kindExpr)
-            }
-        }
         if isArrayBinarySearchRuntimeCallee(loweredCallee, interner: interner) {
             let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
             let sizeRuntimeCallee = arraySizeRuntimeCallee(
@@ -857,15 +863,10 @@ extension CallLowerer {
             }
         }
         let comparatorOnlyCallees: Set<InternedString> = [
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_maxWithOrNull"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_minWithOrNull"),
             interner.intern("kk_sequence_maxWith"),
             interner.intern("kk_sequence_maxWithOrNull"),
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
-            interner.intern("kk_list_sortedWith"),
             interner.intern("kk_array_sortedArrayWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
@@ -1119,16 +1120,7 @@ extension CallLowerer {
             interner.intern("kk_list_takeLast"),
             interner.intern("kk_sequence_takeLast"),
             interner.intern("kk_list_drop"),
-            interner.intern("kk_list_max"),
-            interner.intern("kk_list_minBy"),
-            interner.intern("kk_list_min"),
-            interner.intern("kk_list_maxOf"),
-            interner.intern("kk_list_minOf"),
-            interner.intern("kk_list_maxBy"),
-            interner.intern("kk_list_maxWith"),
-            interner.intern("kk_list_minWith"),
-            interner.intern("kk_list_maxOfWith"),
-            interner.intern("kk_list_minOfWith"),
+
             interner.intern("kk_list_fold"),
             interner.intern("kk_list_foldRight"),
             interner.intern("kk_list_reduce"),

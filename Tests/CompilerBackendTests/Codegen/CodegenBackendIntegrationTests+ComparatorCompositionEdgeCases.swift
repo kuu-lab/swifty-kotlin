@@ -250,4 +250,20 @@ extension CodegenBackendIntegrationTests {
                 + "\n"
         )
     }
+
+    // KSP-426: List.sortedWith has two bundled Kotlin-source overloads
+    // (Comparator<T> and (T, T) -> Int). InlineLoweringPass used to fall back
+    // to the by-name inline target when the symbol was not itself inline,
+    // causing the function-type overload to be inlined for Comparator arguments
+    // and crashing at runtime (kk_function_invoke_2 on a Comparator object).
+    func testCodegenSortedWithComparatorVariableDoesNotInlineFunctionTypeOverload() throws {
+        let source = """
+        fun main() {
+            val comp = compareBy<String> { it.length }
+            println(listOf("Charlie", "Alice", "Bob").sortedWith(comp))
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SortedWithComparatorVariable", expected: "[Bob, Alice, Charlie]\n")
+    }
 }

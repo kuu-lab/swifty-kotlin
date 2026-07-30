@@ -517,27 +517,21 @@ extension CallLowerer {
         }
         switch memberName {
         case "contains":
-            if elementType == sema.types.longType {
-                return interner.intern("kk_long_range_contains")
-            }
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_contains")
             }
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_contains")
             }
-            return nil
+            return interner.intern("kk_range_contains")
         case "isEmpty":
-            if elementType == sema.types.longType {
-                return interner.intern("kk_long_range_isEmpty")
-            }
             if elementType == sema.types.uintType {
                 return interner.intern("kk_uint_range_isEmpty")
             }
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_isEmpty")
             }
-            return nil
+            return interner.intern("kk_range_isEmpty")
         default:
             return nil
         }

@@ -1328,6 +1328,16 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: capacityExpr, value: .intLiteral(0)))
                 finalArgIDs.append(capacityExpr)
+            } else if loweredCalleeName == interner.intern("__kk_throwable_new"), finalArgIDs.isEmpty {
+                // Throwable() and the zero-argument synthetic exception constructors
+                // route here, but the runtime bridge still expects a nullable message
+                // pointer. Pass the null sentinel so it defaults to "Throwable".
+                let nullMessageExpr = arena.appendExpr(
+                    .intLiteral(Int64.min),
+                    type: sema.types.intType
+                )
+                instructions.append(.constValue(result: nullMessageExpr, value: .intLiteral(Int64.min)))
+                finalArgIDs.append(nullMessageExpr)
             } else if loweredCalleeName == interner.intern("kk_coroutine_cancel_current"),
                       finalArgIDs.count == 1
             {
@@ -1481,8 +1491,6 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
-            "__kk_string_trimMargin",
-            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(name)
     }
@@ -1496,8 +1504,6 @@ final class CallLowerer {
             "kk_runtime_result_on_success",
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
-            "__kk_string_trimMargin",
-            "__kk_string_replaceIndentByMargin",
             "kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }
