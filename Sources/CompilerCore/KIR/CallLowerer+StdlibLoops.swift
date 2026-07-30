@@ -605,10 +605,9 @@ extension CallLowerer {
 
         let fromNanosCallee = interner.intern("kk_duration_from_nanoseconds")
         let durationExpr = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil, callee: fromNanosCallee, arguments: [elapsedExpr],
-            result: durationExpr, canThrow: false, thrownResult: nil
-        ))
+        emitNonThrowingCall(
+            callee: fromNanosCallee, arg: elapsedExpr, result: durationExpr, into: &instructions
+        )
 
         return durationExpr
     }

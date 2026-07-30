@@ -342,14 +342,12 @@ final class CallSupportLowerer {
             let countExpr: KIRExprID
             if hasAnySpread {
                 countExpr = arena.appendTemporary(type: intType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_array_size"),
-                    arguments: [packedArray],
+                    arg: packedArray,
                     result: countExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             } else {
                 countExpr = arena.appendExpr(.intLiteral(Int64(argIndices.count)), type: intType)
                 instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(argIndices.count))))
@@ -692,14 +690,12 @@ final class CallSupportLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let listID = arena.appendTemporary(type: anyType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_toList"),
-            arguments: [arrayID],
+            arg: arrayID,
             result: listID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return listID
     }
 
@@ -714,14 +710,12 @@ final class CallSupportLowerer {
         let countExpr = arena.appendExpr(.intLiteral(Int64(count)), type: intType)
         instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
         let arrayID = arena.appendTemporary(type: anyType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_new"),
-            arguments: [countExpr],
+            arg: countExpr,
             result: arrayID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return arrayID
     }
 }
