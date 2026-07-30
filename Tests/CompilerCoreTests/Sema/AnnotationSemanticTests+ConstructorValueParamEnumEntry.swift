@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-ANNO-002: constructor / value-parameter / enum-entry annotation sema coverage
 // Tests that @Target constraints are enforced on the four new usage sites:
@@ -10,7 +11,7 @@ extension AnnotationSemanticTests {
 
     // MARK: - Primary constructor annotations
 
-    func testConstructorOnlyAnnotationAcceptedOnPrimaryConstructor() {
+    @Test func testConstructorOnlyAnnotationAcceptedOnPrimaryConstructor() {
         let source = """
         @Target(AnnotationTarget.CONSTRUCTOR)
         annotation class CtorOnly
@@ -19,11 +20,11 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertTrue(diags.isEmpty,
+        #expect(diags.isEmpty,
             "Expected @Target(CONSTRUCTOR) annotation to be accepted on primary constructor, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testClassOnlyAnnotationRejectedOnPrimaryConstructor() {
+    @Test func testClassOnlyAnnotationRejectedOnPrimaryConstructor() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassOnly
@@ -32,14 +33,14 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertEqual(diags.count, 1,
+        #expect(diags.count == 1,
             "Expected @Target(CLASS) to be rejected on primary constructor, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError))
+        #expect(diags.allSatisfy(isError))
     }
 
     // MARK: - Secondary constructor annotations
 
-    func testConstructorOnlyAnnotationAcceptedOnSecondaryConstructor() {
+    @Test func testConstructorOnlyAnnotationAcceptedOnSecondaryConstructor() {
         let source = """
         @Target(AnnotationTarget.CONSTRUCTOR)
         annotation class CtorOnly
@@ -51,11 +52,11 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertTrue(diags.isEmpty,
+        #expect(diags.isEmpty,
             "Expected @Target(CONSTRUCTOR) annotation to be accepted on secondary constructor, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testFunctionOnlyAnnotationRejectedOnSecondaryConstructor() {
+    @Test func testFunctionOnlyAnnotationRejectedOnSecondaryConstructor() {
         let source = """
         @Target(AnnotationTarget.FUNCTION)
         annotation class FunOnly
@@ -67,14 +68,14 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertEqual(diags.count, 1,
+        #expect(diags.count == 1,
             "Expected @Target(FUNCTION) to be rejected on secondary constructor, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError))
+        #expect(diags.allSatisfy(isError))
     }
 
     // MARK: - Value parameter annotations
 
-    func testValueParameterOnlyAnnotationAcceptedOnFunctionParam() {
+    @Test func testValueParameterOnlyAnnotationAcceptedOnFunctionParam() {
         let source = """
         @Target(AnnotationTarget.VALUE_PARAMETER)
         annotation class ParamOnly
@@ -83,11 +84,11 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertTrue(diags.isEmpty,
+        #expect(diags.isEmpty,
             "Expected @Target(VALUE_PARAMETER) to be accepted on function parameter, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testClassOnlyAnnotationRejectedOnFunctionParam() {
+    @Test func testClassOnlyAnnotationRejectedOnFunctionParam() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassOnly
@@ -96,12 +97,12 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertEqual(diags.count, 1,
+        #expect(diags.count == 1,
             "Expected @Target(CLASS) to be rejected on function parameter, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError))
+        #expect(diags.allSatisfy(isError))
     }
 
-    func testValueParameterOnlyAnnotationAcceptedOnPrimaryCtorParam() {
+    @Test func testValueParameterOnlyAnnotationAcceptedOnPrimaryCtorParam() {
         let source = """
         @Target(AnnotationTarget.VALUE_PARAMETER)
         annotation class ParamOnly
@@ -110,13 +111,13 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertTrue(diags.isEmpty,
+        #expect(diags.isEmpty,
             "Expected @Target(VALUE_PARAMETER) to be accepted on primary ctor parameter, got: \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - Enum entry annotations
 
-    func testFieldAnnotationAcceptedOnEnumEntry() {
+    @Test func testFieldAnnotationAcceptedOnEnumEntry() {
         let source = """
         @Target(AnnotationTarget.FIELD)
         annotation class FieldMark
@@ -128,11 +129,11 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertTrue(diags.isEmpty,
+        #expect(diags.isEmpty,
             "Expected @Target(FIELD) to be accepted on enum entry, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testFunctionOnlyAnnotationRejectedOnEnumEntry() {
+    @Test func testFunctionOnlyAnnotationRejectedOnEnumEntry() {
         let source = """
         @Target(AnnotationTarget.FUNCTION)
         annotation class FunOnly
@@ -144,8 +145,9 @@ extension AnnotationSemanticTests {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
-        XCTAssertEqual(diags.count, 1,
+        #expect(diags.count == 1,
             "Expected @Target(FUNCTION) to be rejected on enum entry, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError))
+        #expect(diags.allSatisfy(isError))
     }
 }
+#endif
