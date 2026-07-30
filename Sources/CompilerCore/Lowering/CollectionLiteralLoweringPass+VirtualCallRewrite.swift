@@ -187,11 +187,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // stdlib list/set iterator calls directly to the shared iterator helper.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue)
+           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
         {
+            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+                ? lookup.kkIndexingIterableIteratorName
+                : lookup.kkListIteratorName
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListIteratorName,
+                callee: iterCallee,
                 arguments: [receiver],
                 result: result,
                 canThrow: false,
