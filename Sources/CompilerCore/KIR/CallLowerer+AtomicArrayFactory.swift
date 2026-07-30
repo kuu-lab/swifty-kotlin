@@ -22,7 +22,7 @@ extension CallLowerer {
             specialKind: .atomicIntArrayFactory,
             valueType: sema.types.intType,
             createCalleeName: "kk_atomic_int_array_create",
-            storeAtCalleeName: "kk_atomic_int_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_int_array_store"
         )
     }
 
@@ -48,7 +48,7 @@ extension CallLowerer {
             specialKind: .atomicLongArrayFactory,
             valueType: sema.types.longType,
             createCalleeName: "kk_atomic_long_array_create",
-            storeAtCalleeName: "kk_atomic_long_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_long_array_store"
         )
     }
 

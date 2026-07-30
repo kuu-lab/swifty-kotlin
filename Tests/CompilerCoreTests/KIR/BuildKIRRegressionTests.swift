@@ -139,10 +139,11 @@ struct BuildKIRRegressionTests {
     }
 
     /// BUG-145: `substring(...)` called with an implicit receiver inside a
-    /// `String` extension must pass the same flat runtime ABI arguments
-    /// (receiver, startIndex, endIndex, hasEndIndex) as the explicit
-    /// `this.substring(...)` form.
-    @Test func testBuildKIRLowersImplicitReceiverSubstringWithFlatABIArguments() throws {
+    /// `String` extension must pass the same arguments (receiver first) as the
+    /// explicit `this.substring(...)` form. `String.substring` is source-backed
+    /// after the KSP-406 migration, so the call targets the bundled Kotlin
+    /// declaration instead of `kk_string_substring_flat`.
+    @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {
         let source = """
         fun String.implicitOneArg(n: Int): String = substring(n)
         fun String.implicitTwoArgs(a: Int, b: Int): String = substring(a, b)
@@ -153,29 +154,27 @@ struct BuildKIRRegressionTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
 
-            for functionName in ["implicitOneArg", "implicitTwoArgs", "explicitOneArg"] {
+            let expectedArgumentCounts = [
+                "implicitOneArg": 2,
+                "implicitTwoArgs": 3,
+                "explicitOneArg": 2,
+            ]
+            for (functionName, expectedArgumentCount) in expectedArgumentCounts {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                let constants: [KIRExprID: KIRExprKind] = body.reduce(into: [:]) { partial, instruction in
-                    guard case let .constValue(result, value) = instruction else { return }
-                    partial[result] = value
-                }
+                #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_string_substring_flat"))
+
                 let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "kk_string_substring_flat"
+                          ctx.interner.resolve(callee) == "substring"
                     else {
                         return nil
                     }
                     return arguments
-                }.first, "\(functionName) should lower to a kk_string_substring_flat call")
+                }.first, "\(functionName) should lower to a source-backed substring call")
 
                 #expect(
-                    substringCall.count == 4,
-                    "\(functionName) should pass (receiver, startIndex, endIndex, hasEndIndex), got \(substringCall.count)"
-                )
-                let expectedHasEnd: Int64 = functionName == "implicitTwoArgs" ? 1 : 0
-                #expect(
-                    constants[substringCall[3]] == .intLiteral(expectedHasEnd),
-                    "\(functionName) should pass hasEndIndex=\(expectedHasEnd)"
+                    substringCall.count == expectedArgumentCount,
+                    "\(functionName) should pass \(expectedArgumentCount) arguments, got \(substringCall.count)"
                 )
             }
         }
