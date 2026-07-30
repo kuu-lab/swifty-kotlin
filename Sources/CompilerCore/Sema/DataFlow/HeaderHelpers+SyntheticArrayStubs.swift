@@ -1118,68 +1118,13 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            let byteJoinToStringName = interner.intern("joinToString")
-            let byteJoinToStringFQName = byteArrayFQName + [byteJoinToStringName]
-            if symbols.lookup(fqName: byteJoinToStringFQName) == nil {
-                if BundledSyntheticStubRegistration.shouldSkipRegistration(
-                    declaredOwnerFQName: byteArrayFQName,
-                    receiverType: byteArrayType,
-                    name: byteJoinToStringName,
-                    arity: 3,
-                    symbols: symbols,
-                    types: types,
-                    interner: interner
-                ) {
-                    skipStats?.recordSkip(ownerFQName: byteArrayFQName, name: byteJoinToStringName, arity: 3, interner: interner)
-                    // fall through to transform overloads; they are registered outside this block.
-                } else {
-                    let joinToStringSym = symbols.define(
-                        kind: .function,
-                        name: byteJoinToStringName,
-                    fqName: byteJoinToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(byteArraySymbol, for: joinToStringSym)
-                symbols.setExternalLinkName("kk_byteArray_joinToString", for: joinToStringSym)
-
-                let joinParams: [(name: String, type: TypeID)] = [
-                    ("separator", types.stringType),
-                    ("prefix", types.stringType),
-                    ("postfix", types.stringType),
-                ]
-                var joinParamTypes: [TypeID] = []
-                var joinParamSymbols: [SymbolID] = []
-                for param in joinParams {
-                    let paramName = interner.intern(param.name)
-                    let paramSym = symbols.define(
-                        kind: .valueParameter,
-                        name: paramName,
-                        fqName: byteJoinToStringFQName + [paramName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(joinToStringSym, for: paramSym)
-                    joinParamTypes.append(param.type)
-                    joinParamSymbols.append(paramSym)
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: byteArrayType,
-                        parameterTypes: joinParamTypes,
-                        returnType: types.stringType,
-                        isSuspend: false,
-                        valueParameterSymbols: joinParamSymbols,
-                        valueParameterHasDefaultValues: [true, true, true],
-                        valueParameterIsVararg: [false, false, false],
-                        typeParameterSymbols: []
-                    ),
-                    for: joinToStringSym
-                )
-                }
-            }
+            // `ByteArray.joinToString` (both the plain and transform overloads) is
+            // registered uniformly for all primitive array types by the
+            // `primitiveArrayNames` loop below — including `ByteArray` — so it is
+            // deliberately not duplicated here. (It used to be duplicated, which
+            // made this block's `symbols.define` win the race and left the later
+            // loop's `if symbols.lookup(...) == nil` guard permanently false for
+            // `ByteArray`, silently skipping its transform overloads.)
         }
 
         // Register reversedArray() and copyInto(destination, destinationOffset, startIndex, endIndex) for primitive arrays.
@@ -1403,6 +1348,63 @@ extension DataFlowSemaPhase {
                         for: primJoinToStringSym
                     )
                 }
+
+                // Register `PrimitiveArray.joinToString(separator?, prefix?, postfix?, transform)`
+                // HOF overloads (DEBT-KIR-006), mirroring `Array<T>.joinToString`'s
+                // transform overloads below. These share that same external link
+                // name ("kk_array_joinToString_transform") rather than getting a
+                // per-type native function: the runtime function only reads raw
+                // elements out of the shared `RuntimeArrayBox` storage and passes
+                // them straight through to the transform closure (verified against
+                // `PrimitiveArray.map`, which does the same raw pass-through), and
+                // its output is always a properly boxed value the closure itself
+                // produced, so no type-aware rendering of the *input* is needed the
+                // way the non-transform overload above requires.
+                let primElementType: TypeID = switch name {
+                case "IntArray": types.intType
+                case "LongArray": types.longType
+                case "UIntArray": types.uintType
+                case "ULongArray": types.ulongType
+                case "DoubleArray": types.doubleType
+                case "FloatArray": types.floatType
+                case "BooleanArray": types.booleanType
+                case "CharArray": types.charType
+                case "ByteArray": types.intType
+                case "ShortArray": types.intType
+                case "UByteArray": types.ubyteType
+                case "UShortArray": types.ushortType
+                default: types.intType
+                }
+                let primJoinTransformType = types.make(.functionType(FunctionType(
+                    params: [primElementType],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                func registerPrimJoinToStringTransformOverload(_ parameterTypes: [TypeID]) {
+                    let memberSymbol = symbols.define(
+                        kind: .function,
+                        name: primJoinToStringName,
+                        fqName: primJoinToStringFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic, .inlineFunction]
+                    )
+                    symbols.setParentSymbol(arraySymbol, for: memberSymbol)
+                    symbols.setExternalLinkName("kk_array_joinToString_transform", for: memberSymbol)
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: primArrayReceiverType,
+                            parameterTypes: parameterTypes,
+                            returnType: types.stringType
+                        ),
+                        for: memberSymbol
+                    )
+                }
+                registerPrimJoinToStringTransformOverload([primJoinTransformType])
+                registerPrimJoinToStringTransformOverload([types.stringType, primJoinTransformType])
+                registerPrimJoinToStringTransformOverload([types.stringType, types.stringType, primJoinTransformType])
+                registerPrimJoinToStringTransformOverload([types.stringType, types.stringType, types.stringType, primJoinTransformType])
             }
         }
 

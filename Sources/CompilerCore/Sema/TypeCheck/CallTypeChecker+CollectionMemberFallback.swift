@@ -2872,11 +2872,47 @@ extension CallTypeChecker {
         return collectionFallbackClassTypes(type, sema: sema, visitedTypeParams: &visitedTypeParams)
     }
 
+    /// Primitive array types (`IntArray`, `DoubleArray`, ...) are non-generic in
+    /// this compiler's type system — their `ClassType.args` is always empty,
+    /// unlike `Array<T>`/`List<T>` which carry their element type as a type
+    /// argument. Without this, `collectionFallbackElementType` below falls
+    /// through to its `args.first`-based lookup, finds no argument, and
+    /// silently returns `Any`. That `Any` becomes the expected parameter type
+    /// for e.g. a `joinToString(transform)` closure's `it`, but the runtime
+    /// call passes the closure a raw unboxed element (matching a concrete
+    /// primitive parameter, not a boxed `Any` one) — so `it.toString()` reads
+    /// the raw bit pattern as if it were a boxed value and prints garbage
+    /// (DEBT-KIR-006 follow-up).
+    private func primitiveArrayElementType(
+        forOwnerName name: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        switch interner.resolve(name) {
+        case "IntArray": sema.types.intType
+        case "LongArray": sema.types.longType
+        case "UIntArray": sema.types.uintType
+        case "ULongArray": sema.types.ulongType
+        case "DoubleArray": sema.types.doubleType
+        case "FloatArray": sema.types.floatType
+        case "BooleanArray": sema.types.booleanType
+        case "CharArray": sema.types.charType
+        case "ByteArray": sema.types.intType
+        case "ShortArray": sema.types.intType
+        case "UByteArray": sema.types.ubyteType
+        case "UShortArray": sema.types.ushortType
+        default: nil
+        }
+    }
+
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         guard let (classType, symbol) = collectionFallbackClassTypes(receiverType, sema: sema).first else {
             return sema.types.anyType
+        }
+        if let primitiveElementType = primitiveArrayElementType(forOwnerName: symbol.name, sema: sema, interner: interner) {
+            return primitiveElementType
         }
         if knownNames.isMapLikeSymbol(symbol),
            classType.args.count == 2
