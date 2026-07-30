@@ -1153,15 +1153,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
-                checkConflictingClassUpperBounds(
-                    typeParamName: typeParam.name,
-                    bounds: resolvedBounds,
-                    declSite: declSite,
-                    symbols: symbols,
-                    types: types,
-                    interner: interner,
-                    diagnostics: diagnostics
-                )
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
 

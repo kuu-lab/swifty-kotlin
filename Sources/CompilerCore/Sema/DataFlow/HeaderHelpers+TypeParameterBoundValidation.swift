@@ -6,8 +6,38 @@
 /// String`). Unlike the call-site check (`KSWIFTK-SEMA-BOUND` in Resolution+Inference.swift),
 /// which validates that a given type *argument* satisfies a type parameter's bounds, this
 /// flags the *declaration* itself as unsatisfiable regardless of how it is ever used.
+///
+/// This runs as a validation pass *after* `bindInheritanceEdges` rather than inline during
+/// header collection: header collection resolves a type parameter's bounds before class
+/// inheritance edges are bound, so checking immediately would see every not-yet-linked class
+/// pair as unrelated and misfire on ordinary subtype-related bounds (e.g. `where T : Base, T :
+/// Derived`). `collectFunctionTypeParameters`/`registerNominalTypeParameters` only record the
+/// symbol via `SymbolTable.recordTypeParameterForBoundConflictCheck`; this pass consumes that
+/// list once inheritance edges are available.
 extension DataFlowSemaPhase {
-    func checkConflictingClassUpperBounds(
+    func validateTypeParameterUpperBounds(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
+    ) {
+        for pending in symbols.typeParametersPendingBoundConflictCheck() {
+            guard let typeParamInfo = symbols.symbol(pending.symbol) else {
+                continue
+            }
+            checkConflictingClassUpperBounds(
+                typeParamName: typeParamInfo.name,
+                bounds: symbols.typeParameterUpperBounds(for: pending.symbol),
+                declSite: pending.declSite,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
+        }
+    }
+
+    private func checkConflictingClassUpperBounds(
         typeParamName: InternedString,
         bounds: [TypeID],
         declSite: SourceRange?,

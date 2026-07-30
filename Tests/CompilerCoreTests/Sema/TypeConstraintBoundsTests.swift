@@ -141,6 +141,26 @@ struct TypeConstraintBoundsTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
     }
 
+    // Regression pin for a pass-ordering bug: header collection (which resolves a type
+    // parameter's bounds and is where this check used to fire immediately) runs before
+    // `bindInheritanceEdges` (which links `Derived`'s supertype to `Base`). Checking eagerly
+    // saw the two classes as unrelated in either direction and misfired here. The check is
+    // now deferred to run after inheritance edges are bound (see
+    // HeaderHelpers+TypeParameterBoundValidation.swift). Same scenario as
+    // subtypeRelatedClassUpperBoundsEmitNoDiagnostic above, but through a class's own type
+    // parameters (registerNominalTypeParameters) rather than a function's.
+    @Test func subtypeRelatedClassUpperBoundsOnClassTypeParameterEmitNoDiagnostic() {
+        let source = """
+        open class Base
+        class Derived : Base()
+
+        class Box<T> where T : Base, T : Derived
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0305", in: ctx)
+    }
+
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {
