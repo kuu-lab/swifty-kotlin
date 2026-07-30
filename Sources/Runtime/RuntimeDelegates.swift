@@ -251,6 +251,26 @@ public func kk_lazy_is_initialized(_ handle: Int) -> Int {
     return box.isInitialized ? 1 : 0
 }
 
+/// Invokes an `observable`/`vetoable` `(property, old, new) -> R` callback,
+/// dispatching on whether it captured an enclosing instance receiver (boxed via
+/// `kk_function_create_3`, BUG-170 -- the receiver is threaded in as the boxed
+/// closure's first argument) or is a plain non-capturing thunk. Mirrors
+/// `kk_function_invoke_3`'s dispatch, which the general closure-invocation path
+/// already relies on for the same reason.
+private func kk_invoke_delegate_observer_callback(
+    _ callbackFnPtr: Int,
+    _ oldValue: Int,
+    _ newValue: Int,
+    _ outThrown: UnsafeMutablePointer<Int>
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: callbackFnPtr), box.arity == 3 {
+        let callback = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint3.self)
+        return callback(box.closureRaw, 0, oldValue, newValue, outThrown)
+    }
+    let callback = unsafeBitCast(callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
+    return callback(0, oldValue, newValue, outThrown)
+}
+
 // MARK: - Observable Delegate (P5-80)
 
 @_cdecl("kk_observable_create")
@@ -294,9 +314,8 @@ public func kk_observable_set_value(_ handle: Int, _ newValue: Int) -> Int {
     // Invoke callback: (property, oldValue, newValue) -> void
     // property arg is 0 (KProperty stub) to match Kotlin's 3-param lambda signature.
     if box.callbackFnPtr != 0 {
-        let callback = unsafeBitCast(box.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
         var thrown = 0
-        _ = callback(0, oldValue, newValue, &thrown)
+        _ = kk_invoke_delegate_observer_callback(box.callbackFnPtr, oldValue, newValue, &thrown)
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: observable callback threw")
         }
@@ -346,13 +365,15 @@ public func kk_vetoable_set_value(_ handle: Int, _ newValue: Int) -> Int {
     // Invoke callback: (property, oldValue, newValue) -> intptr_t (boolean)
     // property arg is 0 (KProperty stub) to match Kotlin's 3-param lambda signature.
     if box.callbackFnPtr != 0 {
-        let callback = unsafeBitCast(box.callbackFnPtr, to: KKDelegateObserverEntryPoint.self)
         var thrown = 0
-        let accepted = callback(0, oldValue, newValue, &thrown)
+        let accepted = kk_invoke_delegate_observer_callback(box.callbackFnPtr, oldValue, newValue, &thrown)
         if thrown != 0 {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: vetoable callback threw")
         }
-        if accepted != 0 {
+        // The callback returns a Kotlin `Boolean`, which reaches the ABI either
+        // raw (0/1) or as a boxed `RuntimeBoolBox` handle; a boxed `false` is a
+        // non-zero pointer, so it must be unboxed before being tested.
+        if kk_unbox_bool(accepted) != 0 {
             box.currentValue = newValue
         }
     } else {

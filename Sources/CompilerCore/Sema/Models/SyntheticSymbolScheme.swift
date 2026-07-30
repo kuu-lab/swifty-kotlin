@@ -73,4 +73,17 @@ enum SyntheticSymbolScheme {
     static func originalPropertySymbolFromSetterAccessor(_ setterAccessor: SymbolID) -> SymbolID {
         SymbolID(rawValue: propertySetterAccessorOffset - setterAccessor.rawValue)
     }
+
+    /// Symbol for the `index`-th synthetic parameter of a stdlib delegate
+    /// factory's trailing lambda (`property`/`old`/`new` for
+    /// `Delegates.observable`/`vetoable`; unused for `lazy`, which has none).
+    /// Shared between Sema (`typeCheckDelegate`, which binds these names as
+    /// locals so bare references elsewhere in the body -- including to other
+    /// outer instance fields, BUG-170 -- get resolved at all) and KIR lowering
+    /// (`lowerDelegateLambdaBody`, which allocates the actual KIR parameters):
+    /// both sides must compute the identical symbol for a binding made by one
+    /// to be visible to the other.
+    static func delegateLambdaParamSymbol(for propertySymbol: SymbolID, index: Int) -> SymbolID {
+        SymbolID(rawValue: -(propertySymbol.rawValue + Int32(index + 1) * 1000 + 50000))
+    }
 }

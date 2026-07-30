@@ -369,6 +369,8 @@ extension KIRLoweringDriver {
     /// Creates a lambda function from the delegate body.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
+        delegateBodyParams: [InternedString] = [],
+        valueType: TypeID? = nil,
         propertySymbol: SymbolID,
         paramCount: Int,
         shared: KIRLoweringSharedContext,
@@ -380,19 +382,65 @@ extension KIRLoweringDriver {
         let lambdaSymbol = ctx.allocateSyntheticGeneratedSymbol()
         let lambdaName = interner.intern("kk_delegate_lambda_\(propertySymbol.rawValue)")
 
+        // A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
+        // may reference other instance fields by bare name (e.g. `initCount += 1`).
+        // This body is lowered as its own standalone KIR function, not inline in the
+        // constructor, so it has no receiver of its own to resolve such references
+        // against unless the enclosing instance is threaded in explicitly as a
+        // captured value (BUG-170). Top-level delegate properties have no enclosing
+        // receiver, so `outerReceiver` is nil and this is a no-op for them.
+        let outerReceiver = ctx.activeImplicitReceiver()
+        let hasReceiverParam = outerReceiver != nil
+
         var params: [KIRParameter] = []
+        if hasReceiverParam {
+            params.append(KIRParameter(
+                symbol: ctx.allocateSyntheticGeneratedSymbol(),
+                type: sema.types.anyType
+            ))
+        }
         for i in 0 ..< paramCount {
-            let paramSymbol = SymbolID(
-                rawValue: -(propertySymbol.rawValue + Int32(i + 1) * 1000 + 50000)
+            let paramSymbol = SyntheticSymbolScheme.delegateLambdaParamSymbol(
+                for: propertySymbol, index: i
             )
-            params.append(KIRParameter(symbol: paramSymbol, type: sema.types.anyType))
+            // `(property, oldValue, newValue)`: only the two value parameters
+            // carry the property's type; typing them keeps operations on them
+            // (comparisons, string templates) from treating the raw value as an
+            // untyped object handle.
+            let paramType = i == 0 ? sema.types.anyType : (valueType ?? sema.types.anyType)
+            params.append(KIRParameter(symbol: paramSymbol, type: paramType))
         }
 
         var lambdaBody: KIRLoweringEmitContext = [.beginBlock]
-        for param in params {
+        let underscore = interner.intern("_")
+        // Names the callback lambda declared for its parameters
+        // (`{ property, old, new -> ... }`) must resolve to the synthetic
+        // parameters below while the body is lowered, then be restored so they
+        // do not leak into the enclosing function's name scope.
+        var savedParamBindings: [(name: InternedString, symbol: SymbolID?)] = []
+        for (index, param) in params.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(paramExpr, for: param.symbol)
+            if hasReceiverParam, index == 0 {
+                // The captured receiver: point bare-name instance-field references
+                // inside this body at it instead of the enclosing constructor's
+                // receiver, which this standalone function has no way to see.
+                ctx.setImplicitReceiver(symbol: param.symbol, exprID: paramExpr)
+                continue
+            }
+            let delegateParamIndex = hasReceiverParam ? index - 1 : index
+            guard delegateParamIndex < delegateBodyParams.count else { continue }
+            let name = delegateBodyParams[delegateParamIndex]
+            guard name != underscore else { continue }
+            savedParamBindings.append((name, ctx.lambdaParamSymbol(named: name)))
+            ctx.registerLambdaParam(symbol: param.symbol, forName: name)
+        }
+        defer {
+            for binding in savedParamBindings {
+                ctx.restoreLambdaParam(symbol: binding.symbol, forName: binding.name)
+            }
+            ctx.restoreImplicitReceiver(symbol: outerReceiver?.symbol, exprID: outerReceiver?.exprID)
         }
 
         switch delegateBody {
@@ -423,7 +471,25 @@ extension KIRLoweringDriver {
 
         let lambdaRefExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.anyType)
         instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)))
-        return lambdaRefExpr
+
+        // Wrap the raw thunk as a capturing closure (BUG-170) so the runtime side
+        // (`kk_function_invoke_0` for lazy; the observable/vetoable callback
+        // dispatch for the other two) knows to pass the captured receiver back in
+        // as this function's first argument.
+        guard let outerReceiver else {
+            return lambdaRefExpr
+        }
+        let createCallee = interner.intern(paramCount == 0 ? "kk_function_create_0" : "kk_function_create_3")
+        let wrapped = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [lambdaRefExpr, outerReceiver.exprID],
+            result: wrapped,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return wrapped
     }
 
     /// Lowers the initial value argument from a delegate expression.

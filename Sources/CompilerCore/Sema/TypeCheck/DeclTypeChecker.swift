@@ -193,7 +193,9 @@ final class DeclTypeChecker {
                 inferredPropertyType: inferredPropertyType,
                 ctx: ctx,
                 locals: &delegateLocals,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                delegateBody: property.delegateBody,
+                delegateBodyParams: property.delegateBodyParams
             )
         }
 

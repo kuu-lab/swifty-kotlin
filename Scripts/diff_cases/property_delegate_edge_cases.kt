@@ -1,12 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-005): class-member property delegates are broken in two independent ways.
-// (1) BUG-151: Delegates.observable/vetoable callback lambda bodies are dropped entirely during
-// KIR lowering (the callback becomes a no-op that just returns Unit/false), so neither the
-// println side effect nor vetoable's accept/reject logic ever runs. (2) BUG-170: a bare-name
-// (implicit `this`) compound assign of an outer instance field from inside a delegate
-// initializer lambda (`lazy { initCount += 1; ... }`) does not persist to the real field, even
-// though the same pattern inside an ordinary closure (`run { field += 1 }`) works correctly —
-// this is specific to the delegate-body lowering path, not a general closure-capture bug.
-// Re-run with --force-run-skipped once BUG-151/BUG-170 land to confirm full parity.
 import kotlin.properties.Delegates
 
 class Holder {
