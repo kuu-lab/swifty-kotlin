@@ -89,12 +89,20 @@ public struct ConstructorDecl: Codable {
 /// delegates interface implementation to the given expression.
 public struct SuperTypeEntry: Equatable, Codable {
     public let typeRef: TypeRefID
+    /// The primary-constructor delegation attached to a class supertype.
+    /// `nil` distinguishes an interface entry from an explicit `Base()` call.
+    public let constructorCall: ConstructorDelegationCall?
     /// When present, this supertype (must be an interface) is implemented by
     /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
 
-    public init(typeRef: TypeRefID, delegateExpression: ExprID? = nil) {
+    public init(
+        typeRef: TypeRefID,
+        constructorCall: ConstructorDelegationCall? = nil,
+        delegateExpression: ExprID? = nil
+    ) {
         self.typeRef = typeRef
+        self.constructorCall = constructorCall
         self.delegateExpression = delegateExpression
     }
 }

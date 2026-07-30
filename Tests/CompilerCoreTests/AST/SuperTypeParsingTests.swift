@@ -93,8 +93,8 @@ struct SuperTypeParsingTests {
     @Test
     func testNamedSupertypeWithConstructorInvocation() throws {
         let (ast, ctx) = try buildAST("""
-        open class Parent(x: Int)
-        class Child : Parent(42)
+        open class Parent(x: Int, y: Int)
+        class Child : Parent(42, 7)
         """)
 
         #expect(!ctx.diagnostics.hasError)
@@ -116,6 +116,18 @@ struct SuperTypeParsingTests {
         #expect(path.map { ctx.interner.resolve($0) } == ["Parent"])
         #expect(args.isEmpty)
         #expect(!nullable)
+
+        let constructorCall = try #require(child.superTypeEntries[0].constructorCall)
+        #expect(constructorCall.kind == .super_)
+        #expect(constructorCall.args.count == 2)
+        let firstArgument = try #require(constructorCall.args.first)
+        let lastArgument = try #require(constructorCall.args.last)
+        guard case .intLiteral(42, _)? = ast.arena.expr(firstArgument.expr),
+              case .intLiteral(7, _)? = ast.arena.expr(lastArgument.expr)
+        else {
+            Issue.record("Expected Parent constructor arguments to preserve both literals")
+            return
+        }
     }
 
     @Test

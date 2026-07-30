@@ -264,7 +264,11 @@ extension BuildASTPhase {
             exprTokens = []
         }
 
-        guard let typeRef = parseSuperTypeTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+        guard let parsed = parseSuperTypeHeader(
+            from: typeTokens,
+            interner: interner,
+            astArena: astArena
+        ) else {
             return nil
         }
 
@@ -276,7 +280,11 @@ extension BuildASTPhase {
             delegateExpr = parser.parse()
         }
 
-        return SuperTypeEntry(typeRef: typeRef, delegateExpression: delegateExpr)
+        return SuperTypeEntry(
+            typeRef: parsed.typeRef,
+            constructorCall: parsed.constructorCall,
+            delegateExpression: delegateExpr
+        )
     }
 
     func declarationSuperTypes(
@@ -289,15 +297,15 @@ extension BuildASTPhase {
         return entries.map(\.typeRef)
     }
 
-    /// Parses a supertype type reference, stripping an optional trailing
-    /// constructor invocation `(args)` while still allowing function type
-    /// literals such as `() -> V` and receiver function types such as
-    /// `String.() -> Unit`.
-    private func parseSuperTypeTypeRef(
+    /// Parses a supertype type reference and preserves an optional trailing
+    /// primary-constructor delegation `(args)`. Function type literals such as
+    /// `() -> V` and receiver function types such as `String.() -> Unit` remain
+    /// plain supertype entries without constructor calls.
+    private func parseSuperTypeHeader(
         from tokens: [Token],
         interner: StringInterner,
         astArena: ASTArena
-    ) -> TypeRefID? {
+    ) -> (typeRef: TypeRefID, constructorCall: ConstructorDelegationCall?)? {
         guard !tokens.isEmpty else { return nil }
 
         let options = TypeRefParserCore.Options.declaration
@@ -313,12 +321,13 @@ extension BuildASTPhase {
 
         let remainingStart = parsed.consumed
         guard remainingStart < tokens.count else {
-            return parsed.ref
+            return (parsed.ref, nil)
         }
 
         // A named supertype may be followed by a constructor invocation `(...)`.
-        // Strip the argument list and return only the type reference.
-        guard tokens[remainingStart].kind == .symbol(.lParen) else {
+        guard case .named? = astArena.typeRef(parsed.ref),
+              tokens[remainingStart].kind == .symbol(.lParen)
+        else {
             return nil
         }
 
@@ -342,7 +351,29 @@ extension BuildASTPhase {
         let trailing = tokens[index...]
         guard trailing.allSatisfy({ $0.kind == .symbol(.semicolon) }) else { return nil }
 
-        return parsed.ref
+        let closeParenIndex = index - 1
+        let argumentParser = ExpressionParser(
+            tokens: tokens[(remainingStart + 1)...closeParenIndex],
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+        let arguments = argumentParser.parseCallArguments()
+        guard argumentParser.current()?.kind == .symbol(.rParen) else {
+            return nil
+        }
+        let invocationRange = SourceRange(
+            start: tokens[0].range.start,
+            end: tokens[closeParenIndex].range.end
+        )
+        return (
+            parsed.ref,
+            ConstructorDelegationCall(
+                kind: .super_,
+                args: arguments,
+                range: invocationRange
+            )
+        )
     }
 
     func declarationMemberDecls(

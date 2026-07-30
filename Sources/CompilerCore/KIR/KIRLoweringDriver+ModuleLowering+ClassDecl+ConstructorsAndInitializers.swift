@@ -71,6 +71,7 @@ extension KIRLoweringDriver {
         let isSecondary = sema.symbols.symbol(ctorSymbol)?.declSite != classDecl.range
         if !isSecondary {
             emitSuperclassConstructorCall(
+                classDecl: classDecl,
                 ownerSymbol: ownerSymbol,
                 ctorSymbol: ctorSymbol,
                 shared: shared,
@@ -112,11 +113,8 @@ extension KIRLoweringDriver {
     /// Runs the superclass constructor from a subclass primary constructor so
     /// that inherited property initializers and `init` blocks execute before the
     /// subclass initializes its own state (Kotlin initialization order).
-    ///
-    /// Only parameterless superclass constructors are invoked: the arguments of
-    /// `: Base(a, b)` are dropped while building the AST, so there is nothing to
-    /// forward for parameterized bases (see BUG-162).
     private func emitSuperclassConstructorCall(
+        classDecl: ClassDecl,
         ownerSymbol: SymbolID,
         ctorSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
@@ -124,18 +122,36 @@ extension KIRLoweringDriver {
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
-        guard let receiverID = ctx.activeImplicitReceiverExprID(),
-              let superCtorSymbol = superclassParameterlessConstructor(
-                  ownerSymbol: ownerSymbol, ctorSymbol: ctorSymbol, sema: sema, interner: compilationCtx.interner
-              )
+        guard let delegation = classDecl.superTypeEntries.compactMap(\.constructorCall).first,
+              let receiverID = ctx.activeImplicitReceiverExprID()
         else {
             return
+        }
+        let fallbackSymbol = delegation.args.isEmpty
+            ? superclassParameterlessConstructor(
+                ownerSymbol: ownerSymbol,
+                ctorSymbol: ctorSymbol,
+                sema: sema,
+                interner: compilationCtx.interner
+            )
+            : nil
+        guard let superCtorSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
+                ?? fallbackSymbol,
+              let superCtorInfo = sema.symbols.symbol(superCtorSymbol),
+              !superCtorInfo.flags.contains(.synthetic),
+              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        else {
+            return
+        }
+        var arguments = [receiverID]
+        for argument in delegation.args {
+            arguments.append(lowerExpr(argument.expr, shared: shared, emit: &body))
         }
         let resultID = shared.arena.appendTemporary(type: sema.types.unitType)
         body.append(.call(
             symbol: superCtorSymbol,
             callee: compilationCtx.interner.intern("<init>"),
-            arguments: [receiverID],
+            arguments: arguments,
             result: resultID,
             canThrow: false,
             thrownResult: nil

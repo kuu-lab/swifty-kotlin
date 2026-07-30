@@ -19,6 +19,15 @@ class ByTwo : Counter() {
     }
 }
 
+open class BaseWithArguments(val value: Int, val offset: Int) {
+    val adjusted: Int = value * 2 + offset
+}
+
+class DerivedWithArguments(
+    val source: Int,
+    val delta: Int
+) : BaseWithArguments(source, delta)
+
 fun main() {
     val it = OneShot(42)
     while (it.hasNext()) println(it.next())
@@ -26,4 +35,5 @@ fun main() {
     println(c.count)
     c.bump()
     println(c.count)
+    println(DerivedWithArguments(3, 1).adjusted)
 }

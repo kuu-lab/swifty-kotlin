@@ -101,16 +101,54 @@ extension DeclTypeChecker {
         )
     }
 
+    /// Resolves the constructor selected by a primary class header such as
+    /// `class Child(value: Int) : Base(value)` and type-checks its arguments in
+    /// the primary-constructor parameter scope.
+    func typeCheckPrimarySuperclassConstructorCall(
+        _ classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) {
+        guard let delegation = classDecl.superTypeEntries.compactMap(\.constructorCall).first else {
+            return
+        }
+        // Parameterless superclass calls already have an unambiguous lowering
+        // path. Resolving them as ordinary calls can spuriously require generic
+        // inference even when the supertype itself supplies explicit type args.
+        guard !delegation.args.isEmpty else { return }
+        let sema = ctx.sema
+        let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap { sema.symbols.symbol($0) }
+            .first { $0.kind == .constructor }
+        guard let primaryCtorSymbol else { return }
+
+        var locals = primaryConstructorParameterLocals(
+            classDecl: classDecl,
+            ctx: ctx,
+            includePropertyParameters: true
+        )
+        typeCheckConstructorDelegation(
+            delegation: delegation,
+            currentCtorSymbolID: primaryCtorSymbol.id,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            locals: &locals
+        )
+    }
+
     // MARK: - Init Block & Secondary Constructor Type Checking
 
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
     /// to property initializers and `init {}` blocks only — not to regular
     /// member functions. Property-backed parameters (`val`/`var`) are already
     /// reachable as members through `classScope`, so only the non-property
-    /// parameters need to be threaded through here as `locals`.
+    /// parameters need to be threaded through here as `locals`. Superclass
+    /// constructor arguments set `includePropertyParameters` because all primary
+    /// parameters refer to their incoming values before subclass fields exist.
     func primaryConstructorParameterLocals(
         classDecl: ClassDecl,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        includePropertyParameters: Bool = false
     ) -> LocalBindings {
         guard !classDecl.primaryConstructorParams.isEmpty else { return [:] }
         let sema = ctx.sema
@@ -123,7 +161,11 @@ extension DeclTypeChecker {
         }
         var locals: LocalBindings = [:]
         for (index, param) in classDecl.primaryConstructorParams.enumerated() {
-            guard !param.isProperty, index < signature.valueParameterSymbols.count else { continue }
+            guard (includePropertyParameters || !param.isProperty),
+                  index < signature.valueParameterSymbols.count
+            else {
+                continue
+            }
             let paramSymbol = signature.valueParameterSymbols[index]
             let type = localTypeForParameter(
                 at: index, signature: signature, sema: sema, interner: ctx.interner
@@ -232,9 +274,24 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
-        let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
+        typeCheckConstructorDelegation(
+            delegation: delegation,
+            currentCtorSymbolID: currentCtorSymbolID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            locals: &locals
+        )
+    }
 
+    private func typeCheckConstructorDelegation(
+        delegation: ConstructorDelegationCall,
+        currentCtorSymbolID: SymbolID?,
+        ownerSymbol: SymbolID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
         var argTypes: [CallArg] = []
         for arg in delegation.args {
             let argType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
