@@ -673,6 +673,17 @@ extension ExprTypeChecker {
                 range: nameRange,
                 diagnostics: ctx.semaCtx.diagnostics
             )
+            // DEBT-SEMA-003: a property's initializer referencing the property's
+            // own symbol reads it before it has ever been assigned a value.
+            if let initializingPropertySymbol = ctx.initializingPropertySymbol,
+               preferredCandidate.id == initializingPropertySymbol
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0031",
+                    "Variable '\(interner.resolve(name))' must be initialized before use.",
+                    range: nameRange
+                )
+            }
         }
         let resolvedType = preferredCandidate.flatMap {
             resolveTypeForCandidate($0, sema: sema)
