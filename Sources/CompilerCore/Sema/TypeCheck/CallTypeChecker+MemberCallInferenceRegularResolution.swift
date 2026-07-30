@@ -731,6 +731,21 @@ extension CallTypeChecker {
                             )
                         }
                     }
+                    // Bundled stdlib extension functions are conceptually members
+                    // of their receiver type (e.g. AtomicIntArray.loadAt) and must
+                    // resolve on member-style calls without an explicit import, the
+                    // same way synthetic stubs used to. Ordinary scope lookup only
+                    // finds them when imported, so as a final fallback — reached only
+                    // when the call would otherwise be unresolved — match bundled
+                    // stdlib extensions by receiver type.
+                    if scopeCandidates.isEmpty {
+                        scopeCandidates = collectBundledStdlibExtensionCandidates(
+                            named: calleeName,
+                            receiverType: memberLookupType,
+                            sema: sema,
+                            interner: interner
+                        )
+                    }
                     allCandidates = scopeCandidates
                 }
             }
@@ -1460,6 +1475,104 @@ extension CallTypeChecker {
         return finalType
     }
 
+    /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes
+    /// whose bundled `*At`/alias source is the live implementation. Gates the
+    /// importless bundled-extension member fallback so it never surfaces the
+    /// dead-mirror bundled sources of other stdlib families.
+    private func isAtomicMigrationReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNull = sema.types.makeNonNullable(receiverType)
+        guard let owner = driver.helpers.nominalSymbol(of: nonNull, types: sema.types),
+              let symbol = sema.symbols.symbol(owner)
+        else {
+            return false
+        }
+        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        switch fqName {
+        case "kotlin.concurrent.atomics.AtomicInt",
+             "kotlin.concurrent.atomics.AtomicLong",
+             "kotlin.concurrent.atomics.AtomicBoolean",
+             "kotlin.concurrent.atomics.AtomicReference",
+             "kotlin.concurrent.atomics.AtomicIntArray",
+             "kotlin.concurrent.atomics.AtomicLongArray",
+             "kotlin.concurrent.AtomicInt",
+             "kotlin.concurrent.AtomicLong",
+             "kotlin.concurrent.AtomicBoolean",
+             "kotlin.concurrent.AtomicReference",
+             "kotlin.concurrent.AtomicIntArray",
+             "kotlin.concurrent.AtomicLongArray":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Finds bundled stdlib extension functions named `calleeName` whose receiver
+    /// matches `receiverType`. Bundled stdlib extensions (e.g. the atomic-array
+    /// `loadAt`/`storeAt` migration source) are conceptually members and should be
+    /// callable without an explicit import, but ordinary scope lookup only exposes
+    /// them when imported. This is used as a final member-call resolution fallback,
+    /// so it only affects calls that would otherwise be unresolved. Membership is
+    /// gated by `sema.bundledIndex` so user-declared extensions are never surfaced
+    /// here without import.
+    func collectBundledStdlibExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        requireOperator: Bool = false,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        // This importless-member fallback exists only for the atomic stdlib
+        // migration (KSP-672 and the scalar alias mirror): those bundled sources
+        // are the live implementation and their synthetic stubs are intentionally
+        // skipped. Other bundled stdlib sources (collection/sequence/text HOFs)
+        // are dead mirrors whose canonical lowering goes through runtime helpers,
+        // so surfacing them here would wrongly pre-empt that path.
+        guard isAtomicMigrationReceiver(receiverType, sema: sema, interner: interner) else {
+            return []
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  !symbol.flags.contains(.synthetic),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            if requireOperator, !symbol.flags.contains(.operatorFunction) {
+                return false
+            }
+            // Property accessor functions share the short names get/set; their
+            // parent is a property symbol and must not pollute member lookup.
+            if let parentID = sema.symbols.parentSymbol(for: candidate),
+               let parentSym = sema.symbols.symbol(parentID),
+               parentSym.kind == .property
+            {
+                return false
+            }
+            guard let key = BundledDeclarationIndex.memberKey(
+                for: symbol,
+                symbolID: candidate,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner
+            ), sema.bundledIndex.contains(key)
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+    }
+
     private func isBundledRangeSourceMember(
         _ calleeName: InternedString,
         interner: StringInterner
@@ -1472,7 +1585,7 @@ extension CallTypeChecker {
         }
     }
 
-    private func sourceLevelRangeMemberLookupType(
+    func sourceLevelRangeMemberLookupType(
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
