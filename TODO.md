@@ -673,7 +673,7 @@
   fun main() { println("hello".g(2)) }           // this.substring(n) なら "llo"
   ```
   発見元: KSP-404（prefix/suffix の Kotlin 化）。KSP-404 の `StringPrefixSuffix.kt` では `this.substring(...)` 明示で回避済み。legacy `kk_string_substring_flat` lowering は KSP-406（substring/slice/range 系の Kotlin 化）で削除予定であり、暗黙レシーバ lowering の修正は KSP-404 の安全なスコープを超えるため本項で追跡する
-- [ ] BUG-146: `provideDelegate` operator を持つ delegate をローカル宣言（`fun f() { val x by Factory() }`）で使うと、`provideDelegate` 呼び出しが一切行われず `x` が `Factory()` インスタンス自身に束縛される（member/top-level の `by DelegateFactory()` は `KIRLoweringDriver+ProvideDelegate.swift` 経由で正しく動作する）。最小再現:
+- [x] BUG-146: `provideDelegate` operator を持つ delegate をローカル宣言（`fun f() { val x by Factory() }`）で使うと、`provideDelegate` 呼び出しが一切行われず `x` が `Factory()` インスタンス自身に束縛される（member/top-level の `by DelegateFactory()` は `KIRLoweringDriver+ProvideDelegate.swift` 経由で正しく動作する）。最小再現:
   ```kotlin
   class ValidatedDelegate(private var value: String) {
       operator fun getValue(thisRef: Any?, property: Any?): String = value
