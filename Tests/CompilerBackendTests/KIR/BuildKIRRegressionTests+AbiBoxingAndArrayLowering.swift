@@ -583,8 +583,12 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             XCTAssertNil(throwFlags["kk_string_split_flat"])
             XCTAssertNil(throwFlags["kk_string_split"])
             XCTAssertNotNil(throwFlags["split"])
-            XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
+            // KSP-406: subSequence is bundled Kotlin source (delegates to substring),
+            // so it no longer lowers to a String-specific runtime helper.
+            XCTAssertNil(throwFlags["kk_string_subSequence_flat"])
             XCTAssertNil(throwFlags["kk_string_subSequence"])
+            XCTAssertNil(throwFlags["kk_string_substring_flat"])
+            XCTAssertNil(throwFlags["kk_string_substring"])
             XCTAssertNil(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat"))
             XCTAssertNil(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat"))
             XCTAssertNil(throwFlags["kk_string_repeat_flat"])

@@ -1215,22 +1215,6 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: nullCauseExpr, value: .intLiteral(0)))
                 finalArgIDs.append(nullCauseExpr)
-            } else if loweredCalleeName == interner.intern("kk_string_substring_flat"),
-                      finalArgIDs.count == 2 || finalArgIDs.count == 3
-            {
-                // BUG-145: implicit-receiver `substring(...)` inside a String
-                // extension reaches this path instead of the member-like
-                // lowering, which normally supplies the trailing
-                // (endIndex, hasEndIndex) pair the flat runtime ABI expects.
-                let hasEndValue: Int64 = finalArgIDs.count == 3 ? 1 : 0
-                if finalArgIDs.count == 2 {
-                    let endExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: endExpr, value: .intLiteral(0)))
-                    finalArgIDs.append(endExpr)
-                }
-                let hasEndExpr = arena.appendExpr(.intLiteral(hasEndValue), type: sema.types.intType)
-                instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(hasEndValue)))
-                finalArgIDs.append(hasEndExpr)
             } else if loweredCalleeName == interner.intern("kk_channel_send")
                 || loweredCalleeName == interner.intern("kk_channel_receive")
                 || loweredCalleeName == interner.intern("kk_mutex_lock")

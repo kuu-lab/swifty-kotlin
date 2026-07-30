@@ -286,6 +286,35 @@ struct SemanticsAndUtilitiesRegressionTests {
         }
     }
 
+    // KSP-672: the atomic-array `*At` boundary and its `get`/`set` operators are
+    // now bundled Kotlin extensions (Stdlib/kotlin/concurrent/AtomicArrayMigration.kt)
+    // rather than synthetic stubs. They must resolve through ordinary member-call
+    // and indexed-access inference without an explicit per-function import.
+    @Test
+    func testAtomicArrayIndexOperatorsResolveWithoutExplicitImport() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import kotlin.concurrent.atomics.AtomicIntArray
+        import kotlin.concurrent.atomics.AtomicLongArray
+
+        fun main() {
+            val ints = AtomicIntArray(2)
+            ints[0] = 5
+            ints[1] = ints[0] + 1
+            val longs = AtomicLongArray(1)
+            longs[0] = 9L
+            println(ints[0] + ints[1] + longs[0])
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(!(ctx.diagnostics.hasError), "Atomic-array get/set operators should resolve via bundled extensions: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
     @Test
     func testCopyActionContextInIOPathPackageSurfaceIsResolved() throws {
         let source = """
