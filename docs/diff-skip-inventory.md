@@ -209,6 +209,8 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 
 3, 4 はどちらも本ケースの完全な pass に必要だが、4 は property delegate と無関係の独立した一般correctness bugであり、3 も AST パーサー層の変更を要するため、本 SKIP-DIFF 解除作業のスコープ外として別タスクに切り出した。
 
+**2026-07-29 追記（DEBT-KIR-008 修正）**: 上記調査では見落とされていた5件目のバグを発見・修正した。`propertyDecl.delegateBody`（トレーリングラムダ本体）は `delegateExpression` と異なり Sema の型チェック（`identifierSymbols` 束縛）を一切通っておらず、`lazy { label }` のように囲む class member を参照する式は静かに `.unit` に落ちていた（`lazy { "literal" }` のような無参照の本体だけが偶然動いていた）。加えて `$delegate_x`（delegate ハンドルを保持するフィールド）は `nominalLayout` の field offset には登録されるものの、getter/setter/コンストラクタ初期化子が実際には module-global スロットとして読み書きしており、クラスの全インスタンスで共有されていた（DEBT-KIR-008 本体の症状）。`.lazy`（trailing lambda が 0 引数のケースのみ、`kk_function_invoke_0` の boxed-closure dispatch を利用）に限定してこの2件を修正済み。`.observable`/`.vetoable` のコールバック（3引数、`RuntimeDelegates.swift` の raw thunk 前提の `unsafeBitCast` 経由で呼ばれるため boxed closure 化不可）は意図的に対象外のまま。この修正の副作用として、`lazy { initCount += 1; "ready" }` のようにレシーバ経由の compound assign が lazy 本体内にある場合は (4) の症状も解消される（compound assign 自体の一般バグは `this.count += 1` を除き引き続き未修正）。残課題 3・4 は変わらず本ケースの完全な pass をブロックするため `SKIP-DIFF` は継続。
+
 ## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API
 
 | cases | 判定 | 次アクション |

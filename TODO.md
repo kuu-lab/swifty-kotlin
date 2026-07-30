@@ -1,8 +1,7 @@
 # Kotlin Compiler Remaining Tasks
 
-### KIR / Lowering（残り 4 件）
+### KIR / Lowering（残り 3 件）
 - [ ] DEBT-KIR-006: `Iterable<T>.joinToString(separator) { transform }` の transform ラムダが無視され、各要素の生の `toString()` がそのまま結合されるバグを調査・修正する。再現: `"a\r\nbb\r\nccc".split("\r\n").joinToString(",") { it.length.toString() }` は `"a,bb,ccc"`（誤り、正しくは `"1,2,3"`）になる。`split` 自体・`for` ループでの個別アクセスは正しく動作する。KSP-482 (#4625) のレビュー対応中に Base64.Pem の行長検証 diff case で発覚、該当箇所は `for` ループへ書き換えて回避済み。`map`/`filter` 等の他 HOF で同型の transform 無視パターンがないか要確認
-- [ ] DEBT-KIR-008: クラスインスタンスの委譲プロパティを per-instance storage にする。症状: `class Foo(val label: String) { val x by lazy { label } }; val a = Foo("a"); val b = Foo("b"); println(a.x); println(b.x)` は kotlinc では `a` / `b` だが kswiftc では `0` / `0` になる。`delegateStorageSymbol` が `nominalLayout` の field offset に登録されず、`MemberLowerer+DelegatedAndAccessorLowering.swift` の accessor は `.loadGlobal`、`KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` の initializer は global 相当の `.symbolRef` copy を使うため、layout 登録・getter・setter・initializer をまとめて instance field 化する必要がある。PR #4632 の conflict repair 中にレビュー由来の再現を現行 `master` で再確認（#4692 は stdlib delegate factory の引数 lowering を修正したが storage ownership は未修正）
 
 ### Sema 型チェック（残り 1 件）
 - [ ] DEBT-SEMA-001: 同一クラス内の後方宣言 member property を先行 member function から参照すると不正な型エラーになる。最小再現: `class Forward { fun get(): Int = value; var value = 10 }` は Kotlin では正当だが kswiftc は `KSWIFTK-TYPE-0001: Type constraint could not be satisfied.` で失敗する。現行 `typeCheckClassLikeMembers` は source-order pass 後に member function を再チェックするが、最初の pass で property type 解決前の診断が確定し、二度目の pass で回復できない。全 property type の副作用安全な prepass、または参照時の遅延解決と診断 defer が必要。PR #4632 の conflict repair 中にレビュー由来の再現を現行 `master` で再確認
