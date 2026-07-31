@@ -2,9 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// Type token symbols use this negative offset to avoid collision with real symbol IDs.
-let typeTokenSymbolOffset: Int = -20000
-
 /// Coroutine state machine dispatch labels start at this offset.
 let coroutineDispatchLabelBase: Int32 = 1000
 
@@ -45,6 +42,16 @@ func extractCallees(
 ) -> [String] {
     body.compactMap { instruction -> String? in
         guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+        return interner.resolve(callee)
+    }
+}
+
+func extractVirtualCallees(
+    from body: [KIRInstruction],
+    interner: StringInterner
+) -> [String] {
+    body.compactMap { instruction -> String? in
+        guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction else { return nil }
         return interner.resolve(callee)
     }
 }

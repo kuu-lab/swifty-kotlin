@@ -151,7 +151,7 @@ final class DeclTypeChecker {
         if let initializer = property.initializer {
             var locals: LocalBindings = initialLocals
             let initializerType = driver.inferExpr(
-                initializer, ctx: ctx, locals: &locals,
+                initializer, ctx: ctx.with(initializingPropertySymbol: symbol), locals: &locals,
                 expectedType: inferredPropertyType
             )
             if let declaredType = inferredPropertyType {
@@ -195,6 +195,28 @@ final class DeclTypeChecker {
                 locals: &delegateLocals,
                 diagnostics: diagnostics
             )
+
+            // DEBT-KIR-008: `lazy { ... }`'s trailing lambda (delegateBody) is
+            // parsed as a separate FunctionBody from delegateExpression and was
+            // never type-checked, so identifier references inside it (e.g. a
+            // captured `this`-implicit property) never got an identifierSymbols
+            // binding and silently lowered to `.unit` in KIR. Only `.lazy` is
+            // safe to check here: `.observable`/`.vetoable` bodies bind three
+            // synthetic callback parameters that KIR lowering
+            // (lowerDelegateLambdaBody) still wires up by raw numeric symbol
+            // offset rather than by name, so checking their bodies here would
+            // surface spurious "unresolved reference" diagnostics for those
+            // parameter names — a separately-tracked gap
+            // (docs/diff-skip-inventory.md DEBT-DIFF-005).
+            if let delegateBody = property.delegateBody,
+               StdlibDelegateKind.detect(delegateExpr: delegateExpr, ast: ctx.ast, interner: ctx.interner) == .lazy
+            {
+                var lazyBodyLocals: LocalBindings = [:]
+                _ = inferFunctionBodyType(
+                    delegateBody, ctx: accessorCtx, locals: &lazyBodyLocals,
+                    expectedType: nil
+                )
+            }
         }
 
         let finalPropertyType = inferredPropertyType

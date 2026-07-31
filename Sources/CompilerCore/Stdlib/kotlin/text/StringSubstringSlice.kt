@@ -39,6 +39,10 @@ public fun String.substring(startIndex: Int, endIndex: Int): String {
 public fun String.subSequence(startIndex: Int, endIndex: Int): String =
     this.substring(startIndex, endIndex)
 
+// BUG-152: members reached through a value statically typed as `CharSequence`.
+public fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence =
+    this.toString().substring(startIndex, endIndex)
+
 public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""
     return this.substring(indices.first, indices.last + 1)

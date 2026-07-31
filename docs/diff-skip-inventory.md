@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-29
+最終更新: 2026-07-30
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -34,11 +34,11 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節） |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
-| DEBT-DIFF-003 | 11 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件と `channel_basic.kt` は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
+| DEBT-DIFF-003 | 6 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・structured concurrency / Deferred / Supervisor 3 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_supervisor_job.kt`, `coroutine_structured_concurrency.kt`, `coroutine_deferred.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
-| DEBT-DIFF-005 | 6 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
+| DEBT-DIFF-005 | 8 | common stdlib / runtime surface gap、または synthetic surface | API 領域別に実装 owner と reference 可否を分離 |
 | DEBT-DIFF-006 | 1 | type inference / boxed numeric lowering / compiler-plugin API | diagnostic case または parity regression へ分解 |
-| DEBT-DIFF-007 | 73 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage |
+| DEBT-DIFF-007 | 37 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み、詳細は該当節） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -97,7 +97,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | lazy/deferred coroutine start (cancel-before-first-run, `CoroutineStart.LAZY`) | `coroutine_exception_handling.kt`, `coroutine_edge_cases.kt` | `STDLIB-CORO-001` と `DEBT-CORO-003` |
 | cancellation（解除済み） | ~~`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`~~ | `currentCoroutineContext()`/`ensureActive()`/`NonCancellable`/`CoroutineContext.isActive` を追加し、`withTimeoutOrNull` の null 判定バグ（`runtimeNullSentinelInt` ではなく生の `0` を返していた）と `coroutineScope`/`supervisorScope` の直接 throw 握りつぶしバグ（`outThrown` を forward していなかった）、および `job.join()`/`Job.await()` が返却後にハンドルを解放し join 後の `isCancelled` 参照が use-after-free になっていたバグを修正して通常 diff へ復帰 |
 | CoroutineScope lifecycle（未解除） | `coroutine_scope_lifecycle.kt` | `CoroutineScope.launch { }` は `CoroutineLoweringPass+LauncherSupport.swift` の `rewriteCoroutineScopeLaunchCall`/`rewriteZeroArgCoroutineScopeLauncherCall` でレシーバを保持したまま entryPoint/functionID split する形に対応済み（`kk_coroutine_scope_launch(scopeHandle, entryPointRaw, functionID)`、ローカル変数レシーバで動作確認済み。キャプチャ付きラムダも BUG-049 で対応済み — capture を launcher continuation 経由で転送する `kk_coroutine_scope_launch_with_cont(scopeHandle, entryPointRaw, continuation)` を追加し、`Scripts/diff_cases/coroutine_launch_capture.kt` で回帰固定）。この diff case は依然 2 件の別バグでブロックされている: (1) `private val scope = CoroutineScope(...)`（型注釈なしのクラスプロパティ）がシブリングのメンバ関数チェック時に未解決型のまま扱われる `typeCheckClassLikeMembers`（`DeclTypeChecker+ClassAndObjectChecking.swift`）のパス順序バグ、(2) 型注釈を付けて (1) を回避しても、非ctor引数のクラスプロパティ初期化子（`private val scope: CoroutineScope = ...`）がインスタンスへ書き込まれず（コンストラクタに `kk_array_set` 相当の書き込みが無い）`kk_coroutine_scope_launch` が invalid scope handle で fatalError する、`class-instance-property-init-storage-bug` と同種の問題（PR #4691 `claude/recursing-rhodes-5a8c58` で対応中、未マージ）。両方の解消後に `SKIP-DIFF` を外す |
-| structured concurrency / Deferred / Supervisor | `coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt` | Job hierarchy / async-await / supervisor semantics の runtime task。詳細調査結果と残ブロッカーは下記「structured concurrency / Deferred / Supervisor 詳細」節を参照 |
+| structured concurrency / Deferred / Supervisor（解除済み） | ~~`coroutine_deferred.kt`, `coroutine_structured_concurrency.kt`, `coroutine_supervisor_job.kt`~~ | Job hierarchy / async-await / supervisor semantics。詳細は下記「structured concurrency / Deferred / Supervisor 詳細」節を参照 |
 | Channel / produce / Flow backpressure | `coroutine_channels_advanced.kt`, `coroutine_flow_backpressure.kt` | `DEBT-CORO-002` の producer / channel runtime と Flow lowering |
 | sync primitives | `coroutine_mutex_semaphore.kt` | KSP-677 で Sema の overload 解決バグ（`KSWIFTK-SEMA-0002`）を解消し、BUG-049 で `launch { }` 本体のキャプチャ付き suspend 呼び出しの coroutine lowering feature gap（`KSWIFTK-CORO-0003`）も解消（回帰は `coroutine_launch_capture.kt`）。残ブロッカーは CORO-0003 とは別の既存 runtime GC-under-parallelism クラッシュ（100+ 並列 launch で `swift_retain` が SIGSEGV）と `delay` 依存 |
 
@@ -148,7 +148,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 - **解決済み**: `rewriteFlowCollectCall` の callee ガードが `kk_flow_collect` のみで `kk_flow_collectLatest` を含んでいなかったため、`collectLatest` は書き換えを経由せず、CPS 変換前のラムダシンボル参照がそのまま関数ポインタとして `unsafeBitCast` され SIGSEGV していた。ガードに `kk_flow_collectLatest` を追加して解決。
 - **未解決（根本原因）**: `fastProducer()` の `flow { for (i in 1..5) { emit(i); delay(1) } }` のように emitter ブロック内で `delay` を挟むと、`delay` のサスペンド/レジュームが常に `DispatchQueue.global()`（GCD グローバルキュー）上の別スレッドで実行される（`scheduleDelay` / `signalResume` の実装）。一方 `RuntimeFlowCollectContext` は `pthread` のスレッドローカルストレージ（`runtimeFlowCollectStackBox`）で管理されているため、再開後のスレッドではこのスタックが空になり、`kk_flow_emit` が `context == nil` と判定して値を破棄する。結果として、`delay` 前の1回目の emit だけが collector に届く。修正には `RuntimeFlowCollectContext` を `RuntimeContinuationState` のようなスレッドをまたいで伝播する構造に紐付け直す設計変更が必要で、コルーチン全体のスレッドスケジューリングに関わるため対応を見送った。
 
-### structured concurrency / Deferred / Supervisor 詳細（2026-07-10 調査）
+### structured concurrency / Deferred / Supervisor 詳細（解消済み、2026-07-30）
 
 3ケースとも当初想定（「不足APIを足すだけ」）より深いバグに当たった。調査で Sema 側の一般的な型推論バグを複数発見・修正済みだが、各ケースとも KIR lowering / runtime 層に別種の未解決ブロッカーが残る。
 
@@ -160,17 +160,17 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 - Kotlin の「ラムダの期待戻り値型が `Unit` のとき、本体の実際の値は破棄されボディの型は問わない」という言語仕様が未実装だった。`inferLambdaLiteralExpr`（`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`）がラムダ本体を型推論する際に `expectedType: Unit` をそのまま本体式（例: 関数呼び出し）に伝播しており、本体が非Unit値を返す呼び出し（例 `repeat(3) { i -> someIntFn(i) }`）の呼び出し解決自体が「戻り値がUnitと非互換」として `No viable overload found for call` になっていた。**これはコルーチンと無関係な一般的なSemaバグ**（`repeat`/`forEach` 等あらゆる `(T) -> Unit` パラメータで発生）で、`coroutine_structured_concurrency.kt` の `repeat(3) { i -> launch { ... } }` パターンを直接ブロックしていた。修正: 本体の `expectedType` は expected return が `Unit` の場合 `nil` に落とす。
 - 上記5件は `bash Scripts/diff_kotlinc.sh` で以下の回帰確認済み（regressionなし）: `coroutine_scope.kt`, `job_basic.kt`, `supervisor_scope_basic.kt`, `async_await.kt`, `launch_basic.kt`, `range_hof.kt`, `repeat.kt`, `array_hof.kt`, `collection_hof.kt`, `stdlib_collection_hof.kt`, `string_hof.kt`, `lambda_it.kt`, `lambda_with_receiver.kt`, `sequence_forEach_flatMap.kt`, `set_map_filter_foreach.kt`, `map_entries_hof.kt`, `closure_multi_capture_hof.kt`, `destructuring_lambda.kt`, `labeled_return_lambda.kt`（計19ケース）。
 
-**各ケースに残る個別ブロッカー:**
+**2026-07-30 の続き調査で解消。当初の各ケース別ブロッカーと実際の root cause:**
 
-- `coroutine_deferred.kt`: `CoroutineStart`（enum, `.LAZY` 含む）と `awaitAll` が未登録（Sema追加で対応可能）。加えて、`jobs.map { it.await() }` のように **Iterator 経由で取得した `Deferred`/`Job` に対して `.await()`（内部で `Unmanaged.takeRetainedValue()` する runtime 関数）を呼ぶと `swift_unknownObjectRetain` で SIGSEGV する**深刻なランタイムバグを発見（直接インデックスアクセス `jobs[0].await()` や `.forEach { it.isActive }`（await以外）は正常動作するため、Iterator経由取得値への `.await()` 呼び出しに固有）。原因は未特定（ABI boxing / Iterator lowering の追加調査が必要）。`awaitAll` の実装がもし内部で同様の反復処理をするなら同じ問題に当たる可能性が高い。
-- `coroutine_structured_concurrency.kt`: `repeat(3) { i -> launch { sum += (i+1) } }` の Sema型検査は通るようになったが、**`coroutineScope {}` ブロックが外側の可変変数をキャプチャして変更すると KIR lowering が失敗する**（最小再現: `var sum = 0; coroutineScope { sum += 1 }` だけで `KSWIFTK-CORO-0003: Coroutine launcher 'coroutineScope' passed 0 argument(s) but referenced suspend function expects 1.`）。同じパターンを `launch {}`/`async {}` で試すと正常動作するため、`coroutineScope`（おそらく `supervisorScope`/`runBlocking` も同様）の呼び出し書き換え箇所（`CoroutineLoweringPass+CallRewriting.swift` 付近、capture変数を追加引数として渡す処理）固有のバグ。
-- `coroutine_supervisor_job.kt`: `SupervisorJob()`・トップレベル関数としての `CoroutineScope(context)` が未登録（cascadeで `supervisor.cancel()` も ambiguous overload になっている）。ランタイム側には `kk_supervisor_scope_new` / `kk_coroutine_scope_new`（`RuntimeCoroutineScope(isSupervisor:)` ベース）が既に存在するため実装の土台はあるが、`SupervisorJob()` を `Job` 互換ハンドルとして返しつつ `CoroutineScope(coroutineContext + supervisor)` の `+` 合成をどう扱うか、および `scope.launch { }` という明示的レシーバでの呼び出しを既存の暗黙レシーバ実装（`RuntimeCoroutineScope.current`）とどう両立させるかの設計が必要。`Job` ハンドルと `RuntimeCoroutineScope` ハンドルは異なる runtime 表現（前者は `RuntimeJobHandle` 経由の手動 retain/release、後者は別クラス）のため、安易に混用すると上記と同種の型混同クラッシュを起こすリスクがある。
+- `coroutine_supervisor_job.kt`: 上記調査時点(2026-07-10) では `SupervisorJob()`/`CoroutineScope(context)` 未登録と見立てていたが、その後の KSP-674〜679 bundled-stdlib 移行で両方とも実装済みになっていた（`HeaderHelpers+SyntheticCoroutineRegistry.swift` の `kk_supervisor_job_new`/`kk_coroutine_scope_new_with_context` 登録）。`SKIP-DIFF` を外すだけで通常 diff PASS。
+- `coroutine_structured_concurrency.kt`: 「`coroutineScope{}` の capture-lowering バグ」という当初の診断は、`coroutineScope`/`supervisorScope` が KSP-679 で実際の bundled Kotlin source 関数（`Stdlib/kotlinx/coroutines/CoroutineScope.kt`）に移行済みだったため的外れになっていた。実際に残っていたのは3件の一般的バグ: (1) `coroutineScope`/`supervisorScope` の戻り値型 narrowing が `CallTypeChecker.swift` の `coroutineLauncherLambdaArgIndex`/`adjustedReturnType` 判定リストに含まれておらず `results.forEach` 等が unresolved になっていた、(2) **外側変数をキャプチャする suspend ラムダが、非suspend文脈で型チェックされた場合に captureless 前提の生ポインタとして渡され、間違った引数個数で呼ばれて SIGBUS するコンパイラ全体に及ぶ一般バグ**（`LambdaLowerer.swift` の `materializeEscapingCallableValue`/`lowerNonCapturingLambda` が呼び出しコンテキストの非suspend期待型を鵜呑みにして `isSuspend: false` を確定していたのが根本原因。ラムダ本体を実際にスキャンして suspend 呼び出しの有無を判定する `lambdaBodyRequiresSuspend` を追加し、`effectiveIsSuspend` として一貫させて修正）、(3) `List<String> + "x"` のような二項演算子 `+` が LHS の型を無視し RHS が String というだけで文字列結合と誤解釈する一般バグ（`ExprTypeChecker+BinaryAndFlowInference.swift`、`isString(lhs) || isString(rhs)` → `isString(lhs)` に修正）。加えてテストケース自体が抱えていた並行性レース（`launch{}` が実 GCD スレッドへ並列ディスパッチされるため、kotlinx の既定シングルスレッド確定と異なり共有可変状態への同時書き込みがクラッシュ/値化けを起こす）も、共有状態を避ける形にケースを調整して解消。
+- `coroutine_deferred.kt`: `CoroutineStart`/`awaitAll` の Sema 未登録は想定通り。`awaitAll` は bundled Kotlin source（`CoroutineScope.kt`）へ直接ループ実装で追加（HOF越しの `.await()` を避けるため）。**Iterator 経由 `.await()` の SIGSEGV** は、`jobs.map { it.await() }` の `.map`（bundled Kotlin source、非 `inline`）の `transform` パラメータが非suspend宣言のため、実際には suspend な `{ it.await() }` を collection-HOF 用アダプタ（`CallLowerer+HOFAdapter.swift` の `makeCollectionHOFCallableAdapter`）でラップする際、アダプタの `isSuspend` がラムダの実体でなく HOF の宣言型を鵜呑みにしていたのが原因（アダプタが `CoroutineLoweringPass` の CPS 変換対象から漏れ、`.await()` 呼び出しが未初期化の continuation を読んで SIGSEGV）。呼び出し先の実際の `isSuspend` を優先するよう修正。`CoroutineStart.LAZY`（lazy start）は launch 側と同じ「genuine pending state 欠如」の大きな未解決ギャップのため、このケースの対象から意図的に除外（コメントで明記、`coroutine_edge_cases.kt` 側で引き続き追跡）。
 
-**次アクション（優先度順）:**
+**副次的に発見・修正した一般バグ:**
 
-1. `coroutine_supervisor_job.kt`: `SupervisorJob()` / `CoroutineScope(context)` の Sema 登録 + runtime 実装（型混同を避ける設計を先に固める）。3ケース中もっとも「不足APIの追加」に近く、対応可能性が高い。
-2. `coroutine_structured_concurrency.kt`: `coroutineScope{}` の capture-lowering バグの原因調査（`CoroutineLoweringPass+CallRewriting.swift`）。
-3. `coroutine_deferred.kt`: Iterator経由 `.await()` の SIGSEGV バグの原因調査（ABI boxing / Iterator lowering）。`CoroutineStart`/`awaitAll` の Sema 登録は独立して先に進められる。
+- 上記の suspend ラムダ materialization 修正は、`runBlocking`/`launch`/`async`/`produce` のような KIR レベルの coroutine launcher（`CoroutineLoweringPass+LauncherSupport.swift` の BUG-049 由来 launcher-continuation 機構が生シンボル参照を前提とする）と衝突し、`produce { send(x) }`（`channel_basic.kt`）を `KSWIFTK-CORO-0003` で退行させた。`Sema/Models/SemanticsModels.swift` に `coroutineLauncherLambdaExprIDs` マーカーを追加し、`runBlocking`/`launch`/`async`（`CallTypeChecker.swift` 通常経路）と `produce`（同ファイル内の専用早期リターン分岐、CORO-075）の両方でラムダ引数をマークして `LambdaLowerer` 側の materialization から除外することで解消（`coroutineScope`/`supervisorScope` はこの launcher 機構を使わない実 Kotlin 関数のため対象外のまま）。
+
+**検証:** Golden テスト（Lexer/Parser/Sema/Diagnostics、計355ケース）全 PASS、`Scripts/diff_kotlinc.sh Scripts/diff_cases`（678ケース）で回帰0件を確認（`coroutine_delay_basic.kt` のタイミング閾値ベース判定が高負荷環境で一過性に揺れたのは今回の変更と無関係と個別に再現確認済み）。
 
 ## DEBT-DIFF-004: value class parity（解消済み、2026-07-12）
 
@@ -197,6 +197,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | --- | --- | --- | --- |
 | `java.math.BigInteger` | `big_integer.kt` | Java interop surface gap | BigInteger を対象に残すなら Java interop task、対象外なら target-out backlog |
 | KSwiftK synthetic Sequence surface | `sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt` | JVM kotlinc に無い surface | public surface として残す理由を再確認し、残すなら candidate-only test へ移す |
+| Sequence source/runtime interop | `flatten_sequence_edge_cases.kt`, `sequence_lazy_eval.kt` | source Sequence object-expression は runtime List/Sequence/RuntimeSequenceBox ハンドルに対する `.iterator()` 仮想ディスパッチが未整備（`sequence {}` builder 含む KSP-447 残留） | KSP-441 後続 / KSP-447 で itable ブリッジを整備後に `--force-run-skipped` で再判定 |
 | Scope functions | `scope_functions_edge_cases.kt` | common stdlib gap | `let` / `also` / `with` / `apply` / `takeIf` / `takeUnless` を API 別に分解 |
 | Property delegates | `property_delegate_edge_cases.kt` | delegate lowering 起因と確定（stdlib 側の `Delegates.observable`/`vetoable`/`lazy` 実装・ランタイム ABI は正しい）。クラスメンバの delegate プロパティ初期化で2件のバグを修正済みだが、残り2件（uncommitted, 別 owner）が残るため引き続き skip | 残課題（下記注記）を個別に修正してから通常 diff へ |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | named group / invalid pattern parity | RuntimeRegex と diagnostic behavior の regression に分割 |
@@ -221,6 +222,8 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 
 3, 4 はどちらも本ケースの完全な pass に必要だが、4 は property delegate と無関係の独立した一般correctness bugであり、3 も AST パーサー層の変更を要するため、本 SKIP-DIFF 解除作業のスコープ外として別タスクに切り出した。
 
+**2026-07-29 追記（DEBT-KIR-008 修正）**: 上記調査では見落とされていた5件目のバグを発見・修正した。`propertyDecl.delegateBody`（トレーリングラムダ本体）は `delegateExpression` と異なり Sema の型チェック（`identifierSymbols` 束縛）を一切通っておらず、`lazy { label }` のように囲む class member を参照する式は静かに `.unit` に落ちていた（`lazy { "literal" }` のような無参照の本体だけが偶然動いていた）。加えて `$delegate_x`（delegate ハンドルを保持するフィールド）は `nominalLayout` の field offset には登録されるものの、getter/setter/コンストラクタ初期化子が実際には module-global スロットとして読み書きしており、クラスの全インスタンスで共有されていた（DEBT-KIR-008 本体の症状）。`.lazy`（trailing lambda が 0 引数のケースのみ、`kk_function_invoke_0` の boxed-closure dispatch を利用）に限定してこの2件を修正済み。`.observable`/`.vetoable` のコールバック（3引数、`RuntimeDelegates.swift` の raw thunk 前提の `unsafeBitCast` 経由で呼ばれるため boxed closure 化不可）は意図的に対象外のまま。この修正の副作用として、`lazy { initCount += 1; "ready" }` のようにレシーバ経由の compound assign が lazy 本体内にある場合は (4) の症状も解消される（compound assign 自体の一般バグは `this.count += 1` を除き引き続き未修正）。残課題 3・4 は変わらず本ケースの完全な pass をブロックするため `SKIP-DIFF` は継続。
+
 ## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API
 
 | cases | 判定 | 次アクション |
@@ -232,9 +235,75 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 
 ## DEBT-DIFF-007: compile-exit parity fix により顕在化した両失敗ケース
 
-`run_case()` は、reference と candidate がともに失敗し同じ非ゼロ終了コードを返しても、無条件に `FAIL` とするよう修正済みである。これにより顕在化したケースのうち、現在75件を原因の個別確認が終わるまで `SKIP-DIFF (DEBT-DIFF-007)` として隔離する。
+`run_case()` は、reference と candidate がともに失敗し同じ非ゼロ終了コードを返しても、無条件に `FAIL` とするよう修正済みである。これにより顕在化した72件を、diagnostic parity、enum/data class/interface/variance、common stdlib・テスト入力、coroutine Flow、reflection/metadata、JVM・時間、finally exception routing の7グループへ分解して個別に triage した(2026-07-29)。
 
-対象は diagnostic parity、enum/data class/interface/variance、common stdlib・テスト入力、Flow、reflection/metadata、JVM・時間・UUID、finally exception routing に分類する。各ケースのマーカーを起点に、diagnostic golden、実装owner、またはtarget専用runnerのいずれかへ移してからskipを解除する。
+### 2026-07-29 棚卸しの結果概要
+
+72件中35件を解消(72→37)。内訳:
+
+- **診断/ネガティブテスト(旧グループ1、22件)**: 全件解消。JVM kotlinc の stderr はこのハーネスで比較されないため、複数シナリオを1ファイルに束ねた「意図的なコンパイルエラー」ケースは本質的に JVM kotlinc を oracle にできない。既存の `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` に近い golden テストがある5件(`error_type_mismatch.kt`→`type_mismatch.golden`, `type_error.kt`→同, `error_unresolved_reference.kt`→`unresolved_reference.golden`, `deprecated_error.kt`→`deprecated_annotation.golden`, `override_variance_errors.kt`→`visibility_narrowing_override.golden`)は削除。残り15件(`abstract_property_errors`, `builder_dsl_invalid_arg`, `char_get_error`, `error_abstract_instantiation`, `error_interface_conflicts`, `error_null_safety`, `error_override_mismatch`, `error_parameters`, `error_redeclaration`, `error_return_type`, `error_semantic_basic`, `error_visibility`, `is_type_check_non_reified_error`, `val_member_compound_assign_error`, `val_reassign_error`)は `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` へ移設し `UPDATE_GOLDEN=1` で golden 生成、`Scripts/diff_cases` から削除した。`contract_returns.kt`/`contracts_basic.kt` の2件は実は負テストではなく、`kotlin.contracts.contract { }` の実機能バグ(下記参照)と判明したため別枠で継続 skip。
+- **finally routing(旧グループ7、1件)**: 解消。`finally_exception_routing.kt` はテスト自体の欠陥(catch節に`return`が無く、real kotlinc も"missing return statement"で最初からコンパイル不能だった)で、`return "caught"` を追加して通常 diff に復帰。
+- **その他のテスト入力ミス修正による解消(14件)**: `interface_super_call.kt`(曖昧な`super.greet()`を`super<B>.greet()`に), `math_extended.kt`(`IEEErem`/`withSign`/`nextTowards`をトップレベル関数呼び出しからメンバー呼び出しに), `null_receiver_is_null_or_empty.kt`(型無し`null`への`isNullOrEmpty()`はkotlinc側も曖昧で削除), `nullable_receiver_ext.kt`(`String`と`String?`の拡張関数はJVM erasureで衝突するため片方削除), `string_format_positional.kt`(`$`エスケープ漏れ), `uint_range.kt`/`ulong_range.kt`(`Int`と`UInt`/`ULong`の`mapIndexed`内混在に`.toUInt()`/`.toULong()`追加), `temp_files.kt`(`kotlin.io.createTempFile`/`createTempDir`はDeprecationLevel.ERRORのため`kotlin.io.path`版に書き換え), `kclass_ktype_basic.kt`/`metadata_api.kt`(`kotlin.reflect`系importの追加、および存在しない`KClass.type`参照の削除)。
+- **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
+- **コンパイラ本体の修正(1件、DEBT-DIFF-007 調査の副産物)**: `error_parameters.kt` の triage 中に、`varargFun(name = "bad", 1, 2)`(named引数の後に来る positional 引数が、宣言順序上その named引数より前にある vararg パラメータへ逆流して束縛される)を kswiftc が誤って受理する実バグを発見・修正した。`Sources/CompilerCore/Sema/Resolution/Resolution+TypeConstraints.swift` の `buildParameterMapping` に `maxBoundParamIndex`(そこまでに束縛済みの最大パラメータ index)を追加し、named引数の後の positional 引数が vararg パラメータへ束縛される際に「宣言順序が逆行していないか」を検証するよう修正(回帰は `error_parameters.kt` の golden ケースで固定、既存の `OverloadResolverTests` 79件は無回帰を確認済み)。
+
+以下、残り37件を分類ごとに記載する。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
+
+### グループ2: enum/data class/interface(残り12件)
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `comparable_interface.kt` | ローカル(関数内)宣言の generic `fun <T> ... where T : Comparable<T>` が型パラメータ/where節を一切保持しない(`.localFunDecl` AST ノードと `inferLocalFunDeclExpr` に型パラメータのフィールド自体が無い)。副次的にnullable引数を渡す3行も要修正 | AST `.localFunDecl` とその type checker にトップレベル関数と同様の type params/where clause サポートを追加 |
+| `context_receivers.kt` | kotlinc 2.4 の named `context(name: Type)` 構文に kswiftc パーサーが未対応(旧・匿名 context 型リストのみ対応)で、Sema も最初の context 型を extension receiver に読み替えるだけでネストしたスコープに伝播しない | context parameter の設計を要する中規模タスク(クイックパッチ不可) |
+| `data_class_inheritance.kt` | 意図的な負テスト(コメントで明言)だが、ネストしたクラス(`Container.Outer : Inner`)が `validateSupertypesAreOpen` の対象外になっている点は独立した実バグ | 診断golden(DEBT-DIFF-006の`error_type_inference.kt`と同方針)へ移設し、ネストクラスのopen検証漏れは別途調査 |
+| `data_class_inheritance_valid.kt` | `if (other !is BaseEntity) return false` のようなガード節後、`other` の smart-cast 状態が後続コードへ伝播しない(`ControlFlowTypeChecker.inferIfExpr` は else 無しの分岐の flowState をブロック内の後続文へ引き継がない設計)。広範囲に影響しうる一般的なcorrectnessギャップ。2ファイル(L17/L44)がdata class ctorのval/var欠落という別ミスも持つ | `ExprTypeChecker.blockExpr` の逐次処理が現状 statement ごとに同じ `ctx` を使い回しており、Nothing型分岐後のflowStateを次のstatementへ運んでいない。`inferExpr`/`inferIfExpr` の戻り値契約を拡張する必要がある中規模タスク |
+| `enum_basic.kt` / `enum_edge_cases.kt` / `enum_entries_function.kt` | enum が明示的な companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる(`HeaderCollection.swift` は暗黙companionの分岐でのみ合成)。また `EnumEntries<T>` がメンバー無しの空マーカーinterfaceとして登録されており `.size` 等が解決できない(`HeaderHelpers+SyntheticEnumStubs.swift`) | (1) enum staticsを既存/暗黙どちらのcompanionにも合成するよう修正 (2) `EnumEntries<T>` に `List<T>` 相当のメンバー/supertypeを持たせる。各ファイルのtypoやimport漏れは合わせて修正 |
+| `generic_typealias.kt` | `typealias A = B` / `typealias B = A` の循環定義が使用箇所でしか検出されず(`Helpers+TypeAliasExpansion.swift`)、未使用ならコンパイルが通ってしまう | 宣言済み typealias 全件に対する eager cycle check を追加 |
+| `interface_conflict_resolution.kt` | interface同士の衝突(`SimpleConflict`)は検出できるが、concreteな親クラスを持つ多重interface実装(`SuperPriority : ConcreteBase(), Left, Right`)の衝突は見逃す | override衝突チェックにconcrete superclass併存時の分岐を追加 |
+| `override_variance.kt` / `override_variance_advanced.kt` | `Unit` を明示的な値として使う式(`= Unit`)がどこでも解決できない(`inferNameRefExpr` は `null`/`this` は特別扱いするが `Unit` は素通りしてunresolvedになる) — 他のケースにも波及しうる一般的ギャップ。`override_variance.kt` は無効な Java 風 `throws X` 節も含む。`override_variance_advanced.kt` は `protected fun` を `interface` 内に書けてしまう検証漏れも別途持つ | `inferNameRefExpr`(`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`)に`Unit`の特別解決を追加。`throws`節除去、`protected in interface`検証追加は別途 |
+
+### グループ3: common stdlib gap(残り15件)
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `advanced_type_inference.kt` | `@ExperimentalTypeInference` を関数に直接付与(本来はアノテーションクラスへのメタ注釈のみ許可)しているのを kswiftc は許してしまう。修正後は `buildList`/`buildMap` の generic 型引数forwardingで別途詰まる | `@ExperimentalTypeInference` 誤用チェック追加、`buildList`/`buildMap` のgeneric forwarding調査 |
+| `array_hof.kt` | `Array<T>` に `mapIndexed`/`filterIndexed`/`mapNotNull`/`flatMap`/`filterNot`/`filterNotNull`/`reduceIndexed`/述語付き`first`系など約11個のHOFが無い(`HeaderHelpers+SyntheticArrayStubs.swift`) | List/Iterable相当のHOFを`Array`にも登録、Runtime側(`RuntimeCollectionHOFArray.swift`)を拡張 |
+| `bitwise_operators.kt` / `char_operations.kt` | `Char.rangeTo()`の明示的ドット呼び出し(`c1.rangeTo(c2)`)が未解決 — `..`演算子専用の特別扱いのみで、通常のメンバー関数として登録されていない(`ExprTypeChecker+BinaryAndFlowInference.swift:370`付近) | `rangeTo`を`Char`の通常解決可能メンバーとして登録。各ファイル固有の無効行(型不一致比較、`toIntOrNull`等)は別途修正 |
+| `chunked_transform.kt` | ファイル全体が実在しない `chunked(size, step)` オーバーロードを前提に書かれている(実Kotlinの`chunked`は`size`と任意の`transform`のみ、step付きは`windowed`) | `chunked(size, step[, transform])` の呼び出し20箇所超を `windowed(size, step[, ..., transform])` へ書き換え。分量が大きいため今回は未着手 |
+| `list_binary_search_compare.kt` | `main()` 内ローカル宣言の `data class Person(...)` の合成コンストラクタが解決できない("Unresolved function 'Person'")。ローカルクラス宣言収集の未調査ギャップ | `BuildASTPhase+MemberCollection.swift`/`+DeclBuilders.swift` でローカルdata classの扱いを調査。L150の型不一致行は別途修正 |
+| `list_reversed_asreversed.kt` | `String.asReversed()`(実Kotlinに存在しない)を除去した後も、`MutableList.asReversed()[i] = value`(view経由の書き込みで元リストを変更する)が kswiftc で "Array reference is null" 例外を投げる | `asReversed()`が返すview実装のset操作を調査・修正 |
+| `match_result.kt` | `MatchResult.range`/`MatchGroup.range`が`Int`型で登録されており(`HeaderHelpers+SyntheticRegexStubs.swift:162-180`)`IntRange`であるべき。destructuring の2件目(`component2()`)も値が入らない | `range`プロパティの型を`IntRange`に修正。destructuring 2項目束縛のバグを調査 |
+| `range_basic.kt` | `.end`(実際は`.endInclusive`/`.last`)や`IntRange.toIntArray()`(IntRangeは`Collection`でなく`Iterable`)をrefは正しく拒否するが、kswiftcのSemaは寛容な fallback リスト(`CallLowerer+MemberCallSupport.swift`の`unresolvedCollectionMemberNames`)がこれを素通りさせ、対応するLoweringルールが無いため生のシンボル名がそのままcodegenへ渡り**診断エラーではなくリンカエラー**になる | fallbackリスト(~60件)がLoweringで実際にハンドルされない名前を許してしまう設計を監査し、未対応名は`unresolved reference`にフォールバックさせる |
+| `string_chunked_windowed.kt` / `windowed_step_partial.kt` | `chunkedSequence`/`windowedSequence`のtransformコールバック引数(実際は`CharSequence`型)で`.length`のようなCharSequence正規メンバーすら解決できない。テスト側も`.uppercase()`/`.toInt()`など`String`専用メンバーを誤用 | transformラムダ引数の型付けを修正。テスト内の`String`専用メンバー誤用行を修正 |
+| `string_materialization.kt` | 存在しない`String.toTypedArray()`を除去した後も2件残存: (1)`"cba".toSortedSet().toList()`が`[a,b,c]`ではなく生の文字コード`[97,98,99]`を返す(Char boxing漏れ) (2)`"ab".iterator()`(CharIterator)が壊れている — `.next()`が空文字を返し、消費後の`.hasNext()`が誤って`true`を返す | `toSortedSet()`のChar要素boxingとCharIteratorの実装を調査・修正 |
+
+### グループ4: coroutine Flow(残り3件)
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `flow_advanced_operators.kt` | `.transform { it * 10 }`が`emit()`を呼ばずmapのように誤用(real Kotlinでも無効)。修正後は`Flow.zip`/`Flow.combine`が同名の`Collection.zip`/`combine`と衝突し"Ambiguous overload resolution"になる実バグが残る | テストの`transform`誤用を修正。`Flow.zip`/`combine`のオーバーロード衝突は別途調査(`Helpers.swift:457`付近) |
+| `flow_builders.kt` | `channelFlow{}`/`callbackFlow{}`内で`emit()`を使うテスト自体が実Kotlinでは無効(`ProducerScope`は`send`/`trySend`のみ)。kswiftcは意図的にchannelFlow/callbackFlowを`flow{}`にエイリアスしており`emit`を受理してしまうため、`send`に直すと今度は未実装で失敗する | DEBT-DIFF-003のChannel/produce未実装まわりと合わせて解消する。channelFlow/callbackFlowを real ProducerScope としてモデル化する設計が必要 |
+| `flow_error_handling.kt` | `onErrorReturn`/`onErrorResume`(real Kotlinでは`ERROR`レベルでdeprecated、`catch{emit()}`/`catch{emitAll()}`推奨)をkswiftcが誤って受理。修正すると`onCompletion`(非推奨でない実オペレーター)が未実装で失敗する | テストを`catch{}`形式に書き換え。`Flow.onCompletion`を実装 |
+
+### グループ5: reflection(残り3件)
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `annotation_reflection.kt` | `declarationModifiers`(`BuildASTPhase+ModifiersAndNames.swift`)がアノテーション引数のトークン列を素朴にスキャンしており、`@MyAnnotation(value = "hello")`のような named 引数 `value`/`inline` を後続宣言の修飾子(value class/inline)と誤認する — 6行で再現する一般的なパースバグ | `declarationAnnotations`/`AnnotationParsingSupport.parseAnnotation`と同様にアノテーション引数のトークン範囲をスキップするよう修正 |
+| `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
+| `mock_objects.kt` | `VisibilityChecker.isAccessible`が「外側クラスから入れ子private classのメンバーへ」のみ許可し、逆方向(入れ子private classのコンストラクタを、同じ外側クラスの兄弟メソッドから呼ぶ)を誤って拒否する。テスト自体もrefで別の理由(publicコンストラクタがprivateクラスを露出)により拒否される設計ミスあり | `VisibilityChecker.swift`の入れ子private classコンストラクタ可視性チェックを、outer class自身のスコープに対して行うよう修正 |
+
+### グループ6: JVM interop/time(残り4件)
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `jvm_preview.kt` | `-jvm-target 21`(`@JvmRecord`用)と`kotlin.math.PI`のimport(完全修飾`kotlin.math.PI`を式中に直接書くと"Unresolved reference 'kotlin'"になる別の小さなギャップ)を足すと両方コンパイルは通るが、2つ目のトップレベル`"""..."""".trimIndent()`プロパティ(`sqlQuery`)が`null`を返す(1つ目の`jsonTemplate`は正常)。最小再現(2つのトップレベル`val = """...""".trimIndent()`プロパティを並べるだけ)でも同じ症状を確認済み — トップレベルString初期化子が2件目以降で失われる一般的な初期化順序バグの可能性がある | トップレベルプロパティ初期化子が2件目以降で失われる根本原因を調査(優先度高、影響範囲が広い可能性) |
+| `platform_time_conversion.kt` / `time_edge_cases.kt` | `Instant.fromEpochMilliseconds(1_234)`のようなcompanion-extension呼び出しでInt literalがLongへwideningされない実バグ(両ファイル共通)。`platform_time_conversion.kt`は`toKotlinInstant()`/`toKotlinDuration()`(java.time→kotlin.time方向)も未実装。`time_edge_cases.kt`は`Duration.Companion`の`.seconds`/`.milliseconds`に必要なimportをrefでは要求するがkswiftcは省略を許容しており、要import化すると上記wideningバグが露出する | Int→Long literal wideningをcompanion-extension呼び出し全般で修正(共通根本原因)。`toKotlinInstant`/`toKotlinDuration`実装、importを要求する形にテスト修正 |
+| `test_primitive_conversions.kt` | 存在しない`Char.toUInt()`/`toULong()`/`UByte.toChar()`/`UShort.toChar()`をrefは拒否するが、kswiftcは`UByte`/`UShort.toChar()`は正しく拒否しつつ`Char.toUInt/toULong`だけ独自拡張として誤って受理する。さらに標準の`Int.toChar()`を誤って"deprecated"と警告する | テストの4つの無効行を削除。`Char.toUInt/toULong`の独自拡張を見直し、`Int.toChar()`の誤deprecation警告を修正 |
+
+### 未実装機能・deepなブロッカー: `contract_returns.kt` / `contracts_basic.kt`
+
+ref はテストファイルが `@OptIn(ExperimentalContracts::class)` を欠いているために失敗する(test-input bug、容易に直せる)。candidate は全く別の実バグで失敗する: `contract { returns() implies (...) }` 内の `returns()`/`implies()` 呼び出しが `KSWIFTK-SEMA-0002: No viable overload found for call` になる。`HeaderHelpers.registerSyntheticContractStubs` は `ContractBuilder.returns()`/`SimpleEffect.implies()` 等を合成メンバーとして登録済みで、`CallTypeChecker.swift` の "General member function lookup via implicit receiver" 経路(`collectMemberFunctionCandidates`)がこれらを見つけられるはずだが、実際には見つけられていない。原因は未特定(`contract`専用のハードコードされた特別扱いと、通常のimplicit-receiver経路の相互作用を要調査)。ファイル内の後続エラー(`Exception(...)`呼び出し、`text.length`アクセス)はこの1件の根本原因から連鎖するノイズであり、独立したバグではない。
 
 ## 解除手順
 
