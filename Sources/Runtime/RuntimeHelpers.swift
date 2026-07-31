@@ -238,6 +238,28 @@ func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
     return box.value
 }
 
+/// Text of a value whose static type is `CharSequence`: either a String box or
+/// a StringBuilder box. Returns nil for null sentinels and unrelated handles.
+func runtimeCharSequenceText(from raw: Int) -> String? {
+    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let stringBox = object as? RuntimeStringBox {
+        return stringBox.value
+    }
+    if let builderBox = object as? RuntimeStringBuilderBox {
+        return builderBox.value
+    }
+    return nil
+}
+
 let runtimeNullSentinelInt64 = Int64.min
 let runtimeNullSentinelInt = Int(truncatingIfNeeded: runtimeNullSentinelInt64)
 let runtimeExceptionCaughtSentinel = Int(truncatingIfNeeded: Int64.min + 1)

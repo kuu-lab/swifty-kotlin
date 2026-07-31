@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 interface A {
     fun greet(): String = "Hello from A"
 }
@@ -16,7 +15,7 @@ class D : B, C {
 }
 
 class E : B, C {
-    override fun greet(): String = "D: " + super.greet()
+    override fun greet(): String = "E: " + super<B>.greet()
 }
 
 class F : B {
