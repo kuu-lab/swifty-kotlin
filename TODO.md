@@ -5,6 +5,7 @@
 
 ### Sema 型チェック（残り 1 件）
 - [x] DEBT-SEMA-001: 同一クラス内の後方宣言 member property を先行 member function から参照すると不正な型エラーになる。最小再現: `class Forward { fun get(): Int = value; var value = 10 }` は Kotlin では正当だが kswiftc は `KSWIFTK-TYPE-0001: Type constraint could not be satisfied.` で失敗する。現行 `typeCheckClassLikeMembers` は source-order pass 後に member function を再チェックするが、最初の pass で property type 解決前の診断が確定し、二度目の pass で回復できない。全 property type の副作用安全な prepass、または参照時の遅延解決と診断 defer が必要。PR #4632 の conflict repair 中にレビュー由来の再現を現行 `master` で再確認
+- [ ] BUG-169: enum の companion object にユーザー自身が定義した関数が `EnumClass.function()` という静的呼び出し構文で解決できない。最小再現: `enum class D { A, B; companion object { fun f(): Int = 1 } }; fun main() { println(D.f()) }` は `KSWIFTK-SEMA-0024: Unresolved member function 'f'.` になる。`enum_basic.kt`（`Direction.opposite(...)`）の SKIP-DIFF 解除作業中（2026-07-31、DEADCODE-014 監査）に発見。enum の `values()`/`entries` 合成メンバーとは無関係の既存バグで、companion なしの単純な `class` の companion member 呼び出し（`ClassName.function()`）が正しく解決できるかどうかも要比較調査。2026-07-29 時点の pre-fix master でも同一症状を確認済み（enum 専用の可能性が高い）
 
 ### Diff skip 追跡（残り 5 件）
 > 2026-07-31 マージ時再計測: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 80 件（001:19 / 002:4 / 003:6 / 004:0（解消済み） / 005:8 / 006:0（解消済み、2026-07-29） / 007:43）。実測値は `find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'DEBT-DIFF-[0-9]{3}' -N | sort | uniq -c` で確認。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
@@ -32,7 +33,7 @@
 
 ### 監査基盤 / 残領域
 
-- [~] DEADCODE-014: 旧「未監査領域」を継続監査する。2026-07-12 時点で tracked `.c/.h/.cc/.cpp` は 0 件、`DiagnosticRegistry` 108 descriptor は全て production 発行箇所あり、stored/global/Tests helper の検出結果は下記に分割済み。残りは SKIP-DIFF 62 件の実行可否。`compiler_plugin_api.kt` は強制実行で kotlinc timeout + kswiftc 型/抽象メンバ解決失敗のため解除不可を確認済み
+- [~] DEADCODE-014: 旧「未監査領域」を継続監査する。2026-07-12 時点で tracked `.c/.h/.cc/.cpp` は 0 件、`DiagnosticRegistry` 108 descriptor は全て production 発行箇所あり、stored/global/Tests helper の検出結果は下記に分割済み。**2026-07-31 更新**: 「SKIP-DIFF 62 件」は stale な数値だったと判明（実測は当時110件）。kswiftc を再ビルドして全件 `--force-run-skipped` で再判定し、9件を解除（`comparator_basic.kt`/`interface_properties.kt`/`kconstructor_basic.kt`/`math_exp_log_functions.kt`/`random_overload_edge_cases.kt`/`file_use_edge_cases.kt`/`coroutine_exception_handling.kt`/`coroutine_scope_lifecycle.kt`/`coroutine_supervisor_job.kt`）。並行して別セッションが `DEBT-DIFF-001` の完全棚卸しと `DEBT-DIFF-007`(72→37) の大規模 triage を実施していたため、その成果を `git reset --hard origin/master` で取り込んだ上で作業を継続（このとき `BUG-152`(#5068) が本セッションの CharSequence.length 修正と完全に重複していたと判明し、重複分は破棄）。本セッション側の net-new な実装: (1) `EnumClass.values()` が Sema 未登録で完全に unresolved だったバグと `entries` のメンバー転送不可バグを修正（`enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt` は別バグ=`BUG-169` で依然ブロック中）、(2) `Array<T>` の `mapIndexed`/`filterIndexed`/`mapNotNull`/`filterNot`/`filterNotNull`/`reduceIndexed`/`first`/`firstOrNull`/`last`/`lastOrNull` 未解決バグを修正（`array_hof.kt` は残る `flatMap` 1件のみで依然ブロック中、うち一部は test input mistake）。詳細・各コミットの root cause は [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) 参照。現在の SKIP-DIFF 残数は 69 distinct file（79 tag instance、内訳は上記「Diff skip 追跡」節）。`compiler_plugin_api.kt` は強制実行で kotlinc timeout + kswiftc 型/抽象メンバ解決失敗のため解除不可を確認済み（変更なし）
 
 ### CompilerCore: 参照ゼロの独立シンボル
 
