@@ -163,6 +163,27 @@ extension CallLowerer {
     ) {
         var finalArguments = arguments
         let hasHOFLambdaArg = sourceArgExprs.contains { sema.bindings.isCollectionHOFLambdaExpr($0) }
+        // Must run before the "$default" stub dispatch below (which returns
+        // early): the stub forwards its own `transform`-shaped parameter
+        // straight to the real source-backed function (e.g.
+        // `Sequence.windowed(size, step = 1, partialWindows = false,
+        // transform)`), which expects the normal wrapped function-value
+        // convention. Without materializing here, a call like
+        // `windowed(3) { it.sum() + bonus }` (defaults skipped, so this path
+        // is taken) forwarded the lambda as a bare, unwrapped symbol
+        // reference -- fine for a non-capturing lambda (closureRaw is unused
+        // either way), but silently dropping any captured values (`bonus`)
+        // for one that does capture, since nothing ever threaded the actual
+        // closure environment through.
+        materializeSourceBackedFunctionValueArguments(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: &finalArguments
+        )
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
@@ -220,15 +241,6 @@ extension CallLowerer {
             sema: sema,
             interner: interner,
             arena: arena,
-            instructions: &instructions,
-            arguments: &finalArguments
-        )
-        materializeSourceBackedFunctionValueArguments(
-            chosenCallee: chosenCallee,
-            sourceArgExprs: sourceArgExprs,
-            sema: sema,
-            arena: arena,
-            interner: interner,
             instructions: &instructions,
             arguments: &finalArguments
         )

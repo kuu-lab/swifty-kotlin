@@ -1171,33 +1171,82 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
-            let loweredMemberCalleeName: InternedString = if let chosen,
-                                                             let externalLinkName = sema.symbols.externalLinkName(for: chosen),
-                                                             !externalLinkName.isEmpty
+            // Matches emitMemberCallInstruction's computation exactly
+            // (CallLowerer+MemberCallEmission.swift) — isCollectionHOFLambdaExpr
+            // is a narrow Sema-set flag (only a handful of HOF names opt in via
+            // markDeferredCollectionHOFLambdaIfNeeded), not a general "is this
+            // syntactically a lambda" check. loweredMemberCalleeName's dispatch
+            // key must be computed the same way here as in the regular
+            // (non-safe) path, or it can resolve to a mismatched runtime entry
+            // point expecting a different argument shape.
+            let hasHOFLambdaArg = args.contains { sema.bindings.isCollectionHOFLambdaExpr($0.expr) }
+            var resolvedViaGeneralCollectionFallback = false
+            let resolvedCalleeName: InternedString
+            if let chosen,
+               let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+               !externalLinkName.isEmpty
             {
-                interner.intern(externalLinkName)
+                resolvedCalleeName = interner.intern(externalLinkName)
             } else if chosen == nil, isCoroutineReceiver {
                 switch interner.resolve(effectiveCalleeName) {
                 case "await":
-                    interner.intern("kk_kxmini_async_await")
+                    resolvedCalleeName = interner.intern("kk_kxmini_async_await")
                 case "join":
-                    interner.intern("kk_job_join")
+                    resolvedCalleeName = interner.intern("kk_job_join")
                 case "awaitCompletion":
-                    interner.intern("kk_job_await_completion")
+                    resolvedCalleeName = interner.intern("kk_job_await_completion")
                 case "cancel":
-                    args.isEmpty
+                    resolvedCalleeName = args.isEmpty
                         // swiftlint:disable:next void_function_in_ternary
                         ? interner.intern("kk_job_cancel")
                         : interner.intern("kk_job_cancel_with_cause")
                 case "complete":
-                    interner.intern("kk_job_complete")
+                    resolvedCalleeName = interner.intern("kk_job_complete")
                 case "completeExceptionally":
-                    interner.intern("kk_job_complete_exceptionally")
+                    resolvedCalleeName = interner.intern("kk_job_complete_exceptionally")
                 default:
-                    effectiveCalleeName
+                    // Not actually a coroutine-handle member (isCoroutineReceiver
+                    // just means "non-primitive receiver") — e.g. a not-yet-
+                    // migrated stdlib collection member like `sortedBy` reached
+                    // through a safe-call chain (`x?.entries?.sortedBy { ... }`).
+                    // Fall back to the same name-based collection/synthetic
+                    // dispatch the regular (non-safe) member call path uses,
+                    // instead of emitting the bare Kotlin name as an unresolved
+                    // external symbol.
+                    resolvedViaGeneralCollectionFallback = true
+                    resolvedCalleeName = loweredMemberCalleeName(
+                        chosenCallee: nil,
+                        fallback: effectiveCalleeName,
+                        receiverExpr: receiverExpr,
+                        argumentCount: finalArguments.count,
+                        sourceArgumentCount: args.count,
+                        hasHOFLambdaArg: hasHOFLambdaArg,
+                        sema: sema,
+                        interner: interner
+                    )
                 }
             } else {
-                effectiveCalleeName
+                resolvedCalleeName = effectiveCalleeName
+            }
+            // The chosen == nil branches above never insert the receiver
+            // into finalArguments (mirroring the "when Sema failed to
+            // resolve nextLong/nextInt on Random" gap already worked around
+            // for Random.nextInt/nextLong in the regular, non-safe path).
+            // Reuse the exact same shared helper the regular path calls
+            // (appendReceiverToMemberArguments, CallLowerer+MemberCallEmission.swift)
+            // instead of hand-rolling the insertion, so collection/coroutine/
+            // channel/flow member names all get identical treatment here.
+            if resolvedViaGeneralCollectionFallback {
+                appendReceiverToMemberArguments(
+                    loweredReceiverID,
+                    receiverExpr: receiverExpr,
+                    calleeName: effectiveCalleeName,
+                    chosenCallee: chosen,
+                    prependReceiverForUnresolvedCollectionCall: true,
+                    sema: sema,
+                    interner: interner,
+                    arguments: &finalArguments
+                )
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
             let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
@@ -1215,7 +1264,7 @@ extension CallLowerer {
                 }
                 instructions.append(.virtualCall(
                     symbol: chosen,
-                    callee: loweredMemberCalleeName,
+                    callee: resolvedCalleeName,
                     receiver: loweredReceiverID,
                     arguments: vcArguments,
                     result: result,
@@ -1226,7 +1275,7 @@ extension CallLowerer {
             } else {
                 instructions.append(.call(
                     symbol: chosen,
-                    callee: loweredMemberCalleeName,
+                    callee: resolvedCalleeName,
                     arguments: finalArguments,
                     result: result,
                     canThrow: false,
