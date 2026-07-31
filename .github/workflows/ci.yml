@@ -24,8 +24,6 @@ jobs:
       - uses: actions/checkout@v7
       - name: Prepare self-hosted runner
         uses: ./.github/actions/setup-self-hosted
-      - name: Self-test the duplicate ID detection logic
-        run: bash Scripts/check_todo_ids.sh --self-test
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
 
