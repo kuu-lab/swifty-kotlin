@@ -581,14 +581,12 @@ extension CallLowerer {
         }
 
         let boxedResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: boxCallee,
-            arguments: [callResult],
+            arg: callResult,
             result: boxedResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &body
+        )
         body.append(.returnValue(boxedResult))
         body.append(.endBlock)
 
@@ -951,14 +949,12 @@ extension CallLowerer {
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
             let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_new"),
-                arguments: [countExpr],
+                arg: countExpr,
                 result: arrayExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             for i in 0..<loweredArguments.count {
                 let selector = makeCollectionHOFSelectorArgument(
@@ -989,14 +985,12 @@ extension CallLowerer {
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
             let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_new"),
-                arguments: [countExpr],
+                arg: countExpr,
                 result: arrayExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             for argIndex in 2..<loweredArguments.count {
                 let selectorOffset = argIndex - 2
