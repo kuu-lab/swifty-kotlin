@@ -556,8 +556,6 @@ extension CallLowerer {
              "kk_string_sumByDouble",
              "kk_string_filterIndexed",
              "kk_string_filterNot",
-             "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
              "kk_string_onEach",
              "kk_string_onEachIndexed",
             "kk_string_find",

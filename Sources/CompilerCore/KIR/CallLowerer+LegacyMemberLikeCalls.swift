@@ -1634,8 +1634,6 @@ extension CallLowerer {
                 || calleeStr == "any"
                 || calleeStr == "all"
                 || calleeStr == "none"
-                || calleeStr == "indexOfFirst"
-                || calleeStr == "indexOfLast"
                 || calleeStr == "find"
                 || calleeStr == "findLast"
                 || calleeStr == "firstNotNullOf"
@@ -1749,27 +1747,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char) — 1-arg overload routes to the dedicated Char runtime entry.
-                if calleeStr == "indexOf",
-                   sema.types.isSubtype(
-                       sema.types.makeNonNullable(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType),
-                       sema.types.charType
-                   )
-                {
-                    let zeroIndexExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroIndexExpr, value: .intLiteral(0)))
-                    let falseExpr = arena.appendExpr(.intLiteral(0), type: sema.types.booleanType)
-                    instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_indexOf_char_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], zeroIndexExpr, falseExpr],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1781,16 +1758,8 @@ extension CallLowerer {
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
-                        ("kk_string_contains_str_flat", [loweredReceiverID, loweredArgIDs[0]])
+                        nil
                     }
-                case "indexOf":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_indexOf_from_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_indexOf_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    }
-                case "lastIndexOf":
-                    ("kk_string_lastIndexOf_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "get":
                     ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "compareTo":
@@ -1813,10 +1782,6 @@ extension CallLowerer {
                     ("kk_string_all_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "none":
                     ("kk_string_none_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "indexOfFirst":
-                    ("kk_string_indexOfFirst_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "indexOfLast":
-                    ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
                     ("kk_string_find_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
@@ -1832,9 +1797,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "indexOfFirst"
-                        || calleeStr == "indexOfLast"
-                        || calleeStr == "find"
+                    let stringHOFCanThrow = calleeStr == "find"
                         || calleeStr == "findLast"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
@@ -1882,9 +1845,6 @@ extension CallLowerer {
                 }
                 return classType.classSymbol == charSequenceSymbol
             }()
-            let firstArgType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-            )
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "chunkedSequence",
                normalizedArgIDs.count >= 3
@@ -1911,37 +1871,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "indexOf",
-               sema.types.isSubtype(firstArgType, sema.types.stringType)
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_indexOf_from_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex) — 2-arg overload routes to kk_string_indexOf_char_flat.
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
-               calleeStr == "indexOf",
-               sema.types.isSubtype(firstArgType, sema.types.charType)
-            {
-                let falseExpr = arena.appendExpr(.intLiteral(0), type: sema.types.booleanType)
-                instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_indexOf_char_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], falseExpr],
-                    result: result,
-                    canThrow: false,
                     thrownResult: nil
                 ))
                 return result

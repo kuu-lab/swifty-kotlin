@@ -996,7 +996,7 @@ extension CodegenBackendIntegrationTests {
             // lastIndexOf: not found
             println("hello".lastIndexOf("x"))
 
-            // lastIndexOf: empty target (returns length)
+            // lastIndexOf: empty target with default startIndex (returns lastIndex, i.e. length - 1)
             println("hello".lastIndexOf(""))
 
             // lastIndexOf on empty source
@@ -1017,7 +1017,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 3
                 -1
-                5
+                4
                 -1
                 """
                 + "\n"

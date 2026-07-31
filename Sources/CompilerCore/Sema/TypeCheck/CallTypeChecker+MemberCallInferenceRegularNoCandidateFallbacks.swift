@@ -504,9 +504,7 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 let resultType: TypeID? = switch calleeStr {
-                case "contains":
-                    sema.types.make(.primitive(.boolean, .nonNull))
-                case "indexOf", "lastIndexOf", "compareTo":
+                case "compareTo":
                     sema.types.make(.primitive(.int, .nonNull))
                 case "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast":
                     sema.types.stringType
@@ -1081,7 +1079,6 @@ extension CallTypeChecker {
             if isStringHOFReceiver,
                [
                    "filter", "map", "count", "any", "all", "none",
-                   "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
                    "takeWhile", "dropWhile", "find", "findLast",
                    "trim", "trimStart", "trimEnd",
@@ -1322,7 +1319,6 @@ extension CallTypeChecker {
                 case "map": sema.types.anyType
                 case "mapIndexed", "mapNotNull": sema.types.anyType
                 case "count": sema.types.intType
-                case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
                 case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
                 case "find", "findLast": sema.types.make(.primitive(.char, .nullable))

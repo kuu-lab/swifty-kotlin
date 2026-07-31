@@ -269,8 +269,6 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             value.reduceRightOrNull { ch, _ -> ch }
             value.sumBy { 1 }
             value.sumByDouble { 1.0 }
-            value.indexOfFirst { it == 'a' }
-            value.indexOfLast { it == 'b' }
             value.mapIndexed { index, _ -> index }
             value.mapNotNull { ch -> if (ch == 'a') 1 else null }
             value.partition { ch -> ch == 'b' }
@@ -295,8 +293,6 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 "kk_string_reduceRightOrNull_flat",
                 "kk_string_sumBy_flat",
                 "kk_string_sumByDouble_flat",
-                "kk_string_indexOfFirst_flat",
-                "kk_string_indexOfLast_flat",
                 "kk_string_mapIndexed_flat",
                 "kk_string_mapNotNull_flat",
                 "kk_string_partition_flat",

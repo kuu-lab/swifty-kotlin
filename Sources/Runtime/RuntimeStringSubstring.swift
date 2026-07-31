@@ -6,6 +6,45 @@ import Foundation
 
 // MARK: - Private helpers
 
+// KSP-408 moved the public `kk_string_indexOf`/`kk_string_lastIndexOf` entry points to
+// bundled Kotlin source. substringBefore/substringBeforeLast/substringAfterLast (not yet
+// migrated) still need scalar-index substring search internally, so this file keeps a
+// private copy of the same algorithm rather than depending on removed Kotlin-facing ABI.
+private func runtimeStringIndexOfScalar(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    let source = runtimeStringScalars(strRaw)
+    let other = runtimeStringScalars(otherRaw)
+    if other.isEmpty {
+        return 0
+    }
+    if other.count > source.count {
+        return -1
+    }
+    for offset in 0 ... (source.count - other.count)
+        where source[offset ..< (offset + other.count)].elementsEqual(other)
+    {
+        return offset
+    }
+    return -1
+}
+
+private func runtimeStringLastIndexOfScalar(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    let source = runtimeStringScalars(strRaw)
+    let other = runtimeStringScalars(otherRaw)
+    if other.isEmpty {
+        return source.count
+    }
+    if other.count > source.count {
+        return -1
+    }
+    var lastIndex = -1
+    for offset in 0 ... (source.count - other.count)
+        where source[offset ..< (offset + other.count)].elementsEqual(other)
+    {
+        lastIndex = offset
+    }
+    return lastIndex
+}
+
 private func runtimeStringSubstringAfter(
     source: String,
     delimiter: String,
@@ -110,7 +149,7 @@ private func runtimeSubstringMissingDelimiterValue(
 @_cdecl("kk_string_substringBefore")
 public func kk_string_substringBefore(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_indexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringIndexOfScalar(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
@@ -182,7 +221,7 @@ public func kk_string_substringAfter_char(
 @_cdecl("kk_string_substringBeforeLast")
 public func kk_string_substringBeforeLast(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_lastIndexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringLastIndexOfScalar(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
@@ -214,7 +253,7 @@ public func kk_string_substringBeforeLast_char(_ strRaw: Int, _ delimiterRaw: In
 @_cdecl("kk_string_substringAfterLast")
 public func kk_string_substringAfterLast(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_lastIndexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringLastIndexOfScalar(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
