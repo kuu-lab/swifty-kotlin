@@ -105,12 +105,12 @@ extension CallTypeChecker {
             argCount == 0
         case "copyOf":
             (0...2).contains(argCount)
-        case "map", "filter", "forEach", "any", "all", "none", "fill", "get", "contains",
+        case "map", "filter", "forEach", "all", "fill", "get", "contains",
              "find", "findLast", "reduce", "reduceOrNull":
             argCount == 1
         case "fold", "foldIndexed":
             argCount == 2
-        case "count":
+        case "count", "any", "none":
             (0...1).contains(argCount)
         case "copyOfRange":
             argCount == 2
