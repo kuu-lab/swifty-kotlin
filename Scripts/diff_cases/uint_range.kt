@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun main() {
     // Basic UIntRange creation and contains
     val range = 1u..10u
@@ -36,7 +35,7 @@ fun main() {
     (1u..5u).forEach { print("$it ") }
     println()
     println((1u..5u).map { it * 2u })
-    println((1u..5u).mapIndexed { index, value -> index + value })
+    println((1u..5u).mapIndexed { index, value -> index.toUInt() + value })
 
     // for loop
     for (i in 1u..5u) print("$i ")

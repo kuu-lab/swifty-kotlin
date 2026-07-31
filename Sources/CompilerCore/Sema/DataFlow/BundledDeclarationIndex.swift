@@ -180,9 +180,6 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
-        if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
-            return true
-        }
         if ownerFQName == ["kotlin", "random", "Random"] {
             return isRuntimeBackedRandomSyntheticRetainedOverlap(key, interner: interner)
         }
@@ -224,56 +221,6 @@ struct BundledDeclarationIndex: Sendable {
         switch interner.resolve(key.name) {
         case "nextInt", "nextLong", "nextUInt", "nextULong":
             return key.arity == 1
-        default:
-            return false
-        }
-    }
-
-    private static func isRuntimeBackedAtomicSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        ownerFQName: [String],
-        interner: StringInterner
-    ) -> Bool {
-        // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
-        // extension functions in kotlin.concurrent, but current member-call
-        // resolution still needs the receiver-owned synthetic bridge when users
-        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference/
-        // AtomicBoolean directly. Retain these runtime-backed aliases until the
-        // bundled source path is visible to ordinary member-call lookup.
-        switch ownerFQName {
-        case ["kotlin", "concurrent", "atomics", "AtomicInt"],
-             ["kotlin", "concurrent", "AtomicInt"],
-             ["kotlin", "concurrent", "atomics", "AtomicLong"],
-             ["kotlin", "concurrent", "AtomicLong"]:
-            switch interner.resolve(key.name) {
-            // KSP-671: fetchAndIncrement/fetchAndDecrement join get/incrementAndGet/
-            // decrementAndGet as arity-0 bundled delegations whose bridge is
-            // retained (also shared with java.util.concurrent.atomic.AtomicInteger).
-            case "get", "incrementAndGet", "decrementAndGet",
-                 "fetchAndIncrement", "fetchAndDecrement":
-                return key.arity == 0
-            // KSP-671: fetchAndAdd joins set/getAndSet/addAndGet as arity-1.
-            case "set", "getAndSet", "addAndGet", "fetchAndAdd":
-                return key.arity == 1
-            // KSP-671: compareAndSet delegates to the retained compareAndExchange
-            // CAS-instruction bridge.
-            case "compareAndSet":
-                return key.arity == 2
-            default:
-                return false
-            }
-        case ["kotlin", "concurrent", "atomics", "AtomicReference"],
-             ["kotlin", "concurrent", "AtomicReference"],
-             ["kotlin", "concurrent", "atomics", "AtomicBoolean"],
-             ["kotlin", "concurrent", "AtomicBoolean"]:
-            switch interner.resolve(key.name) {
-            case "get":
-                return key.arity == 0
-            case "set", "getAndSet":
-                return key.arity == 1
-            default:
-                return false
-            }
         default:
             return false
         }

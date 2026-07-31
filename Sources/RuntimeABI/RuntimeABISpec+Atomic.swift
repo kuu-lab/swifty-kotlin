@@ -120,27 +120,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicInt getAndUpdate / updateAndGet
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_getAndUpdate",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_updateAndGet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
         // AtomicLong
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_create",
@@ -259,27 +238,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        // AtomicLong getAndUpdate / updateAndGet
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_getAndUpdate",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_updateAndGet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
         // AtomicIntArray
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_array_create",
@@ -297,136 +255,74 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Atomic"
         ),
+        // KSP-672: raw synchronized-core bridges (bounds checks live in Kotlin).
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_loadAt",
+            name: "__kk_atomic_int_array_load",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_storeAt",
+            name: "__kk_atomic_int_array_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_exchangeAt",
+            name: "__kk_atomic_int_array_exchange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "newValue", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_compareAndSetAt",
+            name: "__kk_atomic_int_array_compareAndExchange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_compareAndExchangeAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "expect", type: .intptr),
-                RuntimeABIParameter(name: "update", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
 
 
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_fetchAndUpdateAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_fetchAndAddAt",
+            name: "__kk_atomic_int_array_fetchAndAdd",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "delta", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_addAndFetchAt",
+            name: "__kk_atomic_int_array_addAndFetch",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "delta", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_fetchAndIncrementAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_incrementAndFetchAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_fetchAndDecrementAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_int_array_decrementAndFetchAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicLongArray
         RuntimeABIFunctionSpec(
@@ -445,135 +341,73 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Atomic"
         ),
+        // KSP-672: raw synchronized-core bridges (bounds checks live in Kotlin).
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_loadAt",
+            name: "__kk_atomic_long_array_load",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_storeAt",
+            name: "__kk_atomic_long_array_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_exchangeAt",
+            name: "__kk_atomic_long_array_exchange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "newValue", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_compareAndSetAt",
+            name: "__kk_atomic_long_array_compareAndExchange",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_compareAndExchangeAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "expect", type: .intptr),
-                RuntimeABIParameter(name: "update", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
 
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_fetchAndUpdateAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_fetchAndAddAt",
+            name: "__kk_atomic_long_array_fetchAndAdd",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "delta", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_addAndFetchAt",
+            name: "__kk_atomic_long_array_addAndFetch",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "delta", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_fetchAndIncrementAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_incrementAndFetchAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_fetchAndDecrementAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_long_array_decrementAndFetchAt",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicArray<T>
         RuntimeABIFunctionSpec(
@@ -651,47 +485,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
 
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_bool_getAndUpdate",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_bool_updateAndGet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        // AtomicReference getAndUpdate / updateAndGet
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_ref_getAndUpdate",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_atomic_ref_updateAndGet",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-                RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_array_of",
             parameters: [

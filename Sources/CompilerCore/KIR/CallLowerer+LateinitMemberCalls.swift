@@ -63,14 +63,12 @@ extension CallLowerer {
         let resultType = sema.bindings.exprType(for: exprID)
             ?? sema.types.make(.primitive(.boolean, .nonNull))
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_lateinit_is_initialized"),
-            arguments: [storageExpr],
+            arg: storageExpr,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

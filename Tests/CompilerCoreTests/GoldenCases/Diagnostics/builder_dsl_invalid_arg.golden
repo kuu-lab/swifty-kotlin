@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "builder_dsl_invalid_arg.kt",
+      "range": {
+        "start": { "line": 1, "character": 12 },
+        "end": { "line": 1, "character": 26 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    },
+    {
+      "file": "builder_dsl_invalid_arg.kt",
+      "range": {
+        "start": { "line": 2, "character": 12 },
+        "end": { "line": 2, "character": 24 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    },
+    {
+      "file": "builder_dsl_invalid_arg.kt",
+      "range": {
+        "start": { "line": 3, "character": 12 },
+        "end": { "line": 3, "character": 23 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    }
+  ]
+}
