@@ -2226,6 +2226,15 @@ extension CallTypeChecker {
             )
         }
 
+        if memberName == interner.intern("asSequence") {
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
+        }
+
         return sema.types.anyType
     }
 
@@ -2910,7 +2919,15 @@ extension CallTypeChecker {
         }
 
         guard let firstArg = classType.args.first else {
-            return sema.types.anyType
+            // Primitive arrays (IntArray, DoubleArray, ...) have no type argument;
+            // their element type comes from the class itself (BUG-158: a
+            // `joinToString(..., transform)` lambda must see the real element type
+            // rather than an erased `Any`).
+            return primitiveArrayElementType(
+                className: symbol.name,
+                sema: sema,
+                interner: interner
+            ) ?? sema.types.anyType
         }
         return switch firstArg {
         case let .invariant(type), let .out(type), let .in(type):

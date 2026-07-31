@@ -6,6 +6,20 @@ final class CallLowerer {
         self.driver = driver
     }
 
+    /// True when the resolved callee is a bundled Kotlin source declaration
+    /// (has a source `declSite` and no runtime external link), meaning the
+    /// lowering path should not rewrite it to a `kk_*` runtime helper.
+    private func isSourceBacked(_ symbol: SymbolID?, sema: SemaModule) -> Bool {
+        guard let symbol,
+              let info = sema.symbols.symbol(symbol),
+              info.declSite != nil,
+              (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        else {
+            return false
+        }
+        return true
+    }
+
     /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
     /// symbol prefix (e.g. "kk_int", "kk_long", "kk_uint", "kk_ulong"),
     /// or nil if the receiver is not one of the coercion-eligible numeric
@@ -102,22 +116,18 @@ final class CallLowerer {
         let boundType = sema.types.makeNonNullable(receiverType)
         let firstExpr = arena.appendTemporary(type: boundType)
         let lastExpr = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_first"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: firstExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        instructions.append(.call(
-            symbol: nil,
+            into: &instructions
+        )
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_last"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: lastExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(prefix + "_coerceIn"),
@@ -558,14 +568,12 @@ final class CallLowerer {
                     thrownResult: nil
                 ))
             } else {
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("invoke"),
-                    arguments: [loweredLambdaID],
+                    arg: loweredLambdaID,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             }
             return result
         }
@@ -651,6 +659,7 @@ final class CallLowerer {
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 1,
+           !isSourceBacked(chosen, sema: sema),
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
@@ -681,6 +690,7 @@ final class CallLowerer {
         }
         if sourceCalleeName == interner.intern("generateSequence"),
            loweredArgIDs.count == 2,
+           !isSourceBacked(chosen, sema: sema),
            let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
            case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
            functionType.params.isEmpty,
@@ -744,7 +754,8 @@ final class CallLowerer {
         // silently dropped and its returned elements never boxed. Handle it
         // directly, same as the other two generateSequence overloads above.
         if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2
+           loweredArgIDs.count == 2,
+           !isSourceBacked(chosen, sema: sema)
         {
             let expandedNextFunction = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArgIDs[1],
@@ -969,14 +980,12 @@ final class CallLowerer {
             if let ownerNominalSymbol {
                 if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
                     let registerDataClassResult = arena.appendTemporary(type: intType)
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_runtime_register_data_class"),
-                        arguments: [classIDExpr],
+                        arg: classIDExpr,
                         result: registerDataClassResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                 }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
@@ -1754,14 +1763,12 @@ final class CallLowerer {
         }
 
         let result = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: runtimeCallee,
-            arguments: [loweredArgumentID],
+            arg: loweredArgumentID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

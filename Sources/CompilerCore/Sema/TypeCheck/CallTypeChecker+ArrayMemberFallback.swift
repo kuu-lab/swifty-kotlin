@@ -267,8 +267,25 @@ extension CallTypeChecker {
             }
         }
 
-        // Primitive arrays have a fixed element type.
-        // Note: Byte/Short map to intType (same as builtinType resolution).
+        return primitiveArrayElementType(
+            className: symbol.name,
+            sema: sema,
+            interner: interner
+        ) ?? sema.types.anyType
+    }
+
+    /// Element type of a primitive array class (`IntArray`, `DoubleArray`, ...),
+    /// or `nil` when the class is not a primitive array.
+    ///
+    /// Primitive arrays carry no type argument, so their element type has to be
+    /// recovered from the class name.
+    /// Note: Byte/Short map to intType (same as builtinType resolution).
+    func primitiveArrayElementType(
+        className: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         let primitiveMapping: [(InternedString, TypeID)] = [
             (knownNames.intArray, sema.types.intType),
             (knownNames.longArray, sema.types.longType),
@@ -283,14 +300,7 @@ extension CallTypeChecker {
             (knownNames.booleanArray, sema.types.booleanType),
             (knownNames.charArray, sema.types.charType),
         ]
-        for (name, elementType) in primitiveMapping {
-            // swiftlint:disable:next for_where
-            if symbol.name == name {
-                return elementType
-            }
-        }
-
-        return sema.types.anyType
+        return primitiveMapping.first { $0.0 == className }?.1
     }
 
     // MARK: - KFunction member call fallback (STDLIB-REFLECT-063)
