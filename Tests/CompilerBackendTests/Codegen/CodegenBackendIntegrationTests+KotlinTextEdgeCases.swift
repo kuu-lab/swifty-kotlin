@@ -1654,11 +1654,11 @@ extension CodegenBackendIntegrationTests {
 
     func testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases() throws {
         let source = """
-        fun trimPrefix(value: CharSequence): String {
+        fun trimPrefix(value: CharSequence): CharSequence {
             return value.removePrefix("foo")
         }
 
-        fun trimAround(value: CharSequence): String {
+        fun trimAround(value: CharSequence): CharSequence {
             return value.removeSurrounding("foo")
         }
 

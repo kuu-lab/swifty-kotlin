@@ -125,3 +125,48 @@ public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence):
  * Otherwise returns this string unchanged.
  */
 public fun String.removeSurrounding(delimiter: CharSequence): String = removeSurrounding(delimiter, delimiter)
+
+/**
+ * If this char sequence starts with the given [prefix], returns a copy of this
+ * char sequence with the prefix removed. Otherwise, returns this char sequence.
+ */
+public fun CharSequence.removePrefix(prefix: CharSequence): CharSequence {
+    if (startsWith(prefix)) {
+        return this.toString().substring(prefix.toString().toList().size)
+    }
+    return this
+}
+
+/**
+ * If this char sequence ends with the given [suffix], returns a copy of this
+ * char sequence with the suffix removed. Otherwise, returns this char sequence.
+ */
+public fun CharSequence.removeSuffix(suffix: CharSequence): CharSequence {
+    if (endsWith(suffix)) {
+        val selfLength = this.toString().toList().size
+        return this.toString().substring(0, selfLength - suffix.toString().toList().size)
+    }
+    return this
+}
+
+/**
+ * When this char sequence starts with the given [prefix] and ends with the given
+ * [suffix], returns a copy of this char sequence having both the given [prefix]
+ * and [suffix] removed. Otherwise returns this char sequence unchanged.
+ */
+public fun CharSequence.removeSurrounding(prefix: CharSequence, suffix: CharSequence): CharSequence {
+    val selfLength = this.toString().toList().size
+    val prefixLength = prefix.toString().toList().size
+    val suffixLength = suffix.toString().toList().size
+    if (selfLength >= prefixLength + suffixLength && startsWith(prefix) && endsWith(suffix)) {
+        return this.toString().substring(prefixLength, selfLength - suffixLength)
+    }
+    return this
+}
+
+/**
+ * When this char sequence starts with and ends with the given [delimiter],
+ * returns a copy of this char sequence having the [delimiter] removed from both
+ * ends. Otherwise returns this char sequence unchanged.
+ */
+public fun CharSequence.removeSurrounding(delimiter: CharSequence): CharSequence = removeSurrounding(delimiter, delimiter)
