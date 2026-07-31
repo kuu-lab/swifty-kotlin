@@ -35,24 +35,30 @@ final class CallLowerer {
         return nil
     }
 
-    private func isStringBuilderConstructor(
+    /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
+    /// constructors, so callers can both gate on "is this a StringBuilder
+    /// construction" and reuse the owner symbol for itable registration
+    /// without a second lookup.
+    private func stringBuilderConstructorOwner(
         _ symbolID: SymbolID?,
         sema: SemaModule,
         knownNames: KnownCompilerNames
-    ) -> Bool {
+    ) -> SymbolID? {
         guard let symbolID,
               sema.symbols.symbol(symbolID)?.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              knownNames.isStringBuilderSymbol(ownerInfo)
         else {
-            return false
+            return nil
         }
-        return knownNames.isStringBuilderSymbol(ownerInfo)
+        return ownerSymbol
     }
 
     private func lowerStringBuilderConstructorCall(
         finalArgIDs: [KIRExprID],
         resultType: TypeID,
+        nominalSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -79,6 +85,23 @@ final class CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        // BUG-044: StringBuilder instances are constructed via these dedicated
+        // runtime entry points instead of the normal kk_object_new sequence, so
+        // they never get the compiler-emitted itable registration a regular
+        // class construction receives. `is`/`as` against CharSequence/Appendable
+        // was patched separately (runtimeRegisterStringBuilderType), but calling
+        // an Appendable-typed method (e.g. `val a: Appendable = sb; a.append(...)`)
+        // still dispatched through an unregistered itable slot and panicked.
+        // Wire real method registrations here using the same machinery a normal
+        // class construction uses.
+        appendObjectItableMethodRegistrations(
+            objectValue: result,
+            nominalSymbol: nominalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         return result
     }
 
@@ -909,11 +932,12 @@ final class CallLowerer {
         }
         if callableInvokeCallee == nil,
            loweredCallable == nil,
-           isStringBuilderConstructor(chosen, sema: sema, knownNames: knownNames)
+           let stringBuilderOwnerSymbol = stringBuilderConstructorOwner(chosen, sema: sema, knownNames: knownNames)
         {
             return lowerStringBuilderConstructorCall(
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,
+                nominalSymbol: stringBuilderOwnerSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,

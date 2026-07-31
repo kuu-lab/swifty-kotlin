@@ -193,6 +193,7 @@ func kirFindOverrideMethod(
     guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
         return nil
     }
+    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes ?? []
 
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
@@ -202,7 +203,12 @@ func kirFindOverrideMethod(
             for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
                 guard let candidateSym = sema.symbols.symbol(candidate),
                       candidateSym.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == nominal
+                      sema.symbols.parentSymbol(for: candidate) == nominal,
+                      kirOverrideParameterTypesMatch(
+                          candidateParameterTypes: sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? [],
+                          interfaceParameterTypes: interfaceParameterTypes,
+                          types: sema.types
+                      )
                 else {
                     continue
                 }
@@ -212,6 +218,28 @@ func kirFindOverrideMethod(
         current = kirSuperclass(of: nominal, sema: sema)
     }
     return nil
+}
+
+/// A class implementing an interface can declare several overloads sharing
+/// the interface method's name (StringBuilder has multiple `append`
+/// overloads for one `Appendable.append` per arity) — `lookupAll(fqName:)`
+/// returns all of them, so `kirFindOverrideMethod` must pick the one whose
+/// signature actually matches `interfaceMethod`, not just the first
+/// same-named function on the class. Type parameters are treated as
+/// wildcards on either side since a generic interface method's parameter
+/// type may not be reified the same way on the implementing side.
+private func kirOverrideParameterTypesMatch(
+    candidateParameterTypes: [TypeID],
+    interfaceParameterTypes: [TypeID],
+    types: TypeSystem
+) -> Bool {
+    guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
+    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
+        if case .typeParam = types.kind(of: candidateType) { continue }
+        if case .typeParam = types.kind(of: interfaceType) { continue }
+        if candidateType != interfaceType { return false }
+    }
+    return true
 }
 
 private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
