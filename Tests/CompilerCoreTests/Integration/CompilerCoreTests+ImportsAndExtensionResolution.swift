@@ -28,6 +28,25 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
+    /// KSP-673: a package-scope extension sharing the callee's simple name but
+    /// declaring an unrelated receiver must not blot out the implicit
+    /// receiver's own member in an unqualified call.
+    @Test func testUnqualifiedCallPrefersImplicitReceiverMemberOverForeignExtension() throws {
+        let source = """
+        class Counter(var value: Int) {
+            fun compareAndSet(expected: Int, newValue: Int): Boolean = true
+        }
+        class Flag(var raised: Boolean)
+        fun Flag.compareAndSet(expected: Boolean, newValue: Boolean): Boolean = true
+        fun Counter.bump(): Boolean = compareAndSet(value, value + 1)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
+    }
+
     @Test func testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall() throws {
         let source = """
         fun foo() = 1

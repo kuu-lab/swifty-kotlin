@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 @Suite
 struct CollectionLiteralLoweringTests {
@@ -113,6 +112,7 @@ struct CollectionLiteralLoweringTests {
         return extractCallees(from: fn.body, interner: interner)
     }
 
+    @Test
     func testRangeIteratorOnStringStructParameterRewritesToFlatStringIterator() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -148,12 +148,12 @@ struct CollectionLiteralLoweringTests {
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_string_iterator_flat"),
             "String iterator lowering should target the flat ABI, got: \(callees)"
         )
-        XCTAssertFalse(
-            callees.contains("kk_string_iterator"),
+        #expect(
+            !callees.contains("kk_string_iterator"),
             "String iterator lowering must not leave the raw String ABI, got: \(callees)"
         )
     }

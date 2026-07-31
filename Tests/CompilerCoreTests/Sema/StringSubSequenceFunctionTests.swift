@@ -3,9 +3,10 @@
 import Testing
 
 /// STDLIB-TEXT-FN-072: Validates that `String.subSequence(startIndex, endIndex)`
-/// resolves through Sema for String receivers and links to the runtime helper
-/// `kk_string_subSequence` (see `Sources/Runtime/RuntimeStringStdlib.swift`).
-/// Note: `subSequence` is deprecated in favour of `substring(startIndex, endIndex)`.
+/// resolves through Sema for String receivers. After KSP-406 it is bundled Kotlin
+/// source (StringSubstringSlice.kt) delegating to `substring`, with no
+/// String-specific runtime helper. `subSequence` remains deprecated in favour of
+/// `substring(startIndex, endIndex)`.
 @Suite
 struct StringSubSequenceFunctionTests {
     @Test func testStringSubSequenceResolvesInSource() throws {
@@ -43,8 +44,7 @@ struct StringSubSequenceFunctionTests {
         )
     }
 
-    @Test func testSubSequenceTwoArgOverloadResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
+    @Test func testSubSequenceTwoArgOverloadIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -58,13 +58,29 @@ struct StringSubSequenceFunctionTests {
                     && signature.parameterTypes.count == 2
                     && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
             })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
             #expect(
                 sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.subSequence(startIndex, endIndex) should return String"
             )
+            #expect(
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "String.subSequence(...) is source-backed and must not link to a runtime helper"
+            )
         }
-        #expect(resolvedLink == "kk_string_subSequence_flat")
+    }
+
+    @Test func testSubSequenceRemainsDeprecated() throws {
+        let ctx = makeContextFromSource("""
+        fun useSubSequence(s: String): String {
+            return s.subSequence(0, 2)
+        }
+        """)
+        try runSema(ctx)
+        let deprecations = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+        #expect(
+            !deprecations.isEmpty,
+            "Expected String.subSequence(...) to emit a deprecation diagnostic"
+        )
     }
 }
 #endif

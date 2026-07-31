@@ -464,8 +464,9 @@ Atomic の内訳:
   委譲先の `kk_atomic_{int,long,ref}_{load,store,exchange,incrementAndFetch,decrementAndFetch,addAndFetch,compareAndExchange}`
   は実質 (c) ブリッジ（`__kk_` 未リネームのみが残タスク）。`kk_atomic_int_*` は
   `java.util.concurrent.atomic.AtomicInteger` の直接構築サーフェスと同一ボックス/接頭辞を共有するため、これらの
-  ブリッジは Java interop からも参照される＝削除不可。したがって member-call 解決は現状も合成スタブ経由で、
-  bundled 委譲ソースは KSP-670 と同様に休眠（同一 PR で `isRuntimeBackedAtomicSyntheticRetainedOverlap` にスタブ保持を追加）
+  ブリッジは Java interop からも参照される＝削除不可。ただし KSP-672 で member-call / indexed access 解決が
+  bundled 拡張を atomic レシーバに限り解決できるようになったため、これらの bundled 委譲ソースは休眠ではなく
+  **live**（重複合成スタブは登録スキップされ、`isRuntimeBackedAtomicSyntheticRetainedOverlap` による保持は廃止）
 - **未着手**: `compareAndExchange`/`getAndUpdate`/`updateAndGet`（scalar + 配列 `*At`。`AtomicBoolean`/`AtomicReference`
   の `compareAndSet` は get/set 委譲順序の都合で別タスク）。`updateAndGet`/`getAndUpdate` は `while(true)`
   ループを要するため、`AtomicMigration.kt` のコメントの通り「bundled ソースで Nothing 型無限ループの型検査が通る」まで

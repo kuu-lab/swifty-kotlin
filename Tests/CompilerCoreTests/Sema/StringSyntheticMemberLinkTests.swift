@@ -1,7 +1,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 /// Verifies that the new String stdlib extension stubs added in the PR
 /// (STDLIB-006, STDLIB-009) are registered in the symbol table with the
@@ -420,33 +419,48 @@ struct StringSyntheticMemberLinkTests {
             ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
             ("toCollection", 1, "kk_string_toCollection_flat"),
             ("asIterable", 0, "kk_string_asIterable_flat"),
-
-            ("toByteArray", 0, "kk_string_toByteArray_flat"),
-            ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
-            ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
-            ("encodeToByteArray", 0, "kk_string_encodeToByteArray_flat"),
-            ("encodeToByteArray", 1, "kk_string_encodeToByteArray_charset_flat"),
-            ("encodeToByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
             ("chunked", 1, "kk_string_chunked_flat"),
-            ("windowed", 1, "kk_string_windowed_default_flat"),
-            ("windowed", 2, "kk_string_windowed_flat"),
-            ("windowed", 3, "kk_string_windowed_partial_flat"),
+            ("windowed", 1, "kk_string_windowed_default"),
+            ("windowed", 2, "kk_string_windowed"),
+            ("windowed", 3, "kk_string_windowed_partial"),
             ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
             ("asSequence", 0, "kk_string_asSequence_flat"),
             ("withIndex", 0, "kk_string_withIndex_flat"),
         ]
 
         for item in expected {
-            XCTAssertEqual(
+            #expect(
                 externalLink(
                     for: item.member,
                     receiverType: sema.types.stringType,
                     parameterCount: item.parameterCount,
                     sema: sema,
                     interner: interner
-                ),
-                item.link,
+                ) == item.link,
                 "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
+            )
+        }
+
+        // toByteArray / encodeToByteArray are bundled Kotlin source that bridge through
+        // private `__kk_string_*_flat` primitives, so the public members carry no link.
+        let sourceBacked: [(member: String, parameterCount: Int)] = [
+            ("toByteArray", 0),
+            ("toByteArray", 1),
+            ("toByteArray", 2),
+            ("encodeToByteArray", 0),
+            ("encodeToByteArray", 1),
+            ("encodeToByteArray", 2),
+        ]
+        for item in sourceBacked {
+            #expect(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ) == nil,
+                "String.\(item.member)/\(item.parameterCount) should be source-backed with no C external link"
             )
         }
     }
@@ -1436,20 +1450,22 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    // BUG-154: `CASE_INSENSITIVE_ORDER` is a member of the `String` companion
+    // object (`String.CASE_INSENSITIVE_ORDER`), matching real Kotlin's
+    // `String.Companion.CASE_INSENSITIVE_ORDER`. There is no top-level
+    // `kotlin.text.CASE_INSENSITIVE_ORDER`.
     @Test func testCaseInsensitiveOrderSurfaceResolves() throws {
         let source = """
-        import kotlin.text.CASE_INSENSITIVE_ORDER
-
         fun caseInsensitiveComparator(): Comparator<String> {
-            return CASE_INSENSITIVE_ORDER
+            return String.CASE_INSENSITIVE_ORDER
         }
 
         fun compareIgnoringCase(): Int {
-            return CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA")
+            return String.CASE_INSENSITIVE_ORDER.compare("alpha", "ALPHA")
         }
 
         fun sortIgnoringCase(values: List<String>): List<String> {
-            return values.sortedWith(CASE_INSENSITIVE_ORDER)
+            return values.sortedWith(String.CASE_INSENSITIVE_ORDER)
         }
         """
 
@@ -1459,15 +1475,23 @@ struct StringSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
             #expect(
                 !ctx.diagnostics.hasError,
-                "Expected CASE_INSENSITIVE_ORDER surface to resolve cleanly, got: \(diagnosticSummary)"
+                "Expected String.CASE_INSENSITIVE_ORDER surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
             let sema = try #require(ctx.sema)
-            let propertyFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { ctx.interner.intern($0) }
-            let propertySymbol = try #require(sema.symbols.lookup(fqName: propertyFQName))
+            // The property lives on String's companion object, not top-level kotlin.text.
+            let companionPropertyFQName = ["kotlin", "String", "Companion", "CASE_INSENSITIVE_ORDER"]
+                .map { ctx.interner.intern($0) }
+            let propertySymbol = try #require(sema.symbols.lookup(fqName: companionPropertyFQName))
             #expect(
                 sema.symbols.externalLinkName(for: propertySymbol) == "kk_string_case_insensitive_order"
             )
+            let parentSymbol = try #require(sema.symbols.parentSymbol(for: propertySymbol))
+            #expect(sema.symbols.symbol(parentSymbol)?.kind == .object)
+
+            // The buggy top-level kotlin.text.CASE_INSENSITIVE_ORDER must not exist.
+            let topLevelFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { ctx.interner.intern($0) }
+            #expect(sema.symbols.lookup(fqName: topLevelFQName) == nil)
 
             let comparatorFQName = ["kotlin", "Comparator"].map { ctx.interner.intern($0) }
             let comparatorSymbol = try #require(sema.symbols.lookup(fqName: comparatorFQName))
@@ -1477,6 +1501,27 @@ struct StringSyntheticMemberLinkTests {
                 nullability: .nonNull
             )))
             #expect(sema.symbols.propertyType(for: propertySymbol) == expectedType)
+        }
+    }
+
+    // BUG-154: a bare/top-level `CASE_INSENSITIVE_ORDER` (as opposed to
+    // `String.CASE_INSENSITIVE_ORDER`) must stay unresolved, matching kotlinc.
+    @Test func testTopLevelCaseInsensitiveOrderIsUnresolved() throws {
+        let source = """
+        import kotlin.text.CASE_INSENSITIVE_ORDER
+
+        fun caseInsensitiveComparator(): Comparator<String> {
+            return CASE_INSENSITIVE_ORDER
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                ctx.diagnostics.hasError,
+                "Expected bare top-level CASE_INSENSITIVE_ORDER to be rejected (no such top-level symbol in Kotlin)"
+            )
         }
     }
 

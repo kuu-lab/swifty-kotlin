@@ -102,22 +102,18 @@ final class CallLowerer {
         let boundType = sema.types.makeNonNullable(receiverType)
         let firstExpr = arena.appendTemporary(type: boundType)
         let lastExpr = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_first"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: firstExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        instructions.append(.call(
-            symbol: nil,
+            into: &instructions
+        )
+        emitNonThrowingCall(
             callee: interner.intern("kk_range_last"),
-            arguments: [loweredRangeArgID],
+            arg: loweredRangeArgID,
             result: lastExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(prefix + "_coerceIn"),
@@ -558,14 +554,12 @@ final class CallLowerer {
                     thrownResult: nil
                 ))
             } else {
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("invoke"),
-                    arguments: [loweredLambdaID],
+                    arg: loweredLambdaID,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             }
             return result
         }
@@ -969,14 +963,12 @@ final class CallLowerer {
             if let ownerNominalSymbol {
                 if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
                     let registerDataClassResult = arena.appendTemporary(type: intType)
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_runtime_register_data_class"),
-                        arguments: [classIDExpr],
+                        arg: classIDExpr,
                         result: registerDataClassResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                 }
                 let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                     symbol: ownerNominalSymbol,
@@ -1223,22 +1215,6 @@ final class CallLowerer {
                 )
                 instructions.append(.constValue(result: nullCauseExpr, value: .intLiteral(0)))
                 finalArgIDs.append(nullCauseExpr)
-            } else if loweredCalleeName == interner.intern("kk_string_substring_flat"),
-                      finalArgIDs.count == 2 || finalArgIDs.count == 3
-            {
-                // BUG-145: implicit-receiver `substring(...)` inside a String
-                // extension reaches this path instead of the member-like
-                // lowering, which normally supplies the trailing
-                // (endIndex, hasEndIndex) pair the flat runtime ABI expects.
-                let hasEndValue: Int64 = finalArgIDs.count == 3 ? 1 : 0
-                if finalArgIDs.count == 2 {
-                    let endExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: endExpr, value: .intLiteral(0)))
-                    finalArgIDs.append(endExpr)
-                }
-                let hasEndExpr = arena.appendExpr(.intLiteral(hasEndValue), type: sema.types.intType)
-                instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(hasEndValue)))
-                finalArgIDs.append(hasEndExpr)
             } else if loweredCalleeName == interner.intern("kk_channel_send")
                 || loweredCalleeName == interner.intern("kk_channel_receive")
                 || loweredCalleeName == interner.intern("kk_mutex_lock")
@@ -1770,14 +1746,12 @@ final class CallLowerer {
         }
 
         let result = arena.appendTemporary(type: boundType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: runtimeCallee,
-            arguments: [loweredArgumentID],
+            arg: loweredArgumentID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 

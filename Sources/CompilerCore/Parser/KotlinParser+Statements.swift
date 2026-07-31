@@ -657,6 +657,7 @@ extension KotlinParser {
     func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var progress = false
         var sawTryKeyword = false
+        var sawIfKeyword = false
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
@@ -678,16 +679,22 @@ extension KotlinParser {
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true
-                // Continue if next token is catch/finally (try expression continuation)
+                // Continue when the block is followed by a continuation keyword of
+                // a multi-block expression: `try { } catch { } finally { }` and
+                // `if (c) { } else { }` / `else if (c) { } else { }`.
+                let nextAfterBlock = stream.peek()
                 if sawTryKeyword {
-                    let nextAfterBlock = stream.peek()
                     if case .keyword(.catch) = nextAfterBlock.kind { continue }
                     if case .keyword(.finally) = nextAfterBlock.kind { continue }
                 }
+                if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
                 break
             }
             if case .keyword(.try) = token.kind {
                 sawTryKeyword = true
+            }
+            if case .keyword(.if) = token.kind {
+                sawIfKeyword = true
             }
             _ = consumeToken(into: &children, range: &range)
             progress = true

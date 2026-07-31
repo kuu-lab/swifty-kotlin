@@ -133,18 +133,40 @@ struct PropertyDelegateSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
-        let readWriteType = sema.types.make(.classType(ClassType(
-            classSymbol: readWriteSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
+        // BUG-147: the factories are generic in the delegated property's value
+        // type and take (initialValue, onChange) so that both
+        // `by Delegates.observable(v) { ... }` (property position, trailing
+        // lambda not counted as an argument — hence the defaulted callback) and
+        // a call inside a function body resolve, and so that the property type
+        // can be read back off `ReadWriteProperty<Any?, T>`.
         for memberName in ["observable", "vetoable"] {
             let memberSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName + [interner.intern(memberName)]))
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.receiverType == delegatesType)
-            #expect(signature.parameterTypes == [sema.types.anyType])
-            #expect(signature.returnType == readWriteType)
+
+            let valueTypeParam = try #require(signature.typeParameterSymbols.first)
+            let valueType = sema.types.make(.typeParam(TypeParamType(
+                symbol: valueTypeParam,
+                nullability: .nonNull
+            )))
+            #expect(signature.parameterTypes.count == 2)
+            #expect(signature.parameterTypes.first == valueType)
+            #expect(signature.valueParameterHasDefaultValues == [false, true])
+            guard case let .functionType(onChange) = sema.types.kind(of: signature.parameterTypes[1]) else {
+                Issue.record("onChange parameter should be a function type")
+                return
+            }
+            #expect(onChange.params.count == 3)
+            #expect(
+                onChange.returnType == (memberName == "vetoable" ? sema.types.booleanType : sema.types.unitType)
+            )
+
+            let expectedReturnType = sema.types.make(.classType(ClassType(
+                classSymbol: readWriteSymbol,
+                args: [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)],
+                nullability: .nonNull
+            )))
+            #expect(signature.returnType == expectedReturnType)
         }
     }
 
