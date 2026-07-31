@@ -1304,13 +1304,35 @@ extension CallLowerer {
             }
         } else {
             // Fallback when callableValueInfo is unavailable (e.g. stored lambda /
-            // function reference): treat lambdaID as the function pointer and pass
-            // zero as the environment pointer so the argument count always matches
-            // the closure-conversion ABI.
-            fnPtrExpr = lambdaID
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            envPtrExpr = zeroExpr
+            // function reference forwarded as an ordinary argument to a bundled
+            // Kotlin-source HOF, which boxes it via kk_function_create_1 rather
+            // than lowering it with the raw closure-trampoline shape). lambdaID
+            // may be a boxed Function1 object or an already-raw function
+            // reference; kk_function_value_fn_ptr/closure_raw resolve either
+            // shape at runtime (naively treating a boxed value as a raw fnPtr
+            // and invoking it directly crashes — see BUG-... Sequence
+            // chunked/windowed transform).
+            let intType = sema.types.intType
+            let fnPtrResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [lambdaID],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            fnPtrExpr = fnPtrResult
+            let closureRawResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [lambdaID],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            envPtrExpr = closureRawResult
         }
         return (fnPtrExpr, envPtrExpr)
     }
