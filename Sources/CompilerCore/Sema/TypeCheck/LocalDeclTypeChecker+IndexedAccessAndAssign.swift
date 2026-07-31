@@ -68,6 +68,17 @@ extension LocalDeclTypeChecker {
                 )
             }
         }
+        if getCandidates.isEmpty {
+            // Bundled stdlib operator extensions (e.g. AtomicIntArray.get) are
+            // conceptually members and resolve without an explicit import.
+            getCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
+                named: getName,
+                receiverType: receiverType,
+                requireOperator: true,
+                sema: sema,
+                interner: interner
+            )
+        }
 
         // Infer all index expressions without forcing Int.
         // Int constraint is only applied in the built-in array fallback.
@@ -257,6 +268,17 @@ extension LocalDeclTypeChecker {
                     sema: sema
                 )
             }
+        }
+        if setCandidates.isEmpty {
+            // Bundled stdlib operator extensions (e.g. AtomicIntArray.set) are
+            // conceptually members and resolve without an explicit import.
+            setCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
+                named: setName,
+                receiverType: receiverType,
+                requireOperator: true,
+                sema: sema,
+                interner: interner
+            )
         }
 
         // Infer all index expressions without forcing Int.

@@ -122,76 +122,12 @@ extension DataFlowSemaPhase {
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
-        // --- Array extension functions: contentEquals, contentDeepEquals, contentDeepToString, contentDeepHashCode, contentHashCode, copyInto, sliceArray, reversedArray ---
-
-        // contentEquals(other: Array<T>): Boolean
-        let contentEqualsName = interner.intern("contentEquals")
-        let contentEqualsFQName = arrayFQName + [contentEqualsName]
-        if symbols.lookup(fqName: contentEqualsFQName) == nil {
-            let contentEqualsSymbol = symbols.define(
-                kind: .function,
-                name: contentEqualsName,
-                fqName: contentEqualsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentEqualsSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            let otherArrayType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [otherArrayType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentEqualsSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentEquals", for: contentEqualsSymbol)
-        }
-
-        // contentToString(): String
-        let contentToStringName = interner.intern("contentToString")
-        let contentToStringFQName = arrayFQName + [contentToStringName]
-        if symbols.lookup(fqName: contentToStringFQName) == nil {
-            let contentToStringSymbol = symbols.define(
-                kind: .function,
-                name: contentToStringName,
-                fqName: contentToStringFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentToStringSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.stringType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentToStringSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentToString", for: contentToStringSymbol)
-        }
+        // --- Array extension functions: contentDeepEquals, contentDeepToString, contentDeepHashCode, contentHashCode, copyInto, sliceArray, reversedArray ---
+        //
+        // KSP-658: generic Array<T>.contentEquals / contentToString / copyOf /
+        // copyOfRange are bundled Kotlin source
+        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt); their synthetic
+        // stubs were removed so source resolution takes precedence.
 
         // contentDeepEquals(other: Array<T>): Boolean
         let contentDeepEqualsName = interner.intern("contentDeepEquals")
@@ -1043,7 +979,7 @@ extension DataFlowSemaPhase {
                 case "CharArray": "kk_charArray_contentToString"
                 case "UByteArray": "kk_uByteArray_contentToString"
                 case "UShortArray": "kk_uShortArray_contentToString"
-                default: "kk_array_contentToString"
+                default: fatalError("unhandled primitive array \(name) for contentToString")
                 }
                 symbols.setExternalLinkName(externalLinkName, for: contentToStringSym)
 
@@ -1404,6 +1340,21 @@ extension DataFlowSemaPhase {
                     )
                 }
             }
+
+            // BUG-158: primitive arrays also need the `transform` overloads. The
+            // element-type-aware renderers above are only required when the runtime
+            // renders raw elements itself; with a transform the lambda produces the
+            // rendered text, so the generic
+            // `kk_array_joinToString_transform` helper is reused here.
+            registerPrimitiveArrayJoinToStringTransformOverloads(
+                arraySymbol: arraySymbol,
+                arrayName: name,
+                receiverType: primArrayReceiverType,
+                joinToStringName: primJoinToStringName,
+                joinToStringFQName: primJoinToStringFQName,
+                symbols: symbols,
+                types: types
+            )
         }
 
         // --- joinToString (STDLIB-GAP-PH1) ---
@@ -1516,6 +1467,81 @@ extension DataFlowSemaPhase {
             registerJoinToStringTransformOverload([types.stringType, types.stringType, types.stringType, joinTransformType])
         }
 
+    }
+
+    /// Registers `joinToString(..., transform)` overloads for a primitive array type.
+    ///
+    /// Mirrors the `Array<T>` registration: four required-arity overloads instead of
+    /// one signature with defaults, all linked to `kk_array_joinToString_transform`
+    /// (the transform renders each element, so no element-type-aware renderer is needed).
+    private func registerPrimitiveArrayJoinToStringTransformOverloads(
+        arraySymbol: SymbolID,
+        arrayName: String,
+        receiverType: TypeID,
+        joinToStringName: InternedString,
+        joinToStringFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) {
+        let alreadyRegistered = symbols.lookupAll(fqName: joinToStringFQName).contains { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID),
+                  let lastParameterType = signature.parameterTypes.last
+            else {
+                return false
+            }
+            if case .functionType = types.kind(of: types.makeNonNullable(lastParameterType)) {
+                return true
+            }
+            return false
+        }
+        guard !alreadyRegistered else { return }
+
+        let elementType: TypeID = switch arrayName {
+        case "IntArray": types.intType
+        case "LongArray": types.longType
+        case "ByteArray": types.intType
+        case "ShortArray": types.intType
+        case "UIntArray": types.uintType
+        case "ULongArray": types.ulongType
+        case "DoubleArray": types.doubleType
+        case "FloatArray": types.floatType
+        case "BooleanArray": types.booleanType
+        case "CharArray": types.charType
+        case "UByteArray": types.ubyteType
+        case "UShortArray": types.ushortType
+        default: types.anyType
+        }
+        let transformType = types.make(.functionType(FunctionType(
+            params: [elementType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        func registerOverload(_ parameterTypes: [TypeID]) {
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: joinToStringName,
+                fqName: joinToStringFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(arraySymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_array_joinToString_transform", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: types.stringType
+                ),
+                for: memberSymbol
+            )
+        }
+        registerOverload([transformType])
+        registerOverload([types.stringType, transformType])
+        registerOverload([types.stringType, types.stringType, transformType])
+        registerOverload([types.stringType, types.stringType, types.stringType, transformType])
     }
 
     private func registerArrayIsArrayOfJvmExtension(

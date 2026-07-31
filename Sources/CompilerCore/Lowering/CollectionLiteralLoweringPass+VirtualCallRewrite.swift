@@ -83,6 +83,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.noneName
             || callee == lookup.firstOrNullName
             || callee == lookup.lastOrNullName
+            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
+            || callee == lookup.copyOfName
+            || callee == lookup.copyOfRangeName
             // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
             || callee == lookup.isEmptyName
             || callee == lookup.iteratorName,
@@ -187,11 +190,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // stdlib list/set iterator calls directly to the shared iterator helper.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue)
+           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
         {
+            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+                ? lookup.kkIndexingIterableIteratorName
+                : lookup.kkListIteratorName
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListIteratorName,
+                callee: iterCallee,
                 arguments: [receiver],
                 result: result,
                 canThrow: false,
