@@ -46,16 +46,48 @@ extension DataEnumSealedSynthesisPass {
 
         body.append(.returnValue(listExpr))
 
-        appendSyntheticFunctionIfNeeded(
-            name: name,
-            owner: owner,
-            module: module,
-            sema: sema,
-            signature: signature,
-            params: [],
-            body: body,
-            existingFunctionSymbols: existingFunctionSymbols
-        )
+        // Use the existing stub symbol when Sema already registered `values`
+        // directly on the enum class (collectSyntheticEnumValuesMember). Sema
+        // resolves `Direction.values()` call sites to that symbol's ID during
+        // type-checking, before this Lowering pass ever runs; calling
+        // `appendSyntheticFunctionIfNeeded` unconditionally would re-invoke
+        // `SymbolTable.define`, which mints a *second*, disconnected SymbolID
+        // for the same (fqName, .function) pair (functions are allowed to
+        // coexist as overloads), silently orphaning the already-resolved call
+        // sites from the KIR body generated here. Mirrors how
+        // `appendSyntheticEnumValueOfIfNeeded` reuses the companion's
+        // Sema-registered `valueOf` stub below.
+        let fqName = owner.fqName + [name]
+        let existingValues = sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let sym = sema.symbols.symbol(candidate),
+                  sym.kind == .function,
+                  sym.flags.contains(.synthetic),
+                  sema.symbols.parentSymbol(for: candidate) == owner.id
+            else { return false }
+            return true
+        }
+        if let existingSymbol = existingValues, !existingFunctionSymbols.contains(existingSymbol) {
+            appendSyntheticFunctionWithSymbol(
+                functionSymbol: existingSymbol,
+                name: name,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body
+            )
+        } else {
+            appendSyntheticFunctionIfNeeded(
+                name: name,
+                owner: owner,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body,
+                existingFunctionSymbols: existingFunctionSymbols
+            )
+        }
     }
 
     /// Synthesizes the `entries` getter on the companion object.

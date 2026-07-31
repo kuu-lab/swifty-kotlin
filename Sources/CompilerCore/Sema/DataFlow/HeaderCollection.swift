@@ -534,6 +534,15 @@ extension DataFlowSemaPhase {
                     scope: classScope,
                     interner: interner
                 )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    enumType: classType,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
             }
             if declaration.flags.contains(.dataType) {
                 collectSyntheticDataClassMethods(
