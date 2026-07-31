@@ -492,6 +492,30 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testStringHOFMembersAreBundledKotlin() throws {
+        let (sema, interner) = try makeSema()
+
+        // KSP-410: filter/filterNot/any/all/none/count/find/findLast/
+        // onEach/partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/
+        // reduce family/fold family are bundled Kotlin source
+        // (StringHOF.kt) and carry no runtime link. map/mapIndexed are
+        // excluded (BUG-171 keeps them Swift-backed).
+        for member in [
+            "filter", "filterNot", "any", "all", "none", "count",
+            "find", "findLast", "onEach", "partition", "sumBy", "sumByDouble",
+            "filterIndexed", "onEachIndexed",
+            "reduce", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull",
+            "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull",
+            "fold", "foldIndexed", "foldRight", "foldRightIndexed",
+        ] {
+            let links = externalLinks(for: member, sema: sema, interner: interner)
+            #expect(
+                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                "String.\(member) should be source-backed after KSP-410, got \(links.sorted())"
+            )
+        }
+    }
+
     @Test func testIfBlankStubIsBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
@@ -1858,10 +1882,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.reduceRightIndexed surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexed"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceRightIndexed"
             }
+            #expect(callIDs.count == 2, "Expected two String.reduceRightIndexed call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
         }
     }
@@ -1886,10 +1914,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.reduceRightIndexedOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexedOrNull"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceRightIndexedOrNull"
             }
+            #expect(callIDs.count == 2, "Expected two String.reduceRightIndexedOrNull call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
         }
     }
@@ -1914,14 +1946,21 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightOrNull"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceRightOrNull"
             }
+            #expect(callIDs.count == 2, "Expected two String.reduceRightOrNull call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
         }
     }
 
+    // KSP-410: sumBy/sumByDouble are bundled Kotlin source (StringHOF.kt), so
+    // they no longer carry a `kk_string_sumBy(Double)` external link. The
+    // binding is now identified by AST call-site lookup instead.
     @Test func testCharSequenceSumByResolvesInCallExpressions() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Int {
@@ -1942,10 +1981,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.sumBy surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumBy"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "sumBy"
             }
+            #expect(callIDs.count == 2, "Expected two String.sumBy call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
             let sumBySymbol = try #require(bindings.first?.chosenCallee)
             #expect(
@@ -1975,10 +2018,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumByDouble"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "sumByDouble"
             }
+            #expect(callIDs.count == 2, "Expected two String.sumByDouble call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
             let sumByDoubleSymbol = try #require(bindings.first?.chosenCallee)
             #expect(
@@ -2120,10 +2167,14 @@ struct StringSyntheticMemberLinkTests {
                 !(ctx.diagnostics.hasError),
                 "Expected CharSequence.reduceOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceOrNull"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "reduceOrNull"
             }
+            #expect(callIDs.count == 2, "Expected two String.reduceOrNull call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
         }
     }

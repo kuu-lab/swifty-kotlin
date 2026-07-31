@@ -913,15 +913,6 @@ public extension RuntimeABISpec {
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
         ], returnType: .nullableUInt8Pointer),
-        abiParitySpec("kk_string_partition_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),

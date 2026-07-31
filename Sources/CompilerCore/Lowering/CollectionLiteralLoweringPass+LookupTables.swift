@@ -73,12 +73,6 @@ struct CollectionLiteralLookupTables {
     let kkStringIteratorName: InternedString
     let kkStringIteratorHasNextName: InternedString
     let kkStringIteratorNextName: InternedString
-    let kkStringFilterName: InternedString
-    let kkStringMapName: InternedString
-    let kkStringCountName: InternedString
-    let kkStringAnyName: InternedString
-    let kkStringAllName: InternedString
-    let kkStringNoneName: InternedString
 
     // Higher-order collection function ABI names (FUNC-003)
     let kkListMapName: InternedString
@@ -832,12 +826,6 @@ struct CollectionLiteralLookupTables {
         kkStringIteratorName = interner.intern("kk_string_iterator_flat")
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
-        kkStringFilterName = interner.intern("kk_string_filter")
-        kkStringMapName = interner.intern("kk_string_map")
-        kkStringCountName = interner.intern("kk_string_count")
-        kkStringAnyName = interner.intern("kk_string_any")
-        kkStringAllName = interner.intern("kk_string_all")
-        kkStringNoneName = interner.intern("kk_string_none")
 
         kkListMapName = interner.intern("kk_list_map")
         kkListMapNotNullName = interner.intern("kk_list_mapNotNull")
@@ -1543,7 +1531,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_substringBeforeLast_char_flat"),
             interner.intern("kk_string_substringAfterLast_flat"),
             interner.intern("kk_string_substringAfterLast_char_flat"),
-            kkStringFilterName,
         ]
     }
 
