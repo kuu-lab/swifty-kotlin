@@ -1,7 +1,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 /// Verifies that the new String stdlib extension stubs added in the PR
 /// (STDLIB-006, STDLIB-009) are registered in the symbol table with the
@@ -393,33 +392,48 @@ struct StringSyntheticMemberLinkTests {
             ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
             ("toCollection", 1, "kk_string_toCollection_flat"),
             ("asIterable", 0, "kk_string_asIterable_flat"),
-
-            ("toByteArray", 0, "kk_string_toByteArray_flat"),
-            ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
-            ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
-            ("encodeToByteArray", 0, "kk_string_encodeToByteArray_flat"),
-            ("encodeToByteArray", 1, "kk_string_encodeToByteArray_charset_flat"),
-            ("encodeToByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
             ("chunked", 1, "kk_string_chunked_flat"),
-            ("windowed", 1, "kk_string_windowed_default_flat"),
-            ("windowed", 2, "kk_string_windowed_flat"),
-            ("windowed", 3, "kk_string_windowed_partial_flat"),
+            ("windowed", 1, "kk_string_windowed_default"),
+            ("windowed", 2, "kk_string_windowed"),
+            ("windowed", 3, "kk_string_windowed_partial"),
             ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
             ("asSequence", 0, "kk_string_asSequence_flat"),
             ("withIndex", 0, "kk_string_withIndex_flat"),
         ]
 
         for item in expected {
-            XCTAssertEqual(
+            #expect(
                 externalLink(
                     for: item.member,
                     receiverType: sema.types.stringType,
                     parameterCount: item.parameterCount,
                     sema: sema,
                     interner: interner
-                ),
-                item.link,
+                ) == item.link,
                 "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
+            )
+        }
+
+        // toByteArray / encodeToByteArray are bundled Kotlin source that bridge through
+        // private `__kk_string_*_flat` primitives, so the public members carry no link.
+        let sourceBacked: [(member: String, parameterCount: Int)] = [
+            ("toByteArray", 0),
+            ("toByteArray", 1),
+            ("toByteArray", 2),
+            ("encodeToByteArray", 0),
+            ("encodeToByteArray", 1),
+            ("encodeToByteArray", 2),
+        ]
+        for item in sourceBacked {
+            #expect(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ) == nil,
+                "String.\(item.member)/\(item.parameterCount) should be source-backed with no C external link"
             )
         }
     }
