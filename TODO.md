@@ -1,7 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-### KIR / Lowering（残り 1 件）
-- [ ] DEBT-KIR-008: クラスインスタンスの委譲プロパティを per-instance storage にする。症状: `class Foo(val label: String) { val x by lazy { label } }; val a = Foo("a"); val b = Foo("b"); println(a.x); println(b.x)` は kotlinc では `a` / `b` だが kswiftc では `0` / `0` になる。`delegateStorageSymbol` が `nominalLayout` の field offset に登録されず、`MemberLowerer+DelegatedAndAccessorLowering.swift` の accessor は `.loadGlobal`、`KIRLoweringDriver+ModuleLowering+ClassDecl+ConstructorsAndInitializers.swift` の initializer は global 相当の `.symbolRef` copy を使うため、layout 登録・getter・setter・initializer をまとめて instance field 化する必要がある。PR #4632 の conflict repair 中にレビュー由来の再現を現行 `master` で再確認（#4692 は stdlib delegate factory の引数 lowering を修正したが storage ownership は未修正）
+### KIR / Lowering（残り 0 件）
 
 ### Sema 型チェック（残り 1 件）
 - [ ] DEBT-SEMA-001: 同一クラス内の後方宣言 member property を先行 member function から参照すると不正な型エラーになる。最小再現: `class Forward { fun get(): Int = value; var value = 10 }` は Kotlin では正当だが kswiftc は `KSWIFTK-TYPE-0001: Type constraint could not be satisfied.` で失敗する。現行 `typeCheckClassLikeMembers` は source-order pass 後に member function を再チェックするが、最初の pass で property type 解決前の診断が確定し、二度目の pass で回復できない。全 property type の副作用安全な prepass、または参照時の遅延解決と診断 defer が必要。PR #4632 の conflict repair 中にレビュー由来の再現を現行 `master` で再確認
