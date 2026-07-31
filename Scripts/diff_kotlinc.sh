@@ -94,6 +94,9 @@ Environment:
                      Same idea as KOTLINC_STDLIB_JAR but for kotlin-reflect.jar,
                      needed by cases that use kotlin.reflect (default:
                      auto-discovered next to \$KOTLINC)
+  KOTLINC_TEST_JAR   Same idea as KOTLINC_STDLIB_JAR but for kotlin-test.jar,
+                     needed by cases that use kotlin.test (default:
+                     auto-discovered next to \$KOTLINC)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -274,12 +277,15 @@ known_coroutines_sha256() {
 # KOTLINC_CLASSPATH as-is and run_case() falls back to -include-runtime,
 # same as before this existed.
 #
-# Used for both kotlin-stdlib.jar and kotlin-reflect.jar: -include-runtime
-# bundles both (kotlin.reflect.full/jvm APIs - KClass.isAbstract/isOpen,
-# KType.toString(), etc. - throw KotlinReflectionNotSupportedError or fall
-# back to plain-Java rendering without kotlin-reflect on the classpath;
-# confirmed via CI failures on kclass_basic.kt/type_reflection.kt when only
-# kotlin-stdlib.jar was added).
+# Used for kotlin-stdlib.jar, kotlin-reflect.jar, and kotlin-test.jar:
+# -include-runtime bundles stdlib/reflect but not kotlin-test, so cases
+# importing kotlin.test fail to compile against the reference with a plain
+# -include-runtime jar (confirmed via kotlin.test.* unresolved-reference
+# failures on kotlin-test-only cases). kotlin.reflect.full/jvm APIs -
+# KClass.isAbstract/isOpen, KType.toString(), etc. - throw
+# KotlinReflectionNotSupportedError or fall back to plain-Java rendering
+# without kotlin-reflect on the classpath; confirmed via CI failures on
+# kclass_basic.kt/type_reflection.kt when only kotlin-stdlib.jar was added).
 resolve_kotlinc_lib_jar() {
   local jar_name="$1" kotlinc_bin resolved_bin bin_dir candidate
   kotlinc_bin="$(command -v "$KOTLINC" 2>/dev/null || true)"
@@ -364,7 +370,8 @@ ensure_kotlinc_classpath
 # is what keeps a user- or coroutines-supplied classpath intact.
 KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
 KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
-for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR"; do
+KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
+for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_JAR"; do
   if [[ -n "$runtime_jar" ]]; then
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
       KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
