@@ -36,7 +36,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-002 | 4 | script 起動 timeout と top-level execution parity | script timeout 分離後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-003 | 11 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件と `channel_basic.kt` は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
-| DEBT-DIFF-005 | 0（解消済み、2026-07-30） | 全ケース解消済み。CASE_INSENSITIVE_ORDER 誤登録（BUG-154）は `origin/master` 側で解消済み。property delegate lowering の実バグ（BUG-151/BUG-170）も本 PR で修正 | — |
+| DEBT-DIFF-005 | 2（2026-08-01 時点） | 残り2件は source Sequence/`sequence {}` builder の Iterator itable dispatch 未整備（KSP-441 では不十分、KSP-447 待ち）。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | KSP-447 の itable ブリッジ整備後に `--force-run-skipped` で再判定 |
 | DEBT-DIFF-006 | 1 | type inference / boxed numeric lowering / compiler-plugin API | diagnostic case または parity regression へ分解 |
 | DEBT-DIFF-007 | 37 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み、詳細は該当節） |
 
@@ -179,7 +179,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 - Runtime ABI: boxed value class（interface 実装により `kk_object_new` で box されたまま残るもの）の equality / hash を検証・修正。`runtimeValuesEqual` は既に `RuntimeObjectBox` を構造比較していたが、`runtimeAnyHashCode` に対応ケースが無く、`Any.hashCode()` 経由の呼び出しが pointer-identity ハッシュへフォールバックしていた（`c1 == c2` は `true` なのに `c1.hashCode() != c2.hashCode()` という equals/hashCode 契約違反）。あわせて data class 側の `appendSyntheticDataClassHashCodeIfNeeded` も、フィールドを読み出さず `receiver, fieldOffset` を直接 `kk_any_hashCode` に渡しており同じ契約違反を起こしていたため修正。
 - Regression: 上記 5 ケースを `--force-run-skipped`（さらに機材負荷を考慮し `--run-timeout 60`）で green 確認後、`SKIP-DIFF` marker を削除。
 
-## DEBT-DIFF-005: common stdlib surface gap（解消・分割済み、2026-07-29）
+## DEBT-DIFF-005: common stdlib surface gap（残り2件、2026-08-01 時点）
 
 2026-07-29 の棚卸し時点で `.build/debug/kswiftc` が直近コミットに対し stale になっており（`_kk_kclass_create` 等の未解決シンボルで大量の偽 link failure を出していた）、`swift build` で再ビルドしたところ多くのケースが実は既に green だったことが判明した。以降 DEBT-DIFF-005 系の再判定を行う際は、まずローカルバイナリが最新かどうかを疑うこと。
 
@@ -187,6 +187,7 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 | --- | --- | --- | --- |
 | `java.math.BigInteger` | `big_integer.kt` | 解消済み | PR #4667 で `not`/`shiftLeft`/`shiftRight` の未登録とエンディアン不整合バグを修正、SKIP-DIFF 解除済み |
 | KSwiftK synthetic Sequence surface | ~~`sequence_takelast.kt`, `sequence_takelastwhile.kt`, `sequence_subtract.kt`~~ | 解消済み（移設） | PR #4660 で JVM kotlinc に無い synthetic surface と確定し、`Scripts/diff_cases` から削除して `CodegenBackendIntegrationTests+Sequence{TakeLast,TakeLastWhile,Subtract}.swift` の candidate-only テストへ移設済み |
+| Sequence source/runtime interop | `flatten_sequence_edge_cases.kt`, `sequence_lazy_eval.kt` | **未解消**（2026-08-01 確認、`--force-run-skipped` で再現） | source Sequence object-expression（`sequence {}` builder 含む）は runtime List/Sequence/RuntimeSequenceBox ハンドルに対する `.iterator()` 仮想ディスパッチが未整備で `KSWIFTK-RUNTIME-0001: Virtual dispatch failed` になる。`origin/master` の KSP-441（#5025、Source Sequence/Iterator interfaces 他）マージ後も再現することを確認済み — KSP-441 だけでは不十分で、SKIP-DIFF マーカーが指す通り KSP-447 の itable ブリッジ整備が別途必要 |
 | Scope functions | `scope_functions_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後 `--force-run-skipped` で green、SKIP-DIFF 解除 |
 | Property delegates | `property_delegate_edge_cases.kt` | 解消済み（2026-07-30） | `BUG-151`（observable/vetoable コールバック本体の消失）は未マージの `devin/1785118661-fix-bug-151` の修正を取り込んで適用。`BUG-170`（delegate 本体固有の bare-name 複合代入・読み出しバグ。164→168→170 と3回再採番）は Sema が `delegateBody` を一切 visit していなかったことが根本原因と特定し `typeCheckDelegate` の拡張で修正。両方解消し `SKIP-DIFF` 解除。詳細は下記 |
 | Regex runtime edge | `regex_runtime_edge_cases.kt` | 解消済み（2026-07-29 確認） | stale バイナリによる偽 FAIL だった。再ビルド後 `--force-run-skipped` で green、SKIP-DIFF 解除 |

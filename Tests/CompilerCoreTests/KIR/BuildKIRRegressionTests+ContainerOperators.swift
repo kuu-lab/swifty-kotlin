@@ -184,14 +184,22 @@ extension BuildKIRRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
+            let callCallees = extractCallees(from: body, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+            let allCallees = Set(callCallees + virtualCallees)
 
-            #expect(callees.contains("iterator"), "Expected custom iterator() call, got: \(callees)")
-            #expect(callees.contains("kk_iterator_hasNext"), "Expected generic kk_iterator_hasNext dispatch, got: \(callees)")
-            #expect(callees.contains("kk_iterator_next"), "Expected generic kk_iterator_next dispatch, got: \(callees)")
-            #expect(!(callees.contains("kk_range_iterator")), "User Iterable loop should not use kk_range_iterator, got: \(callees)")
-            #expect(!(callees.contains("kk_range_hasNext")), "User Iterable loop should not use kk_range_hasNext, got: \(callees)")
-            #expect(!(callees.contains("kk_range_next")), "User Iterable loop should not use kk_range_next, got: \(callees)")
+            #expect(callCallees.contains("iterator"), "Expected custom iterator() call, got: \(callCallees)")
+            #expect(
+                allCallees.contains("kk_iterator_hasNext"),
+                "Expected Iterator.hasNext to lower through the generic kk_iterator_hasNext runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+            )
+            #expect(
+                allCallees.contains("kk_iterator_next"),
+                "Expected Iterator.next to lower through the generic kk_iterator_next runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+            )
+            #expect(!allCallees.contains("kk_range_iterator"), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
+            #expect(!allCallees.contains("kk_range_hasNext"), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
+            #expect(!allCallees.contains("kk_range_next"), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
         }
     }
 
