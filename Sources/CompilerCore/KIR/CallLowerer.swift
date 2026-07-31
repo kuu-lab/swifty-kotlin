@@ -61,24 +61,44 @@ final class CallLowerer {
         let result = arena.appendTemporary(type: resultType)
         let runtimeCallee: InternedString
         let runtimeArgs: [KIRExprID]
+        let canThrow: Bool
         if let firstArg = finalArgIDs.first,
            let firstArgType = arena.exprType(firstArg),
            sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.stringType)
         {
             runtimeCallee = interner.intern("__kk_string_builder_new_from_string_flat")
             runtimeArgs = [firstArg]
+            canThrow = false
+        } else if let firstArg = finalArgIDs.first {
+            // StringBuilder(capacity: Int) — the capacity is advisory (the
+            // runtime box grows dynamically), but a negative value must still
+            // throw NegativeArraySizeException like real Kotlin/JVM.
+            runtimeCallee = interner.intern("__kk_string_builder_new_with_capacity")
+            runtimeArgs = [firstArg]
+            canThrow = true
         } else {
             runtimeCallee = interner.intern("__kk_string_builder_new")
             runtimeArgs = []
+            canThrow = false
         }
+        let thrownResult = canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil
         instructions.append(.call(
             symbol: nil,
             callee: runtimeCallee,
             arguments: runtimeArgs,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: canThrow,
+            thrownResult: thrownResult
         ))
+        if let thrownResult {
+            let continueLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+            instructions.append(.jump(continueLabel))
+            instructions.append(.label(rethrowLabel))
+            instructions.append(.rethrow(value: thrownResult))
+            instructions.append(.label(continueLabel))
+        }
         return result
     }
 
@@ -1370,6 +1390,7 @@ final class CallLowerer {
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
             "kk_synchronized",
+            "__kk_string_builder_new_with_capacity",
         ].contains(name)
     }
 

@@ -50,6 +50,20 @@ public func __kk_string_builder_new() -> Int {
     runtimeStringBuilderNew(initial: "")
 }
 
+/// Backs `StringBuilder(capacity: Int)`. The capacity is purely advisory in
+/// this runtime (RuntimeStringBuilderBox grows its Swift String dynamically),
+/// but real Kotlin/JVM still requires rejecting negative values with
+/// `NegativeArraySizeException` — mirrors `kk_array_new_checked`.
+@_cdecl("__kk_string_builder_new_with_capacity")
+public func __kk_string_builder_new_with_capacity(_ capacity: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
+        return 0
+    }
+    return runtimeStringBuilderNew(initial: "")
+}
+
 @_cdecl("__kk_string_builder_new_from_string_flat")
 public func __kk_string_builder_new_from_string_flat(
     _ data: UnsafePointer<UInt8>?,
