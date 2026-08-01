@@ -783,7 +783,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             calleeName: interner.intern("get"),
             argumentExprs: indices,
-            sema: sema
+            sema: sema,
+            debugInterner: interner
         ) ?? sema.bindings.callBindings[exprID]
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)

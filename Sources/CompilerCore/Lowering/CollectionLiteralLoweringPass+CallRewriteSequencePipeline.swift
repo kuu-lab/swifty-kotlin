@@ -1,3 +1,5 @@
+import Foundation
+
 /// Sequence pipeline rewrites such as asSequence, map/filter, zip, plus, and minus.
 extension CollectionLiteralConstructionLoweringPass {
     func rewriteSequencePipelineCall(
@@ -42,6 +44,9 @@ extension CollectionLiteralConstructionLoweringPass {
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
         let receiverID = arguments[0]
+        FileHandle.standardError.write(Data(
+            "KDEBUG rewriteSequencePipelineCall asSequence receiver=\(receiverID.rawValue) inArrayExprIDs=\(state.arrayExprIDs.contains(receiverID.rawValue)) inListExprIDs=\(state.listExprIDs.contains(receiverID.rawValue)) arrayExprIDs=\(state.arrayExprIDs.sorted()) listExprIDs=\(state.listExprIDs.sorted())\n".utf8
+        ))
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
                 symbol: nil,

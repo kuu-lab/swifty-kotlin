@@ -3727,7 +3727,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             calleeName: calleeName,
             argumentExprs: args.map(\.expr),
-            sema: sema
+            sema: sema,
+            debugInterner: interner
         ) ?? sema.bindings.callBindings[exprID]
         if qualifiedSuperType == nil,
            isSuperCall,

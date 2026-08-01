@@ -23,11 +23,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
     ) -> Bool {
         // Non-tracked array receivers are now classified by static type via
         // classifyReceiverByStaticType (LOWERING-001) before reaching here.
-        if lookup.asSequenceName == callee {
-            FileHandle.standardError.write(Data(
-                "KDEBUG rewriteArrayVirtualCall asSequence receiver=\(receiver.rawValue) inArrayExprIDs=\(arrayExprIDs.contains(receiver.rawValue)) arrayExprIDs=\(arrayExprIDs.sorted())\n".utf8
-            ))
-        }
         guard arrayExprIDs.contains(receiver.rawValue) else { return false }
 
         // toList on array → kk_array_toList (result is List)
