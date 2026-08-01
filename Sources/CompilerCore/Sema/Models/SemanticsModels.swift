@@ -425,6 +425,7 @@ public final class SymbolTable {
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
+    private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
@@ -946,6 +947,20 @@ public final class SymbolTable {
 
     public func typeParameterUpperBounds(for symbol: SymbolID) -> [TypeID] {
         typeParameterUpperBoundsMap[symbol] ?? []
+    }
+
+    /// DEBT-SEMA-002: header collection resolves a type parameter's bounds (and can see
+    /// there is more than one) long before class inheritance edges are bound (see
+    /// `bindInheritanceEdges`, which runs afterwards in `runValidationPasses`). Recording the
+    /// symbol here defers the actual mutual-exclusivity check until inheritance edges exist,
+    /// so `TypeSystem.isSubtype` sees a fully-populated class hierarchy instead of treating
+    /// every not-yet-linked class pair as unrelated.
+    public func recordTypeParameterForBoundConflictCheck(_ symbol: SymbolID, declSite: SourceRange?) {
+        pendingTypeParameterBoundConflictChecks.append((symbol, declSite))
+    }
+
+    public func typeParametersPendingBoundConflictCheck() -> [(symbol: SymbolID, declSite: SourceRange?)] {
+        pendingTypeParameterBoundConflictChecks
     }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {

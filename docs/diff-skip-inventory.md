@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-07-30
+最終更新: 2026-08-02
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -28,7 +28,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'DEBT-DIFF-[0-9]{3}' -N | sort | uniq -c`）に同期する。
+件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'SKIP-DIFF\s*\(DEBT-DIFF-[0-9]{3}\)|KSWIFTK_DIFF_IGNORE.*DEBT-DIFF-[0-9]{3}' -N | rg -o 'DEBT-DIFF-[0-9]{3}' | sort | uniq -c`）に同期する。単純な `rg -o 'DEBT-DIFF-[0-9]{3}'`（アクティブなタグ/経緯コメント両方にマッチ）ではなく、アクティブな `SKIP-DIFF`/`KSWIFTK_DIFF_IGNORE` タグのみに絞ること — `case_insensitive_order_identity.kt` のように「過去 DEBT-DIFF-005 として追跡していたが解消済み」という経緯コメントだけが残るケースがあり、単純な文字列一致では解消済みの件数を残存として誤カウントする（2026-08-02、並行マージでの再計測差異から判明）。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
@@ -37,7 +37,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-003 | 6 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・structured concurrency / Deferred / Supervisor 3 件は解除済み（`coroutine_cancellation_advanced.kt`, `coroutine_cancellation_edge_cases.kt`, `coroutine_supervisor_job.kt`, `coroutine_structured_concurrency.kt`, `coroutine_deferred.kt`） |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 2（2026-08-01 時点） | 残り2件は source Sequence/`sequence {}` builder の Iterator itable dispatch 未整備（KSP-441 では不十分、KSP-447 待ち）。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | KSP-447 の itable ブリッジ整備後に `--force-run-skipped` で再判定 |
-| DEBT-DIFF-006 | 1 | type inference / boxed numeric lowering / compiler-plugin API | diagnostic case または parity regression へ分解 |
+| DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 37 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み、詳細は該当節） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -215,12 +215,19 @@ scheduler の分岐が広いため、単発の bug fix ではなく別 task と�
 
 **2026-07-30 追記（本 PR でのマージ・再汎化）**: `origin/master` の #5105（DEBT-KIR-008）と本 PR の BUG-151/170 修正は、"delegate 本体を Sema が visit していない" という同じ根本原因を独立に発見し、`KIRLoweringDriver+ModuleLowering+PostProcess.swift` の `lowerDelegateLambdaBody` に対して部分的に重複する修正を加えていたためマージ時にコンフリクトした。#5105 はレシーバの GC 安全性を優先し `kk_object_new`/`kk_array_get_inbounds`/`kk_array_set` で captured receiver をヒープオブジェクトとしてラップしてから `kk_function_create_0` で包む、より安全な `materializeCapturingDelegateLambda` アダプタ方式を採用していたが、その安全性と引き換えに `.observable`/`.vetoable`（3引数コールバック）への対応を明示的に見送っていた。本 PR は #5105 のこの GC 安全なアダプタ方式をベースに採用しつつ、`materializeCapturingDelegateLambda` にコールバックの数値引数（`numberedParams`）を貫通させ、アダプタ関数側で新しい引数シンボルを割り当てて内側ラムダへ転送し、包む際に引数の有無で `kk_function_create_0`/`kk_function_create_3`（本 PR で新設、BUG-170 参照）のどちらを呼ぶか選択するよう汎化することで、`.observable`/`.vetoable` の captured receiver もこのアダプタ方式一本で（`unsafeBitCast` 生ポインタ経由ではなく）安全にサポートできるようにした。これにより #5105 が明示的に対象外としていた `.observable`/`.vetoable` の receiver capture も含め、残課題 3・4 は完全に解消し `SKIP-DIFF` を解除できた（上記表・202行目以降参照）。
 
-## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API
+## DEBT-DIFF-006: inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29）
 
-| cases | 判定 | 次アクション |
-| --- | --- | --- |
-| `compiler_plugin_api.kt` | implicit-receiver `MutableMap` access type-constraint gap | member access type inference / constraint solving の修正後に通常 diff へ戻す |
-| `error_type_inference.kt` | compile-error expectation case | diff harness は現状 stderr parity を厳密比較しないため、diagnostic golden か error-code regression へ移す |
+`math_rounding_functions.kt` は 2026-07-09 に解除済み（下記参照）。`error_type_inference.kt` は 2026-07-09 に diff_cases から削除済み: 5 シナリオ全てで kswiftc が診断を1件も出さないことが判明し、うち3件は本物の Sema 検出漏れとして `DEBT-SEMA-002`/`DEBT-SEMA-003`/`DEBT-SEMA-004`（`TODO.md` の「Sema 型推論診断ギャップ」節）へ切り出して `assertNoDiagnostic` ベースの回帰テストで現状を固定、残り2件は元の想定コメントが誤りだった正当な Kotlin コードと判明したため対応不要。最後まで残っていた `compiler_plugin_api.kt` も 2026-07-29 に `SKIP-DIFF` を解除し、通常の `diff_kotlinc.sh` 経路で green。
+
+`compiler_plugin_api.kt` は当初「implicit-receiver `MutableMap` access の type-constraint gap」という単一バグとして棚卸しされていたが、実際には独立した3層のバグが積み重なっていた（1つ目を直すと次のエラーが露出する形で発見した）。
+
+1. **Sema**: `object` シングルトンのメンバー関数をトレイリングラムダ付きで呼ぶと、ラムダのパラメータ型推論が壊れる。`CallTypeChecker+MemberCallInferenceContext.swift` の `tryInferFQNPackageTopLevelCall`（`kotlin.math.abs(x)` のような FQN パッケージ修飾呼び出し専用の特殊パス）が、`SomeObject.member(args) { lambda }` という **named object のメンバー関数呼び出し**も「パッケージ修飾トップレベル関数呼び出し」と誤認していた。原因は、object のメンバー関数もパッケージのトップレベル関数と同じ `ownerFQName + [memberName]` スキームで symbol table に登録されるため、`sema.symbols.lookupAll(fqName:)` によるルックアップが偶然マッチしてしまうこと。この特殊パスは引数を expected type なしで即座に型推論するため、トレイリングラムダの `it` や名前付きパラメータが解決できなかった（`Registry.update(pluginId) { m -> m.copy(...) }` の `m` が unresolved になり `KSWIFTK-SEMA-0024` 等が発火）。class instance・companion object 経由の呼び出しは別コードパスを通るため影響を受けず、この非対称性がバグを長らく覆い隠していた。修正: receiver path 自体が既存の class/interface/object/enumClass 宣言に解決する場合はこの特殊パスを早期に断念し、2フェーズのオーバーロード解決（非ラムダ引数→オーバーロード確定→ラムダへ期待型伝播）を行う通常の member-call 解決に委ねるガードを追加。
+2. **Sema**: `List<String> + String` が文字列連結と誤認される。`ExprTypeChecker+BinaryAndFlowInference.swift` の `inferBinaryExpr` で、「List/Sequence の plus/minus」フォールバックより**前**に「LHS または RHS が String なら文字列連結」という判定が走っていたため、要素型がたまたま String である `List<String>` に String 要素を足す式（`m.registeredExtensions + "$kind:$name"` 等）が、LHS が List であるにもかかわらず無条件に文字列連結として型付けされていた（expected type が無ければ黙って誤った実行結果、expected type があれば `KSWIFTK-TYPE-0001`）。data class の `copy()`・object・ラムダとは無関係の一般的な型推論バグで、`listOf("a") + "x"` だけでも再現する。修正: 2つのチェックの順序を入れ替え、LHS が List/Sequence 型かどうかの判定を文字列連結判定より先に評価する。
+3. **KIR / Runtime**: 上記2件を直した後に露出。`Set.sortedBy`（`Map.entries` 経由）のリンクエラーとランタイムパニック。直接呼び出し（`m.entries.sortedBy { it.key }`）では、`CallLowerer+SafeMemberCalls.swift` とは別の通常（非 safe-call）経路（`lowerMemberCallExpr`）を通るため無関係だが、`kk_list_sortedBy`（`Runtime/RuntimeCollectionHOF.swift`）が `RuntimeListBox` ハンドルしか受け付けず、`Map.entries` が返す `RuntimeSetBox` ハンドルに対して `invalid list handle` パニックを起こしていた（`sortedBy` は Kotlin では `Iterable<T>` 上に定義されており、List 以外の具象コレクション受信者にも呼べる必要がある）。修正: `RuntimeCollectionHelpers.swift` に既にあった List/Set 両対応の `runtimeCollectionElements(from:)` を `kk_list_sortedBy` から使うよう変更（`runtimeListBox(from:)` 単体使用から切り替え）。直接呼び出しはこれで green（回帰テスト: `CodegenBackendIntegrationTests+SafeCallSetSortedByRegression.swift` の `testCodegenSetSortedByDirectCall`）。
+   `meta?.options?.entries?.sortedBy { it.key }` のような safe-call（`?.`）チェーン経由では別途、`lowerSafeMemberCallExpr` が callee を解決できなかった場合に通常経路の名前ベース collection/synthetic フォールバック解決（`loweredMemberCalleeName`）を呼ばず、coroutine ハンドル向けの固定名リストにマッチしなければ生の Kotlin 関数名をそのまま外部シンボル名として使ってしまい `_sortedBy` という未解決シンボルでリンクエラーになる問題も見つかった。さらに、`hasHOFLambdaArg`（`loweredMemberCalleeName` の dispatch key に使う）を構文的な「ラムダかどうか」判定で計算していたため、`emitMemberCallInstruction`（通常経路）が使う `sema.bindings.isCollectionHOFLambdaExpr`（`markCollectionHOFLambdaExpr` で明示的にマークされた一部の HOF 名だけが true になる、狭いフラグ）と食い違い、誤った dispatch key で解決してしまっていた。加えて、この safe-call 経路の `chosen == nil` 分岐は呼び出し引数リストにレシーバを一切挿入しない設計上の欠落（`Random.nextInt`/`nextLong` に対して通常経路で既に個別対処されていたのと同種のギャップ）もあった。修正: (a) `hasHOFLambdaArg` の計算を `emitMemberCallInstruction` と同じ `sema.bindings.isCollectionHOFLambdaExpr` ベースに揃える、(b) レシーバ挿入を自前実装せず、通常経路が使っている共有ヘルパー `appendReceiverToMemberArguments`（`CallLowerer+MemberCallEmission.swift`）をそのまま呼ぶ。この2点により `sortedBy` 単体の safe-call は完全に動作するようになった（回帰テスト: `testCodegenSetSortedByThroughSafeCallChain`）。
+   ただし、この過程で**別の Sema レベルの gap**を発見した: `joinToString`（transform ラムダの有無に関わらず）のように、通常のドットコールでは常に実 `chosenCallee` に解決される（`unresolvedCollectionMemberNames` にも含まれない）メンバー関数が、**同じ呼び出しを safe-call（`x?.joinToString(...)`）で書くと `chosenCallee` が解決できなくなる**現象を確認した。これは引数渡しの問題ではなく、safe-call の型推論経路（`inferSafeMemberCallExpr`）に固有のオーバーロード解決バグと見られ、今回の修正のスコープ外として切り出した。`compiler_plugin_api.kt` は `?.let { entries -> entries.sortedBy { ... }.joinToString(...) }`（`sortedBy`/`joinToString` を同じ `let` ブロック内で連鎖し、どちらも smart-cast された非 null 値への通常呼び出しにする）でこの gap を回避している。
+
+回帰テスト: `Tests/CompilerCoreTests/Sema/DataFlowAndSemaRegressionTests+ObjectMemberCallLambdaInference.swift`、`Tests/CompilerCoreTests/Sema/DataFlowAndSemaRegressionTests+ListStringPlusOperatorInference.swift`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+SafeCallSetSortedByRegression.swift`（`testCodegenSetSortedByDirectCall`/`testCodegenSetSortedByThroughSafeCallChain`/`testCodegenSetSortedByInsideSafeCallLet`）、および `Scripts/diff_cases/compiler_plugin_api.kt` 自体（`SKIP-DIFF` 解除済み）。
 
 `math_rounding_functions.kt` は 2026-07-09 に解除済み: SKIP-DIFF 追加時点(2026-04-07)は List<Double> の for-loop 変数が boxed pointer のまま round()/roundToInt() 等に渡っていたが、`a553bd1e`「Fix List<Int> for-loop variable unboxing in kotlinc diff regression」(2026-06-10)が型非依存の `kk_unbox_<T>` 挿入(`CollectionLiteralLoweringPass+CallRewriteIteratorBridge.swift` の `appendListIteratorNextWithUnboxing`)を導入した際に List<Double> のケースも副次的に修正されていたが、2026-07-01 の debt 一括整理では未検証のまま残存していた。`--force-run-skipped` で pass を確認し、回帰用の List<Double> ループを `CodegenBackendIntegrationTests+MathEdgeCases.swift` の既存 `testCodegenCompilesMathEdgeCases` に統合した。
 
