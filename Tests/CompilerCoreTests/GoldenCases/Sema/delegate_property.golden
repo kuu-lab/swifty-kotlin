@@ -9,5 +9,6 @@ file fdelegate_property package=golden.sema
   decl golden.sema.lazyVal property lazyVal var=0 sym=golden.sema.lazyVal
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@3:24 name(lazy) type=kotlin.Lazy<kotlin.lazy.T> ref=kotlin.lazy
+expr e@4:5 string(hello) type=String
 expr e@8:13 name(lazyVal) type=String ref=golden.sema.lazyVal
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println#1

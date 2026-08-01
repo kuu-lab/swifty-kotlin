@@ -22,7 +22,7 @@ extension CallLowerer {
             specialKind: .atomicIntArrayFactory,
             valueType: sema.types.intType,
             createCalleeName: "kk_atomic_int_array_create",
-            storeAtCalleeName: "kk_atomic_int_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_int_array_store"
         )
     }
 
@@ -48,7 +48,7 @@ extension CallLowerer {
             specialKind: .atomicLongArrayFactory,
             valueType: sema.types.longType,
             createCalleeName: "kk_atomic_long_array_create",
-            storeAtCalleeName: "kk_atomic_long_array_storeAt"
+            storeAtCalleeName: "__kk_atomic_long_array_store"
         )
     }
 
@@ -93,14 +93,12 @@ extension CallLowerer {
         )
 
         let arrayExpr = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: createCallee,
-            arguments: [sizeExpr],
+            arg: sizeExpr,
             result: arrayExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
 
         let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)

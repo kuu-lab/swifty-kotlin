@@ -166,39 +166,33 @@ extension ExprLowerer {
                 // String properties
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     if memberStr == "length" {
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("__string_struct_get_length"),
-                            arguments: [receiverExprID],
+                            arg: receiverExprID,
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions
+                        )
                         return result
                     }
                 }
 
                 // Collection properties: size, isEmpty
                 if memberStr == "size" {
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_collection_size"),
-                        arguments: [receiverExprID],
+                        arg: receiverExprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                     return result
                 }
                 if memberStr == "isEmpty" {
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern("kk_collection_isEmpty"),
-                        arguments: [receiverExprID],
+                        arg: receiverExprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                     return result
                 }
 
@@ -1056,6 +1050,18 @@ extension ExprLowerer {
                             if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
                                 driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
                             }
+                        } else if !isDelegated, isBareVariableRead(initializer, ast: ast) {
+                            // `val a = b` must snapshot `b`'s current value. Binding the
+                            // new local directly to the initializer register would alias
+                            // the two, so a later in-place update of `b` (`b += 1`, which
+                            // copies into the same register) would retroactively change
+                            // `a` as well.
+                            let localSlot = arena.appendTemporary(type: declaredType)
+                            instructions.append(.copy(from: initializerID, to: localSlot))
+                            driver.ctx.setLocalValue(localSlot, for: symbol)
+                            if let callableInfo = driver.ctx.callableValueInfo(for: initializerID) {
+                                driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
+                            }
                         } else {
                             driver.ctx.setLocalValue(initializerID, for: symbol)
                         }
@@ -1742,12 +1748,40 @@ extension ExprLowerer {
                 // variable branch below, which only updates the compiler's
                 // lowering-time local-value cache and never emits any
                 // instruction that writes the backing field's global storage.
-                if let symInfo = sema.symbols.symbol(symbol),
-                   symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
-                    let p = sema.symbols.parentSymbol(for: symbol)
-                    let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
-                    return pk == nil || pk == .package || pk == .object
-                }() {
+                if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                   let loadedValue = loadLocalStdlibDelegateValue(
+                       symbol: symbol,
+                       delegateHandle: delegateStorageID,
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   ),
+                   storeLocalStdlibDelegateValue(
+                       symbol: symbol,
+                       delegateHandle: delegateStorageID,
+                       valueID: appendBuiltinCompoundResult(
+                           lhs: loadedValue,
+                           lhsType: driver.ctx.localDeclaredType(for: symbol) ?? sema.types.anyType,
+                           rhs: rhsID,
+                           rhsType: arena.exprType(rhsID)
+                       ),
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   )
+                {
+                    // Local stdlib-delegate `var` compound assignment (BUG-147):
+                    // read-modify-write through the delegate handle. Without this
+                    // the generic local branch below would overwrite the register
+                    // that holds the handle itself with the arithmetic result.
+                } else if let symInfo = sema.symbols.symbol(symbol),
+                          symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
+                              let p = sema.symbols.parentSymbol(for: symbol)
+                              let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
+                              return pk == nil || pk == .package || pk == .object
+                          }() {
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                     let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
@@ -2325,14 +2359,12 @@ extension ExprLowerer {
                 ])
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: calleeName,
-                    arguments: [rhsID],
+                    arg: rhsID,
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {
@@ -2408,5 +2440,15 @@ extension ExprLowerer {
                 thrownResult: nil
             ))
         }
+    }
+
+    /// Whether the expression is a plain read of a variable (`b` in `val a = b`).
+    /// Such initializers must be snapshotted into their own register instead of
+    /// aliasing the source variable's storage.
+    func isBareVariableRead(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        if case .nameRef = ast.arena.expr(exprID) {
+            return true
+        }
+        return false
     }
 }

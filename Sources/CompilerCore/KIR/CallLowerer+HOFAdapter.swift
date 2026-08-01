@@ -76,6 +76,17 @@ extension CallLowerer {
         }
         body.append(.endBlock)
 
+        // `functionType.isSuspend` reflects the *expected* (contextual) type the
+        // argument lambda was checked against -- e.g. a plain `(T) -> R)` HOF
+        // parameter like `List.map`'s `transform`. A lambda literal passed there
+        // can still contain suspend calls in its body (Kotlin allows this for
+        // `inline` HOFs; KSwiftK currently permits it more broadly), in which case
+        // the lambda's own compiled function is genuinely suspend even though its
+        // contextual type is not. If the adapter itself isn't marked suspend to
+        // match, CoroutineLoweringPass never rewrites its `.call` below into a
+        // suspend call, so the callee reads an uninitialized "continuation" and
+        // crashes. Prefer the callee's real suspend-ness when known.
+        let calleeIsSuspend = arena.function(for: callableInfo.symbol)?.isSuspend ?? functionType.isSuspend
         let adapterDecl = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -84,7 +95,7 @@ extension CallLowerer {
                     params: [closureParam] + valueParams,
                     returnType: functionType.returnType,
                     body: body,
-                    isSuspend: functionType.isSuspend,
+                    isSuspend: calleeIsSuspend,
                     isInline: false
                 )
             )

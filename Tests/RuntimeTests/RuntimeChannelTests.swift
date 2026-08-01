@@ -1,4 +1,5 @@
 import Dispatch
+import Foundation
 @testable import Runtime
 import XCTest
 
@@ -32,6 +33,43 @@ private func channelReceiveValue(_ handle: Int, _ continuation: Int = 0) -> Int 
     channelReceivePair(handle, continuation).value
 }
 
+private func runtimeChannelHandle(_ raw: Int) -> RuntimeChannelHandle {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else {
+        preconditionFailure("channel handle must be non-zero")
+    }
+    return Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).takeUnretainedValue()
+}
+
+private func waitForSuspendedWaiters(
+    in channel: RuntimeChannelHandle,
+    senders expectedSenders: Int = 0,
+    receivers expectedReceivers: Int = 0,
+    timeout: DispatchTimeInterval = .seconds(2)
+) -> Bool {
+    let deadline = DispatchTime.now() + timeout
+    repeat {
+        let counts = channel.suspendedWaiterCountsSnapshot()
+        if counts.senders == expectedSenders, counts.receivers == expectedReceivers {
+            return true
+        }
+        Thread.sleep(forTimeInterval: 0.001)
+    } while DispatchTime.now() < deadline
+    return false
+}
+
+private func waitForSuspendedWaiters(
+    in rawChannel: Int,
+    senders: Int = 0,
+    receivers: Int = 0,
+    timeout: DispatchTimeInterval = .seconds(2)
+) -> Bool {
+    waitForSuspendedWaiters(
+        in: runtimeChannelHandle(rawChannel),
+        senders: senders,
+        receivers: receivers,
+        timeout: timeout
+    )
+}
 
 // MARK: - BUG-041 × channel blocking interaction
 
@@ -89,8 +127,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             expectation.fulfill()
         }
 
-        // Give the receiver time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, receivers: 1),
+            "receiver should be suspended before the sender starts"
+        )
 
         // Send on the main thread -- should wake the receiver.
         DispatchQueue.global().async {
@@ -119,8 +159,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give the sender time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, senders: 1),
+            "sender should be suspended before the receiver starts"
+        )
 
         // Receive on the main thread -- should unblock the sender.
         DispatchQueue.global().async {
@@ -166,8 +208,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give the sender time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, senders: 1),
+            "second sender should be suspended while the buffer is full"
+        )
 
         // Receive the first item -- should free buffer space and wake the sender.
         XCTAssertEqual(channelReceiveValue(channelHandle, 0), 1)
@@ -208,8 +252,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             receiveDone.fulfill()
         }
 
-        // Give the receiver time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, receivers: 1),
+            "receiver should be suspended before the channel closes"
+        )
 
         _ = kk_channel_close(channelHandle)
 
@@ -231,8 +277,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give the sender time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, senders: 1),
+            "sender should be suspended before the channel closes"
+        )
 
         _ = kk_channel_close(channelHandle)
 
@@ -342,7 +390,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
                 sendResult.set(kk_channel_send(ch, 77, 0))
                 sendDone.fulfill()
             }
-            Thread.sleep(forTimeInterval: 0.01)
+            XCTAssertTrue(
+                waitForSuspendedWaiters(in: ch, senders: 1),
+                "sender should be suspended before the receiver starts"
+            )
 
             // Receiver accepts the value -- sender should see success.
             DispatchQueue.global().async {
@@ -380,12 +431,18 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             _ = kk_channel_send(channelHandle, 2, 0)
             send2Done.fulfill()
         }
-        Thread.sleep(forTimeInterval: 0.02)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, senders: 1),
+            "sender 2 should be first in the suspended queue"
+        )
         DispatchQueue.global().async {
             _ = kk_channel_send(channelHandle, 3, 0)
             send3Done.fulfill()
         }
-        Thread.sleep(forTimeInterval: 0.02)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, senders: 2),
+            "both senders should be queued before receiving"
+        )
 
         // Receive all three values in FIFO order.
         XCTAssertEqual(channelReceiveValue(channelHandle, 0), 1)
@@ -411,12 +468,18 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             received1.set(channelReceiveValue(channelHandle, 0))
             recv1Done.fulfill()
         }
-        Thread.sleep(forTimeInterval: 0.02)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, receivers: 1),
+            "receiver 1 should be first in the suspended queue"
+        )
         DispatchQueue.global().async {
             received2.set(channelReceiveValue(channelHandle, 0))
             recv2Done.fulfill()
         }
-        Thread.sleep(forTimeInterval: 0.02)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: channelHandle, receivers: 2),
+            "both receivers should be queued before sending"
+        )
 
         // Send two values -- each receiver gets one.
         _ = kk_channel_send(channelHandle, 10, 0)
@@ -544,8 +607,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give the sender time to suspend
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended before cancellation"
+        )
 
         // Cancel the job while sender is suspended
         _ = job.cancel()
@@ -592,8 +657,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             receiveDone.fulfill()
         }
 
-        // Give the receiver time to suspend
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, receivers: 1),
+            "receiver should be suspended before cancellation"
+        )
 
         // Cancel the job while receiver is suspended
         _ = job.cancel()
@@ -666,8 +733,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give sender time to suspend
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended while the buffer is full"
+        )
 
         // Receive to free up space
         XCTAssertEqual(ch.receive().value, 1)
@@ -687,8 +756,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        // Give the sender time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended before waiters are cancelled"
+        )
 
         // Cancel all waiters.
         ch.cancelAllWaiters()
@@ -718,7 +789,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             sendDone.fulfill()
         }
 
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended before the receiver starts"
+        )
 
         DispatchQueue.global().async {
             receivedValue.set(channelReceiveValue(ch, 0))
@@ -766,8 +840,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
             recvDone.fulfill()
         }
 
-        // Give the receiver time to suspend.
-        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(
+            waitForSuspendedWaiters(in: ch, receivers: 1),
+            "receiver should be suspended before waiters are cancelled"
+        )
 
         // Cancel all waiters.
         ch.cancelAllWaiters()

@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import XCTest
 
 @Suite
 struct MetadataSerializerTests {
@@ -355,7 +354,10 @@ struct MetadataSerializerTests {
         )
 
         #expect(record.isValueClass)
-    func testBuildRecordsCanExportSyntheticNominalAnchorsOnly() throws {
+        #expect(record.valueClassUnderlyingTypeSig == nil)
+    }
+
+    @Test func testBuildRecordsCanExportSyntheticNominalAnchorsOnly() throws {
         let encoder = MetadataEncoder()
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -426,15 +428,12 @@ struct MetadataSerializerTests {
             includeSyntheticNominalAnchors: true
         )
 
-        XCTAssertEqual(records.map(\.fqName), ["kotlin.CharSequence", "kotlin.ranges.IntRange"])
-        XCTAssertEqual(records.map(\.kind), [.interface, .class])
-        XCTAssertTrue(records.allSatisfy { !$0.mangledName.isEmpty })
-        XCTAssertTrue(records.allSatisfy { $0.declaredInstanceSizeWords == nil })
-        XCTAssertTrue(records.allSatisfy { $0.fieldOffsets == nil })
-        XCTAssertTrue(records.allSatisfy { $0.vtableSlots == nil })
-    }
-
-        #expect(record.valueClassUnderlyingTypeSig == nil)
+        #expect(records.map(\.fqName) == ["kotlin.CharSequence", "kotlin.ranges.IntRange"])
+        #expect(records.map(\.kind) == [.interface, .class])
+        #expect(records.allSatisfy { !$0.mangledName.isEmpty })
+        #expect(records.allSatisfy { $0.declaredInstanceSizeWords == nil })
+        #expect(records.allSatisfy { $0.fieldOffsets == nil })
+        #expect(records.allSatisfy { $0.vtableSlots == nil })
     }
 
     @Test func testSerializeMultipleRecords() {

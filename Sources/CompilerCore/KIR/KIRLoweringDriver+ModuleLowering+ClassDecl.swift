@@ -192,15 +192,12 @@ extension KIRLoweringDriver {
 
             let delegateTypeIDExpr = arena.appendTemporary(type: intType
             )
-            body.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: compilationCtx.interner.intern("kk_object_type_id"),
-                arguments: [delegateResultID],
+                arg: delegateResultID,
                 result: delegateTypeIDExpr,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
+                into: &body.instructions
+            )
 
             let branchLabels = dispatchTargets.map { _ in ctx.makeLoopLabel() }
             let fallbackLabel = ctx.makeLoopLabel()
