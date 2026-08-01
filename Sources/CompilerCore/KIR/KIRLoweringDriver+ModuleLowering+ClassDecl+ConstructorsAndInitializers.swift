@@ -589,6 +589,11 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        guard let provideDelegateSymbol = sema.symbols.delegateProvideDelegateSymbol(
+            for: propSymbol
+        ) else {
+            return delegateValue
+        }
         let delegateType = sema.types.anyType
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
@@ -614,8 +619,8 @@ extension KIRLoweringDriver {
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
-            symbol: storageSym, callee: provideDelegateName,
-            arguments: [thisRefExprID, kPropertyExprID],
+            symbol: provideDelegateSymbol, callee: provideDelegateName,
+            arguments: [delegateValue, thisRefExprID, kPropertyExprID],
             result: provideDelegateResult,
             canThrow: false, thrownResult: nil
         ))

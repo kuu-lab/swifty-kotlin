@@ -959,7 +959,10 @@ extension DataFlowSemaPhase {
 
         let hasNextName = interner.intern("hasNext")
         let hasNextFQName = iteratorFQName + [hasNextName]
-        if symbols.lookup(fqName: hasNextFQName) == nil {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        if symbols.lookup(fqName: hasNextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: hasNextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: hasNextName, fqName: hasNextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
@@ -983,7 +986,9 @@ extension DataFlowSemaPhase {
 
         let nextName = interner.intern("next")
         let nextFQName = iteratorFQName + [nextName]
-        if symbols.lookup(fqName: nextFQName) == nil {
+        if symbols.lookup(fqName: nextFQName) == nil,
+           !bundledIndex.contains(owner: iteratorFQName, name: nextName, arity: 0)
+        {
             let sym = symbols.define(
                 kind: .function, name: nextName, fqName: nextFQName,
                 declSite: nil, visibility: .public, flags: [.synthetic, .operatorFunction]
@@ -1173,7 +1178,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty
     ) -> SymbolID {
         let kotlinSequencesPkg: [InternedString] = [
             interner.intern("kotlin"), interner.intern("sequences")
@@ -1223,7 +1229,12 @@ extension DataFlowSemaPhase {
         // so it's added even when Sequence<T> was created elsewhere.
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = sequenceFQName + [iterFnName]
-        if symbols.lookup(fqName: iterFnFQName) == nil {
+        let hasSourceIterator = bundledIndex.contains(
+            owner: sequenceFQName,
+            name: iterFnName,
+            arity: 0
+        )
+        if !hasSourceIterator, symbols.lookup(fqName: iterFnFQName) == nil {
             if let seqTypeParamSymbol = symbols.lookup(fqName: seqTypeParamFQName) {
                 let seqTypeParamType = types.make(.typeParam(TypeParamType(
                     symbol: seqTypeParamSymbol, nullability: .nonNull
@@ -1345,12 +1356,15 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
         let memberName = interner.intern("asSequence")
         let memberFQName = iterableFQName + [memberName]
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        // KSP-441〜447: Iterable.asSequence は source 化する。source 実装があれば合成スタブを登録しない。
+        guard !bundledIndex.contains(owner: iterableFQName, name: memberName, arity: 0) else { return }
 
         // Retrieve the type parameter E from Iterable<E>.
         let typeParamName = interner.intern("E")
@@ -1371,7 +1385,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex
         )
         let returnType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,

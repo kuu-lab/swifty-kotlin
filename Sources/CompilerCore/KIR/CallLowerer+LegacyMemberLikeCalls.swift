@@ -152,6 +152,26 @@ extension CallLowerer {
             return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
                 && (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
         }()
+        // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
+        // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
+        // When Sema resolves the call to that source declaration, skip the legacy
+        // kk_array_copyOf* interception below so the resolved symbol is emitted.
+        let isSourceBackedArrayCopyCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil,
+                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+            else {
+                return false
+            }
+            let sourceBackedArrayCopyFQNames: Set<[InternedString]> = [
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOf")],
+                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOfRange")],
+            ]
+            return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -235,6 +255,31 @@ extension CallLowerer {
                 return nil
             }
             return selected
+        }()
+
+        let isSourceBackedSequenceCall: Bool = {
+            guard let chosenBase64Callee,
+                  let symbol = sema.symbols.symbol(chosenBase64Callee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil,
+                  (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            return isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        }()
+        let isSourceBackedTerminalCall: Bool = {
+            guard let chosenBase64Callee,
+                  let symbol = sema.symbols.symbol(chosenBase64Callee),
+                  symbol.kind == .function,
+                  symbol.declSite != nil,
+                  (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+            else {
+                return false
+            }
+            return true
         }()
 
         if args.count == 1,
@@ -1790,6 +1835,34 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                // CharSequence.lastIndexOf(Char) defaults startIndex to the
+                // receiver's last index and ignoreCase to false.
+                if calleeStr == "lastIndexOf",
+                   sema.types.isSubtype(
+                       sema.types.makeNonNullable(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType),
+                       sema.types.charType
+                   )
+                {
+                    let lastIndexSentinel = arena.appendExpr(
+                        .intLiteral(Int64(Int32.max)),
+                        type: sema.types.intType
+                    )
+                    instructions.append(.constValue(
+                        result: lastIndexSentinel,
+                        value: .intLiteral(Int64(Int32.max))
+                    ))
+                    let falseExpr = arena.appendExpr(.intLiteral(0), type: sema.types.booleanType)
+                    instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_lastIndexOf_char_flat"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0], lastIndexSentinel, falseExpr],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
@@ -1946,6 +2019,22 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_indexOf_char_flat"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], falseExpr],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+               calleeStr == "lastIndexOf",
+               sema.types.isSubtype(firstArgType, sema.types.charType)
+            {
+                let falseExpr = arena.appendExpr(.intLiteral(0), type: sema.types.booleanType)
+                instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_lastIndexOf_char_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], falseExpr],
                     result: result,
                     canThrow: false,
@@ -2488,35 +2577,11 @@ extension CallLowerer {
                     return result
                 }
             }
-            let isSourceBackedSequenceAggregateCall: Bool = {
-                guard [
-                    "associate",
-                    "associateBy",
-                    "groupBy",
-                    "sumOf",
-                    "maxByOrNull",
-                    "minByOrNull",
-                    // STDLIB-pipeline §5: take/drop/chunked/windowed have real
-                    // require() validation in SequenceWindowChunk.kt as of
-                    // MIGRATION-SEQ-005. A resolved call to that source
-                    // declaration must not be short-circuited to the
-                    // unchecked kk_sequence_* runtime bridge below.
-                    "take",
-                    "drop",
-                    "chunked",
-                    "windowed",
-                ].contains(interner.resolve(calleeName)),
-                    let chosenBase64Callee,
-                    sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
-                    (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
-                else {
-                    return false
-                }
-                return isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            }()
-            let useSequenceRuntimeForCollectionFallback = !isSourceBackedSequenceAggregateCall
+            let useSequenceRuntimeForCollectionFallback = !isSourceBackedTerminalCall
+                && !isSourceBackedSequenceCall
                 && isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            let useIterableRuntimeForCollectionFallback = !isSourceBackedSequenceAggregateCall
+            let useIterableRuntimeForCollectionFallback = !isSourceBackedTerminalCall
+                && !isSourceBackedSequenceCall
                 && (sema.bindings.isCollectionExpr(receiverExpr)
                     || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
                 && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
@@ -3153,6 +3218,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedArrayCopyCall,
                interner.resolve(calleeName) == "copyOf"
             {
                 instructions.append(.call(
@@ -3170,7 +3236,8 @@ extension CallLowerer {
         if args.count == 2 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSourceBackedArrayCopyCall {
                 if interner.resolve(calleeName) == "copyOf" {
                     let fnPtrExpr: KIRExprID
                     let envPtrExpr: KIRExprID
@@ -3416,7 +3483,7 @@ extension CallLowerer {
                 case "toTypedArray":
                     "kk_array_copyOf"
                 case "copyOf":
-                    "kk_array_copyOf"
+                    isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
                 default:
@@ -3456,12 +3523,15 @@ extension CallLowerer {
                     return result
                 }
             }
-            let useSequenceRuntimeForTerminalFallback = isSequenceLikeType(
-                nonNullReceiverType,
-                sema: sema,
-                interner: interner
-            )
-            let useIterableRuntimeForTerminalFallback = (sema.bindings.isCollectionExpr(receiverExpr)
+            let useSequenceRuntimeForTerminalFallback = !isSourceBackedTerminalCall
+                && !isSourceBackedSequenceCall
+                && isSequenceLikeType(
+                    nonNullReceiverType,
+                    sema: sema,
+                    interner: interner
+                )
+            let useIterableRuntimeForTerminalFallback = !isSourceBackedTerminalCall
+                && (sema.bindings.isCollectionExpr(receiverExpr)
                 || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
                 && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             if useSequenceRuntimeForTerminalFallback || useIterableRuntimeForTerminalFallback {
@@ -3504,7 +3574,9 @@ extension CallLowerer {
 
                 let runtimeCallee: InternedString? = switch calleeName {
                 case toListID:
-                    seqToListCallee
+                    useIterableRuntimeForTerminalFallback
+                        ? interner.intern("kk_collection_toList")
+                        : seqToListCallee
                 case constrainOnceID:
                     interner.intern("kk_sequence_constrainOnce")
                 case distinctID:

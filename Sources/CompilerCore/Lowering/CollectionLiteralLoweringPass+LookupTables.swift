@@ -204,6 +204,7 @@ struct CollectionLiteralLookupTables {
     // Sequence ABI names (STDLIB-003)
     let kkSequenceMapName: InternedString
     let kkSequenceFilterName: InternedString
+    let kkSequenceRequireNoNullsName: InternedString
     let kkSequenceTakeName: InternedString
     let kkSequenceToListName: InternedString
     let kkSequenceConstrainOnceName: InternedString
@@ -451,6 +452,7 @@ struct CollectionLiteralLookupTables {
     let filterNotName: InternedString
     let mapNotNullName: InternedString
     let filterNotNullName: InternedString
+    let requireNoNullsName: InternedString
     let filterToName: InternedString
     let filterNotToName: InternedString
     let mapToName: InternedString
@@ -625,6 +627,10 @@ struct CollectionLiteralLookupTables {
     // Sequence factory names (STDLIB-097)
     let sequenceOfName: InternedString
     let generateSequenceName: InternedString
+
+    // Sequence factories that return a runtime RuntimeSequenceBox handle
+    // (source body is only a thin bridge to a __kk_* / kk_* runtime entry).
+    let sequenceRuntimeBridgeReturningNames: Set<InternedString>
 
     // println support
     let printlnName: InternedString
@@ -959,6 +965,7 @@ struct CollectionLiteralLookupTables {
 
         kkSequenceMapName = interner.intern("kk_sequence_map")
         kkSequenceFilterName = interner.intern("kk_sequence_filter")
+        kkSequenceRequireNoNullsName = interner.intern("kk_sequence_requireNoNulls")
         kkSequenceTakeName = interner.intern("kk_sequence_take")
         kkSequenceToListName = interner.intern("kk_sequence_to_list")
         kkSequenceConstrainOnceName = interner.intern("kk_sequence_constrainOnce")
@@ -1196,6 +1203,7 @@ struct CollectionLiteralLookupTables {
         filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
         filterNotNullName = interner.intern("filterNotNull")
+        requireNoNullsName = interner.intern("requireNoNulls")
         filterToName = interner.intern("filterTo")
         filterNotToName = interner.intern("filterNotTo")
         mapToName = interner.intern("mapTo")
@@ -1366,6 +1374,14 @@ struct CollectionLiteralLookupTables {
         sequenceOfName = interner.intern("sequenceOf")
         generateSequenceName = interner.intern("generateSequence")
 
+        sequenceRuntimeBridgeReturningNames = [
+            interner.intern("lineSequence"),
+            interner.intern("splitToSequence"),
+            kkStringAsSequenceName,
+            kkListAsSequenceName,
+            kkArrayAsSequenceName
+        ]
+
         printlnName = interner.intern("println")
         kkPrintlnAnyName = interner.intern("kk_println_any")
         kkAnyToStringName = interner.intern("kk_any_to_string")
@@ -1522,22 +1538,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_uppercase"),
             interner.intern("kk_string_replace_flat"),
             interner.intern("kk_string_replaceFirst_flat"),
-            interner.intern("kk_string_replaceAfter_flat"),
-            interner.intern("kk_string_replaceAfter_char_flat"),
-            interner.intern("kk_string_replaceAfterLast_flat"),
-            interner.intern("kk_string_replaceAfterLast_char_flat"),
-            interner.intern("kk_string_replaceBefore_flat"),
-            interner.intern("kk_string_replaceBefore_char_flat"),
-            interner.intern("kk_string_replaceBeforeLast_flat"),
-            interner.intern("kk_string_replaceBeforeLast_char_flat"),
-            interner.intern("kk_string_substringBefore_flat"),
-            interner.intern("kk_string_substringBefore_char_flat"),
-            interner.intern("kk_string_substringAfter_flat"),
-            interner.intern("kk_string_substringAfter_char_flat"),
-            interner.intern("kk_string_substringBeforeLast_flat"),
-            interner.intern("kk_string_substringBeforeLast_char_flat"),
-            interner.intern("kk_string_substringAfterLast_flat"),
-            interner.intern("kk_string_substringAfterLast_char_flat"),
             kkStringFilterName,
         ]
     }
