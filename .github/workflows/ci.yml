@@ -32,7 +32,7 @@ jobs:
   # that the expensive SwiftPM products are reused within that lane.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
