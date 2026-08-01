@@ -313,6 +313,48 @@ extension CallLowerer {
             }
         }
 
+        // BUG-167: reduceRightOrNull's bundled Kotlin-source declaration
+        // (ListAggregateHOF.kt) is scoped to `List<T>` specifically (its body
+        // needs indexed access), so bindBundledListSourceFunction
+        // (CallTypeChecker+MemberCallInferenceCollectionFlow.swift) only binds
+        // a chosenCallee for genuine List receivers there — a concrete Set
+        // receiver reaches KIR with chosenBase64Callee == nil, and (unlike an
+        // Iterable-typed variable, which the useIterableRuntimeForCollectionFallback
+        // branch below already covers) had no other fallback here, so it fell
+        // all the way through to a bare-Kotlin-name "give up" call and
+        // produced an unresolved `_reduceRightOrNull` link error.
+        // kk_list_reduceRightOrNull already reads its receiver through
+        // runtimeCollectionElements (List- and Set-compatible), so any
+        // concrete collection Sema didn't already bind can use it directly.
+        if args.count == 1,
+           chosenBase64Callee == nil,
+           interner.resolve(calleeName) == "reduceRightOrNull"
+        {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            // isConcreteCollectionLikeType (via isCollectionLikeSymbol) also
+            // matches Sequence receivers -- Sequence must be excluded here so
+            // it keeps going through the dedicated
+            // useSequenceRuntimeForCollectionFallback dispatch below (which
+            // correctly picks kk_sequence_reduceRightOrNull), rather than
+            // being misrouted to kk_list_reduceRightOrNull and panicking on
+            // an "invalid list handle" (a Sequence handle is not a List
+            // handle).
+            if isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               !isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_list_reduceRightOrNull"),
+                    arguments: [loweredReceiverID] + normalizedArgIDs,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -2279,10 +2321,18 @@ extension CallLowerer {
         }
 
         // Sequence joinTo (STDLIB-SEQ-FN-052): buffer plus separator/prefix/postfix defaults.
+        // Also reached by Collection/Iterable-interface-typed receivers (e.g. a
+        // `Collection<Int>` function parameter) whose joinTo call never resolves to
+        // a concrete-List candidate; those must dispatch to kk_iterable_joinTo
+        // (iterable-generic, no Sequence-step handle) rather than kk_sequence_joinTo
+        // (expects a lazily-stepped Sequence handle) -- passing a List/Set/Collection
+        // handle to the latter previously panicked as an "invalid" receiver.
         if (1 ... 4).contains(args.count), interner.resolve(calleeName) == "joinTo" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            let isGenuineSequenceReceiver = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            if isGenuineSequenceReceiver
+                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 let stringType = sema.types.stringType
@@ -2314,7 +2364,7 @@ extension CallLowerer {
                     }
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_sequence_joinTo"),
+                        callee: interner.intern(isGenuineSequenceReceiver ? "kk_sequence_joinTo" : "kk_iterable_joinTo"),
                         arguments: [loweredReceiverID] + joinArgs,
                         result: result,
                         canThrow: false,
@@ -2334,7 +2384,19 @@ extension CallLowerer {
         if args.count <= 4, interner.resolve(calleeName) == "joinToString" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            // BUG-167: a `Collection<T>`- or `Iterable<T>`-typed receiver (as
+            // opposed to a concretely-typed List/Set/etc., or a receiver only
+            // inferred to be collection-like via isCollectionExpr) was
+            // wrongly excluded here — isConcreteCollectionLikeType's
+            // isCollectionLikeSymbol classifies the bare "Collection"/"Set"
+            // interface names as "concrete" for other, unrelated dispatch
+            // purposes, so !isConcreteCollectionLikeType was always false for
+            // them and this whole name-based fallback (the only place that
+            // resolves joinToString when Sema left chosenCallee unbound) was
+            // skipped, producing an unresolved `_joinToString` link error.
             if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 let lastArgIsLambda: Bool = if let lastArgExpr = args.last?.expr,
@@ -2483,7 +2545,24 @@ extension CallLowerer {
                     return result
                 }
 
-                let runtimeCallee: String? = switch calleeStr {
+                // BUG-164: `any`/`all`/`none` with a predicate have real, `inline`
+                // Kotlin-source declarations (ArrayAnyNoneHOF.kt) that take the
+                // predicate as an ordinary inline-callable parameter — a
+                // different calling convention than the closure-adapted
+                // (fnPtr, closureRaw) pair the kk_array_any/all/none native
+                // bridges below expect. When Sema resolved a real declaration
+                // (chosenCallee has a declSite), this shortcut must not
+                // intercept the call: it skipped straight to the native
+                // bridge with the raw, un-adapted lambda argument, so the
+                // bridge invoked the compiled lambda with the wrong argument
+                // shape and corrupted its own body's reads of `it`. Falling
+                // through here lets the normal call-lowering path (which
+                // inlines the real declaration, matching how every other
+                // user-written inline function call is lowered) handle it
+                // instead.
+                let hasRealPredicateDecl = ["any", "all", "none"].contains(calleeStr)
+                    && chosenCalleeForArgumentAdaptation.map { sema.symbols.symbol($0)?.declSite != nil } == true
+                let rawRuntimeCallee: String? = switch calleeStr {
                 case "map":
                     "kk_array_map"
                 case "filter":
@@ -2519,6 +2598,7 @@ extension CallLowerer {
                 default:
                     nil
                 }
+                let runtimeCallee = hasRealPredicateDecl ? nil : rawRuntimeCallee
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_list_partition"
                         || runtimeCallee == "kk_iterable_firstNotNullOf"
