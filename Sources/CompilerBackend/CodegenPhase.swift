@@ -446,7 +446,6 @@ final class CodegenPhase: CompilerPhase {
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols
         )
-
         var objectInitializerLinkNames: [SymbolID: String] = [:]
         var companionInitializerLinkNames: [SymbolID: String] = [:]
         var enumStaticInitLinkNames: [SymbolID: String] = [:]

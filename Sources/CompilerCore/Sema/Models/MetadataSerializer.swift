@@ -1017,6 +1017,9 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -1069,6 +1072,9 @@ package final class MetadataEncoder {
             }
             // ITable slot layout is part of the nominal type shape and must round-trip
             // completely, even for synthetic or non-public interface supertypes.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil

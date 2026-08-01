@@ -406,7 +406,6 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
-
         init(
             kind: SymbolKind,
             mangledName: String = "",
@@ -836,7 +835,6 @@ extension DataFlowSemaPhase {
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
             }
         }
-
         // Member properties with custom getters also carry a precompiled getter
         // link name. Restore a synthetic accessor so reads route through it.
         if record.propertyGetterExternalLinkName != nil,
