@@ -273,14 +273,21 @@ jobs:
         run: swift --version
       - name: Build kswiftc
         env:
-          SWIFT_TEST_BUILD_JOBS: "4"
-        run: swift build --product kswiftc -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+          SWIFT_BUILD_JOBS: "4"
+        run: swift build --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/kotlin-tools
           key: kotlin-tools-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
+      - name: Cache kotlinc reference jars
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/kotlinc-ref-cache
+          key: kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-${{ hashFiles('Scripts/diff_cases/**/*.kt') }}
+          restore-keys: |
+            kotlinc-refs-v1-${{ runner.os }}-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}-shard-${{ matrix.shard_index }}-
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
@@ -318,6 +325,7 @@ jobs:
           DIFF_COMPILE_TIMEOUT: "180"
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
+          KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \

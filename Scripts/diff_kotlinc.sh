@@ -15,6 +15,8 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
+KOTLINC_REF_CACHE_DIR="${KOTLINC_REF_CACHE_DIR:-}"
+KOTLINC_REF_CACHE_FINGERPRINT=""
 KEEP_TEMP=0
 REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
@@ -97,6 +99,9 @@ Environment:
   KOTLINC_TEST_JAR   Same idea as KOTLINC_STDLIB_JAR but for kotlin-test.jar,
                      needed by cases that use kotlin.test (default:
                      auto-discovered next to \$KOTLINC)
+  KOTLINC_REF_CACHE_DIR
+                     Reuse successful non-script reference jars from this
+                     directory (default: empty, which disables the cache)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -267,6 +272,27 @@ known_coroutines_sha256() {
   esac
 }
 
+sha256_stream() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+sha256_file() {
+  local path="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
 # Resolves a jar next to $KOTLINC (../lib/<name> relative to .../bin/kotlinc,
 # the layout CI unzips kotlin-compiler-*.zip into) so run_case() can compile
 # with -classpath instead of -include-runtime, avoiding a multi-MB repackage
@@ -332,11 +358,7 @@ ensure_kotlinc_classpath() {
     curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
 
     local actual_sha256
-    if command -v shasum >/dev/null 2>&1; then
-      actual_sha256="$(shasum -a 256 "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
-    elif command -v sha256sum >/dev/null 2>&1; then
-      actual_sha256="$(sha256sum "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
-    else
+    if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
       echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
       actual_sha256="$expected_sha256"
     fi
@@ -500,6 +522,115 @@ jar_main_class() {
     | awk -F': ' '/^Main-Class:/ { print $2; exit }'
 }
 
+fingerprint_kotlinc_classpath() {
+  local -a classpath_entries=()
+  local entry entry_index=0 classpath_file relative_path file_hash
+
+  IFS=':' read -r -a classpath_entries <<<"$KOTLINC_CLASSPATH"
+  {
+    for entry in "${classpath_entries[@]}"; do
+      printf 'entry:%s\n' "$entry_index"
+      entry_index=$((entry_index + 1))
+      if [[ -f "$entry" ]]; then
+        file_hash="$(sha256_file "$entry")" || return 1
+        printf 'file:%s:%s\n' "$(basename "$entry")" "$file_hash"
+      elif [[ -d "$entry" ]]; then
+        while IFS= read -r classpath_file; do
+          relative_path="${classpath_file#"$entry"/}"
+          file_hash="$(sha256_file "$classpath_file")" || return 1
+          printf 'directory-file:%s:%s\n' "$relative_path" "$file_hash"
+        done < <(find "$entry" -type f | LC_ALL=C sort)
+      else
+        printf 'missing:%s\n' "$entry"
+      fi
+    done
+  } | sha256_stream
+}
+
+configure_kotlinc_ref_cache() {
+  if [[ -z "$KOTLINC_REF_CACHE_DIR" ]]; then
+    return 0
+  fi
+
+  # Without an external runtime classpath, kotlinc embeds the multi-megabyte
+  # runtime in every jar. Do not accidentally turn that fallback into a large
+  # persistent cache.
+  if [[ -z "$KOTLINC_CLASSPATH" ]]; then
+    echo "Warning: disabling kotlinc reference cache because no runtime classpath was resolved." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
+    echo "Warning: disabling kotlinc reference cache because SHA-256 is unavailable." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! mkdir -p "$KOTLINC_REF_CACHE_DIR"; then
+    echo "Warning: disabling kotlinc reference cache because the directory cannot be created: $KOTLINC_REF_CACHE_DIR" >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+  KOTLINC_REF_CACHE_DIR="$(cd "$KOTLINC_REF_CACHE_DIR" && pwd)"
+
+  local compiler_version java_version classpath_fingerprint
+  if ! compiler_version="$("$KOTLINC" -version 2>&1)"; then
+    echo "Warning: disabling kotlinc reference cache because the compiler version could not be read." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+  java_version="$("$JAVA_BIN" -version 2>&1)"
+  if ! classpath_fingerprint="$(fingerprint_kotlinc_classpath)"; then
+    echo "Warning: disabling kotlinc reference cache because the classpath could not be fingerprinted." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! KOTLINC_REF_CACHE_FINGERPRINT="$({
+    printf 'format:v1\n'
+    printf 'compiler:%s\n' "$compiler_version"
+    printf 'classpath:%s\n' "$classpath_fingerprint"
+    printf 'java:%s\n' "$java_version"
+    printf 'compiler-flags:-Xcontext-parameters\n'
+  } | sha256_stream)"; then
+    echo "Warning: disabling kotlinc reference cache because its fingerprint could not be computed." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+}
+
+kotlinc_ref_cache_path() {
+  local kt_file="$1"
+  local kotlinc_extra_flags="$2"
+  local source_bytes cache_key
+  source_bytes="$(wc -c <"$kt_file" | tr -d '[:space:]')"
+  cache_key="$({
+    printf 'toolchain:%s\n' "$KOTLINC_REF_CACHE_FINGERPRINT"
+    printf 'source-name:%s\n' "$(basename "$kt_file")"
+    printf 'extra-flags:%s\n' "$kotlinc_extra_flags"
+    printf 'source-bytes:%s\n' "$source_bytes"
+    cat "$kt_file"
+  } | sha256_stream)" || return 1
+  printf '%s/%s.jar\n' "$KOTLINC_REF_CACHE_DIR" "$cache_key"
+}
+
+store_kotlinc_ref_cache() {
+  local source="$1"
+  local destination="$2"
+  local temporary
+
+  temporary="$(mktemp "${destination}.tmp.XXXXXX")" || return 0
+
+  if cp "$source" "$temporary"; then
+    mv -f "$temporary" "$destination" || rm -f "$temporary"
+  else
+    rm -f "$temporary"
+  fi
+}
+
+configure_kotlinc_ref_cache
+
 # Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
 # else auto-detected CPU count (fallback 4).
 if [[ "$DIFF_PARALLEL" -eq 0 ]]; then
@@ -534,6 +665,11 @@ echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
+if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+  echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
+else
+  echo "Kotlinc reference cache: disabled"
+fi
 echo "Target: $TARGET"
 echo "=================================="
 
@@ -794,16 +930,30 @@ run_case() {
       ref_run_exit=$script_exit
     fi
   else
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
-      # jars (see resolve_kotlinc_lib_jar above) whenever they could be
-      # resolved, so the runtime classes needed by ref_run below are
-      # already on the classpath without repackaging them into ref_jar.
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
-    else
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+    local cached_ref_jar=""
+    local ref_cache_hit=0
+    if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+      cached_ref_jar="$(kotlinc_ref_cache_path "$kt_file" "$kotlinc_extra_flags")"
+      if [[ -s "$cached_ref_jar" ]] && cp "$cached_ref_jar" "$ref_jar"; then
+        ref_cache_hit=1
+      fi
+    fi
+
+    if [[ $ref_cache_hit -eq 0 ]]; then
+      if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+        # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
+        # jars (see resolve_kotlinc_lib_jar above) whenever they could be
+        # resolved, so the runtime classes needed by ref_run below are
+        # already on the classpath without repackaging them into ref_jar.
+        # shellcheck disable=SC2086
+        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+      else
+        # shellcheck disable=SC2086
+        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+      fi
+      if [[ $ref_compile_exit -eq 0 && -n "$cached_ref_jar" && -s "$ref_jar" ]]; then
+        store_kotlinc_ref_cache "$ref_jar" "$cached_ref_jar"
+      fi
     fi
     if [[ $ref_compile_exit -eq 0 ]]; then
       if [[ -n "$KOTLINC_CLASSPATH" ]]; then
