@@ -2037,7 +2037,7 @@ struct StringSyntheticMemberLinkTests {
             #expect(bindings.count == 2)
             let sumBySymbol = try #require(bindings.first?.chosenCallee)
             #expect(
-                sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                sema.symbols.annotations(for: sumBySymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) },
                 "CharSequence.sumBy should carry Deprecated metadata"
             )
         }
@@ -2074,7 +2074,7 @@ struct StringSyntheticMemberLinkTests {
             #expect(bindings.count == 2)
             let sumByDoubleSymbol = try #require(bindings.first?.chosenCallee)
             #expect(
-                sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                sema.symbols.annotations(for: sumByDoubleSymbol).contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) },
                 "CharSequence.sumByDouble should carry Deprecated metadata"
             )
         }
