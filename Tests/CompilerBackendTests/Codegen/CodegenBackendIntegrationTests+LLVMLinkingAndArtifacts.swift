@@ -274,7 +274,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendKeepsReplaceFirstSourceBackedAndEmitsFlatRangeRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendKeepsReplaceFirstAndRangeEditsSourceBackedForStringOverloads() throws {
         let source = """
         fun main() {
             val value = "abcabc"
@@ -301,14 +301,16 @@ extension CodegenBackendIntegrationTests {
             XCTAssertFalse(ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
             XCTAssertFalse(ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
 
-            let flatNames = [
+            // KSP-406: replaceRange / removeRange are bundled Kotlin source and no
+            // longer lower to a String-specific runtime helper (raw or flat).
+            let removedStems = [
                 "kk_string_replaceRange",
                 "kk_string_removeRange",
                 "kk_string_removeRange_range",
             ]
-            for rawName in flatNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String range call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String range call: \(rawName)_flat")
+            for stem in removedStems {
+                XCTAssertFalse(ir.contains("@\(stem)("), "Unexpected raw String range call: \(stem)")
+                XCTAssertFalse(ir.contains("@\(stem)_flat"), "Unexpected flat String range call: \(stem)_flat")
             }
         }
     }
@@ -611,13 +613,6 @@ extension CodegenBackendIntegrationTests {
         let reversedResult = arena.appendExpr(.temporary(33), type: types.stringType)
         let repeatResult = arena.appendExpr(.temporary(43), type: types.stringType)
         let repeatThrown = arena.appendExpr(.temporary(44), type: types.intType)
-        let substringStart = arena.appendExpr(.intLiteral(1), type: types.intType)
-        let substringEnd = arena.appendExpr(.intLiteral(3), type: types.intType)
-        let substringHasEnd = arena.appendExpr(.intLiteral(1), type: types.intType)
-        let substringResult = arena.appendExpr(.temporary(34), type: types.stringType)
-        let substringThrown = arena.appendExpr(.temporary(35), type: types.intType)
-        let subSequenceResult = arena.appendExpr(.temporary(45), type: types.stringType)
-        let subSequenceThrown = arena.appendExpr(.temporary(46), type: types.intType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
@@ -677,25 +672,6 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_lowercase_flat"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_uppercase_flat"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_reversed_flat"), arguments: [paddedExpr], result: reversedResult, canThrow: false, thrownResult: nil),
-                .constValue(result: substringStart, value: .intLiteral(1)),
-                .constValue(result: substringEnd, value: .intLiteral(3)),
-                .constValue(result: substringHasEnd, value: .intLiteral(1)),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_substring_flat"),
-                    arguments: [trimResult, substringStart, substringEnd, substringHasEnd],
-                    result: substringResult,
-                    canThrow: true,
-                    thrownResult: substringThrown
-                ),
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_subSequence_flat"),
-                    arguments: [trimResult, substringStart, substringEnd],
-                    result: subSequenceResult,
-                    canThrow: true,
-                    thrownResult: subSequenceThrown
-                ),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_repeat_flat"), arguments: [trimResult, takeCount], result: repeatResult, canThrow: true, thrownResult: repeatThrown),
                 .constValue(result: hofFnPtr, value: .intLiteral(0)),
@@ -845,8 +821,8 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_lowercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_substring_flat"))
-        XCTAssertTrue(ir.contains("@kk_string_subSequence_flat"))
+        XCTAssertFalse(ir.contains("@kk_string_substring_flat"))
+        XCTAssertFalse(ir.contains("@kk_string_subSequence_flat"))
         XCTAssertTrue(ir.contains("@kk_string_repeat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filter_flat"))
         XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))

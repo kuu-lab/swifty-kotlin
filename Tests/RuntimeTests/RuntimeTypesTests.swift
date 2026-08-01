@@ -1,33 +1,39 @@
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeTypesTests: XCTestCase {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeTypesTests {
     // MARK: - RuntimeStringBox
 
-    func testRuntimeStringBoxStoresValue() {
+    @Test
+    func runtimeStringBoxStoresValue() {
         let box = RuntimeStringBox("hello")
-        XCTAssertEqual(box.value, "hello")
+        #expect(box.value == "hello")
     }
 
-    func testRuntimeStringBoxStoresEmptyString() {
+    @Test
+    func runtimeStringBoxStoresEmptyString() {
         let box = RuntimeStringBox("")
-        XCTAssertEqual(box.value, "")
+        #expect(box.value == "")
     }
 
-    func testRuntimeStringBoxStoresUnicodeString() {
+    @Test
+    func runtimeStringBoxStoresUnicodeString() {
         let box = RuntimeStringBox("こんにちは")
-        XCTAssertEqual(box.value, "こんにちは")
+        #expect(box.value == "こんにちは")
     }
 
     // MARK: - RuntimeValue
 
-    func testRuntimeValueRawRoundTripsThroughLegacyRawValue() {
+    @Test
+    func runtimeValueRawRoundTripsThroughLegacyRawValue() {
         let value = RuntimeValue(raw: 42)
-        XCTAssertEqual(value.tag, RuntimeValue.rawTag)
-        XCTAssertEqual(value.legacyRawValue, 42)
+        #expect(value.tag == RuntimeValue.rawTag)
+        #expect(value.legacyRawValue == 42)
     }
 
-    func testRuntimeValueStringPayloadMaterializesLegacyStringBox() throws {
+    @Test
+    func runtimeValueStringPayloadMaterializesLegacyStringBox() throws {
         let bytes = Array("hello".utf8)
         let raw = bytes.withUnsafeBufferPointer { buffer -> Int in
             let data = Int(bitPattern: buffer.baseAddress!)
@@ -39,175 +45,201 @@ final class RuntimeTypesTests: XCTestCase {
             )
             return value.legacyRawValue
         }
-        let ptr = try XCTUnwrap(UnsafeMutableRawPointer(bitPattern: raw))
-        let box = try XCTUnwrap(tryCast(ptr, to: RuntimeStringBox.self))
-        XCTAssertEqual(box.value, "hello")
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: raw))
+        let box = try #require(tryCast(ptr, to: RuntimeStringBox.self))
+        #expect(box.value == "hello")
     }
 
-    func testRuntimeValueCharPayloadRoundTripsThroughLegacyRawValue() {
+    @Test
+    func runtimeValueCharPayloadRoundTripsThroughLegacyRawValue() {
         let value = RuntimeValue(charScalar: 97)
-        XCTAssertEqual(value.tag, RuntimeValue.charTag)
-        XCTAssertEqual(value.legacyRawValue, 97)
+        #expect(value.tag == RuntimeValue.charTag)
+        #expect(value.legacyRawValue == 97)
     }
 
-    func testRuntimeValueNullStringComparesAsNullWithoutLegacyBox() {
+    @Test
+    func runtimeValueNullStringComparesAsNullWithoutLegacyBox() {
         let value = RuntimeValue(stringData: 0, length: 0, byteCount: 0, hash: 0)
         let baselineObjectCount = kk_debugging_global_object_count()
 
-        XCTAssertEqual(runtimeCompareValues(value, RuntimeValue(raw: runtimeNullSentinelInt)), 0)
-        XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount)
+        #expect(runtimeCompareValues(value, RuntimeValue(raw: runtimeNullSentinelInt)) == 0)
+        #expect(kk_debugging_global_object_count() == baselineObjectCount)
     }
 
     // MARK: - RuntimeThrowableBox
 
-    func testRuntimeThrowableBoxStoresMessage() {
+    @Test
+    func runtimeThrowableBoxStoresMessage() {
         let box = RuntimeThrowableBox(message: "Something went wrong")
-        XCTAssertEqual(box.message, "Something went wrong")
+        #expect(box.message == "Something went wrong")
     }
 
-    func testRuntimeThrowableBoxStoresEmptyMessage() {
+    @Test
+    func runtimeThrowableBoxStoresEmptyMessage() {
         let box = RuntimeThrowableBox(message: "")
-        XCTAssertEqual(box.message, "")
+        #expect(box.message == "")
     }
 
     // MARK: - RuntimeArrayBox
 
-    func testRuntimeArrayBoxCreatesZeroFilledArray() {
+    @Test
+    func runtimeArrayBoxCreatesZeroFilledArray() {
         let box = RuntimeArrayBox(length: 5)
-        XCTAssertEqual(box.elements.count, 5)
-        XCTAssertTrue(box.elements.allSatisfy { $0 == 0 })
+        #expect(box.elements.count == 5)
+        #expect(box.elements.allSatisfy { $0 == 0 })
     }
 
-    func testRuntimeArrayBoxWithZeroLengthCreatesEmptyArray() {
+    @Test
+    func runtimeArrayBoxWithZeroLengthCreatesEmptyArray() {
         let box = RuntimeArrayBox(length: 0)
-        XCTAssertTrue(box.elements.isEmpty)
+        #expect(box.elements.isEmpty)
     }
 
-    func testRuntimeArrayBoxWithNegativeLengthCreatesEmptyArray() {
+    @Test
+    func runtimeArrayBoxWithNegativeLengthCreatesEmptyArray() {
         let box = RuntimeArrayBox(length: -10)
-        XCTAssertTrue(box.elements.isEmpty)
+        #expect(box.elements.isEmpty)
     }
 
-    func testRuntimeArrayBoxIsMutable() {
+    @Test
+    func runtimeArrayBoxIsMutable() {
         let box = RuntimeArrayBox(length: 3)
         box.elements[1] = 42
-        XCTAssertEqual(box.elements[1], 42)
+        #expect(box.elements[1] == 42)
     }
 
-    func testRuntimeArrayBoxStoresRuntimeValues() {
+    @Test
+    func runtimeArrayBoxStoresRuntimeValues() {
         let box = RuntimeArrayBox(length: 2)
         box.values[0] = RuntimeValue(raw: 11)
         box.values[1] = RuntimeValue(raw: 22)
-        XCTAssertEqual(box.elements, [11, 22])
+        #expect(box.elements == [11, 22])
 
         box.elements[0] = 33
-        XCTAssertEqual(box.values[0].legacyRawValue, 33)
+        #expect(box.values[0].legacyRawValue == 33)
     }
 
-    func testRuntimeListBoxCanViewRuntimeArrayValues() {
+    @Test
+    func runtimeListBoxCanViewRuntimeArrayValues() {
         let array = RuntimeArrayBox(length: 2)
         array.values = [RuntimeValue(raw: 7), RuntimeValue(raw: 8)]
 
         let list = RuntimeListBox(arrayViewOf: array)
-        XCTAssertEqual(list.elements, [7, 8])
+        #expect(list.elements == [7, 8])
 
         list.values[1] = RuntimeValue(raw: 9)
-        XCTAssertEqual(array.elements, [7, 9])
+        #expect(array.elements == [7, 9])
     }
 
-    func testRuntimeMapBoxStoresRuntimeValues() {
+    @Test
+    func runtimeMapBoxStoresRuntimeValues() {
         let map = RuntimeMapBox(keys: [1], values: [2])
         map.keyValues[0] = RuntimeValue(raw: 10)
         map.entryValues[0] = RuntimeValue(raw: 20)
 
-        XCTAssertEqual(map.keys, [10])
-        XCTAssertEqual(map.values, [20])
+        #expect(map.keys == [10])
+        #expect(map.values == [20])
     }
 
     // MARK: - RuntimeIntBox
 
-    func testRuntimeIntBoxStoresPositiveValue() {
+    @Test
+    func runtimeIntBoxStoresPositiveValue() {
         let box = RuntimeIntBox(42)
-        XCTAssertEqual(box.value, 42)
+        #expect(box.value == 42)
     }
 
-    func testRuntimeIntBoxStoresNegativeValue() {
+    @Test
+    func runtimeIntBoxStoresNegativeValue() {
         let box = RuntimeIntBox(-100)
-        XCTAssertEqual(box.value, -100)
+        #expect(box.value == -100)
     }
 
-    func testRuntimeIntBoxStoresZero() {
+    @Test
+    func runtimeIntBoxStoresZero() {
         let box = RuntimeIntBox(0)
-        XCTAssertEqual(box.value, 0)
+        #expect(box.value == 0)
     }
 
     // MARK: - RuntimeBoolBox
 
-    func testRuntimeBoolBoxStoresTrue() {
+    @Test
+    func runtimeBoolBoxStoresTrue() {
         let box = RuntimeBoolBox(true)
-        XCTAssertTrue(box.value)
+        #expect(box.value)
     }
 
-    func testRuntimeBoolBoxStoresFalse() {
+    @Test
+    func runtimeBoolBoxStoresFalse() {
         let box = RuntimeBoolBox(false)
-        XCTAssertFalse(box.value)
+        #expect(!box.value)
     }
 
     // MARK: - LazyThreadSafetyMode
 
-    func testLazyThreadSafetyModeSynchronizedRawValueIsOne() {
-        XCTAssertEqual(LazyThreadSafetyMode.synchronized.rawValue, 1)
+    @Test
+    func lazyThreadSafetyModeSynchronizedRawValueIsOne() {
+        #expect(LazyThreadSafetyMode.synchronized.rawValue == 1)
     }
 
-    func testLazyThreadSafetyModeNoneRawValueIsZero() {
-        XCTAssertEqual(LazyThreadSafetyMode.none.rawValue, 0)
+    @Test
+    func lazyThreadSafetyModeNoneRawValueIsZero() {
+        #expect(LazyThreadSafetyMode.none.rawValue == 0)
     }
 
-    func testLazyThreadSafetyModePublicationRawValueIsTwo() {
-        XCTAssertEqual(LazyThreadSafetyMode.publication.rawValue, 2)
+    @Test
+    func lazyThreadSafetyModePublicationRawValueIsTwo() {
+        #expect(LazyThreadSafetyMode.publication.rawValue == 2)
     }
 
-    func testLazyThreadSafetyModeInitFromRawValue() {
-        XCTAssertEqual(LazyThreadSafetyMode(rawValue: 1), .synchronized)
-        XCTAssertEqual(LazyThreadSafetyMode(rawValue: 0), LazyThreadSafetyMode.none)
-        XCTAssertEqual(LazyThreadSafetyMode(rawValue: 2), .publication)
+    @Test
+    func lazyThreadSafetyModeInitFromRawValue() {
+        #expect(LazyThreadSafetyMode(rawValue: 1) == .synchronized)
+        #expect(LazyThreadSafetyMode(rawValue: 0) == LazyThreadSafetyMode.none)
+        #expect(LazyThreadSafetyMode(rawValue: 2) == .publication)
     }
 
     // MARK: - RuntimeObservableBox
 
-    func testRuntimeObservableBoxStoresInitialValue() {
+    @Test
+    func runtimeObservableBoxStoresInitialValue() {
         let box = RuntimeObservableBox(initialValue: 42, callbackFnPtr: 0)
-        XCTAssertEqual(box.currentValue, 42)
+        #expect(box.currentValue == 42)
     }
 
-    func testRuntimeObservableBoxStoresCallbackPointer() {
+    @Test
+    func runtimeObservableBoxStoresCallbackPointer() {
         let ptr = 12345
         let box = RuntimeObservableBox(initialValue: 0, callbackFnPtr: ptr)
-        XCTAssertEqual(box.callbackFnPtr, ptr)
+        #expect(box.callbackFnPtr == ptr)
     }
 
-    func testRuntimeObservableBoxCurrentValueIsMutable() {
+    @Test
+    func runtimeObservableBoxCurrentValueIsMutable() {
         let box = RuntimeObservableBox(initialValue: 0, callbackFnPtr: 0)
         box.currentValue = 99
-        XCTAssertEqual(box.currentValue, 99)
+        #expect(box.currentValue == 99)
     }
 
     // MARK: - RuntimeVetoableBox
 
-    func testRuntimeVetoableBoxStoresInitialValue() {
+    @Test
+    func runtimeVetoableBoxStoresInitialValue() {
         let box = RuntimeVetoableBox(initialValue: 7, callbackFnPtr: 0)
-        XCTAssertEqual(box.currentValue, 7)
+        #expect(box.currentValue == 7)
     }
 
-    func testRuntimeVetoableBoxStoresCallbackPointer() {
+    @Test
+    func runtimeVetoableBoxStoresCallbackPointer() {
         let ptr = 67890
         let box = RuntimeVetoableBox(initialValue: 0, callbackFnPtr: ptr)
-        XCTAssertEqual(box.callbackFnPtr, ptr)
+        #expect(box.callbackFnPtr == ptr)
     }
 
-    func testRuntimeVetoableBoxCurrentValueIsMutable() {
+    @Test
+    func runtimeVetoableBoxCurrentValueIsMutable() {
         let box = RuntimeVetoableBox(initialValue: 0, callbackFnPtr: 0)
         box.currentValue = 55
-        XCTAssertEqual(box.currentValue, 55)
+        #expect(box.currentValue == 55)
     }
 }

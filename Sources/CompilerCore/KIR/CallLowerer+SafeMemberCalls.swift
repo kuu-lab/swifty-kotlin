@@ -269,14 +269,12 @@ extension CallLowerer {
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
                 let nonNullResult = arena.appendTemporary(type: callResultType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_op_inv"),
-                    arguments: [loweredReceiverID],
+                    arg: loweredReceiverID,
                     result: nonNullResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions.instructions
+                )
                 instructions.append(.copy(from: nonNullResult, to: nullableResult))
                 instructions.append(.label(endLabel))
                 return nullableResult
@@ -307,14 +305,12 @@ extension CallLowerer {
                     case "takeLowestOneBit": runtimeName = "kk_int_takeLowestOneBit"
                     default: fatalError("unreachable: calleeStr already guarded to bit operation functions")
                     }
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern(runtimeName),
-                        arguments: [loweredReceiverID],
+                        arg: loweredReceiverID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions.instructions
+                    )
                     return result
                 }
             }
@@ -371,14 +367,12 @@ extension CallLowerer {
                 }
 
                 if let name = runtimeName {
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: interner.intern(name),
-                        arguments: [loweredReceiverID],
+                        arg: loweredReceiverID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions.instructions
+                    )
                     return result
                 }
             }
@@ -438,26 +432,22 @@ extension CallLowerer {
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
                         let converted = arena.appendTemporary(type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [lhs],
+                            arg: lhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions.instructions
+                        )
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
                         let converted = arena.appendTemporary(type: doubleType)
-                        instructions.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: interner.intern("kk_float_to_double_bits"),
-                            arguments: [rhs],
+                            arg: rhs,
                             result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &instructions.instructions
+                        )
                         rhs = converted
                     }
                 }

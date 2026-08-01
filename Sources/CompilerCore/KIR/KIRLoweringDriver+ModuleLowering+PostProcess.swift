@@ -367,6 +367,27 @@ extension KIRLoweringDriver {
 
 extension KIRLoweringDriver {
     /// Creates a lambda function from the delegate body.
+    ///
+    /// DEBT-KIR-008: when this runs for a class member's `by lazy { ... }`
+    /// initializer (`paramCount == 0`), the body may reference the enclosing
+    /// instance (`label` implicitly reading `this.label`). The generated
+    /// function is invoked later through `kk_lazy_create`'s stored function
+    /// pointer, which cannot simply gain an extra KIR parameter — the caller
+    /// (`RuntimeLazyBox.evaluateInitializer`) always invokes it through
+    /// `kk_function_invoke_0`. That runtime entry point already dispatches
+    /// between a raw thunk pointer and a boxed `Function0` closure value (see
+    /// its doc comment), so a captured receiver is threaded in by materializing
+    /// a closure object instead, mirroring
+    /// `LambdaLowerer.materializeEscapingCallableValue`'s `(closureRaw) -> T`
+    /// adapter pattern.
+    ///
+    /// `observable`/`vetoable` callbacks (`paramCount == 3`) are invoked
+    /// through a raw `unsafeBitCast` to a fixed-arity thunk type in
+    /// `RuntimeDelegates.swift` that has no such dispatch — materializing a
+    /// closure there would misinterpret the closure wrapper as executable code
+    /// and crash, so capture stays unsupported for those (tracked with the
+    /// rest of the observable/vetoable gaps in docs/diff-skip-inventory.md
+    /// DEBT-DIFF-005) and this function leaves their lowering untouched.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
         propertySymbol: SymbolID,
@@ -377,19 +398,37 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
+        let outerReceiver = paramCount == 0 ? ctx.activeImplicitReceiver() : nil
+
+        let scopeSnapshot = ctx.saveScope()
+        defer { ctx.restoreScope(scopeSnapshot) }
+        ctx.resetScopeForFunction()
+
         let lambdaSymbol = ctx.allocateSyntheticGeneratedSymbol()
         let lambdaName = interner.intern("kk_delegate_lambda_\(propertySymbol.rawValue)")
 
-        var params: [KIRParameter] = []
+        var numberedParams: [KIRParameter] = []
         for i in 0 ..< paramCount {
             let paramSymbol = SymbolID(
                 rawValue: -(propertySymbol.rawValue + Int32(i + 1) * 1000 + 50000)
             )
-            params.append(KIRParameter(symbol: paramSymbol, type: sema.types.anyType))
+            numberedParams.append(KIRParameter(symbol: paramSymbol, type: sema.types.anyType))
         }
+        let receiverParam: KIRParameter? = outerReceiver.map { receiver in
+            KIRParameter(
+                symbol: ctx.allocateSyntheticGeneratedSymbol(),
+                type: arena.exprType(receiver.exprID) ?? sema.types.anyType
+            )
+        }
+        let params = (receiverParam.map { [$0] } ?? []) + numberedParams
 
         var lambdaBody: KIRLoweringEmitContext = [.beginBlock]
-        for param in params {
+        if let receiverParam {
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverParam.type)
+            lambdaBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverParam.symbol)))
+            ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
+        }
+        for param in numberedParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(paramExpr, for: param.symbol)
@@ -421,9 +460,115 @@ extension KIRLoweringDriver {
         )))
         ctx.appendGeneratedCallableDecl(lambdaDecl)
 
-        let lambdaRefExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.anyType)
-        instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)))
-        return lambdaRefExpr
+        guard let outerReceiver else {
+            let lambdaRefExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.anyType)
+            instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)))
+            return lambdaRefExpr
+        }
+        return materializeCapturingDelegateLambda(
+            innerLambdaSymbol: lambdaSymbol,
+            innerLambdaName: lambdaName,
+            receiverExpr: outerReceiver.exprID,
+            returnType: sema.types.anyType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Wraps `innerLambdaSymbol` (a `(receiver) -> T` function) into a boxed
+    /// `Function0` closure value carrying `receiverExpr` as captured state, so
+    /// it can be invoked through `kk_function_invoke_0`'s boxed-closure path
+    /// with no receiver argument at the call site. See `lowerDelegateLambdaBody`
+    /// for why this is needed instead of a plain extra KIR parameter.
+    private func materializeCapturingDelegateLambda(
+        innerLambdaSymbol: SymbolID,
+        innerLambdaName: InternedString,
+        receiverExpr: KIRExprID,
+        returnType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_delegate_lambda_adapter_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
+        let captureOffset = Int64(2)
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+        body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+
+        let receiverType = arena.exprType(receiverExpr) ?? sema.types.anyType
+        let loadOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
+        body.append(.constValue(result: loadOffsetExpr, value: .intLiteral(captureOffset)))
+        let loadedReceiver = arena.appendTemporary(type: receiverType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_get_inbounds"),
+            arguments: [closureExpr, loadOffsetExpr],
+            result: loadedReceiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let callResult = arena.appendTemporary(type: returnType)
+        body.append(.call(
+            symbol: innerLambdaSymbol,
+            callee: innerLambdaName,
+            arguments: [loadedReceiver],
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(callResult))
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(.function(KIRFunction(
+            symbol: adapterSymbol, name: adapterName, params: [closureParam],
+            returnType: returnType, body: body, isSuspend: false, isInline: false
+        )))
+        ctx.appendGeneratedCallableDecl(adapterDecl)
+
+        let slotCountExpr = arena.appendExpr(.intLiteral(3), type: sema.types.intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(3)))
+        let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+        let closureObj = arena.appendTemporary(type: sema.types.intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: closureObj,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let storeOffsetExpr = arena.appendExpr(.intLiteral(captureOffset), type: sema.types.intType)
+        instructions.append(.constValue(result: storeOffsetExpr, value: .intLiteral(captureOffset)))
+        let setResult = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_set"),
+            arguments: [closureObj, storeOffsetExpr, receiverExpr],
+            result: setResult,
+            canThrow: true,
+            thrownResult: nil
+        ))
+
+        let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
+        let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_function_create_0"),
+            arguments: [adapterExpr, closureObj],
+            result: materializedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return materializedExpr
     }
 
     /// Lowers the initial value argument from a delegate expression.

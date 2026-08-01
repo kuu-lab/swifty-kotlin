@@ -30,7 +30,7 @@ struct SequenceInterfaceSyntheticTests {
         ))
         let sequenceInfo = try #require(sema.symbols.symbol(sequenceSymbol))
         #expect(sequenceInfo.kind == .interface)
-        #expect(sequenceInfo.flags.contains(.synthetic))
+        #expect(!sequenceInfo.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: sequenceSymbol)
         #expect(typeParams.count == 1)
@@ -56,9 +56,10 @@ struct SequenceInterfaceSyntheticTests {
         ))
         #expect(sema.symbols.symbol(iteratorMember)?.flags.contains(.operatorFunction) == true)
         let signature = try #require(sema.symbols.functionSignature(for: iteratorMember))
-        #expect(signature.receiverType == receiverType)
+        let signatureReceiver = try #require(signature.receiverType)
+        #expect(sema.types.isSubtype(signatureReceiver, receiverType) && sema.types.isSubtype(receiverType, signatureReceiver))
         #expect(signature.parameterTypes == [])
-        #expect(signature.returnType == iteratorType)
+        #expect(sema.types.isSubtype(signature.returnType, iteratorType) && sema.types.isSubtype(iteratorType, signature.returnType))
         #expect(signature.typeParameterSymbols == typeParams)
         #expect(signature.classTypeParameterCount == 1)
     }

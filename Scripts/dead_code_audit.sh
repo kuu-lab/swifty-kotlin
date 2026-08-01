@@ -206,7 +206,7 @@ fi
 # ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
 # 過去に本スクリプトが取りこぼしていた 2 経路を固定する。回帰すると exit 1。
 #   fixture 1: kk_print_string_flat  — CompilerBackend でのみ emit。A に入れば誤り。
-#   fixture 2: kk_atomic_int_array_loadAt — 2 段階 prefix 生成で到達。B に入れば誤り。
+#   fixture 2: kk_atomic_ref_array_loadAt — 2 段階 prefix 生成で到達。B に入れば誤り。
 if [[ $SELFTEST -eq 1 ]]; then
   echo ""
   echo "=== Self-test (regression fixtures) ==="
@@ -219,11 +219,11 @@ if [[ $SELFTEST -eq 1 ]]; then
     echo "PASS: kk_print_string_flat not in A (CompilerBackend static emit detected)"
   fi
 
-  if grep -qx "kk_atomic_int_array_loadAt" "$WORK/dead_B.txt"; then
-    echo "FAIL: kk_atomic_int_array_loadAt misclassified as B (two-stage prefix emit not detected)" >&2
+  if grep -qx "kk_atomic_ref_array_loadAt" "$WORK/dead_B.txt"; then
+    echo "FAIL: kk_atomic_ref_array_loadAt misclassified as B (two-stage prefix emit not detected)" >&2
     selftest_failed=1
   else
-    echo "PASS: kk_atomic_int_array_loadAt not in B (two-stage prefix emit detected)"
+    echo "PASS: kk_atomic_ref_array_loadAt not in B (two-stage prefix emit detected)"
   fi
 
   if [[ $selftest_failed -ne 0 ]]; then

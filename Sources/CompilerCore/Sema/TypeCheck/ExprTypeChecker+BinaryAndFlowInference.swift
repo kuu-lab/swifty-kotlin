@@ -116,12 +116,16 @@ extension ExprTypeChecker {
         } else {
             []
         }
-        // STDLIB-345: List/Sequence plus/minus operators. Must run before the
-        // string-concatenation short-circuit below: `listOf("a") + "x"` is
-        // `List<String>.plus(String): List<String>` in real Kotlin, resolved
-        // purely from the LHS's static type — never string concatenation,
-        // even when the RHS happens to be a String (e.g. list-of-strings +
-        // string element).
+        // Kotlin's `+` resolves against the LHS (receiver) type: `String.plus(Any?)`
+        // accepts any RHS, but non-String receivers don't get string concatenation
+        // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid
+        // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
+        // below, not collapse to `String`).
+        if op == .add, sema.types.isString(lhs) {
+            sema.bindings.bindExprType(id, type: stringType)
+            return stringType
+        }
+        // STDLIB-345: List/Sequence plus/minus operators
         if !lhsIsPrimitive, op == .add || op == .subtract {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
@@ -140,10 +144,6 @@ extension ExprTypeChecker {
                 sema.bindings.markCollectionExpr(id)
                 return lhs
             }
-        }
-        if op == .add, sema.types.isString(lhs) || sema.types.isString(rhs) {
-            sema.bindings.bindExprType(id, type: stringType)
-            return stringType
         }
         let lhsIsAny = lhs == sema.types.anyType || lhs == sema.types.nullableAnyType
         let rhsIsAny = rhs == sema.types.anyType || rhs == sema.types.nullableAnyType
