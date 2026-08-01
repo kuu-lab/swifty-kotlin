@@ -140,28 +140,29 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-TEXT-TYPE-004: kotlin.text.CASE_INSENSITIVE_ORDER comparator ---
-        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
-        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
-            let caseInsensitiveOrderType = types.make(.classType(ClassType(
-                classSymbol: comparatorSymbol,
-                args: [.invariant(stringType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticStringTopLevelProperty(
-                named: "CASE_INSENSITIVE_ORDER",
-                packageFQName: kotlinTextPkg,
-                returnType: caseInsensitiveOrderType,
-                externalLinkName: "kk_string_case_insensitive_order",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // --- STDLIB-TEXT-TYPE-004: String.CASE_INSENSITIVE_ORDER comparator ---
+        // BUG-154: In real Kotlin this is `String.Companion.CASE_INSENSITIVE_ORDER`
+        // (accessed as `String.CASE_INSENSITIVE_ORDER`), *not* a top-level
+        // `kotlin.text.CASE_INSENSITIVE_ORDER`. It is registered as a member of
+        // String's companion object below (see STDLIB-TEXT-TYPE-004 companion
+        // block, after `stringClassSymbol` is established).
 
         registerSyntheticStringExtensionFunction(
             named: "length",
             externalLinkName: "kk_string_length",
             receiverType: stringType,
+            parameters: [],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // BUG-152: `length` must also resolve when the static type is the
+        // `CharSequence` interface, not only the concrete `String` type.
+        registerSyntheticStringExtensionFunction(
+            named: "length",
+            externalLinkName: "kk_string_length",
+            receiverType: charSequenceType,
             parameters: [],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -524,25 +525,8 @@ extension DataFlowSemaPhase {
         )
 
 
-        registerSyntheticStringExtensionFunction(
-            named: "subSequence",
-            externalLinkName: "kk_string_subSequence_flat",
-            receiverType: stringType,
-            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use substring(startIndex, endIndex) instead.\"",
-                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
-                    ]
-                ),
-            ],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: subSequence/substring are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
@@ -567,33 +551,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substring",
-            externalLinkName: "kk_string_substring_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
@@ -1035,249 +992,9 @@ extension DataFlowSemaPhase {
         // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin
         // source (StringPrefixSuffix.kt).
 
-        // --- STDLIB-186 / STDLIB-TEXT-FN-074..077 ---
-        // Runtime helpers accept 0 (null raw) for missingDelimiterValue when the
-        // default `this` should be used.
-        registerSyntheticStringExtensionFunction(
-            named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-074: String.substringAfter(delimiter, missingDelimiterValue)
-        registerSyntheticStringExtensionFunction(
-            named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-REPLACE-001: String.replaceAfter(delimiter, replacement, missingDelimiterValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-REPLACE-002: String.replaceAfterLast(delimiter, replacement, missingDelimiterValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-REPLACE-003: String.replaceBefore(delimiter, replacement, missingDelimiterValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-REPLACE-004: String.replaceBeforeLast(delimiter, replacement, missingDelimiterValue) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", charType, false, false),
-                ("replacement", stringType, false, false),
-                ("missingDelimiterValue", stringType, true, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+        // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
+        // (StringSearchReplace.kt).
 
         // --- STDLIB-100/102/103: Regex-related String extensions ---
 
@@ -1354,6 +1071,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // BUG-152: `subSequence` on a value statically typed as `CharSequence` is
+        // provided by bundled Kotlin source (StringSubstringSlice.kt).
 
         // --- STDLIB-141: String.compareTo ---
 
@@ -1463,99 +1182,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-188: replaceRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_indices",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-008: removeRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_flat",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeRange",
-            externalLinkName: "kk_string_removeRange_range_flat",
-            receiverType: stringType,
-            parameters: [
-                ("range", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
-        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
-        // KIR lowering distinguishes the two via isRangeExpr on the argument.
-        let listOfIntTypeForSlice = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_range",
-            receiverType: stringType,
-            parameters: [
-                ("indices", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "slice",
-            externalLinkName: "kk_string_slice_iterable",
-            receiverType: stringType,
-            parameters: [
-                ("indices", listOfIntTypeForSlice, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-406: replaceRange/removeRange/slice are bundled Kotlin source
+        // (Stdlib/kotlin/text/StringSubstringSlice.kt).
 
         // --- STDLIB-189: String HOF (filter, map, count, any, all, none) ---
         let charToBoolType = types.make(.functionType(FunctionType(
@@ -2472,6 +2100,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-TEXT-TYPE-004: String.Companion.CASE_INSENSITIVE_ORDER ---
+        // BUG-154: registered as a companion (static) member of String, matching
+        // real Kotlin's `String.Companion.CASE_INSENSITIVE_ORDER`. There is no
+        // top-level `kotlin.text.CASE_INSENSITIVE_ORDER`, so a bare reference must
+        // stay unresolved. Reads route through the object-member read path
+        // (`loadGlobal`) backed by the object-parented synthetic external-property
+        // global initializer, which calls `kk_string_case_insensitive_order()`
+        // once at module init -- giving referential identity via a single global.
+        let comparatorFQName = kotlinRootPkg + [interner.intern("Comparator")]
+        if let comparatorSymbol = symbols.lookup(fqName: comparatorFQName) {
+            let caseInsensitiveOrderType = types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                args: [.invariant(stringType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticCompanionExternalProperty(
+                named: "CASE_INSENSITIVE_ORDER",
+                companionFQName: stringCompanionFQName,
+                returnType: caseInsensitiveOrderType,
+                externalLinkName: "kk_string_case_insensitive_order",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
         // Kotlin: "...".format(vararg args: Any?) -> String

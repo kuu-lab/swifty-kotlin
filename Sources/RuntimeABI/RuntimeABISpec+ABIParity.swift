@@ -83,12 +83,6 @@ public extension RuntimeABISpec {
             p("expect", .intptr),
             p("update", .intptr),
         ]),
-        abiParitySpec("kk_atomic_ref_array_fetchAndUpdateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_atomic_ref_array_loadAt", parameters: [
             p("receiver", .intptr),
             p("index", .intptr),
@@ -103,18 +97,6 @@ public extension RuntimeABISpec {
             p("receiver", .intptr),
             p("index", .intptr),
             p("value", .intptr),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_updateAndFetchAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_atomic_ref_array_updateAt", parameters: [
-            p("receiver", .intptr),
-            p("index", .intptr),
-            p("updateFn", .intptr),
-            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_biginteger_modInverse", parameters: [
             p("selfRaw", .intptr),
@@ -268,16 +250,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_char_isTitleCase", parameters: [
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_check_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_check_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_cname_lookup", parameters: [
             p("externNameRaw", .intptr),
         ]),
@@ -834,16 +807,7 @@ public extension RuntimeABISpec {
             p("byteCount", .intptr),
             p("hash", .intptr),
         ]),
-        abiParitySpec("kk_require_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_require_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),

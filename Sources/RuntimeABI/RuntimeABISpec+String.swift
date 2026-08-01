@@ -189,94 +189,8 @@ public extension RuntimeABISpec {
             name: "kk_string_replaceFirst_flat",
             trailingStringPrefixes: ["old", "new"]
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replaceRange_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "replacementData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "replacementLength", type: .intptr),
-                RuntimeABIParameter(name: "replacementByteCount", type: .intptr),
-                RuntimeABIParameter(name: "replacementHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_removeRange_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "startRaw", type: .intptr),
-                RuntimeABIParameter(name: "endRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_removeRange_range_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_substring_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "startRaw", type: .intptr),
-                RuntimeABIParameter(name: "endRaw", type: .intptr),
-                RuntimeABIParameter(name: "hasEndRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_subSequence_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "startRaw", type: .intptr),
-                RuntimeABIParameter(name: "endRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
+        // KSP-406: substring/subSequence/removeRange/replaceRange flat entries removed;
+        // now bundled Kotlin source (StringSubstringSlice.kt).
         RuntimeABIFunctionSpec(
             name: "kk_string_padStart_default_flat",
             parameters: [
@@ -355,78 +269,9 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBefore_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBefore_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBeforeLast_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringBeforeLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfter_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfter_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfterLast_flat",
-            trailingStringPrefixes: ["delimiter", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_substringAfterLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfter_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfter_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfterLast_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceAfterLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBefore_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBefore_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBeforeLast_flat",
-            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceBeforeLast_char_flat",
-            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
-            trailingStringPrefixes: ["replacement", "missing"]
-        ),
+        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+        // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
+        // (StringSearchReplace.kt); their flat ABI entries were removed.
         // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
         // (StringTakeDrop.kt); their flat ABI entries were removed.
         RuntimeABIFunctionSpec(
@@ -2329,18 +2174,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_string_toBigIntegerOrNull_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_bignum_toString",
             parameters: [
                 RuntimeABIParameter(name: "numRaw", type: .intptr),
@@ -2570,8 +2403,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-TEXT-FN-077: String.substringBeforeLast(delimiter, missingDelimiterValue)
-        // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
         RuntimeABIFunctionSpec(
             name: "kk_char_isUnicodeIdentifierPart",
@@ -2856,38 +2687,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replaceRange_indices",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "startRaw", type: .intptr),
-                RuntimeABIParameter(name: "endRaw", type: .intptr),
-                RuntimeABIParameter(name: "replacementRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_slice_iterable",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "indicesRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_slice_range",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        // KSP-406: replaceRange_indices/slice_iterable/slice_range removed;
+        // now bundled Kotlin source (StringSubstringSlice.kt).
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBigIntegerOrNull",
             parameters: [

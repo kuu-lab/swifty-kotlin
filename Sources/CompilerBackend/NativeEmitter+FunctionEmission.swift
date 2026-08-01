@@ -860,37 +860,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceRange_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: true
-                ),
-                "kk_string_removeRange_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_removeRange_range_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_removeRange_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "kk_string_substring_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substring_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
-                    canThrow: true
-                ),
-                "kk_string_subSequence_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_subSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
+                // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
                 "kk_string_padStart_default_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_padStart_default_flat",
                     stringArgumentCount: 1,
@@ -925,110 +896,9 @@ extension NativeEmitter {
                 // (StringTakeDrop.kt); no flat emission spec.
                 // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
                 // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
-                "kk_string_substringBefore_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBefore_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringBefore_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBefore_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringBeforeLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBeforeLast_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringBeforeLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringBeforeLast_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringAfter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfter_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringAfter_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfter_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_substringAfterLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfterLast_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_substringAfterLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_substringAfterLast_char_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2],
-                    canThrow: false
-                ),
-                "kk_string_replaceAfter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfter_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceAfter_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfter_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceAfterLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfterLast_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceAfterLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceAfterLast_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceBefore_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBefore_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceBefore_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBefore_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
-                "kk_string_replaceBeforeLast_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBeforeLast_flat",
-                    stringArgumentCount: 4,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceBeforeLast_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceBeforeLast_char_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 2, 3],
-                    canThrow: false
-                ),
+                // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+                // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
+                // source (StringSearchReplace.kt); no flat emission spec.
                 "kk_string_format_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_format_flat",
                     stringArgumentCount: 1,
@@ -1768,11 +1638,6 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
-                ),
-                "__kk_string_toBigIntegerOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigIntegerOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
                 ),
                 "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "__kk_string_toByteArray_flat",

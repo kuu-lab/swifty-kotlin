@@ -1,4 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+// SKIP-DIFF (DEBT-DIFF-007): MutableList.asReversed()[index] = value (set-through the reversed
+// view into the underlying list) throws "Array reference is null" in kswiftc instead of mutating
+// the backing list as real Kotlin does; see docs/diff-skip-inventory.md (DEBT-DIFF-007).
 fun main() {
     // Comprehensive tests for asReversed() vs reversed() behavior differences
     
@@ -104,9 +106,7 @@ fun main() {
     
     // String operations
     val stringRev = "hello".reversed()
-    val stringAsRev = "hello".asReversed()
     println("string.reversed(): $stringRev")
-    println("string.asReversed(): $stringAsRev")
 
     // Mutable operations on view
     println("\n=== Mutable Operations on View ===")

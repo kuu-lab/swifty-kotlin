@@ -7,7 +7,12 @@ import Foundation
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // Match the flat String aggregate length field used by String.length lowering.
-    runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+    // The receiver may be any CharSequence implementation, so StringBuilder
+    // handles are accepted in addition to String handles.
+    if let text = runtimeCharSequenceText(from: raw) {
+        return text.utf8.count
+    }
+    return runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
 }
 
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
