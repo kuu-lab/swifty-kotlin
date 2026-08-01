@@ -1,4 +1,5 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
+import Foundation
 
 extension CallTypeChecker {
     func inferRegularMemberCall(
@@ -834,6 +835,18 @@ extension CallTypeChecker {
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
+        if interner.resolve(calleeName) == "asSequence" {
+            var debugLine = "KDEBUG regularResolution asSequence allCandidates=\(allCandidates.count) visible=\(visible.count) invisible=\(invisible.count)"
+            for sym in visible {
+                let info = sema.symbols.symbol(sym)
+                let hasDeclSite = info?.declSite != nil
+                let extLink = sema.symbols.externalLinkName(for: sym) ?? ""
+                let ownerSym = sema.symbols.parentSymbol(for: sym)
+                debugLine += " | sym=\(sym) declSite=\(hasDeclSite) extLink=\(extLink) owner=\(String(describing: ownerSym))"
+            }
+            debugLine += "\n"
+            FileHandle.standardError.write(Data(debugLine.utf8))
+        }
         if isNullLiteralReceiver,
            args.isEmpty,
            interner.resolve(calleeName) == "isNullOrEmpty",
