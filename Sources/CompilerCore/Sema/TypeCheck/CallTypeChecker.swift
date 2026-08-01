@@ -414,6 +414,11 @@ final class CallTypeChecker {
            locals[calleeName] == nil
         {
             let argumentExprID = args[0].expr
+            // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
+            // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
+            // launcher-continuation rewrite (BUG-049), not the generic
+            // escaping-callable-value (kk_function_create_N) ABI.
+            sema.bindings.markCoroutineLauncherLambdaExpr(argumentExprID)
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
@@ -741,17 +746,28 @@ final class CallTypeChecker {
             return sema.types.unitType
         }
 
+        let generateSequenceName = interner.intern("generateSequence")
+        let sequencesPackageFQName = [interner.intern("kotlin"), interner.intern("sequences")]
+        let hasSourceGenerateSequence = sema.bundledIndex.contains(
+            owner: sequencesPackageFQName,
+            name: generateSequenceName,
+            arity: args.count
+        )
         if let calleeName,
-           interner.resolve(calleeName) == "generateSequence",
+           calleeName == generateSequenceName,
            args.count == 2
         {
             let rawSeedType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
-            let seedType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
-                                      functionType.params.isEmpty
+            let seedType: TypeID
+            let firstArgIsZeroArgFunction: Bool
+            if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
+               functionType.params.isEmpty
             {
-                sema.types.makeNonNullable(functionType.returnType)
+                seedType = sema.types.makeNonNullable(functionType.returnType)
+                firstArgIsZeroArgFunction = true
             } else {
-                rawSeedType
+                seedType = rawSeedType
+                firstArgIsZeroArgFunction = false
             }
             let nextExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [seedType],
@@ -768,13 +784,31 @@ final class CallTypeChecker {
                 interner: interner,
                 elementType: seedType
             )
+            if hasSourceGenerateSequence,
+               let generateSequenceSymbol = sourceGenerateSequenceSymbol(
+                   sema: sema,
+                   interner: interner,
+                   arity: 2,
+                   firstArgumentIsZeroArgFunction: firstArgIsZeroArgFunction
+               )
+            {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: generateSequenceSymbol,
+                        substitutedTypeArguments: [seedType],
+                        parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(generateSequenceSymbol))
+            }
             sema.bindings.bindExprType(id, type: sequenceType)
             return sequenceType
         }
 
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         if let calleeName,
-           interner.resolve(calleeName) == "generateSequence",
+           calleeName == generateSequenceName,
            args.count == 1
         {
             // Infer the no-arg function type; deduce element type T from its return type.
@@ -784,6 +818,13 @@ final class CallTypeChecker {
             } else {
                 sema.types.anyType
             }
+            let nextExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: sema.types.makeNullable(elementType),
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nextExpectedType)
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             sema.bindings.markCollectionExpr(id)
             let sequenceType = makeSyntheticSequenceType(
@@ -792,6 +833,23 @@ final class CallTypeChecker {
                 interner: interner,
                 elementType: elementType
             )
+            if hasSourceGenerateSequence,
+               let generateSequenceSymbol = sourceGenerateSequenceSymbol(
+                   sema: sema,
+                   interner: interner,
+                   arity: 1
+               )
+            {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: generateSequenceSymbol,
+                        substitutedTypeArguments: [elementType],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(generateSequenceSymbol))
+            }
             sema.bindings.bindExprType(id, type: sequenceType)
             return sequenceType
         }
@@ -1914,7 +1972,7 @@ final class CallTypeChecker {
         // (non-lambda) and the second is a lambda, treat it as the block argument.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard let name = coroutineLauncherName,
-                  ["runBlocking", "launch", "async"].contains(name)
+                  ["runBlocking", "launch", "async", "coroutineScope", "supervisorScope"].contains(name)
             else { return nil }
             if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
                case .lambdaLiteral = firstArgExpr {
@@ -1945,6 +2003,24 @@ final class CallTypeChecker {
             )))
         } else {
             coroutineLauncherExpectedLambdaType = nil
+        }
+        // Mark lambda arguments passed to KIR-level coroutine launchers so
+        // LambdaLowerer skips the generic escaping-callable-value
+        // materialization path for them: CoroutineLoweringPass+
+        // LauncherSupport.swift's rewriteLauncherCall expects their captures
+        // forwarded via its own launcher-continuation convention (BUG-049),
+        // not bundled into a kk_function_create_N closure object. `produce`
+        // has its own dedicated builder branch above (CORO-075) with an early
+        // return, so it never reaches this general path and is marked there
+        // instead.
+        if let coroutineLauncherName,
+           ["runBlocking", "launch", "async"].contains(coroutineLauncherName)
+        {
+            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
+            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
+            }
         }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
                                                         calleeName == knownNames.withContext
@@ -2739,6 +2815,7 @@ final class CallTypeChecker {
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
             if let diagnostic = resolved.diagnostic {
@@ -2753,6 +2830,22 @@ final class CallTypeChecker {
                        expectedType: expectedType,
                        scopeCandidates: candidates,
                        ctx: ctx
+                   )
+                {
+                    return recovered
+                }
+                if let calleeName,
+                   let receiverType = ctx.implicitReceiverType,
+                   let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
+                       id,
+                       calleeName: calleeName,
+                       receiverType: receiverType,
+                       args: args,
+                       range: range,
+                       ctx: ctx,
+                       locals: &locals,
+                       expectedType: expectedType,
+                       explicitTypeArgs: explicitTypeArgs
                    )
                 {
                     return recovered
@@ -2788,7 +2881,7 @@ final class CallTypeChecker {
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             var adjustedReturnType: TypeID = if let coroutineLauncherName,
                 let launcherIndex = coroutineLauncherLambdaArgIndex,
-                ["async"].contains(coroutineLauncherName),
+                ["async", "coroutineScope", "supervisorScope"].contains(coroutineLauncherName),
                 args.indices.contains(launcherIndex)
             {
                 coroutineBuilderNarrowedReturnType(
@@ -3206,6 +3299,44 @@ final class CallTypeChecker {
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
             safeCall: true
         )
+    }
+
+    /// Locate a bundled-source `kotlin.sequences.generateSequence` overload with the
+    /// given arity. Returns nil when no source declaration is available, letting the
+    /// caller fall back to the runtime `kk_sequence_generate` path.
+    private func sourceGenerateSequenceSymbol(
+        sema: SemaModule,
+        interner: StringInterner,
+        arity: Int,
+        firstArgumentIsZeroArgFunction: Bool = false
+    ) -> SymbolID? {
+        let fqName = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("generateSequence")
+        ]
+        return sema.symbols.lookupAll(fqName: fqName).first { symbol in
+            guard let info = sema.symbols.symbol(symbol),
+                  info.declSite != nil,
+                  (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty,
+                  let sig = sema.symbols.functionSignature(for: symbol),
+                  sig.parameterTypes.count == arity
+            else {
+                return false
+            }
+            if arity == 2, sig.parameterTypes.count == 2 {
+                let firstIsFunction = if case let .functionType(firstFn) = sema.types.kind(of: sig.parameterTypes[0]) {
+                    firstFn.params.isEmpty
+                } else {
+                    false
+                }
+                guard case .functionType = sema.types.kind(of: sig.parameterTypes[1]) else {
+                    return false
+                }
+                return firstIsFunction == firstArgumentIsZeroArgFunction
+            }
+            return arity != 2
+        }
     }
 
 }

@@ -19,6 +19,14 @@ struct TypeInferenceContext: CustomStringConvertible {
     var flowState: DataFlowState
     let currentFileID: FileID
     var currentDeclSymbol: SymbolID?
+    /// When set, the symbol of the property/val whose initializer expression is
+    /// currently being type-checked. A bare name reference that resolves back to
+    /// this same symbol is a self-referential read before the property has ever
+    /// been initialized (DEBT-SEMA-003), e.g. `val cyclic: List<*> = listOf(cyclic)`.
+    /// Scoped to just the initializer expression — not carried into getter/setter
+    /// bodies, where reading the property's own name is a normal (if recursive)
+    /// property access rather than a use-before-init.
+    var initializingPropertySymbol: SymbolID?
     var enclosingClassSymbol: SymbolID?
     let visibilityChecker: VisibilityChecker
     var outerReceiverTypes: [(label: InternedString, type: TypeID)]
@@ -79,6 +87,10 @@ struct TypeInferenceContext: CustomStringConvertible {
 
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
+    }
+
+    func with(initializingPropertySymbol newSymbol: SymbolID?) -> TypeInferenceContext {
+        var copy = self; copy.initializingPropertySymbol = newSymbol; return copy
     }
 
     func copying(
