@@ -1,3 +1,5 @@
+import Foundation
+
 extension CollectionLiteralConstructionLoweringPass {
     private func shouldPreserveSourceBackedAggregateCall(
         symbol: SymbolID?,
@@ -105,6 +107,12 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) {
+        let isDebugAsSequence = callee == lookup.asSequenceName
+        if isDebugAsSequence {
+            FileHandle.standardError.write(Data(
+                "KDEBUG lowerCallInstruction ENTRY asSequence argCount=\(arguments.count)\n".utf8
+            ))
+        }
         if rewriteFactoryAndBuilderCall(
             symbol: symbol,
             callee: callee,
@@ -120,6 +128,9 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
+            if isDebugAsSequence {
+                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteFactoryAndBuilderCall\n".utf8))
+            }
             return
         }
 
@@ -136,6 +147,9 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
+            if isDebugAsSequence {
+                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteFileCall\n".utf8))
+            }
             return
         }
 
@@ -150,6 +164,9 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
+            if isDebugAsSequence {
+                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteArrayAndIteratorBridgeCall\n".utf8))
+            }
             return
         }
 
@@ -159,6 +176,9 @@ extension CollectionLiteralConstructionLoweringPass {
             lookup: lookup,
             ctx: ctx
         ) {
+            if isDebugAsSequence {
+                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at shouldPreserveSourceBackedAggregateCall\n".utf8))
+            }
             loweredBody.append(instruction)
             return
         }
@@ -175,9 +195,15 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
+            if isDebugAsSequence {
+                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteCollectionMemberCall\n".utf8))
+            }
             return
         }
 
+        if isDebugAsSequence {
+            FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence REACHED rewriteSequenceCollectionCall\n".utf8))
+        }
         if rewriteSequenceCollectionCall(
             symbol: symbol,
             callee: callee,

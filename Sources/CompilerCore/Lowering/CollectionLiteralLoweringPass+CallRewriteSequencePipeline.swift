@@ -16,6 +16,11 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+    if callee == lookup.asSequenceName {
+        FileHandle.standardError.write(Data(
+            "KDEBUG rewriteSequencePipelineCall ENTRY asSequence argCount=\(arguments.count) symbol=\(String(describing: symbol))\n".utf8
+        ))
+    }
     // --- Rewrite sequence member calls (STDLIB-003 / STDLIB-471) ---
     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
     // Guard with state.arrayExprIDs / state.listExprIDs so we only rewrite
