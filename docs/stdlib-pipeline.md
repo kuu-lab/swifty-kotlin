@@ -166,17 +166,24 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 方針: **都度コンパイル + 計測から始め、閾値超過で初めてキャッシュを設計する**（早すぎる最適化をしない）。
 
+`diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
+各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
+（デフォルト `.artifacts/diff_kotlinc`）配下に生成され、リポジトリにはコミットしない。これにより
+case あたりの stdlib 再コンパイルを回避する。
+
 1. 現状 (~2,300 行) は毎回フロントエンドに乗せる。`PhaseTimer` で
    「bundled stdlib 由来の Lex/Parse/Sema 時間」を分離計測できるようにする（RF-STDLIB-006）
 2. 計測ゲート: stdlib 注入によるコンパイル時間の増分が **hello.kt 相当の小入力で +100ms** を超えたら
    キャッシュ着手のトリガーとする（[`docs/refactoring-metrics.md`](refactoring-metrics.md) で正式化済み:
    ベースライン中央値 37.29ms、トリガー = 中央値 ≥ 137.29ms）
-3. キャッシュの段階案（トリガー後に選択）:
+3. `diff_kotlinc.sh` では `.kklib` 共有を使い、PoC ケースの candidate compile 合計/中央値を baseline 比 50% 以上、
+   full shard wall time を baseline 比 20% 以上削減できない場合は CI 切り替えを完了扱いにしない。
+4. キャッシュの段階案（トリガー後に選択）:
    - **案 A: pre-parse キャッシュ** — コンパイラビルド時に bundled .kt をトークン列/AST へ
      シリアライズし同梱（`IncrementalCompilationCache` の仕組みを流用）。実装コスト小
    - **案 B: Sema 済みシンボルテーブルの同梱**（klib 的方向）。効果最大だが
      シリアライズ形式の設計・golden への影響が大きい。stdlib が数万行規模になるまで保留
-4. ユーザー側の `IncrementalCompilationCache` に対しては、bundled ソースは
+5. ユーザー側の `IncrementalCompilationCache` に対しては、bundled ソースは
    「コンパイラバージョンにのみ依存する固定入力」として扱い、ユーザー入力の変更で再検証しない
 
 > 補足: 並行メモが提案していた別基準（Smoke 相当の入力で wall-clock 15%未満 or 200ms未満）との

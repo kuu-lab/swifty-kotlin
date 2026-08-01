@@ -220,7 +220,8 @@ extension CallLowerer {
         }
         if normalized.defaultMask != 0,
            let chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true
+           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosenCallee,

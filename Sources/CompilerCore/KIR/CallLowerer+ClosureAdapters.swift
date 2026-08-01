@@ -923,6 +923,8 @@ extension CallLowerer {
         let fixedComparatorSelectorCount: Int? = switch externalLinkName {
         case "kk_comparator_from_multi_selectors": 2
         case "kk_comparator_from_multi_selectors3": 3
+        case "kk_comparator_from_selector",
+             "kk_comparator_from_selector_descending": 1
         case "kk_compareValuesBy1": 1
         case "kk_compareValuesBy": 2
         case "kk_compareValuesBy3": 3

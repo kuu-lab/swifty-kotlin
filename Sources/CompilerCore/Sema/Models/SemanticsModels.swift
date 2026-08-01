@@ -411,6 +411,9 @@ public final class SymbolTable {
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
+    /// Backend ABI return type for functions whose compiled calling convention
+    /// differs from their source-level return type (e.g. raw `Int` string handles).
+    private var functionABIReturnTypes: [SymbolID: TypeID] = [:]
     private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
@@ -820,6 +823,14 @@ public final class SymbolTable {
         externalLinkNames[symbol]
     }
 
+    public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
+        functionABIReturnTypes[symbol] = type
+    }
+
+    public func functionABIReturnType(for symbol: SymbolID) -> TypeID? {
+        functionABIReturnTypes[symbol]
+    }
+
     public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
         stdlibSpecialCallKindsBySymbol[symbol] = kind
     }
@@ -1123,6 +1134,17 @@ public final class SymbolTable {
     /// Returns all symbol IDs declared at the given source range.
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {
         byDeclSite[site] ?? []
+    }
+
+    /// Returns true when the symbol represents a real Kotlin declaration
+    /// (either bundled/user source or an imported library symbol), as opposed
+    /// to a synthetic runtime stub. Imported library symbols are treated as
+    /// source-backed because they carry the ABI name of the originally
+    /// compiled declaration.
+    public func isSourceBackedSymbol(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = self.symbol(symbolID) else { return false }
+        if symbol.flags.contains(.importedLibrary) { return true }
+        return symbol.declSite != nil && (externalLinkName(for: symbolID) ?? "").isEmpty
     }
 }
 

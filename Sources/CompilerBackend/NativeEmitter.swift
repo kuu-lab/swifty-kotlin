@@ -16,6 +16,11 @@ struct NativeEmitter {
         "kk_println_newline",
     ]
 
+    /// Quick lookup for runtime ABI function specs by symbol name.
+    static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
+        Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+    }()
+
     struct LLVMFunction {
         let value: LLVMCAPIBindings.LLVMValueRef
         let type: LLVMCAPIBindings.LLVMTypeRef
@@ -79,12 +84,36 @@ struct NativeEmitter {
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
-        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee()
+        Self.collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+    }
+
+    static func collectRuntimeCallbackRawStringReturnSymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        typeSystem: TypeSystem?,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let rawSymbols = collectRuntimeCallbackRawABISymbols(module: module, interner: interner, symbols: symbols)
+        guard let typeSystem else { return [] }
+        return Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration else { return nil }
+            guard rawSymbols.contains(function.symbol) else { return nil }
+            guard case .stringStruct = typeSystem.kind(of: function.returnType) else { return nil }
+            return function.symbol
+        })
+    }
+
+    static func collectRuntimeCallbackRawABISymbols(
+        module: KIRModule,
+        interner: StringInterner,
+        symbols: SymbolTable? = nil
+    ) -> Set<SymbolID> {
+        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee(interner: interner)
         guard !callbackArgumentPositionsByCallee.isEmpty else {
             return []
         }
 
-        var symbols: Set<SymbolID> = []
+        var rawSymbols: Set<SymbolID> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration else {
                 continue
@@ -97,7 +126,7 @@ struct NativeEmitter {
                     }
                     for position in callbackPositions where arguments.indices.contains(position) {
                         if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                            symbols.insert(symbol)
+                            rawSymbols.insert(symbol)
                         }
                     }
 
@@ -106,7 +135,7 @@ struct NativeEmitter {
                 }
             }
         }
-        guard !symbols.isEmpty else {
+        guard !rawSymbols.isEmpty else {
             return []
         }
 
@@ -120,7 +149,8 @@ struct NativeEmitter {
         var rawCallbackKeys: Set<FunctionABIKey> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  symbols.contains(function.symbol)
+                  rawSymbols.contains(function.symbol),
+                  Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
             else {
                 continue
             }
@@ -134,18 +164,32 @@ struct NativeEmitter {
                 continue
             }
             let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
-            if rawCallbackKeys.contains(key) {
-                symbols.insert(function.symbol)
+            if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                rawSymbols.insert(function.symbol)
             }
         }
-        return symbols
+        return rawSymbols
     }
 
-    private func runtimeCallbackArgumentPositionsByCallee() -> [InternedString: [Int]] {
+    private static func isSyntheticCallbackFunction(
+        _ function: KIRFunction,
+        symbols: SymbolTable?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbols else { return true }
+        guard let symbolInfo = symbols.symbol(function.symbol) else { return false }
+        return symbolInfo.flags.contains(.synthetic)
+    }
+
+    private static func runtimeCallbackArgumentPositionsByCallee(
+        interner: StringInterner
+    ) -> [InternedString: [Int]] {
         var positionsByCallee: [InternedString: [Int]] = [:]
         for spec in RuntimeABISpec.allFunctions {
             if spec.name == "kk_object_register_itable_method"
-                || spec.name == "kk_object_register_vtable_method" {
+                || spec.name == "kk_object_register_vtable_method"
+                || spec.name.hasPrefix("__kk_kfunction_create")
+                || spec.name == "__kk_kconstructor_create" {
                 continue
             }
             var positions: [Int] = []

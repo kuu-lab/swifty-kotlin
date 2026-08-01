@@ -284,6 +284,12 @@ func maybeUnbox(_ value: Int) -> Int {
     guard isObjectPointer else {
         return value
     }
+    // Recognize string/sequence boxes first so unrelated primitive casts do
+    // not trip on object pointers whose class metadata lives in libswiftCore.
+    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+        _ = stringBox
+        return value
+    }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
         return intBox.value
     }

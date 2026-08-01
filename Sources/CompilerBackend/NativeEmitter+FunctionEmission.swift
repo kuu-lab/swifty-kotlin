@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import RuntimeABI
 import CompilerCore
 extension NativeEmitter {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -1167,6 +1168,16 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
+                "__kk_string_builder_toString": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_builder_toString",
+                    stringArgumentCount: 0,
+                    extraArgumentCount: 1
+                ),
+                "__kk_bignum_toString": FlatScalarReturnCallSpec(
+                    flatName: "__kk_bignum_toString",
+                    stringArgumentCount: 0,
+                    extraArgumentCount: 1
+                ),
                 // KSP-404: startsWith/endsWith are bundled Kotlin source
                 // (StringPrefixSuffix.kt); no flat emission spec.
                 "kk_string_contains_str_flat": FlatScalarReturnCallSpec(
@@ -1945,13 +1956,14 @@ extension NativeEmitter {
 
         func sourceExternalSignature(
             for symbol: SymbolID?,
-            calleeName: String,
             argumentCount: Int
         ) -> (parameters: [TypeID], returnType: TypeID)? {
-            guard calleeName.hasPrefix("kk_fn_"),
-                  let symbol,
+            guard let symbol,
                   let symbols,
-                  let signature = symbols.functionSignature(for: symbol)
+                  let typeSystem,
+                  let signature = symbols.functionSignature(for: symbol),
+                  let externalLinkName = symbols.externalLinkName(for: symbol),
+                  !externalLinkName.isEmpty
             else {
                 return nil
             }
@@ -1959,7 +1971,36 @@ extension NativeEmitter {
             guard parameters.count == argumentCount else {
                 return nil
             }
-            return (parameters, signature.returnType)
+
+            func isHandleLike(_ type: RuntimeABICType) -> Bool {
+                switch type {
+                case .intptr, .opaquePointer, .nullableOpaquePointer:
+                    return true
+                default:
+                    return false
+                }
+            }
+
+            let resolvedParameters: [TypeID]
+            let resolvedReturnType: TypeID
+            if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName],
+               spec.parameters.count == parameters.count {
+                resolvedParameters = zip(parameters, spec.parameters).map { kotlinType, abiParam in
+                    if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
+                        return typeSystem.intType
+                    }
+                    return kotlinType
+                }
+                if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
+                    resolvedReturnType = typeSystem.intType
+                } else {
+                    resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
+                }
+            } else {
+                resolvedParameters = parameters
+                resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
+            }
+            return (resolvedParameters, resolvedReturnType)
         }
 
         func loweredLLVMTypes(for types: [TypeID]) -> [LLVMCAPIBindings.LLVMTypeRef?] {
@@ -2758,10 +2799,10 @@ extension NativeEmitter {
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let calleeFunction: LLVMFunction?
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
+                let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
                 let sourceExternalCallSignature = !isInternalCall
                     ? sourceExternalSignature(
                         for: effectiveSymbol,
-                        calleeName: externalCalleeName,
                         argumentCount: argumentValues.count
                     )
                     : nil
@@ -2787,7 +2828,7 @@ extension NativeEmitter {
                         parameterTypes.append(outThrownPointerType)
                     }
                     calleeFunction = declareExternalFunction(
-                        named: externalCalleeName,
+                        named: effectiveExternalName,
                         parameterTypes: parameterTypes,
                         returnType: loweredLLVMType(
                             for: sourceExternalCallSignature.returnType,

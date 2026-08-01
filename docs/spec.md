@@ -88,6 +88,13 @@ public struct CompilerOptions: Equatable {
     public var includeStdlib: Bool
     public var incrementalCachePath: String?
 
+    /// When true, compile only the bundled/residual stdlib into a .kklib.
+    public var stdlibOnly: Bool
+    /// Path to a prebuilt stdlib .kklib. Disables bundled source injection.
+    public var stdlibLibraryPath: String?
+    /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
+    public var effectiveLibrarySearchPaths: [String]
+
     public static func defaultStdlibSearchPaths() -> [String]
 }
 ```
@@ -925,7 +932,9 @@ Foo.kklib/
   "target": "arm64-apple-macosx",
   "objects": ["objects/Foo_0.o"],
   "metadata": "metadata.bin",
-  "inlineKIRDir": "inline-kir"
+  "inlineKIRDir": "inline-kir",
+  "libraryKind": "stdlib",
+  "stdlibManifestHash": "<hash>"
 }
 ```
 

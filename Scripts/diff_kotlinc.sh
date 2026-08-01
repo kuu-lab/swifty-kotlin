@@ -29,6 +29,7 @@ DIFF_SHARD_COUNT="${DIFF_SHARD_COUNT:-1}"
 DIFF_LOG_PASS="${DIFF_LOG_PASS:-1}"
 LAST_ARTIFACT_DIR=""
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_kotlinc}"
+DIFF_STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
 FORCE_RUN_SKIPPED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
@@ -74,6 +75,8 @@ Options:
   --artifact-root <path>
                      Persist failing case artifacts under this directory
                      (default: \$DIFF_ARTIFACT_ROOT or .artifacts/diff_kotlinc)
+  --stdlib-library <path>
+                     Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
   --clean-runtime-cache
@@ -102,6 +105,9 @@ Environment:
   KOTLINC_REF_CACHE_DIR
                      Reuse successful non-script reference jars from this
                      directory (default: empty, which disables the cache)
+  DIFF_STDLIB_LIBRARY
+                     Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
+                     the runner builds one under DIFF_ARTIFACT_ROOT
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -222,6 +228,17 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       ARTIFACT_ROOT="$1"
+      ;;
+    --stdlib-library)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--stdlib-library requires an argument" >&2
+        exit 1
+      fi
+      DIFF_STDLIB_LIBRARY="$1"
+      ;;
+    --stdlib-library=*)
+      DIFF_STDLIB_LIBRARY="${1#*=}"
       ;;
     --force-run-skipped)
       FORCE_RUN_SKIPPED=1
@@ -655,6 +672,50 @@ if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) ))
   WORKER_COUNT=1
 fi
 
+stdlib_manifest_hash() {
+  local artifact_dir="$1"
+  local manifest_path="$artifact_dir/manifest.json"
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "unknown"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("stdlibManifestHash",""))' "$manifest_path" 2>/dev/null || echo "unknown"
+  else
+    echo "unknown"
+  fi
+}
+
+build_stdlib_artifact() {
+  if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+    if [[ ! -d "$DIFF_STDLIB_LIBRARY" || ! -f "$DIFF_STDLIB_LIBRARY/manifest.json" ]]; then
+      echo "Stdlib library does not exist or is missing manifest.json: $DIFF_STDLIB_LIBRARY" >&2
+      return 1
+    fi
+    STDLIB_ARTIFACT="$DIFF_STDLIB_LIBRARY"
+    return 0
+  fi
+
+  mkdir -p "$ARTIFACT_ROOT"
+  STDLIB_ARTIFACT="$ARTIFACT_ROOT/KSwiftKStdlib.kklib"
+  local stdlib_build_stdout="$ARTIFACT_ROOT/stdlib_build.stdout"
+  local stdlib_build_stderr="$ARTIFACT_ROOT/stdlib_build.stderr"
+
+  echo "Building stdlib artifact: $STDLIB_ARTIFACT"
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
+    >"$stdlib_build_stdout" 2>"$stdlib_build_stderr" || {
+      echo "Failed to build stdlib artifact" >&2
+      if [[ -s "$stdlib_build_stderr" ]]; then
+        cat "$stdlib_build_stderr" >&2
+      fi
+      return 1
+    }
+
+  local stdlib_manifest_hash
+  stdlib_manifest_hash="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
+  echo "Stdlib artifact manifest hash: $stdlib_manifest_hash"
+}
+
 echo "=== diff_kotlinc Configuration ==="
 echo "Workers: $WORKER_COUNT"
 if (( DIFF_SHARD_COUNT > 1 )); then
@@ -670,12 +731,18 @@ if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
 else
   echo "Kotlinc reference cache: disabled"
 fi
+echo "Stdlib artifact: ${STDLIB_ARTIFACT:-}"
 echo "Target: $TARGET"
 echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
 # not the first kotlinc startup cost.
 warm_kotlinc
+
+# Build or resolve the precompiled stdlib artifact once per shard. Each candidate
+# compile below will reference it with --stdlib-library instead of recompiling
+# bundled stdlib sources.
+build_stdlib_artifact || exit 1
 
 # Emits this shard's cases (interleaved sharding via lib/common.sh;
 # DIFF_SHARD_COUNT == 1 emits everything).
@@ -772,7 +839,7 @@ persist_artifacts() {
   cp "$case_path" "$destination/input.kt"
 
   if [[ $cand_compile_exit -eq 0 ]]; then
-    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir "$case_path" -o "$destination/candidate.kir" \
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
       2>"$destination/candidate_kir.stderr" || true
   fi
@@ -791,6 +858,8 @@ ref_compile_exit: $ref_compile_exit
 candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
 candidate_run_exit: $cand_run_exit
+stdlib_artifact: $STDLIB_ARTIFACT
+stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
 kswiftc: $KSWIFTC
 kotlinc: $KOTLINC
 java: $JAVA_BIN
@@ -802,7 +871,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
-bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped "$case_path"
+DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
   chmod +x "$destination/repro.sh"
 
@@ -983,7 +1052,7 @@ run_case() {
     fi
   fi
 
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
   if [[ $cand_compile_exit -eq 0 ]]; then
     if needs_stdin_eof "$kt_file"; then
       "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?

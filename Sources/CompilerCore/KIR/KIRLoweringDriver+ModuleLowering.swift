@@ -85,6 +85,12 @@ extension KIRLoweringDriver {
             return false
         }
 
+        // When emitting a dedicated stdlib .kklib, the bundled/residual source
+        // bodies must be lowered into objects and inline-KIR artifacts.
+        if compilationCtx.options.stdlibOnly {
+            return false
+        }
+
         switch compilationCtx.options.emit {
         case .kirDump, .library:
             return true

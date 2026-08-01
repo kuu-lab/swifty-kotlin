@@ -12,6 +12,12 @@ package struct MetadataRecord {
     package let isSuspend: Bool
     package let isInline: Bool
     let typeSignature: String?
+    /// Per-parameter vararg flags for function/constructor signatures.
+    package let valueParameterIsVararg: [Bool]
+    /// Per-parameter default-value flags for function/constructor signatures.
+    package let valueParameterHasDefaultValues: [Bool]
+    /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
+    let defaultStubExternalLinkName: String?
     let externalLinkName: String?
     package let declaredFieldCount: Int?
     package let declaredInstanceSizeWords: Int?
@@ -44,6 +50,19 @@ package struct MetadataRecord {
     let isExpect: Bool
     let isActual: Bool
 
+    /// Receiver type signature for extension properties; nil for non-extension properties.
+    let propertyReceiverTypeSignature: String?
+    /// Link name of the precompiled getter accessor for extension properties.
+    let propertyGetterExternalLinkName: String?
+    /// ABI return type signature for functions whose compiled return type differs
+    /// from the source-level signature (e.g. raw `Int` string handles).
+    let abiReturnTypeSignature: String?
+    /// ABI return type signature for extension property getters when it differs
+    /// from the property's source type.
+    let propertyGetterAbiReturnTypeSignature: String?
+    /// True for `var` properties/fields.
+    package let isMutable: Bool
+
     init(
         kind: SymbolKind,
         mangledName: String = "",
@@ -52,6 +71,9 @@ package struct MetadataRecord {
         isSuspend: Bool = false,
         isInline: Bool = false,
         typeSignature: String? = nil,
+        valueParameterIsVararg: [Bool] = [],
+        valueParameterHasDefaultValues: [Bool] = [],
+        defaultStubExternalLinkName: String? = nil,
         externalLinkName: String? = nil,
         declaredFieldCount: Int? = nil,
         declaredInstanceSizeWords: Int? = nil,
@@ -68,7 +90,12 @@ package struct MetadataRecord {
         valueClassUnderlyingTypeSig: String? = nil,
         sealedSubclassFQNames: [String] = [],
         isExpect: Bool = false,
-        isActual: Bool = false
+        isActual: Bool = false,
+        propertyReceiverTypeSignature: String? = nil,
+        propertyGetterExternalLinkName: String? = nil,
+        abiReturnTypeSignature: String? = nil,
+        propertyGetterAbiReturnTypeSignature: String? = nil,
+        isMutable: Bool = false
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -77,6 +104,9 @@ package struct MetadataRecord {
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.typeSignature = typeSignature
+        self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+        self.defaultStubExternalLinkName = defaultStubExternalLinkName
         self.externalLinkName = externalLinkName
         self.declaredFieldCount = declaredFieldCount
         self.declaredInstanceSizeWords = declaredInstanceSizeWords
@@ -94,6 +124,11 @@ package struct MetadataRecord {
         self.sealedSubclassFQNames = sealedSubclassFQNames
         self.isExpect = isExpect
         self.isActual = isActual
+        self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
+        self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+        self.abiReturnTypeSignature = abiReturnTypeSignature
+        self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
+        self.isMutable = isMutable
     }
 }
 
@@ -135,7 +170,8 @@ package final class MetadataEncoder {
         includeNonPublic: Bool = false,
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
-        excludedFileIDs: Set<Int32> = []
+        excludeSourceFileIDs: Set<Int32> = [],
+        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = []
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -152,13 +188,7 @@ package final class MetadataEncoder {
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
-                if let declSite = symbol.declSite, excludedFileIDs.contains(declSite.start.file.rawValue) {
-                    return false
-                }
-                // Library metadata exports user module symbols only. Stdlib synthetic stubs
-                // (also/apply/charArrayOf/…) are re-registered on every compilation and must
-                // not be serialized into .kklib metadata.
-                if !excludedFileIDs.isEmpty, symbol.flags.contains(.synthetic) {
+                if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
                     return false
                 }
                 return true
@@ -175,6 +205,7 @@ package final class MetadataEncoder {
                 return lhs.id.rawValue < rhs.id.rawValue
             }
 
+        let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
             let isSyntheticNominalAnchor = !includeSynthetic
@@ -189,7 +220,9 @@ package final class MetadataEncoder {
                 interner: interner,
                 functionLinkNames: functionLinkNames,
                 inlineFunctionSymbols: inlineFunctionSymbols,
-                metadataAnchorOnly: isSyntheticNominalAnchor
+                metadataAnchorOnly: isSyntheticNominalAnchor,
+                runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
+                includedSymbolIDs: exportedSymbolIDs
             ))
         }
         return records
@@ -379,7 +412,9 @@ package final class MetadataEncoder {
         interner: StringInterner,
         functionLinkNames: [SymbolID: String] = [:],
         inlineFunctionSymbols: Set<SymbolID> = [],
-        metadataAnchorOnly: Bool = false
+        metadataAnchorOnly: Bool = false,
+        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -399,21 +434,58 @@ package final class MetadataEncoder {
         var isSuspend = false
         var isInline = false
         var typeSignature: String?
+        var valueParameterIsVararg: [Bool] = []
+        var valueParameterHasDefaultValues: [Bool] = []
+        var defaultStubExternalLinkName: String?
         var externalLinkName: String?
+        var abiReturnTypeSignature: String?
 
         if symbol.kind == .function || symbol.kind == .constructor, let signature = symbols.functionSignature(for: symbol.id) {
             arity = signature.parameterTypes.count
             isSuspend = signature.isSuspend
-            isInline = symbol.flags.contains(.inlineFunction) || inlineFunctionSymbols.contains(symbol.id)
+            // Only mark a record as inline when an actual inline KIR body was emitted.
+            // Source flags may be set for runtime-backed synthetic functions that have
+            // no KIR body, and those must not try to load a missing inline-kir file.
+            isInline = inlineFunctionSymbols.contains(symbol.id)
+            valueParameterIsVararg = signature.valueParameterIsVararg
+            valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
                 types: types,
                 nameResolver: { interner.resolve($0) }
             )
-            externalLinkName = functionLinkNames[symbol.id]
+            externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
+            if signature.valueParameterHasDefaultValues.contains(true) {
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
+                defaultStubExternalLinkName = functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
+            }
+            if runtimeCallbackRawReturnSymbolIDs.contains(symbol.id),
+               symbols.functionABIReturnType(for: symbol.id) == nil
+            {
+                abiReturnTypeSignature = metadataTypeSignature(
+                    types.intType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
+            if let abiReturnType = symbols.functionABIReturnType(for: symbol.id) {
+                abiReturnTypeSignature = metadataTypeSignature(
+                    abiReturnType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
         }
 
+        var propertyReceiverTypeSignature: String?
+        var propertyGetterExternalLinkName: String?
+        var propertyGetterAbiReturnTypeSignature: String?
+        var isMutable = false
         if symbol.kind == .property || symbol.kind == .field,
            symbols.propertyType(for: symbol.id) != nil
         {
@@ -426,6 +498,33 @@ package final class MetadataEncoder {
                     nameResolver: { interner.resolve($0) }
                 )
             }
+            propertyReceiverTypeSignature = symbols.extensionPropertyReceiverType(for: symbol.id).map { receiverType in
+                metadataTypeSignature(
+                    receiverType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
+            // Extension properties are lowered as a getter accessor function in the
+            // artifact objects. Record that function's link name so consumers can
+            // call the precompiled getter directly.
+            if propertyReceiverTypeSignature != nil,
+               let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol.id)
+            {
+                propertyGetterExternalLinkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol)
+                if runtimeCallbackRawReturnSymbolIDs.contains(getterSymbol) {
+                    propertyGetterAbiReturnTypeSignature = metadataTypeSignature(
+                        types.intType,
+                        symbols: symbols,
+                        types: types,
+                        mangler: mangler,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                }
+            }
+            isMutable = symbol.flags.contains(.mutable)
         }
 
         if symbol.kind == .typeAlias,
@@ -457,15 +556,15 @@ package final class MetadataEncoder {
             declaredVtableSize = layout.vtableSize
             declaredItableSize = layout.itableSize
 
-            let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner)
+            let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
             if !serializedFieldOffsets.isEmpty {
                 fieldOffsetsStr = serializedFieldOffsets
             }
-            let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner)
+            let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
             if !serializedVTableSlots.isEmpty {
                 vtableSlotsStr = serializedVTableSlots
             }
-            let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner)
+            let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
             if !serializedITableSlots.isEmpty {
                 itableSlotsStr = serializedITableSlots
             }
@@ -520,6 +619,9 @@ package final class MetadataEncoder {
             isSuspend: isSuspend,
             isInline: isInline,
             typeSignature: typeSignature,
+            valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
             declaredFieldCount: declaredFieldCount,
             declaredInstanceSizeWords: declaredInstanceSizeWords,
@@ -536,7 +638,12 @@ package final class MetadataEncoder {
             valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
             sealedSubclassFQNames: sealedSubclassFQNames,
             isExpect: isExpect,
-            isActual: isActual
+            isActual: isActual,
+            propertyReceiverTypeSignature: propertyReceiverTypeSignature,
+            propertyGetterExternalLinkName: propertyGetterExternalLinkName,
+            abiReturnTypeSignature: abiReturnTypeSignature,
+            propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
+            isMutable: isMutable
         )
     }
 
@@ -564,16 +671,42 @@ package final class MetadataEncoder {
                 fields.append("arity=\(record.arity)")
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
+                if !record.valueParameterIsVararg.isEmpty {
+                    let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
+                    fields.append("vararg=\(mask)")
+                }
+                if !record.valueParameterHasDefaultValues.isEmpty {
+                    let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
+                    fields.append("default=\(mask)")
+                }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
                 }
+                if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
+                    fields.append("defaultLink=\(linkName)")
+                }
                 if let linkName = record.externalLinkName, !linkName.isEmpty {
                     fields.append("link=\(linkName)")
+                }
+                if let abiSig = record.abiReturnTypeSignature {
+                    fields.append("abiSig=\(abiSig)")
                 }
             }
             if record.kind == .property || record.kind == .field {
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
+                }
+                if let recv = record.propertyReceiverTypeSignature {
+                    fields.append("recv=\(recv)")
+                }
+                if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                    fields.append("getterLink=\(getterLink)")
+                }
+                if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature {
+                    fields.append("getterAbiSig=\(getterAbiSig)")
+                }
+                if record.isMutable {
+                    fields.append("mutable=1")
                 }
             }
             if record.kind == .typeAlias {
@@ -639,10 +772,14 @@ package final class MetadataEncoder {
     func serializeFieldOffsets(
         _ offsets: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
         let pairs: [(String, Int)] = offsets.compactMap { symbolID, offset in
             guard let symbol = symbols.symbol(symbolID) else {
+                return nil
+            }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -661,10 +798,14 @@ package final class MetadataEncoder {
     func serializeVTableSlots(
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
+                return nil
+            }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -687,10 +828,14 @@ package final class MetadataEncoder {
     func serializeITableSlots(
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID) else {
+                return nil
+            }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -777,6 +922,9 @@ final class MetadataDecoder {
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
                 typeSignature: rec.typeSignature,
+                valueParameterIsVararg: rec.valueParameterIsVararg,
+                valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+                defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
                 externalLinkName: rec.externalLinkName,
                 declaredFieldCount: rec.declaredFieldCount,
                 declaredInstanceSizeWords: rec.declaredInstanceSizeWords,
@@ -793,7 +941,12 @@ final class MetadataDecoder {
                 valueClassUnderlyingTypeSig: rec.valueClassUnderlyingTypeSig,
                 sealedSubclassFQNames: rec.sealedSubclassFQNames,
                 isExpect: rec.isExpect,
-                isActual: rec.isActual
+                isActual: rec.isActual,
+                propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
+                propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
+                abiReturnTypeSignature: rec.abiReturnTypeSignature,
+                propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
+                isMutable: rec.isMutable
             ))
         }
         return records
@@ -808,6 +961,9 @@ final class MetadataDecoder {
         var isSuspend: Bool = false
         var isInline: Bool = false
         var typeSignature: String?
+        var valueParameterIsVararg: [Bool] = []
+        var valueParameterHasDefaultValues: [Bool] = []
+        var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var declaredFieldCount: Int?
         var declaredInstanceSizeWords: Int?
@@ -825,6 +981,11 @@ final class MetadataDecoder {
         var sealedSubclassFQNames: [String] = []
         var isExpect: Bool = false
         var isActual: Bool = false
+        var propertyReceiverTypeSignature: String?
+        var propertyGetterExternalLinkName: String?
+        var abiReturnTypeSignature: String?
+        var propertyGetterAbiReturnTypeSignature: String?
+        var isMutable: Bool = false
         var schemaVersion: String?
     }
 
@@ -838,6 +999,12 @@ final class MetadataDecoder {
             record.isSuspend = value == "1" || value == "true"
         case "inline":
             record.isInline = value == "1" || value == "true"
+        case "vararg":
+            record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "default":
+            record.valueParameterHasDefaultValues = value.map { $0 == "1" }
+        case "defaultLink":
+            record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":
             record.typeSignature = value.isEmpty ? nil : value
         case "link":
@@ -874,6 +1041,16 @@ final class MetadataDecoder {
             record.isExpect = value == "1" || value == "true"
         case "actual":
             record.isActual = value == "1" || value == "true"
+        case "recv":
+            record.propertyReceiverTypeSignature = value.isEmpty ? nil : value
+        case "getterLink":
+            record.propertyGetterExternalLinkName = value.isEmpty ? nil : value
+        case "getterAbiSig":
+            record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
+        case "mutable":
+            record.isMutable = value == "1" || value == "true"
+        case "abiSig":
+            record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":
             record.schemaVersion = value
         default:
@@ -923,5 +1100,36 @@ final class MetadataDecoder {
 
     func symbolKindFromMetadata(_ token: String) -> SymbolKind? {
         symbolKindFromMetadataToken(token)
+    }
+}
+
+// MARK: - Inline KIR Filename Helpers
+
+extension String {
+    /// FNV-1a 64-bit hash used to derive a stable, filesystem-safe filename
+    /// from an arbitrary mangled name.
+    package var fnv1a64Hash: UInt64 {
+        let offset: UInt64 = 14695981039346656037
+        let prime: UInt64 = 1099511628211
+        var hash = offset
+        for byte in self.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* prime
+        }
+        return hash
+    }
+}
+
+extension MetadataEncoder {
+    /// Returns the inline-KIR filename for a mangled symbol name.
+    /// Short, filesystem-safe names are preserved; long or non-alphanumeric
+    /// mangled names are hashed to avoid exceeding filesystem path limits.
+    package static func inlineKIRFileName(for mangledName: String) -> String {
+        let safePattern = "^[A-Za-z0-9_-]+$"
+        let isSafe = mangledName.range(of: safePattern, options: .regularExpression) != nil
+        if isSafe && mangledName.count <= 64 {
+            return "\(mangledName).kirbin"
+        }
+        return "\(mangledName.fnv1a64Hash).kirbin"
     }
 }

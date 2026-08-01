@@ -119,8 +119,7 @@ extension CallLowerer {
                   chosenCallee != .invalid,
                   let symbol = sema.symbols.symbol(chosenCallee),
                   symbol.kind == .function,
-                  symbol.declSite != nil,
-                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
             else {
                 return false
             }
@@ -139,7 +138,7 @@ extension CallLowerer {
                   chosenCallee != .invalid,
                   let symbol = sema.symbols.symbol(chosenCallee),
                   symbol.kind == .function,
-                  symbol.declSite != nil
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
             else {
                 return false
             }
@@ -150,7 +149,6 @@ extension CallLowerer {
             }
             let sourceBackedStringMemberNames: Set<String> = ["split", "replace", "replaceFirst"]
             return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
-                && (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
         }()
         // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
         // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
@@ -161,8 +159,7 @@ extension CallLowerer {
                   chosenCallee != .invalid,
                   let symbol = sema.symbols.symbol(chosenCallee),
                   symbol.kind == .function,
-                  symbol.declSite != nil,
-                  (sema.symbols.externalLinkName(for: chosenCallee) ?? "").isEmpty
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
             else {
                 return false
             }
@@ -261,8 +258,7 @@ extension CallLowerer {
             guard let chosenBase64Callee,
                   let symbol = sema.symbols.symbol(chosenBase64Callee),
                   symbol.kind == .function,
-                  symbol.declSite != nil,
-                  (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+                  sema.symbols.isSourceBackedSymbol(chosenBase64Callee)
             else {
                 return false
             }
@@ -274,8 +270,7 @@ extension CallLowerer {
             guard let chosenBase64Callee,
                   let symbol = sema.symbols.symbol(chosenBase64Callee),
                   symbol.kind == .function,
-                  symbol.declSite != nil,
-                  (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+                  sema.symbols.isSourceBackedSymbol(chosenBase64Callee)
             else {
                 return false
             }

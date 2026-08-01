@@ -1715,7 +1715,7 @@ final class CallTypeChecker {
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                 guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                 return sig.parameterTypes.count == 2
-                    && sema.symbols.externalLinkName(for: candidate) == nil
+                    && !sig.valueParameterIsVararg.contains(true)
             }) {
                 sema.bindings.bindCall(
                     id,
@@ -1856,7 +1856,6 @@ final class CallTypeChecker {
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.count == 1
                         && sig.valueParameterIsVararg != [true]
-                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -1916,7 +1915,6 @@ final class CallTypeChecker {
                 if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
                     return sig.parameterTypes.isEmpty
-                        && sema.symbols.externalLinkName(for: candidate) == nil
                 }) {
                     sema.bindings.bindCall(
                         id,
@@ -3316,9 +3314,8 @@ final class CallTypeChecker {
             interner.intern("generateSequence")
         ]
         return sema.symbols.lookupAll(fqName: fqName).first { symbol in
-            guard let info = sema.symbols.symbol(symbol),
-                  info.declSite != nil,
-                  (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty,
+            guard sema.symbols.symbol(symbol) != nil,
+                  sema.symbols.isSourceBackedSymbol(symbol),
                   let sig = sema.symbols.functionSignature(for: symbol),
                   sig.parameterTypes.count == arity
             else {

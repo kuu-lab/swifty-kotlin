@@ -8,6 +8,11 @@ extension DataFlowSemaPhase {
         let isValid: Bool
     }
 
+    struct LibraryImportDeferredWork {
+        let pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])]
+        let importedBindings: [ImportedLibraryBinding]
+    }
+
     func loadImportedLibrarySymbols(
         options: CompilerOptions,
         symbols: SymbolTable,
@@ -16,12 +21,20 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         cache: LibraryMetadataCache? = nil
-    ) {
-        let libraryDirs = discoverLibraryDirectories(searchPaths: options.searchPaths)
+    ) -> LibraryImportDeferredWork {
+        let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
+        var stdlibArtifactLoaded = false
+
+        func isStdlibArtifact(_ libraryDir: String) -> Bool {
+            guard let stdlibLibraryPath = options.stdlibLibraryPath else { return false }
+            return URL(fileURLWithPath: libraryDir).standardizedFileURL.path
+                == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
+        }
 
         for libraryDir in libraryDirs {
+            let stdlibArtifact = isStdlibArtifact(libraryDir)
             let manifestInfo: LibraryManifestInfo
             if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
                 manifestInfo = cached
@@ -29,9 +42,13 @@ extension DataFlowSemaPhase {
                 manifestInfo = resolveLibraryManifestInfo(
                     libraryDir: libraryDir,
                     currentTarget: options.target,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    isStdlibArtifact: stdlibArtifact
                 )
                 cache?.cacheManifestInfo(manifestInfo, libraryDir: libraryDir, target: options.target)
+            }
+            if stdlibArtifact {
+                stdlibArtifactLoaded = manifestInfo.isValid
             }
             guard manifestInfo.isValid else {
                 continue
@@ -80,6 +97,9 @@ extension DataFlowSemaPhase {
                 if record.isActual {
                     flags.insert(.actualDeclaration)
                 }
+                if record.isMutable, record.kind == .property || record.kind == .field {
+                    flags.insert(.mutable)
+                }
                 let symbol = symbols.define(
                     kind: record.kind,
                     name: name,
@@ -95,8 +115,25 @@ extension DataFlowSemaPhase {
                     record: record,
                     symbol: symbol,
                     metadataPath: metadataPath,
-                    inlineKIRDir: manifestInfo.inlineKIRDir
+                    inlineKIRDir: manifestInfo.inlineKIRDir,
+                    isStdlibArtifact: stdlibArtifact
                 ))
+            }
+        }
+
+        if options.stdlibLibraryPath != nil && !stdlibArtifactLoaded {
+            diagnostics.error(
+                "KSWIFTK-LIB-0020",
+                "Stdlib library artifact '\(options.stdlibLibraryPath!)' could not be loaded",
+                range: nil
+            )
+            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [])
+        }
+
+        var externalLinkNameToSymbol: [String: SymbolID] = [:]
+        for binding in importedBindings {
+            if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = binding.symbol
             }
         }
 
@@ -109,7 +146,9 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 importedInlineFunctions: &importedInlineFunctions,
                 pendingSupertypeEdges: &pendingSupertypeEdges,
-                cache: cache
+                cache: cache,
+                isStdlibArtifact: binding.isStdlibArtifact,
+                externalLinkNameToSymbol: externalLinkNameToSymbol
             )
         }
 
@@ -147,7 +186,19 @@ extension DataFlowSemaPhase {
             }
         }
 
-        for edge in pendingSupertypeEdges {
+        return LibraryImportDeferredWork(
+            pendingSupertypeEdges: pendingSupertypeEdges,
+            importedBindings: importedBindings
+        )
+    }
+
+    func applyImportedLibraryDeferredWork(
+        _ work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine
+    ) {
+        for edge in work.pendingSupertypeEdges {
             guard let superSymbol = symbols.lookupAll(fqName: edge.superFQName)
                 .compactMap({ symbols.symbol($0) })
                 .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
@@ -163,7 +214,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        for binding in importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             applyImportedNominalLayout(
                 record: binding.record,
                 symbol: binding.symbol,
@@ -174,7 +225,7 @@ extension DataFlowSemaPhase {
         }
 
         // P5-78: resolve sealed subclass FQ names to SymbolIDs for cross-module exhaustiveness
-        for binding in importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
+        for binding in work.importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
             let resolvedSubclasses: [SymbolID] = binding.record.sealedSubclassFQNames.compactMap { subFQName in
                 symbols.lookupAll(fqName: subFQName)
                     .compactMap { symbols.symbol($0) }
@@ -216,7 +267,10 @@ extension DataFlowSemaPhase {
         let arity: Int
         let isSuspend: Bool
         let isInline: Bool
+        let valueParameterIsVararg: [Bool]
+        let valueParameterHasDefaultValues: [Bool]
         let typeSignature: String?
+        let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
         let declaredInstanceSizeWords: Int?
@@ -234,6 +288,11 @@ extension DataFlowSemaPhase {
         let valueClassUnderlyingTypeSig: String?
         let annotations: [MetadataAnnotationRecord]
         let sealedSubclassFQNames: [[InternedString]]
+        let propertyReceiverTypeSignature: String?
+        let propertyGetterExternalLinkName: String?
+        let abiReturnTypeSignature: String?
+        let propertyGetterAbiReturnTypeSignature: String?
+        let isMutable: Bool
     }
 
     struct ImportedLibraryBinding {
@@ -241,6 +300,7 @@ extension DataFlowSemaPhase {
         let symbol: SymbolID
         let metadataPath: String
         let inlineKIRDir: String?
+        let isStdlibArtifact: Bool
     }
 
     /// Walk a decoded type and collect all synthetic type parameter symbols
@@ -322,7 +382,9 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
-        cache: LibraryMetadataCache?
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool,
+        externalLinkNameToSymbol: [String: SymbolID]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -340,16 +402,26 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner,
             importedInlineFunctions: &importedInlineFunctions,
-            cache: cache
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact,
+            externalLinkNameToSymbol: externalLinkNameToSymbol
         )
-        applyImportedValueClassMetadata(binding, symbols: symbols, types: types, diagnostics: diagnostics, interner: interner)
+        applyImportedValueClassMetadata(
+            binding,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            isStdlibArtifact: isStdlibArtifact
+        )
         applyImportedTypeAliasMetadata(
             binding,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            cache: cache
+            cache: cache,
+            isStdlibArtifact: isStdlibArtifact
         )
         applyImportedNominalMetadata(binding, symbols: symbols, pendingSupertypeEdges: &pendingSupertypeEdges)
     }
@@ -395,7 +467,9 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         importedInlineFunctions: inout [SymbolID: KIRFunction],
-        cache: LibraryMetadataCache?
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool = false,
+        externalLinkNameToSymbol: [String: SymbolID] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -408,9 +482,48 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 metadataPath: binding.metadataPath,
-                cache: cache
+                cache: cache,
+                allowPlaceholders: isStdlibArtifact
             )
             symbols.setFunctionSignature(signature, for: symbol)
+            if let defaultStubLink = record.defaultStubExternalLinkName, !defaultStubLink.isEmpty,
+               signature.valueParameterHasDefaultValues.contains(true)
+            {
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
+                symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
+                let intType = types.intType
+                let reifiedCount = signature.reifiedTypeParameterIndices.count
+                let stubParameterTypes = signature.parameterTypes + Array(repeating: intType, count: reifiedCount) + [intType]
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: signature.receiverType,
+                        parameterTypes: stubParameterTypes,
+                        returnType: signature.returnType,
+                        isSuspend: false,
+                        canThrow: false,
+                        valueParameterHasDefaultValues: [],
+                        valueParameterIsVararg: [],
+                        typeParameterSymbols: signature.typeParameterSymbols,
+                        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
+                    ),
+                    for: stubSymbol
+                )
+            }
+            if let abiSig = record.abiReturnTypeSignature,
+               let abiReturnType = decodeImportedTypeSignature(
+                   token: abiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(abiReturnType, for: symbol)
+            }
             importInlineFunctionIfNeeded(
                 binding,
                 symbol: symbol,
@@ -418,7 +531,8 @@ extension DataFlowSemaPhase {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                importedInlineFunctions: &importedInlineFunctions
+                importedInlineFunctions: &importedInlineFunctions,
+                externalLinkNameToSymbol: externalLinkNameToSymbol
             )
             return
         }
@@ -433,9 +547,93 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner,
             metadataPath: binding.metadataPath,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: isStdlibArtifact
         )
         symbols.setPropertyType(propertyType, for: symbol)
+
+        // Restore extension property accessor(s). Extension properties are
+        // compiled as precompiled getter functions in the artifact objects;
+        // we synthesize the accessor symbol and point it at that link name.
+        if let receiverSig = record.propertyReceiverTypeSignature,
+           let receiverType = decodeImportedTypeSignature(
+               token: receiverSig,
+               symbols: symbols,
+               types: types,
+               interner: interner,
+               diagnostics: diagnostics,
+               metadataPath: binding.metadataPath,
+               ownerFQName: record.fqName,
+               cache: cache,
+               allowPlaceholders: isStdlibArtifact
+           )
+        {
+            symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
+
+            let getName = interner.intern("get")
+            let getterFQName = record.fqName + [getName]
+            let getterSymbol = symbols.define(
+                kind: .function,
+                name: getName,
+                fqName: getterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: getterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: getterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [],
+                    returnType: propertyType
+                ),
+                for: getterSymbol
+            )
+            symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: symbol)
+            if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                symbols.setExternalLinkName(getterLink, for: getterSymbol)
+            }
+            if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature,
+               let getterAbiReturnType = decodeImportedTypeSignature(
+                   token: getterAbiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
+            }
+
+            if record.isMutable {
+                let setName = interner.intern("set")
+                let setterFQName = record.fqName + [setName]
+                let setterSymbol = symbols.define(
+                    kind: .function,
+                    name: setName,
+                    fqName: setterFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(symbol, for: setterSymbol)
+                symbols.setAccessorOwnerProperty(symbol, for: setterSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [propertyType],
+                        returnType: types.unitType
+                    ),
+                    for: setterSymbol
+                )
+                symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+            }
+        }
     }
 
     private func importInlineFunctionIfNeeded(
@@ -445,7 +643,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        importedInlineFunctions: inout [SymbolID: KIRFunction]
+        importedInlineFunctions: inout [SymbolID: KIRFunction],
+        externalLinkNameToSymbol: [String: SymbolID]
     ) {
         let record = binding.record
         guard record.isInline,
@@ -455,8 +654,9 @@ extension DataFlowSemaPhase {
             return
         }
 
+        let fileName = MetadataEncoder.inlineKIRFileName(for: record.mangledName)
         let inlinePath = URL(fileURLWithPath: inlineDir)
-            .appendingPathComponent(record.mangledName + ".kirbin")
+            .appendingPathComponent(fileName)
             .standardized
             .path
         let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
@@ -471,10 +671,11 @@ extension DataFlowSemaPhase {
         guard let inlineFunction = parseImportedInlineFunction(
             path: inlinePath,
             importedSymbol: symbol,
-            parameterCount: max(0, signature.parameterTypes.count),
+            signature: signature,
             types: types,
             interner: interner,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            externalLinkNameToSymbol: externalLinkNameToSymbol
         ) else {
             return
         }
@@ -486,7 +687,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        isStdlibArtifact: Bool = false
     ) {
         let record = binding.record
         guard record.isValueClass else {
@@ -501,7 +703,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 metadataPath: binding.metadataPath,
-                ownerFQName: record.fqName
+                ownerFQName: record.fqName,
+                allowPlaceholders: isStdlibArtifact
             )
             if let underlyingType {
                 symbols.setValueClassUnderlyingType(underlyingType, for: binding.symbol)
@@ -523,7 +726,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        cache: LibraryMetadataCache?
+        cache: LibraryMetadataCache?,
+        isStdlibArtifact: Bool = false
     ) {
         let record = binding.record
         guard record.kind == .typeAlias else {
@@ -537,7 +741,8 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             interner: interner,
             metadataPath: binding.metadataPath,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: isStdlibArtifact
         )
         guard let underlyingType else {
             return

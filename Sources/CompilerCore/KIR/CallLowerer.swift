@@ -7,17 +7,11 @@ final class CallLowerer {
     }
 
     /// True when the resolved callee is a bundled Kotlin source declaration
-    /// (has a source `declSite` and no runtime external link), meaning the
-    /// lowering path should not rewrite it to a `kk_*` runtime helper.
+    /// (is a bundled/user source declaration or an imported library symbol),
+    /// meaning the lowering path should not rewrite it to a `kk_*` runtime helper.
     private func isSourceBacked(_ symbol: SymbolID?, sema: SemaModule) -> Bool {
-        guard let symbol,
-              let info = sema.symbols.symbol(symbol),
-              info.declSite != nil,
-              (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
-        else {
-            return false
-        }
-        return true
+        guard let symbol else { return false }
+        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
     /// Maps a numeric receiver type (nullable or non-nullable) to its runtime
@@ -1187,7 +1181,8 @@ final class CallLowerer {
         }
         if callNormalized.defaultMask != 0,
            let chosen,
-           sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+           (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosen)) != nil)
         {
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
