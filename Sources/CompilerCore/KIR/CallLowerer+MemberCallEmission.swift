@@ -105,6 +105,24 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
+        // Enum.name / Enum.ordinal: these are registered as synthetic .property
+        // symbols on the shared kotlin.Enum<T> base (registerEnumNameOrdinalProperties),
+        // not as real .function declarations. recoverMemberCallBinding's candidate
+        // search only accepts `.function`-kind symbols, so it never binds them, and
+        // properties have no FunctionSignature for the receiverType branch above to
+        // match either -- chosenCallee stays nil for any receiver that isn't a literal
+        // enum-entry reference (tryLowerEnumEntryPropertyRead) or constant-foldable.
+        // Prepend the receiver so EnumNameAccessLoweringPass's generic
+        // (arguments.count == 1) rewrite can find and convert the call; gate on the
+        // receiver actually being enum-typed so unrelated "name"/"ordinal" members
+        // are unaffected.
+        if calleeText == "name" || calleeText == "ordinal",
+           let (_, classSym) = resolveClassTypeSymbol(receiverType, sema: sema),
+           classSym.kind == .enumClass
+        {
+            arguments.insert(loweredReceiverID, at: 0)
+            return
+        }
         let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
             receiverType,
             sema: sema,
