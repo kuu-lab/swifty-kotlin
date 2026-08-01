@@ -260,7 +260,39 @@ struct ABIMismatchTests {
         for legacyName in legacyNames {
             #expect(
                 !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+                "\(legacyName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
+            )
+        }
+    }
+
+    // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+    // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
+    // (StringSearchReplace.kt); neither the raw pointer nor the flattened
+    // runtime ABI remains.
+    @Test
+    func kkStringSubstringAndReplaceSegmentFlatABIRemoved() {
+        let removedNames = [
+            "kk_string_substringBefore_flat",
+            "kk_string_substringBefore_char_flat",
+            "kk_string_substringBeforeLast_flat",
+            "kk_string_substringBeforeLast_char_flat",
+            "kk_string_substringAfter_flat",
+            "kk_string_substringAfter_char_flat",
+            "kk_string_substringAfterLast_flat",
+            "kk_string_substringAfterLast_char_flat",
+            "kk_string_replaceAfter_flat",
+            "kk_string_replaceAfter_char_flat",
+            "kk_string_replaceAfterLast_flat",
+            "kk_string_replaceAfterLast_char_flat",
+            "kk_string_replaceBefore_flat",
+            "kk_string_replaceBefore_char_flat",
+            "kk_string_replaceBeforeLast_flat",
+            "kk_string_replaceBeforeLast_char_flat",
+        ]
+        for removedName in removedNames {
+            #expect(
+                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                "\(removedName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
             )
         }
     }
