@@ -6,6 +6,24 @@ import Testing
 /// (bundled Kotlin source, `StringIndexOf.kt`).
 @Suite
 struct StringLastIndexOfFunctionTests {
+    @Test func testStringSearchDefaultArgumentsAndImplicitReceiverResolve() throws {
+        let ctx = makeContextFromSource("""
+        fun String.findDelimiter(delimiter: String): Int {
+            return indexOf(delimiter)
+        }
+
+        fun lastChar(value: String): Int {
+            return value.lastIndexOf('l')
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected implicit String receiver and lastIndexOf(Char) defaults to resolve, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
     @Test func testLastIndexOfCharResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun findChar(value: CharSequence): Int {
