@@ -78,5 +78,80 @@ struct EnumAPISurfaceInventoryTests {
         }
         #expect(entriesClassType.classSymbol == enumEntriesSymbol)
     }
+
+    // BUG: `EnumClass.values()` was completely unresolved ("No viable overload
+    // found" / "Unresolved reference 'values'") because no Sema symbol was
+    // ever registered for it — only the KIR/Lowering-phase synthesis existed,
+    // which ran too late to help Sema's call resolution.
+    @Test func testEnumValuesIsRegisteredDirectlyOnEnumClass() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH, EAST, WEST }
+        fun noop() {}
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let directionSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Direction"),
+        ]))
+        #expect(sema.symbols.symbol(directionSymbol)?.kind == .enumClass)
+
+        // `values()` must be registered directly on the enum class (not the
+        // companion): `Direction.values()` resolves via the class-name-receiver
+        // static-method lookup, which only searches the class's own FQ name.
+        let valuesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("Direction"),
+            interner.intern("values"),
+        ]))
+        let valuesInfo = try #require(sema.symbols.symbol(valuesSymbol))
+        #expect(valuesInfo.kind == .function)
+        #expect(sema.symbols.parentSymbol(for: valuesSymbol) == directionSymbol)
+
+        let signature = try #require(sema.symbols.functionSignature(for: valuesSymbol))
+        #expect(signature.receiverType == nil, "values() must be receiver-less so it resolves as a static member")
+        #expect(signature.parameterTypes.isEmpty)
+
+        guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
+            Issue.record("Direction.values() should return Array<Direction>"); return
+        }
+        let arraySymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("Array"),
+        ]))
+        #expect(returnClassType.classSymbol == arraySymbol)
+        guard let firstArg = returnClassType.args.first, case let .invariant(elementType) = firstArg else {
+            Issue.record("Array<Direction> should carry Direction as its single invariant type argument"); return
+        }
+        guard case let .classType(elementClassType) = sema.types.kind(of: elementType) else {
+            Issue.record("Array<Direction>'s element type should be the Direction class type"); return
+        }
+        #expect(elementClassType.classSymbol == directionSymbol)
+    }
+
+    // BUG: `EnumClass.entries.forEach { ... }` / `.size` reported "Unresolved
+    // member function" because `EnumEntries<T>` (a read-only List<T> subtype
+    // in real Kotlin) had no registered supertype at all, so neither the
+    // ordinary member-call resolver nor the collection member-call fallback
+    // ever discovered List's members on an EnumEntries-typed receiver.
+    @Test func testEnumEntriesInterfaceDeclaresListAsSupertype() throws {
+        let (sema, interner) = try makeSema()
+        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries"),
+        ]))
+        let listSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]))
+
+        // Both the SymbolTable's member-lookup supertype graph and the
+        // TypeSystem's nominal-subtype graph must agree: List member
+        // resolution walks the former, generic-substitution / nominal
+        // subtype checks (e.g. bindBundledIterableSourceFunction's
+        // isNominalSubtypeSymbol) walk the latter.
+        #expect(sema.symbols.directSupertypes(for: enumEntriesSymbol).contains(listSymbol))
+        #expect(sema.types.directNominalSupertypes(for: enumEntriesSymbol).contains(listSymbol))
+        #expect(sema.types.isNominalSubtypeSymbol(enumEntriesSymbol, of: listSymbol))
+    }
 }
 #endif
