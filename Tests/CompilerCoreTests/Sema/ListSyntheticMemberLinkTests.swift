@@ -63,22 +63,25 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                ("take", 1, "kk_list_take"),
-                ("drop", 1, "kk_list_drop"),
-                ("reversed", 0, "kk_list_reversed"),
-                ("sorted", 0, "kk_list_sorted"),
-                ("distinct", 0, "kk_list_distinct"),
-                ("shuffled", 0, "kk_list_shuffled"),
-                ("shuffled", 1, "kk_list_shuffled_random"),
+                ("take", 1, "kk_list_take" as String?),
+                ("drop", 1, "kk_list_drop" as String?),
+                ("reversed", 0, "kk_list_reversed" as String?),
+                ("sorted", 0, "kk_list_sorted" as String?),
+                ("distinct", 0, "kk_list_distinct" as String?),
+                ("shuffled", 0, "kk_list_shuffled" as String?),
+                ("shuffled", 1, "kk_list_shuffled_random" as String?),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName && args.count == argumentCount
+                let callExpr = try #require(firstExprID(in: ast) { id, expr in
+                    guard case let .memberCall(_, callee, _, args, range) = expr else { return false }
+                    guard ctx.interner.resolve(callee) == memberName && args.count == argumentCount else { return false }
+                    guard !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_") else { return false }
+                    return true
                 })
-                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
+                let binding = sema.bindings.callBinding(for: callExpr)
+                let chosenCallee = try #require(binding?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName ?? "nil")")
             }
         }
     }

@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - kotlin.native.ref / kotlin.native.runtime minimal ABI coverage (STDLIB-NATIVE-REF-003)
 //
@@ -21,72 +21,70 @@ import XCTest
 // MARK: - GC stability tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefGCStabilityTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
-    func testGCCollectOnEmptyHeapIsIdempotent() {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefGCStabilityTests {
+    @Test func gcCollectOnEmptyHeapIsIdempotent() {
         // After reset, heap is empty; multiple collects must not crash.
         kk_gc_collect()
         kk_gc_collect()
         kk_gc_collect()
-        XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+        #expect(kk_runtime_heap_object_count() == 0)
     }
 
-    func testGCCollectReturnsAndHeapCountDropsToZero() {
+    @Test func gcCollectReturnsAndHeapCountDropsToZero() {
         // Allocate an unrooted object; after collect the heap must be empty.
         withDummyNativeRefTypeInfo { ti in
             _ = kk_alloc(16, ti)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testGCCollectIsIdempotentAfterAlreadyEmpty() {
+    @Test func gcCollectIsIdempotentAfterAlreadyEmpty() {
         // After the heap is emptied by one collect, a second collect must be a no-op.
         withDummyNativeRefTypeInfo { ti in
             _ = kk_alloc(8, ti)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testSystemGCIsEquivalentToGCCollect() {
+    @Test func systemGCIsEquivalentToGCCollect() {
         withDummyNativeRefTypeInfo { ti in
             _ = kk_alloc(8, ti)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
             kk_system_gc()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testGCScheduleTriggersCollection() {
+    @Test func gcScheduleTriggersCollection() {
         withDummyNativeRefTypeInfo { ti in
             _ = kk_alloc(8, ti)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
-            XCTAssertEqual(kk_gc_schedule(), 0)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            #expect(kk_runtime_heap_object_count() == 1)
+            #expect(kk_gc_schedule() == 0)
+            #expect(kk_runtime_heap_object_count() == 0)
         }
     }
 
-    func testGCTargetHeapBytesIsPositive() {
-        XCTAssertGreaterThan(kk_gc_target_heap_bytes(), 0)
+    @Test func gcTargetHeapBytesIsPositive() {
+        #expect(kk_gc_target_heap_bytes() > 0)
     }
 
-    func testGCTargetHeapUtilizationIsWithinValidRange() {
+    @Test func gcTargetHeapUtilizationIsWithinValidRange() {
         let utilization = kk_gc_target_heap_utilization()
-        XCTAssertGreaterThan(utilization, 0)
-        XCTAssertLessThanOrEqual(utilization, 1)
+        #expect(utilization > 0)
+        #expect(utilization <= 1)
     }
 
-    func testGCMaxHeapBytesIsAtLeastTargetHeapBytes() {
-        XCTAssertGreaterThanOrEqual(kk_gc_max_heap_bytes(), kk_gc_target_heap_bytes())
+    @Test func gcMaxHeapBytesIsAtLeastTargetHeapBytes() {
+        #expect(kk_gc_max_heap_bytes() >= kk_gc_target_heap_bytes())
     }
 
-    func testHeapObjectCountPositiveAfterAlloc() {
+    @Test func heapObjectCountPositiveAfterAlloc() {
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -95,8 +93,8 @@ final class RuntimeNativeRefGCStabilityTests: IsolatedRuntimeXCTestCase {
                 slot.deallocate()
             }
             kk_register_global_root(slot)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1,
-                           "Heap must report exactly one object after rooted alloc")
+            #expect(kk_runtime_heap_object_count() == 1,
+                    "Heap must report exactly one object after rooted alloc")
             kk_unregister_global_root(slot)
         }
     }
@@ -106,36 +104,36 @@ final class RuntimeNativeRefGCStabilityTests: IsolatedRuntimeXCTestCase {
 // MARK: - Memory positive-return / singleton tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefMemoryTests: XCTestCase {
-
-    func testGetRuntimeReturnsPositiveHandle() {
-        XCTAssertGreaterThan(kk_runtime_getRuntime(), 0,
-                             "kk_runtime_getRuntime must return a non-zero singleton handle")
+@Suite
+struct RuntimeNativeRefMemoryTests {
+    @Test func getRuntimeReturnsPositiveHandle() {
+        #expect(kk_runtime_getRuntime() > 0,
+                "kk_runtime_getRuntime must return a non-zero singleton handle")
     }
 
-    func testGetRuntimeIsSingleton() {
-        XCTAssertEqual(kk_runtime_getRuntime(), kk_runtime_getRuntime(),
-                       "kk_runtime_getRuntime must return the same value on repeated calls")
+    @Test func getRuntimeIsSingleton() {
+        #expect(kk_runtime_getRuntime() == kk_runtime_getRuntime(),
+                "kk_runtime_getRuntime must return the same value on repeated calls")
     }
 
-    func testTotalMemoryIsPositive() {
-        XCTAssertGreaterThan(kk_runtime_totalMemory(), 0)
+    @Test func totalMemoryIsPositive() {
+        #expect(kk_runtime_totalMemory() > 0)
     }
 
-    func testFreeMemoryIsNonNegative() {
-        XCTAssertGreaterThanOrEqual(kk_runtime_freeMemory(), 0)
+    @Test func freeMemoryIsNonNegative() {
+        #expect(kk_runtime_freeMemory() >= 0)
     }
 
-    func testMaxMemoryIsAtLeastTotalMemory() {
-        XCTAssertGreaterThanOrEqual(kk_runtime_maxMemory(), kk_runtime_totalMemory())
+    @Test func maxMemoryIsAtLeastTotalMemory() {
+        #expect(kk_runtime_maxMemory() >= kk_runtime_totalMemory())
     }
 
-    func testMemoryMetricsStableAcrossRepeatedCalls() {
+    @Test func memoryMetricsStableAcrossRepeatedCalls() {
         // Max memory must be non-decreasing (same process, no dealloc between calls).
         let max1 = kk_runtime_maxMemory()
         let max2 = kk_runtime_maxMemory()
-        XCTAssertEqual(max1, max2,
-                       "Max memory must be stable across back-to-back queries")
+        #expect(max1 == max2,
+                "Max memory must be stable across back-to-back queries")
     }
 }
 
@@ -143,48 +141,46 @@ final class RuntimeNativeRefMemoryTests: XCTestCase {
 // MARK: - WeakReference<T> runtime tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefWeakReferenceTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
-    func testWeakReferenceCreateReturnsNonZeroHandle() {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefWeakReferenceTests {
+    @Test func weakReferenceCreateReturnsNonZeroHandle() {
         let objectRaw = registerRuntimeObject(RuntimeStringBox("weak"))
         let weakRaw = kk_weak_ref_create(objectRaw)
-        XCTAssertNotEqual(weakRaw, 0)
+        #expect(weakRaw != 0)
     }
 
-    func testWeakReferenceGetReturnsLiveRuntimeObject() {
+    @Test func weakReferenceGetReturnsLiveRuntimeObject() {
         let objectRaw = registerRuntimeObject(RuntimeStringBox("weak"))
         let weakRaw = kk_weak_ref_create(objectRaw)
-        XCTAssertEqual(kk_weak_ref_get(weakRaw), objectRaw)
+        #expect(kk_weak_ref_get(weakRaw) == objectRaw)
     }
 
-    func testWeakReferenceClearDropsReferent() {
+    @Test func weakReferenceClearDropsReferent() {
         let objectRaw = registerRuntimeObject(RuntimeStringBox("weak"))
         let weakRaw = kk_weak_ref_create(objectRaw)
-        XCTAssertEqual(kk_weak_ref_get(weakRaw), objectRaw)
-        XCTAssertEqual(kk_weak_ref_clear(weakRaw), 0)
-        XCTAssertEqual(kk_weak_ref_get(weakRaw), 0)
+        #expect(kk_weak_ref_get(weakRaw) == objectRaw)
+        #expect(kk_weak_ref_clear(weakRaw) == 0)
+        #expect(kk_weak_ref_get(weakRaw) == 0)
     }
 
-    func testWeakReferenceToCollectedHeapObjectReturnsNull() {
+    @Test func weakReferenceToCollectedHeapObjectReturnsNull() {
         withDummyNativeRefTypeInfo { ti in
             let object = kk_alloc(16, ti)
             let objectRaw = Int(bitPattern: object)
             let weakRaw = kk_weak_ref_create(objectRaw)
-            XCTAssertEqual(kk_weak_ref_get(weakRaw), objectRaw)
+            #expect(kk_weak_ref_get(weakRaw) == objectRaw)
 
             kk_gc_collect()
 
-            XCTAssertEqual(kk_weak_ref_get(weakRaw), 0)
+            #expect(kk_weak_ref_get(weakRaw) == 0)
         }
     }
 
-    func testWeakReferenceInvalidHandleIsNullSafe() {
-        XCTAssertEqual(kk_weak_ref_get(0), 0)
-        XCTAssertEqual(kk_weak_ref_clear(0), 0)
-        XCTAssertEqual(kk_weak_ref_get(12345), 0)
-        XCTAssertEqual(kk_weak_ref_clear(12345), 0)
+    @Test func weakReferenceInvalidHandleIsNullSafe() {
+        #expect(kk_weak_ref_get(0) == 0)
+        #expect(kk_weak_ref_clear(0) == 0)
+        #expect(kk_weak_ref_get(12345) == 0)
+        #expect(kk_weak_ref_clear(12345) == 0)
     }
 }
 
@@ -207,60 +203,58 @@ private let nativeRefCleanerThrowingBlock: @convention(c) (Int, UnsafeMutablePoi
     return 0
 }
 
-final class RuntimeNativeRefCleanerTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+private func resetRuntimeNativeRefCleanerTestState() {
+    nativeRefCleanerCallCount = 0
+    nativeRefCleanerLastValue = 0
+}
 
-    override func resetIsolatedRuntimeTestState() {
-        nativeRefCleanerCallCount = 0
-        nativeRefCleanerLastValue = 0
-    }
-
-    func testCleanerCreateReturnsNonZeroHandle() {
+@Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: resetRuntimeNativeRefCleanerTestState))
+struct RuntimeNativeRefCleanerTests {
+    @Test func cleanerCreateReturnsNonZeroHandle() {
         let valueRaw = registerRuntimeObject(RuntimeStringBox("clean"))
         let blockRaw = unsafeBitCast(nativeRefCleanerBlock, to: Int.self)
-        XCTAssertNotEqual(kk_cleaner_create(valueRaw, blockRaw), 0)
+        #expect(kk_cleaner_create(valueRaw, blockRaw) != 0)
     }
 
-    func testCleanerCleanInvokesBlockOnceWithValue() {
-        let valueRaw = registerRuntimeObject(RuntimeStringBox("clean"))
-        let blockRaw = unsafeBitCast(nativeRefCleanerBlock, to: Int.self)
-        let cleanerRaw = kk_cleaner_create(valueRaw, blockRaw)
-
-        XCTAssertEqual(kk_cleaner_clean(cleanerRaw, nil), 0)
-        XCTAssertEqual(nativeRefCleanerCallCount, 1)
-        XCTAssertEqual(nativeRefCleanerLastValue, valueRaw)
-
-        XCTAssertEqual(kk_cleaner_clean(cleanerRaw, nil), 0)
-        XCTAssertEqual(nativeRefCleanerCallCount, 1)
-    }
-
-    func testCleanerDisposeDropsWithoutInvokingBlock() {
+    @Test func cleanerCleanInvokesBlockOnceWithValue() {
         let valueRaw = registerRuntimeObject(RuntimeStringBox("clean"))
         let blockRaw = unsafeBitCast(nativeRefCleanerBlock, to: Int.self)
         let cleanerRaw = kk_cleaner_create(valueRaw, blockRaw)
 
-        XCTAssertEqual(kk_cleaner_dispose(cleanerRaw), 0)
-        XCTAssertEqual(kk_cleaner_clean(cleanerRaw, nil), 0)
-        XCTAssertEqual(nativeRefCleanerCallCount, 0)
+        #expect(kk_cleaner_clean(cleanerRaw, nil) == 0)
+        #expect(nativeRefCleanerCallCount == 1)
+        #expect(nativeRefCleanerLastValue == valueRaw)
+
+        #expect(kk_cleaner_clean(cleanerRaw, nil) == 0)
+        #expect(nativeRefCleanerCallCount == 1)
     }
 
-    func testCleanerCleanPropagatesThrownHandle() {
+    @Test func cleanerDisposeDropsWithoutInvokingBlock() {
+        let valueRaw = registerRuntimeObject(RuntimeStringBox("clean"))
+        let blockRaw = unsafeBitCast(nativeRefCleanerBlock, to: Int.self)
+        let cleanerRaw = kk_cleaner_create(valueRaw, blockRaw)
+
+        #expect(kk_cleaner_dispose(cleanerRaw) == 0)
+        #expect(kk_cleaner_clean(cleanerRaw, nil) == 0)
+        #expect(nativeRefCleanerCallCount == 0)
+    }
+
+    @Test func cleanerCleanPropagatesThrownHandle() {
         let valueRaw = registerRuntimeObject(RuntimeStringBox("clean"))
         let blockRaw = unsafeBitCast(nativeRefCleanerThrowingBlock, to: Int.self)
         let cleanerRaw = kk_cleaner_create(valueRaw, blockRaw)
         var thrown = 0
 
-        XCTAssertEqual(kk_cleaner_clean(cleanerRaw, &thrown), 0)
-        XCTAssertEqual(thrown, 0xC1EA)
+        #expect(kk_cleaner_clean(cleanerRaw, &thrown) == 0)
+        #expect(thrown == 0xC1EA)
     }
 
-    func testCleanerInvalidHandleIsNullSafe() {
-        XCTAssertEqual(kk_cleaner_create(0, 0), 0)
-        XCTAssertEqual(kk_cleaner_clean(0, nil), 0)
-        XCTAssertEqual(kk_cleaner_dispose(0), 0)
-        XCTAssertEqual(kk_cleaner_clean(12345, nil), 0)
-        XCTAssertEqual(kk_cleaner_dispose(12345), 0)
+    @Test func cleanerInvalidHandleIsNullSafe() {
+        #expect(kk_cleaner_create(0, 0) == 0)
+        #expect(kk_cleaner_clean(0, nil) == 0)
+        #expect(kk_cleaner_dispose(0) == 0)
+        #expect(kk_cleaner_clean(12345, nil) == 0)
+        #expect(kk_cleaner_dispose(12345) == 0)
     }
 }
 
@@ -268,11 +262,9 @@ final class RuntimeNativeRefCleanerTests: IsolatedRuntimeXCTestCase {
 // MARK: - Pinned<T> stability tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
-    func testPinObjectReturnsNonZeroHandle() {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefPinnedTests {
+    @Test func pinObjectReturnsNonZeroHandle() {
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -284,13 +276,13 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
             }
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
-            XCTAssertNotEqual(pinHandle, 0,
-                              "kk_pin_object must return a non-zero Pinned handle")
+            #expect(pinHandle != 0,
+                    "kk_pin_object must return a non-zero Pinned handle")
             _ = kk_unpin_object(pinHandle)
         }
     }
 
-    func testPinnedGetRoundTripsOriginalRaw() {
+    @Test func pinnedGetRoundTripsOriginalRaw() {
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -302,13 +294,13 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
             }
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
-            XCTAssertEqual(kk_pinned_get(pinHandle), objectRaw,
-                           "kk_pinned_get must return the same raw value passed to kk_pin_object")
+            #expect(kk_pinned_get(pinHandle) == objectRaw,
+                    "kk_pinned_get must return the same raw value passed to kk_pin_object")
             _ = kk_unpin_object(pinHandle)
         }
     }
 
-    func testUnpinObjectReturnsOriginalRaw() {
+    @Test func unpinObjectReturnsOriginalRaw() {
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -321,41 +313,41 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
             let returned = kk_unpin_object(pinHandle)
-            XCTAssertEqual(returned, objectRaw,
-                           "kk_unpin_object must return the original object raw value")
+            #expect(returned == objectRaw,
+                    "kk_unpin_object must return the original object raw value")
         }
     }
 
-    func testPinObjectZeroHandleIsNoOp() {
+    @Test func pinObjectZeroHandleIsNoOp() {
         // Pinning a null reference must not crash and must return 0.
         let pinHandle = kk_pin_object(0)
-        XCTAssertEqual(pinHandle, 0)
+        #expect(pinHandle == 0)
     }
 
-    func testPinnedGetOnZeroHandleReturnsZero() {
-        XCTAssertEqual(kk_pinned_get(0), 0)
+    @Test func pinnedGetOnZeroHandleReturnsZero() {
+        #expect(kk_pinned_get(0) == 0)
     }
 
-    func testUnpinOnZeroHandleReturnsZero() {
-        XCTAssertEqual(kk_unpin_object(0), 0)
+    @Test func unpinOnZeroHandleReturnsZero() {
+        #expect(kk_unpin_object(0) == 0)
     }
 
-    func testPinnedObjectSurvivesGCWhilePinned() {
+    @Test func pinnedObjectSurvivesGCWhilePinned() {
         withDummyNativeRefTypeInfo { ti in
             let obj = kk_alloc(16, ti)
             let objectRaw = Int(bitPattern: obj)
             // Pin the object; it must survive a GC collect even without a global root.
             let pinHandle = kk_pin_object(objectRaw)
-            XCTAssertNotEqual(pinHandle, 0)
+            #expect(pinHandle != 0)
             kk_gc_collect()
             // Object must still be reachable via the pin handle after GC.
-            XCTAssertEqual(kk_pinned_get(pinHandle), objectRaw,
-                           "Pinned object must survive GC while the pin is held")
+            #expect(kk_pinned_get(pinHandle) == objectRaw,
+                    "Pinned object must survive GC while the pin is held")
             _ = kk_unpin_object(pinHandle)
         }
     }
 
-    func testMultiplePinsOnSameObjectAreIndependent() {
+    @Test func multiplePinsOnSameObjectAreIndependent() {
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
             slot.initialize(to: kk_alloc(16, ti))
@@ -368,10 +360,10 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinA = kk_pin_object(objectRaw)
             let pinB = kk_pin_object(objectRaw)
-            XCTAssertNotEqual(pinA, pinB,
-                              "Two separate pin calls must yield distinct handles")
-            XCTAssertEqual(kk_pinned_get(pinA), objectRaw)
-            XCTAssertEqual(kk_pinned_get(pinB), objectRaw)
+            #expect(pinA != pinB,
+                    "Two separate pin calls must yield distinct handles")
+            #expect(kk_pinned_get(pinA) == objectRaw)
+            #expect(kk_pinned_get(pinB) == objectRaw)
             _ = kk_unpin_object(pinA)
             _ = kk_unpin_object(pinB)
         }
@@ -382,67 +374,65 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
 // MARK: - freeze() stability & propagation tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
-    func testFreezeObjectReturnsPositiveHandleForNonZeroInput() {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefFreezeTests {
+    @Test func freezeObjectReturnsPositiveHandleForNonZeroInput() {
         let handle = makeNativeRefFreezeHandle()
         let returned = kk_freeze_object(handle)
-        XCTAssertGreaterThan(returned, 0,
-                             "kk_freeze_object must return a positive (non-zero) value")
+        #expect(returned > 0,
+                "kk_freeze_object must return a positive (non-zero) value")
     }
 
-    func testFreezeObjectReturnsOriginalHandle() {
+    @Test func freezeObjectReturnsOriginalHandle() {
         let handle = makeNativeRefFreezeHandle()
-        XCTAssertEqual(kk_freeze_object(handle), handle)
+        #expect(kk_freeze_object(handle) == handle)
     }
 
-    func testIsFrozenStableAcrossRepeatedQueries() {
+    @Test func isFrozenStableAcrossRepeatedQueries() {
         let handle = makeNativeRefFreezeHandle()
         kk_freeze_object(handle)
         // Query three times; each must return 1.
-        XCTAssertEqual(kk_is_frozen(handle), 1)
-        XCTAssertEqual(kk_is_frozen(handle), 1)
-        XCTAssertEqual(kk_is_frozen(handle), 1)
+        #expect(kk_is_frozen(handle) == 1)
+        #expect(kk_is_frozen(handle) == 1)
+        #expect(kk_is_frozen(handle) == 1)
     }
 
-    func testRepeatedFreezeIsIdempotent() {
+    @Test func repeatedFreezeIsIdempotent() {
         let handle = makeNativeRefFreezeHandle()
         kk_freeze_object(handle)
         kk_freeze_object(handle)
         kk_freeze_object(handle)
-        XCTAssertEqual(kk_is_frozen(handle), 1,
-                       "Repeated freeze calls must leave the object frozen (idempotent)")
+        #expect(kk_is_frozen(handle) == 1,
+                "Repeated freeze calls must leave the object frozen (idempotent)")
     }
 
-    func testFreezingParentDoesNotAutoFreezeChildReference() {
+    @Test func freezingParentDoesNotAutoFreezeChildReference() {
         // The freeze registry is flat (per-object address); freezing the parent
         // handle does NOT automatically propagate frozen state to the child handle.
         let parent = makeNativeRefFreezeHandle()
         let child = makeNativeRefFreezeHandle()
         kk_freeze_object(parent)
-        XCTAssertEqual(kk_is_frozen(parent), 1)
-        XCTAssertEqual(kk_is_frozen(child), 0,
-                       "Freezing parent must NOT auto-freeze the child (flat registry)")
+        #expect(kk_is_frozen(parent) == 1)
+        #expect(kk_is_frozen(child) == 0,
+                "Freezing parent must NOT auto-freeze the child (flat registry)")
     }
 
-    func testFreezeChildAfterParentFreezeIsIndependent() {
+    @Test func freezeChildAfterParentFreezeIsIndependent() {
         let parent = makeNativeRefFreezeHandle()
         let child = makeNativeRefFreezeHandle()
         kk_freeze_object(parent)
         kk_freeze_object(child)
-        XCTAssertEqual(kk_is_frozen(parent), 1)
-        XCTAssertEqual(kk_is_frozen(child), 1,
-                       "Child can be independently frozen after parent is frozen")
+        #expect(kk_is_frozen(parent) == 1)
+        #expect(kk_is_frozen(child) == 1,
+                "Child can be independently frozen after parent is frozen")
     }
 
-    func testFreezeNullIsNoOpAndReturnsZero() {
-        XCTAssertEqual(kk_freeze_object(0), 0)
-        XCTAssertEqual(kk_is_frozen(0), 0)
+    @Test func freezeNullIsNoOpAndReturnsZero() {
+        #expect(kk_freeze_object(0) == 0)
+        #expect(kk_is_frozen(0) == 0)
     }
 
-    func testFreezeAndPinInteractionPreservesFreeze() {
+    @Test func freezeAndPinInteractionPreservesFreeze() {
         // Pinning a frozen object must not change its frozen state.
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
@@ -456,13 +446,13 @@ final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
             let objectRaw = Int(bitPattern: slot.pointee)
             kk_freeze_object(objectRaw)
             let pinHandle = kk_pin_object(objectRaw)
-            XCTAssertEqual(kk_is_frozen(objectRaw), 1,
-                           "Pinning a frozen object must not change its frozen state")
+            #expect(kk_is_frozen(objectRaw) == 1,
+                    "Pinning a frozen object must not change its frozen state")
             _ = kk_unpin_object(pinHandle)
         }
     }
 
-    func testFreezeAfterPinPreservesFreezeAndPin() {
+    @Test func freezeAfterPinPreservesFreezeAndPin() {
         // Freezing a pinned object must not invalidate the pin.
         withDummyNativeRefTypeInfo { ti in
             let slot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
@@ -476,9 +466,9 @@ final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
             kk_freeze_object(objectRaw)
-            XCTAssertEqual(kk_is_frozen(objectRaw), 1)
-            XCTAssertEqual(kk_pinned_get(pinHandle), objectRaw,
-                           "Freezing a pinned object must not invalidate the pin handle")
+            #expect(kk_is_frozen(objectRaw) == 1)
+            #expect(kk_pinned_get(pinHandle) == objectRaw,
+                    "Freezing a pinned object must not invalidate the pin handle")
             _ = kk_unpin_object(pinHandle)
         }
     }
@@ -488,73 +478,71 @@ final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
 // MARK: - Debugging / assertions ABI tests
 // ---------------------------------------------------------------------------
 
-final class RuntimeNativeRefDebuggingTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
-    func testAssertionsEnabledReturnsBooleanValue() {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNativeRefDebuggingTests {
+    @Test func assertionsEnabledReturnsBooleanValue() {
         let result = kk_assertions_enabled()
-        XCTAssertTrue(result == 0 || result == 1,
-                      "kk_assertions_enabled must return 0 or 1")
+        #expect(result == 0 || result == 1,
+                "kk_assertions_enabled must return 0 or 1")
     }
 
-    func testDisableEnableAssertionsIdempotent() {
+    @Test func disableEnableAssertionsIdempotent() {
         _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0)
+        #expect(kk_assertions_enabled() == 0)
         _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0,
-                       "Disabling already-disabled assertions must be idempotent")
+        #expect(kk_assertions_enabled() == 0,
+                "Disabling already-disabled assertions must be idempotent")
     }
 
-    func testEnableAssertionsIdempotent() {
+    @Test func enableAssertionsIdempotent() {
         _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1)
+        #expect(kk_assertions_enabled() == 1)
         _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1,
-                       "Enabling already-enabled assertions must be idempotent")
+        #expect(kk_assertions_enabled() == 1,
+                "Enabling already-enabled assertions must be idempotent")
     }
 
-    func testToggleAssertionsRoundTrip() {
+    @Test func toggleAssertionsRoundTrip() {
         _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1)
+        #expect(kk_assertions_enabled() == 1)
         _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0)
+        #expect(kk_assertions_enabled() == 0)
         _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1)
+        #expect(kk_assertions_enabled() == 1)
     }
 
-    func testAssertionsResetRestoresValidBooleanState() {
+    @Test func assertionsResetRestoresValidBooleanState() {
         _ = kk_assertions_set_enabled(0)
         _ = kk_assertions_reset()
         let result = kk_assertions_enabled()
-        XCTAssertTrue(result == 0 || result == 1,
-                      "kk_assertions_reset must leave assertions in a valid boolean state")
+        #expect(result == 0 || result == 1,
+                "kk_assertions_reset must leave assertions in a valid boolean state")
     }
 
-    func testRepeatedAssertionsResetIsIdempotent() {
+    @Test func repeatedAssertionsResetIsIdempotent() {
         _ = kk_assertions_reset()
         let first = kk_assertions_enabled()
         _ = kk_assertions_reset()
         let second = kk_assertions_enabled()
-        XCTAssertEqual(first, second,
-                       "Repeated kk_assertions_reset must yield consistent state")
+        #expect(first == second,
+                "Repeated kk_assertions_reset must yield consistent state")
     }
 
-    func testDebuggingIsThreadStateRunnableReturnsBoolean() {
+    @Test func debuggingIsThreadStateRunnableReturnsBoolean() {
         let result = kk_debugging_is_thread_state_runnable()
-        XCTAssertTrue(result == 0 || result == 1)
+        #expect(result == 0 || result == 1)
     }
 
-    func testDebuggingTrackingCountsAreNonNegative() {
-        XCTAssertGreaterThanOrEqual(kk_debugging_gc_suspend_count(), 0)
-        XCTAssertGreaterThanOrEqual(kk_debugging_thread_count(), 1)
-        XCTAssertGreaterThanOrEqual(kk_debugging_global_object_count(), 0)
+    @Test func debuggingTrackingCountsAreNonNegative() {
+        #expect(kk_debugging_gc_suspend_count() >= 0)
+        #expect(kk_debugging_thread_count() >= 1)
+        #expect(kk_debugging_global_object_count() >= 0)
     }
 
-    func testDebuggingGlobalObjectCountTracksRuntimeObjects() {
+    @Test func debuggingGlobalObjectCountTracksRuntimeObjects() {
         let before = kk_debugging_global_object_count()
         _ = registerRuntimeObject(RuntimeStringBox("debug"))
-        XCTAssertEqual(kk_debugging_global_object_count(), before + 1)
+        #expect(kk_debugging_global_object_count() == before + 1)
     }
 }
 

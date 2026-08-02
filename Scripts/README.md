@@ -137,6 +137,18 @@ the script, also set:
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
 ```
 
+Successful non-script reference compilations can be reused across runs by
+setting `KOTLINC_REF_CACHE_DIR`:
+
+```bash
+KOTLINC_REF_CACHE_DIR=/tmp/kswiftk-kotlinc-refs \
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+Each cached jar is keyed by the source name and contents, extra compiler
+flags, Kotlin compiler version, JDK version, and classpath contents.
+Script-style cases still execute through `kotlinc -script` on every run.
+
 Emit a machine-readable report (TSV) for CI tooling:
 
 ```bash

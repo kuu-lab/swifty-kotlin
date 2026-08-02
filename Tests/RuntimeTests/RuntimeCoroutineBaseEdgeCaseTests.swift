@@ -1,6 +1,6 @@
 import Dispatch
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - C stubs for runtimeResultRunCatching (no context capture allowed)
 
@@ -74,30 +74,24 @@ private func runtimeStringBoxValue(_ raw: Int) -> String {
 
 // MARK: - RuntimeCoroutineBaseEdgeCaseTests
 
+private func resetRuntimeCoroutineBaseEdgeCaseTestState() {
+    continuationFactoryCallbackResultRaw = 0
+    continuationFactoryCallbackThrown = 0
+}
+
 /// Edge-case coverage for kotlin.coroutines base primitives:
 /// Continuation<T>, CoroutineContext, EmptyCoroutineContext, CoroutineContext +/minusKey/fold,
 /// resume/resumeWithException/resumeWith(Result<T>), suspendCoroutine, ContinuationInterceptor.
-final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
-
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-        continuationFactoryCallbackResultRaw = 0
-        continuationFactoryCallbackThrown = 0
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
+@Suite(.runtimeIsolation(.all, resetAdditionalState: resetRuntimeCoroutineBaseEdgeCaseTestState))
+struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - resume / resumeWith(Result<T>)
 
     /// resume(value) propagates the value to the awaiting coroutine.
-    func testContinuationResumeDeliversValue() {
+    @Test func testContinuationResumeDeliversValue() {
         let fnID = 9901
         let cont = kk_coroutine_continuation_new(fnID)
-        XCTAssertNotEqual(cont, 0, "continuation handle must be non-zero")
+        #expect(cont != 0, "continuation handle must be non-zero")
 
         let sem = DispatchSemaphore(value: 0)
         let resultBox = ValueBox<Int>(-1)
@@ -114,15 +108,15 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         }
 
         let waited = sem.wait(timeout: .now() + 3)
-        XCTAssertEqual(waited, .success, "resume should signal within timeout")
-        XCTAssertEqual(resultBox.value, 42, "resume(42) should deliver value 42")
+        #expect(waited == .success, "resume should signal within timeout")
+        #expect(resultBox.value == 42, "resume(42) should deliver value 42")
     }
 
     /// resumeWithException propagates the throwable to the awaiting state.
-    func testContinuationResumeWithExceptionPropagatesThrowable() {
+    @Test func testContinuationResumeWithExceptionPropagatesThrowable() {
         let fnID = 9902
         let cont = kk_coroutine_continuation_new(fnID)
-        XCTAssertNotEqual(cont, 0)
+        #expect(cont != 0)
 
         let exc = runtimeAllocateThrowable(message: "test error")
         let sem = DispatchSemaphore(value: 0)
@@ -140,15 +134,15 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         }
 
         let waited = sem.wait(timeout: .now() + 3)
-        XCTAssertEqual(waited, .success, "resumeWithException should signal within timeout")
-        XCTAssertEqual(thrownBox.value, exc, "thrown exception must match the one passed in")
+        #expect(waited == .success, "resumeWithException should signal within timeout")
+        #expect(thrownBox.value == exc, "thrown exception must match the one passed in")
     }
 
     /// resumeWith(Result.success) propagates the value correctly.
-    func testContinuationResumeWithResultSuccess() {
+    @Test func testContinuationResumeWithResultSuccess() {
         let fnID = 9903
         let cont = kk_coroutine_continuation_new(fnID)
-        XCTAssertNotEqual(cont, 0)
+        #expect(cont != 0)
 
         let successFn = unsafeBitCast(
             coro_base_success_123_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -156,8 +150,8 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         )
         var thrown = 0
         let resultRaw = runtimeResultRunCatching(successFn, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1)
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 1)
 
         let sem = DispatchSemaphore(value: 0)
         let resultValueBox = ValueBox<Int>(-1)
@@ -174,15 +168,15 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         }
 
         let waited = sem.wait(timeout: .now() + 3)
-        XCTAssertEqual(waited, .success)
-        XCTAssertEqual(resultValueBox.value, 123, "resumeWith(Result.success(123)) should deliver 123")
+        #expect(waited == .success)
+        #expect(resultValueBox.value == 123, "resumeWith(Result.success(123)) should deliver 123")
     }
 
     /// resumeWith(Result.failure) propagates the exception correctly.
-    func testContinuationResumeWithResultFailure() {
+    @Test func testContinuationResumeWithResultFailure() {
         let fnID = 9904
         let cont = kk_coroutine_continuation_new(fnID)
-        XCTAssertNotEqual(cont, 0)
+        #expect(cont != 0)
 
         // Allocate throwable and pass as closureRaw to the non-capturing stub
         let exc = runtimeAllocateThrowable(message: "fail result")
@@ -192,8 +186,8 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         )
         var thrown = 0
         let resultRaw = runtimeResultRunCatching(failFn, exc, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1)
+        #expect(thrown == 0)
+        #expect(runtimeResultFailureFlag(resultRaw) == 1)
 
         let sem = DispatchSemaphore(value: 0)
         let thrownBox2 = ValueBox<Int>(0)
@@ -210,27 +204,27 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         }
 
         let waited = sem.wait(timeout: .now() + 3)
-        XCTAssertEqual(waited, .success)
-        XCTAssertEqual(thrownBox2.value, exc, "resumeWith(Result.failure) should propagate exception")
+        #expect(waited == .success)
+        #expect(thrownBox2.value == exc, "resumeWith(Result.failure) should propagate exception")
     }
 
     // MARK: - CoroutineContext + (plus)
 
     /// EmptyCoroutineContext + element == element (left identity).
-    func testContextPlusEmptyLeftIsIdentity() {
+    @Test func testContextPlusEmptyLeftIsIdentity() {
         let nameRaw = kk_coroutine_name_create(0)  // "coroutine" default
-        XCTAssertNotEqual(nameRaw, 0)
+        #expect(nameRaw != 0)
 
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9907))
         let combined = kk_context_plus(emptyCtx, nameRaw)
         let retrievedName = kk_context_get_name(combined)
-        XCTAssertNotEqual(retrievedName, 0, "empty + name-element should have a name")
+        #expect(retrievedName != 0, "empty + name-element should have a name")
     }
 
     /// element + EmptyCoroutineContext == element (right identity).
-    func testContextPlusEmptyRightIsIdentity() {
+    @Test func testContextPlusEmptyRightIsIdentity() {
         let nameRaw = kk_coroutine_name_create(0)
-        XCTAssertNotEqual(nameRaw, 0)
+        #expect(nameRaw != 0)
 
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9908))
         let nameCtx = kk_context_plus(emptyCtx, nameRaw)
@@ -238,11 +232,11 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         let emptyRight = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9909))
         let combined = kk_context_plus(nameCtx, emptyRight)
         let retrievedName = kk_context_get_name(combined)
-        XCTAssertNotEqual(retrievedName, 0, "name-element + empty should preserve the name")
+        #expect(retrievedName != 0, "name-element + empty should preserve the name")
     }
 
     /// Right-hand element wins on key collision during plus.
-    func testContextPlusRightWinsOnKeyCollision() {
+    @Test func testContextPlusRightWinsOnKeyCollision() {
         let nameABox = RuntimeStringBox("Alice")
         let nameAPtr = runtimeRegisterStringBox(nameABox)
         let nameA = kk_coroutine_name_create(nameAPtr)
@@ -256,15 +250,15 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         let ctxB = kk_context_plus(ctxA, nameB)
 
         let nameHandleRaw = kk_context_get_name(ctxB)
-        XCTAssertNotEqual(nameHandleRaw, 0, "merged context should have a name")
+        #expect(nameHandleRaw != 0, "merged context should have a name")
         let nameValue = runtimeStringBoxValue(nameHandleRaw)
-        XCTAssertEqual(nameValue, "Bob", "right-hand name should win on collision")
+        #expect(nameValue == "Bob", "right-hand name should win on collision")
     }
 
     // MARK: - CoroutineContext minusKey
 
     /// minusKey removes the element matching the key.
-    func testContextMinusKeyRemovesNameElement() {
+    @Test func testContextMinusKeyRemovesNameElement() {
         let nameBox = RuntimeStringBox("TestName")
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
@@ -272,25 +266,25 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9911))
         let withName = kk_context_plus(emptyCtx, nameElem)
 
-        XCTAssertNotEqual(kk_context_get_name(withName), 0, "should have name before minusKey")
+        #expect(kk_context_get_name(withName) != 0, "should have name before minusKey")
 
         let withoutName = kk_context_minusKey(withName, nameElem)
-        XCTAssertEqual(kk_context_get_name(withoutName), 0, "name should be absent after minusKey")
+        #expect(kk_context_get_name(withoutName) == 0, "name should be absent after minusKey")
     }
 
     /// minusKey on a key not present is a no-op.
-    func testContextMinusKeyNonPresentIsNoOp() {
+    @Test func testContextMinusKeyNonPresentIsNoOp() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9912))
         let nameElem = kk_coroutine_name_create(0)
 
         let result = kk_context_minusKey(emptyCtx, nameElem)
-        XCTAssertEqual(kk_context_get_name(result), 0, "minusKey on absent element should leave context unchanged")
+        #expect(kk_context_get_name(result) == 0, "minusKey on absent element should leave context unchanged")
     }
 
     // MARK: - CoroutineContext fold traversal
 
     /// fold visits each context element exactly once.
-    func testContextFoldVisitsElements() {
+    @Test func testContextFoldVisitsElements() {
         let nameBox = RuntimeStringBox("FoldTest")
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
@@ -312,13 +306,13 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         var outThrown = 0
         let finalAcc = kk_context_fold(ctx, 0, fnPtr, countBoxRaw, &outThrown)
 
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertGreaterThan(finalAcc, 0, "fold should accumulate at least one element")
-        XCTAssertGreaterThan(countBox.count, 0, "fold visitor closure should have been called")
+        #expect(outThrown == 0)
+        #expect(finalAcc > 0, "fold should accumulate at least one element")
+        #expect(countBox.count > 0, "fold visitor closure should have been called")
     }
 
     /// fold on empty context returns initial value.
-    func testContextFoldEmptyReturnsInitial() {
+    @Test func testContextFoldEmptyReturnsInitial() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9914))
         let noopFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, _, out in
             out?.pointee = 0
@@ -327,51 +321,51 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         let fnPtr = unsafeBitCast(noopFn, to: Int.self)
         var outThrown = 0
         let result = kk_context_fold(emptyCtx, 99, fnPtr, 0, &outThrown)
-        XCTAssertEqual(outThrown, 0)
+        #expect(outThrown == 0)
         // Fresh continuation context has no dispatcher / name / handler by default.
         // The key invariant: no exception and result >= 99.
-        XCTAssertGreaterThanOrEqual(result, 99, "fold on context with no extra elements should not decrease accumulator")
+        #expect(result >= 99, "fold on context with no extra elements should not decrease accumulator")
     }
 
     // MARK: - CoroutineName create / get
 
     /// kk_coroutine_name_create with a null pointer uses "coroutine" as default.
-    func testCoroutineNameCreateDefaultName() {
+    @Test func testCoroutineNameCreateDefaultName() {
         let nameHandle = kk_coroutine_name_create(0)
-        XCTAssertNotEqual(nameHandle, 0)
+        #expect(nameHandle != 0)
 
         let gotNameRaw = kk_coroutine_name_get(nameHandle)
-        XCTAssertNotEqual(gotNameRaw, 0)
+        #expect(gotNameRaw != 0)
         let name = runtimeStringBoxValue(gotNameRaw)
-        XCTAssertEqual(name, "coroutine", "default name should be 'coroutine'")
+        #expect(name == "coroutine", "default name should be 'coroutine'")
     }
 
     /// kk_coroutine_name_create with a valid RuntimeStringBox preserves the name.
-    func testCoroutineNameCreateWithExplicitName() {
+    @Test func testCoroutineNameCreateWithExplicitName() {
         let strBox = RuntimeStringBox("MyCoroutine")
         let strPtr = runtimeRegisterStringBox(strBox)
         let nameHandle = kk_coroutine_name_create(strPtr)
-        XCTAssertNotEqual(nameHandle, 0)
+        #expect(nameHandle != 0)
 
         let gotNameRaw = kk_coroutine_name_get(nameHandle)
-        XCTAssertNotEqual(gotNameRaw, 0)
+        #expect(gotNameRaw != 0)
         let name = runtimeStringBoxValue(gotNameRaw)
-        XCTAssertEqual(name, "MyCoroutine", "name should round-trip through create/get")
+        #expect(name == "MyCoroutine", "name should round-trip through create/get")
     }
 
     /// kk_coroutine_name_get on invalid handle returns empty string.
-    func testCoroutineNameGetInvalidHandleReturnsEmpty() {
+    @Test func testCoroutineNameGetInvalidHandleReturnsEmpty() {
         let gotNameRaw = kk_coroutine_name_get(0)
         let name = runtimeStringBoxValue(gotNameRaw)
-        XCTAssertEqual(name, "", "invalid handle should produce empty string")
+        #expect(name == "", "invalid handle should produce empty string")
     }
 
     // MARK: - CoroutineExceptionHandler create / invoke
 
     /// kk_exception_handler_create with fnPtr=0 and kk_exception_handler_invoke do not crash.
-    func testExceptionHandlerCreateAndInvokeWithFallback() {
+    @Test func testExceptionHandlerCreateAndInvokeWithFallback() {
         let handlerHandle = kk_exception_handler_create(0)
-        XCTAssertNotEqual(handlerHandle, 0, "exception handler handle should be non-zero")
+        #expect(handlerHandle != 0, "exception handler handle should be non-zero")
 
         // Invoke with a dummy exception — falls back to stderr output, must not crash.
         let exc = runtimeAllocateThrowable(message: "handler test")
@@ -379,7 +373,7 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
     }
 
     /// kk_exception_handler_invoke with zero handler must not crash.
-    func testExceptionHandlerInvokeZeroHandlerDoesNotCrash() {
+    @Test func testExceptionHandlerInvokeZeroHandlerDoesNotCrash() {
         let exc = runtimeAllocateThrowable(message: "noop test")
         kk_exception_handler_invoke(0, 0, exc)
     }
@@ -387,31 +381,31 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
     // MARK: - ContinuationInterceptor
 
     /// kk_continuation_intercepted with a fresh continuation returns a valid handle.
-    func testContinuationInterceptedFreshContinuationReturnsNonZero() {
+    @Test func testContinuationInterceptedFreshContinuationReturnsNonZero() {
         let cont = kk_coroutine_continuation_new(9915)
-        XCTAssertNotEqual(cont, 0)
+        #expect(cont != 0)
         let intercepted = kk_continuation_intercepted(cont)
-        XCTAssertNotEqual(intercepted, 0, "intercepted handle should be non-zero")
+        #expect(intercepted != 0, "intercepted handle should be non-zero")
     }
 
     /// kk_continuation_intercepted with zero handle returns zero.
-    func testContinuationInterceptedZeroHandleReturnsZero() {
+    @Test func testContinuationInterceptedZeroHandleReturnsZero() {
         let intercepted = kk_continuation_intercepted(0)
-        XCTAssertEqual(intercepted, 0, "intercepted(0) should return 0")
+        #expect(intercepted == 0, "intercepted(0) should return 0")
     }
 
     // MARK: - CoroutineContext element retrieval
 
     /// kk_context_get returns 0 for a key not present in the context.
-    func testContextGetAbsentKeyReturnsZero() {
+    @Test func testContextGetAbsentKeyReturnsZero() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9916))
         let nameElem = kk_coroutine_name_create(0)
         let result = kk_context_get(emptyCtx, nameElem)
-        XCTAssertEqual(result, 0, "context_get for absent key should return 0")
+        #expect(result == 0, "context_get for absent key should return 0")
     }
 
     /// kk_context_get returns element for a key that is present.
-    func testContextGetPresentKeyReturnsElement() {
+    @Test func testContextGetPresentKeyReturnsElement() {
         let nameBox = RuntimeStringBox("Present")
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
@@ -420,62 +414,62 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         let ctx = kk_context_plus(emptyCtx, nameElem)
 
         let retrieved = kk_context_get(ctx, nameElem)
-        XCTAssertNotEqual(retrieved, 0, "context_get for present key should return non-zero")
+        #expect(retrieved != 0, "context_get for present key should return non-zero")
     }
 
     // MARK: - CoroutineContext dispatcher extraction
 
     /// kk_context_get_dispatcher on a context without dispatcher returns 0.
-    func testContextGetDispatcherAbsentReturnsZero() {
+    @Test func testContextGetDispatcherAbsentReturnsZero() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9918))
         let dispatcher = kk_context_get_dispatcher(emptyCtx)
-        XCTAssertEqual(dispatcher, 0, "context with no dispatcher should return 0")
+        #expect(dispatcher == 0, "context with no dispatcher should return 0")
     }
 
     /// kk_context_get_dispatcher on a dispatcher tag itself returns the tag.
-    func testContextGetDispatcherTagReturnsSelf() {
+    @Test func testContextGetDispatcherTagReturnsSelf() {
         let defaultDispatcher = kk_dispatcher_default()
-        XCTAssertNotEqual(defaultDispatcher, 0)
+        #expect(defaultDispatcher != 0)
         let retrieved = kk_context_get_dispatcher(defaultDispatcher)
-        XCTAssertEqual(retrieved, defaultDispatcher, "dispatcher tag passed directly should be returned as-is")
+        #expect(retrieved == defaultDispatcher, "dispatcher tag passed directly should be returned as-is")
     }
 
     // MARK: - kk_coroutine_continuation_context
 
     /// kk_coroutine_continuation_context returns a valid context for a valid continuation.
-    func testContinuationContextIsNonZeroForValidContinuation() {
+    @Test func testContinuationContextIsNonZeroForValidContinuation() {
         let cont = kk_coroutine_continuation_new(9919)
-        XCTAssertNotEqual(cont, 0)
+        #expect(cont != 0)
         let ctx = kk_coroutine_continuation_context(cont)
-        XCTAssertNotEqual(ctx, 0, "continuation context should be non-zero for a valid continuation")
+        #expect(ctx != 0, "continuation context should be non-zero for a valid continuation")
     }
 
-    func testCurrentCoroutineContextFallsBackToEmptyContextOutsideCoroutine() {
+    @Test func testCurrentCoroutineContextFallsBackToEmptyContextOutsideCoroutine() {
         let ctx = kk_coroutine_current_context()
-        XCTAssertNotEqual(ctx, 0, "current coroutine context should be non-zero outside a coroutine")
+        #expect(ctx != 0, "current coroutine context should be non-zero outside a coroutine")
     }
 
-    func testContinuationFactoryContextAndResumeSuccessRoundTrip() {
+    @Test func testContinuationFactoryContextAndResumeSuccessRoundTrip() {
         let contextRaw = kk_context_plus(0, 0)
-        XCTAssertNotEqual(contextRaw, 0)
+        #expect(contextRaw != 0)
         let resumeWithRaw = unsafeBitCast(
             coro_base_continuation_factory_callback as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
         )
 
         let cont = kk_coroutine_continuation_factory(contextRaw, resumeWithRaw)
-        XCTAssertNotEqual(cont, 0)
-        XCTAssertEqual(kk_coroutine_continuation_context(cont), contextRaw)
+        #expect(cont != 0)
+        #expect(kk_coroutine_continuation_context(cont) == contextRaw)
 
         kk_coroutine_continuation_resume(cont, 321)
 
-        XCTAssertNotEqual(continuationFactoryCallbackResultRaw, 0)
-        XCTAssertEqual(continuationFactoryCallbackThrown, 0)
-        XCTAssertEqual(runtimeResultSuccessFlag(continuationFactoryCallbackResultRaw), 1)
-        XCTAssertEqual(runtimeResultValueOrNull(continuationFactoryCallbackResultRaw), 321)
+        #expect(continuationFactoryCallbackResultRaw != 0)
+        #expect(continuationFactoryCallbackThrown == 0)
+        #expect(runtimeResultSuccessFlag(continuationFactoryCallbackResultRaw) == 1)
+        #expect(runtimeResultValueOrNull(continuationFactoryCallbackResultRaw) == 321)
     }
 
-    func testContinuationFactoryResumeWithExceptionWrapsFailureResult() {
+    @Test func testContinuationFactoryResumeWithExceptionWrapsFailureResult() {
         let resumeWithRaw = unsafeBitCast(
             coro_base_continuation_factory_callback as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
@@ -485,30 +479,30 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
 
         kk_coroutine_continuation_resume_with_exception(cont, exceptionRaw)
 
-        XCTAssertNotEqual(continuationFactoryCallbackResultRaw, 0)
-        XCTAssertEqual(runtimeResultFailureFlag(continuationFactoryCallbackResultRaw), 1)
-        XCTAssertEqual(runtimeResultExceptionOrNull(continuationFactoryCallbackResultRaw), exceptionRaw)
+        #expect(continuationFactoryCallbackResultRaw != 0)
+        #expect(runtimeResultFailureFlag(continuationFactoryCallbackResultRaw) == 1)
+        #expect(runtimeResultExceptionOrNull(continuationFactoryCallbackResultRaw) == exceptionRaw)
     }
 
     // MARK: - Result round-trip
 
     /// Success Result: isSuccess == true, isFailure == false, getOrNull returns value.
-    func testResultSuccessRoundTrip() {
+    @Test func testResultSuccessRoundTrip() {
         let successFn = unsafeBitCast(
             coro_base_success_123_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
             to: Int.self
         )
         var thrown = 0
         let resultRaw = runtimeResultRunCatching(successFn, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 1, "success Result must report isSuccess=true")
-        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 0, "success Result must report isFailure=false")
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 1, "success Result must report isSuccess=true")
+        #expect(runtimeResultFailureFlag(resultRaw) == 0, "success Result must report isFailure=false")
         let value = runtimeResultValueOrNull(resultRaw)
-        XCTAssertEqual(value, 123, "getOrNull should return the success value")
+        #expect(value == 123, "getOrNull should return the success value")
     }
 
     /// Failure Result: isSuccess == false, isFailure == true, getOrNull returns null sentinel.
-    func testResultFailureRoundTrip() {
+    @Test func testResultFailureRoundTrip() {
         let exc = runtimeAllocateThrowable(message: "round-trip fail")
         let failFn = unsafeBitCast(
             coro_base_fail_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
@@ -516,11 +510,11 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         )
         var thrown = 0
         let resultRaw = runtimeResultRunCatching(failFn, exc, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeResultSuccessFlag(resultRaw), 0, "failure Result must report isSuccess=false")
-        XCTAssertEqual(runtimeResultFailureFlag(resultRaw), 1, "failure Result must report isFailure=true")
+        #expect(thrown == 0)
+        #expect(runtimeResultSuccessFlag(resultRaw) == 0, "failure Result must report isSuccess=false")
+        #expect(runtimeResultFailureFlag(resultRaw) == 1, "failure Result must report isFailure=true")
         // runtimeResultValueOrNull returns runtimeNullSentinelInt (Int.min) for failure.
         let value = runtimeResultValueOrNull(resultRaw)
-        XCTAssertEqual(value, Int.min, "getOrNull for failure should return the null sentinel (Int.min)")
+        #expect(value == Int.min, "getOrNull for failure should return the null sentinel (Int.min)")
     }
 }
