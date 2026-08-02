@@ -900,6 +900,32 @@ extension CallTypeChecker {
         ) {
             return boundType
         }
+        if let boundType = tryBindStringChunkedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
+        if let boundType = tryBindStringWindowedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
         // String stdlib: HOF filter/map/count/any/all/none (STDLIB-189)
         if args.count == 2, interner.resolve(calleeName) == "chunkedSequence" {
             let receiverTypeForCheck = safeCall

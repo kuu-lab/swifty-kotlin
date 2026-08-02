@@ -824,6 +824,82 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testChunkedTransformResolvesInCallExpressions() throws {
+        let source = """
+        fun chunkLengths(value: CharSequence): List<Int> {
+            return value.chunked(3) { it.length }
+        }
+
+        fun stringChunkLengths(value: String): List<Int> {
+            return value.chunked(3) { it.length }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "chunked"
+            }
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for chunked"
+                )
+                #expect(
+                    sema.symbols.symbol(chosenCallee)?.declSite != nil,
+                    "Expected chunked(size, transform) to resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected chunked(size, transform) to have no C external link"
+                )
+            }
+        }
+    }
+
+    @Test func testWindowedTransformResolvesInCallExpressions() throws {
+        let source = """
+        fun windowLengths(value: CharSequence): List<Int> {
+            return value.windowed(3, 2, true) { it.length }
+        }
+
+        fun stringWindowLengths(value: String): List<Int> {
+            return value.windowed(size = 3, step = 2, partialWindows = true) { window -> window.length }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "windowed"
+            }
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for windowed"
+                )
+                #expect(
+                    sema.symbols.symbol(chosenCallee)?.declSite != nil,
+                    "Expected windowed(size, step, partialWindows, transform) to resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected windowed(size, step, partialWindows, transform) to have no C external link"
+                )
+            }
+        }
+    }
+
     @Test func testReplaceAfterResolvesInCallExpressions() throws {
         let source = """
         fun replaceAfterString(value: String): String {

@@ -743,7 +743,7 @@ private func runtimeSequenceTransformElement(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -781,7 +781,7 @@ private func runtimeSequenceFlushChunkedTransforms(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -1232,7 +1232,7 @@ private func applyChunkedTransformStep(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -1252,7 +1252,7 @@ private func applyChunkedTransformStep(
         let chunk = RuntimeListBox(elements: buffer)
         let chunkRaw = registerRuntimeObject(chunk)
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: chunkRaw,
@@ -3520,7 +3520,7 @@ public func kk_sequence_windowed_transform(
     results.reserveCapacity(windows.count)
     for windowRaw in windows {
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: windowRaw,
