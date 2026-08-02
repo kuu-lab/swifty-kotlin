@@ -1,70 +1,68 @@
 import Dispatch
 @testable import Runtime
-import XCTest
+import Testing
 
-final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct JobComprehensiveTests {
     // MARK: - Job State Transitions Tests
 
-    func testJobStateTransitionsCompleteLifecycle() {
+    @Test func jobStateTransitionsCompleteLifecycle() {
         let job = RuntimeJobHandle()
 
         // Initial state: New
-        XCTAssertFalse(job.isActiveSnapshot())
-        XCTAssertFalse(job.completedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
+        #expect(!job.isActiveSnapshot())
+        #expect(!job.completedSnapshot())
+        #expect(!job.cancellationSnapshot())
 
         // Start job
         job.markStarted()
-        XCTAssertTrue(job.isActiveSnapshot())
-        XCTAssertFalse(job.completedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
+        #expect(job.isActiveSnapshot())
+        #expect(!job.completedSnapshot())
+        #expect(!job.cancellationSnapshot())
 
         // Complete normally
-        XCTAssertTrue(job.complete(with: 42))
-        XCTAssertFalse(job.isActiveSnapshot())
-        XCTAssertTrue(job.completedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
-        XCTAssertEqual(job.join(), 42)
+        #expect(job.complete(with: 42))
+        #expect(!job.isActiveSnapshot())
+        #expect(job.completedSnapshot())
+        #expect(!job.cancellationSnapshot())
+        #expect(job.join() == 42)
     }
 
-    func testJobStateTransitionsCancellationLifecycle() {
+    @Test func jobStateTransitionsCancellationLifecycle() {
         let job = RuntimeJobHandle()
 
         // Start job
         job.markStarted()
-        XCTAssertTrue(job.isActiveSnapshot())
+        #expect(job.isActiveSnapshot())
 
         // Cancel job
-        XCTAssertTrue(job.cancel())
-        XCTAssertFalse(job.isActiveSnapshot())
-        XCTAssertTrue(job.cancellationSnapshot())
+        #expect(job.cancel())
+        #expect(!job.isActiveSnapshot())
+        #expect(job.cancellationSnapshot())
 
         // Complete cancellation
-        XCTAssertTrue(job.complete(with: 0))
-        XCTAssertTrue(job.completedSnapshot())
-        XCTAssertTrue(job.cancellationSnapshot())
+        #expect(job.complete(with: 0))
+        #expect(job.completedSnapshot())
+        #expect(job.cancellationSnapshot())
     }
 
-    func testJobStateTransitionsExceptionalFailure() {
+    @Test func jobStateTransitionsExceptionalFailure() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         let exception = runtimeAllocateThrowable(message: "test error")
-        XCTAssertTrue(job.completeExceptionally(with: exception))
+        #expect(job.completeExceptionally(with: exception))
 
-        XCTAssertFalse(job.isActiveSnapshot())
-        XCTAssertTrue(job.completedSnapshot())
-        XCTAssertTrue(job.isFailedSnapshot())
-        XCTAssertFalse(job.cancellationSnapshot())
-        XCTAssertEqual(job.join(), exception)
+        #expect(!job.isActiveSnapshot())
+        #expect(job.completedSnapshot())
+        #expect(job.isFailedSnapshot())
+        #expect(!job.cancellationSnapshot())
+        #expect(job.join() == exception)
     }
 
     // MARK: - Job Hierarchy Tests
 
-    func testJobParentChildRelationship() {
+    @Test func jobParentChildRelationship() {
         let parent = RuntimeJobHandle()
         let child = RuntimeJobHandle()
 
@@ -76,12 +74,12 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         parent.registerChild(childHandle)
 
         // Cancel parent should propagate to child
-        XCTAssertTrue(parent.cancel())
-        XCTAssertTrue(parent.cancellationSnapshot())
-        XCTAssertTrue(child.cancellationSnapshot())
+        #expect(parent.cancel())
+        #expect(parent.cancellationSnapshot())
+        #expect(child.cancellationSnapshot())
     }
 
-    func testJobChildRegistrationAfterParentCancelled() {
+    @Test func jobChildRegistrationAfterParentCancelled() {
         let parent = RuntimeJobHandle()
         let child = RuntimeJobHandle()
 
@@ -89,147 +87,147 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         child.markStarted()
 
         // Cancel parent first
-        XCTAssertTrue(parent.cancel())
+        #expect(parent.cancel())
 
         // Then register child - should be cancelled immediately
         let childHandle = Int(bitPattern: Unmanaged.passUnretained(child).toOpaque())
         parent.registerChild(childHandle)
 
-        XCTAssertTrue(child.cancellationSnapshot())
+        #expect(child.cancellationSnapshot())
     }
 
     // MARK: - Job Cancellation Tests
 
-    func testJobCancelWithCause() {
+    @Test func jobCancelWithCause() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         let cause = runtimeAllocateThrowable(message: "cancellation cause")
-        XCTAssertTrue(job.cancel(cause: cause))
+        #expect(job.cancel(cause: cause))
 
-        XCTAssertTrue(job.cancellationSnapshot())
-        XCTAssertTrue(job.complete(with: 0))
-        XCTAssertEqual(job.join(), cause)
+        #expect(job.cancellationSnapshot())
+        #expect(job.complete(with: 0))
+        #expect(job.join() == cause)
     }
 
-    func testJobCancelIdempotent() {
+    @Test func jobCancelIdempotent() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         // First cancel should succeed
-        XCTAssertTrue(job.cancel())
+        #expect(job.cancel())
 
         // Subsequent cancels should return false
-        XCTAssertFalse(job.cancel())
+        #expect(!job.cancel())
 
         let cause = runtimeAllocateThrowable(message: "test")
-        XCTAssertFalse(job.cancel(cause: cause))
+        #expect(!job.cancel(cause: cause))
     }
 
-    func testJobCancelAfterComplete() {
+    @Test func jobCancelAfterComplete() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         // Complete first
-        XCTAssertTrue(job.complete(with: 42))
-        XCTAssertTrue(job.completedSnapshot())
+        #expect(job.complete(with: 42))
+        #expect(job.completedSnapshot())
 
         // Then cancel should fail
-        XCTAssertFalse(job.cancel())
+        #expect(!job.cancel())
     }
 
     // MARK: - Job Completion Tests
 
-    func testJobCompleteIdempotent() {
+    @Test func jobCompleteIdempotent() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         // First complete should succeed
-        XCTAssertTrue(job.complete(with: 42))
+        #expect(job.complete(with: 42))
 
         // Subsequent completes should fail
-        XCTAssertFalse(job.complete(with: 100))
-        XCTAssertFalse(job.completeExceptionally(with: runtimeAllocateThrowable(message: "error")))
+        #expect(!job.complete(with: 100))
+        #expect(!job.completeExceptionally(with: runtimeAllocateThrowable(message: "error")))
     }
 
-    func testJobCompleteExceptionallyIdempotent() {
+    @Test func jobCompleteExceptionallyIdempotent() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         let exception = runtimeAllocateThrowable(message: "test error")
-        XCTAssertTrue(job.completeExceptionally(with: exception))
+        #expect(job.completeExceptionally(with: exception))
 
         // Subsequent completions should fail
-        XCTAssertFalse(job.complete(with: 42))
-        XCTAssertFalse(job.completeExceptionally(with: runtimeAllocateThrowable(message: "another error")))
+        #expect(!job.complete(with: 42))
+        #expect(!job.completeExceptionally(with: runtimeAllocateThrowable(message: "another error")))
     }
 
     // MARK: - Job Join Tests
 
-    func testJobJoinReturnsCorrectValue() {
+    @Test func jobJoinReturnsCorrectValue() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
         // Normal completion
-        XCTAssertTrue(job.complete(with: 123))
-        XCTAssertEqual(job.join(), 123)
+        #expect(job.complete(with: 123))
+        #expect(job.join() == 123)
 
         // Exceptional completion
         let job2 = RuntimeJobHandle()
         job2.markStarted()
         let exception = runtimeAllocateThrowable(message: "error")
-        XCTAssertTrue(job2.completeExceptionally(with: exception))
-        XCTAssertEqual(job2.join(), exception)
+        #expect(job2.completeExceptionally(with: exception))
+        #expect(job2.join() == exception)
 
         // Cancellation
         let job3 = RuntimeJobHandle()
         job3.markStarted()
         let cause = runtimeAllocateThrowable(message: "cancelled")
-        XCTAssertTrue(job3.cancel(cause: cause))
-        XCTAssertTrue(job3.complete(with: 0))
-        XCTAssertEqual(job3.join(), cause)
+        #expect(job3.cancel(cause: cause))
+        #expect(job3.complete(with: 0))
+        #expect(job3.join() == cause)
     }
 
-    func testJobAwaitCompletionSameAsJoin() {
+    @Test func jobAwaitCompletionSameAsJoin() {
         let job = RuntimeJobHandle()
         job.markStarted()
 
-        XCTAssertTrue(job.complete(with: 456))
-        XCTAssertEqual(job.awaitCompletion(), 456)
-        XCTAssertEqual(job.join(), 456)
+        #expect(job.complete(with: 456))
+        #expect(job.awaitCompletion() == 456)
+        #expect(job.join() == 456)
     }
 
     // MARK: - ABI Function Tests
 
-    func testABIJobStateQueries() {
+    @Test func abiJobStateQueries() {
         let job = RuntimeJobHandle()
         let jobHandle = Int(bitPattern: Unmanaged.passRetained(job).toOpaque())
 
         // Initial state
-        XCTAssertEqual(kk_job_is_active(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_completed(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_failed(jobHandle), 0)
+        #expect(kk_job_is_active(jobHandle) == 0)
+        #expect(kk_job_is_completed(jobHandle) == 0)
+        #expect(kk_job_is_cancelled(jobHandle) == 0)
+        #expect(kk_job_is_failed(jobHandle) == 0)
 
         // Start job
         job.markStarted()
-        XCTAssertEqual(kk_job_is_active(jobHandle), 1)
-        XCTAssertEqual(kk_job_is_completed(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_failed(jobHandle), 0)
+        #expect(kk_job_is_active(jobHandle) == 1)
+        #expect(kk_job_is_completed(jobHandle) == 0)
+        #expect(kk_job_is_cancelled(jobHandle) == 0)
+        #expect(kk_job_is_failed(jobHandle) == 0)
 
         // Complete job
-        XCTAssertTrue(job.complete(with: 789))
-        XCTAssertEqual(kk_job_is_active(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_completed(jobHandle), 1)
-        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_failed(jobHandle), 0)
+        #expect(job.complete(with: 789))
+        #expect(kk_job_is_active(jobHandle) == 0)
+        #expect(kk_job_is_completed(jobHandle) == 1)
+        #expect(kk_job_is_cancelled(jobHandle) == 0)
+        #expect(kk_job_is_failed(jobHandle) == 0)
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
-    func testABIJobFailedState() {
+    @Test func abiJobFailedState() {
         let job = RuntimeJobHandle()
         let jobHandle = Int(bitPattern: Unmanaged.passRetained(job).toOpaque())
 
@@ -237,40 +235,40 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
 
         // Complete with exception
         let exception = runtimeAllocateThrowable(message: "test error")
-        XCTAssertTrue(job.completeExceptionally(with: exception))
+        #expect(job.completeExceptionally(with: exception))
 
-        XCTAssertEqual(kk_job_is_active(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_completed(jobHandle), 1)
-        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 0)
-        XCTAssertEqual(kk_job_is_failed(jobHandle), 1)
+        #expect(kk_job_is_active(jobHandle) == 0)
+        #expect(kk_job_is_completed(jobHandle) == 1)
+        #expect(kk_job_is_cancelled(jobHandle) == 0)
+        #expect(kk_job_is_failed(jobHandle) == 1)
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
-    func testABICancelFunctions() {
+    @Test func abiCancelFunctions() {
         let job = RuntimeJobHandle()
         let jobHandle = Int(bitPattern: Unmanaged.passRetained(job).toOpaque())
 
         job.markStarted()
 
         // Normal cancel
-        XCTAssertEqual(kk_job_cancel(jobHandle), 0)
-        XCTAssertTrue(job.cancellationSnapshot())
+        #expect(kk_job_cancel(jobHandle) == 0)
+        #expect(job.cancellationSnapshot())
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
-    func testABICompleteFunctions() {
+    @Test func abiCompleteFunctions() {
         let job = RuntimeJobHandle()
         let jobHandle = Int(bitPattern: Unmanaged.passRetained(job).toOpaque())
 
         job.markStarted()
 
         // Normal complete
-        XCTAssertEqual(kk_job_complete(jobHandle, 999), 1)
-        XCTAssertTrue(job.completedSnapshot())
+        #expect(kk_job_complete(jobHandle, 999) == 1)
+        #expect(job.completedSnapshot())
 
         // Exceptional complete (new job)
         let job2 = RuntimeJobHandle()
@@ -278,8 +276,8 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         job2.markStarted()
 
         let exception = runtimeAllocateThrowable(message: "test")
-        XCTAssertEqual(kk_job_complete_exceptionally(job2Handle, exception), 1)
-        XCTAssertTrue(job2.isFailedSnapshot())
+        #expect(kk_job_complete_exceptionally(job2Handle, exception) == 1)
+        #expect(job2.isFailedSnapshot())
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
@@ -288,20 +286,20 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - AsyncTask Job Compatibility Tests
 
-    func testAsyncTaskJobInterfaceCompatibility() {
+    @Test func asyncTaskJobInterfaceCompatibility() {
         let task = RuntimeAsyncTask()
         let taskHandle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
 
         // Initial state
-        XCTAssertEqual(kk_job_is_active(taskHandle), 0)
-        XCTAssertEqual(kk_job_is_completed(taskHandle), 0)
-        XCTAssertEqual(kk_job_is_cancelled(taskHandle), 0)
+        #expect(kk_job_is_active(taskHandle) == 0)
+        #expect(kk_job_is_completed(taskHandle) == 0)
+        #expect(kk_job_is_cancelled(taskHandle) == 0)
 
         // Complete task
         task.complete(with: 555)
-        XCTAssertEqual(kk_job_is_active(taskHandle), 0)
-        XCTAssertEqual(kk_job_is_completed(taskHandle), 1)
-        XCTAssertEqual(kk_job_is_cancelled(taskHandle), 0)
+        #expect(kk_job_is_active(taskHandle) == 0)
+        #expect(kk_job_is_completed(taskHandle) == 1)
+        #expect(kk_job_is_cancelled(taskHandle) == 0)
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: taskHandle)!).release()
@@ -309,40 +307,40 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Edge Cases Tests
 
-    func testJobInvalidHandleHandling() {
+    @Test func jobInvalidHandleHandling() {
         // Invalid handles should not crash
-        XCTAssertEqual(kk_job_is_active(0), 0)
-        XCTAssertEqual(kk_job_is_completed(0), 1) // Invalid treated as completed
-        XCTAssertEqual(kk_job_is_cancelled(0), 1) // Invalid treated as cancelled
-        XCTAssertEqual(kk_job_join(0, 0), 0)
-        XCTAssertEqual(kk_job_await_completion(0, 0), 0)
+        #expect(kk_job_is_active(0) == 0)
+        #expect(kk_job_is_completed(0) == 1) // Invalid treated as completed
+        #expect(kk_job_is_cancelled(0) == 1) // Invalid treated as cancelled
+        #expect(kk_job_join(0, 0) == 0)
+        #expect(kk_job_await_completion(0, 0) == 0)
     }
 
-    func testJobConcurrentAccess() {
+    @Test func jobConcurrentAccess() {
         let job = RuntimeJobHandle()
         job.markStarted()
         let jobHandle = Int(bitPattern: Unmanaged.passRetained(job).toOpaque())
 
-        let expectation = XCTestExpectation(description: "Concurrent access")
-        expectation.expectedFulfillmentCount = 10
+        let group = DispatchGroup()
 
         // Concurrent state queries
         for _ in 0..<10 {
+            group.enter()
             DispatchQueue.global().async {
                 let active = kk_job_is_active(jobHandle)
                 let completed = kk_job_is_completed(jobHandle)
                 let cancelled = kk_job_is_cancelled(jobHandle)
 
                 // Should not crash and return valid boolean values
-                XCTAssertTrue(active == 0 || active == 1)
-                XCTAssertTrue(completed == 0 || completed == 1)
-                XCTAssertTrue(cancelled == 0 || cancelled == 1)
+                #expect(active == 0 || active == 1)
+                #expect(completed == 0 || completed == 1)
+                #expect(cancelled == 0 || cancelled == 1)
 
-                expectation.fulfill()
+                group.leave()
             }
         }
 
-        wait(for: [expectation], timeout: 5.0)
+        #expect(group.wait(timeout: .now() + 5.0) == .success)
 
         // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
