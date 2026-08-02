@@ -396,6 +396,19 @@ struct CollectionLiteralLookupTables {
     var kkArrayFlatMapName: InternedString { arrayLookup.kkArrayFlatMapName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
+    var kkArrayMapIndexedName: InternedString { arrayLookup.kkArrayMapIndexedName }
+    var kkArrayFilterIndexedName: InternedString { arrayLookup.kkArrayFilterIndexedName }
+    var kkArrayMapNotNullName: InternedString { arrayLookup.kkArrayMapNotNullName }
+    var kkArrayFilterNotName: InternedString { arrayLookup.kkArrayFilterNotName }
+    var kkArrayFilterNotNullName: InternedString { arrayLookup.kkArrayFilterNotNullName }
+    var kkArrayFirstName: InternedString { arrayLookup.kkArrayFirstName }
+    var kkArrayFirstOrNullName: InternedString { arrayLookup.kkArrayFirstOrNullName }
+    var kkArrayLastName: InternedString { arrayLookup.kkArrayLastName }
+    var kkArrayLastOrNullName: InternedString { arrayLookup.kkArrayLastOrNullName }
+    var kkArrayFirstPredicateName: InternedString { arrayLookup.kkArrayFirstPredicateName }
+    var kkArrayLastPredicateName: InternedString { arrayLookup.kkArrayLastPredicateName }
+    var kkArrayFindName: InternedString { arrayLookup.kkArrayFindName }
+    var kkArrayFindLastName: InternedString { arrayLookup.kkArrayFindLastName }
     var toMutableListName: InternedString { arrayLookup.toMutableListName }
     var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
     var copyOfName: InternedString { arrayLookup.copyOfName }
