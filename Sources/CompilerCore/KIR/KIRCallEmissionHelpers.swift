@@ -32,6 +32,47 @@ func emitNonThrowingCall(
     ))
 }
 
+/// Unboxes `exprID` via `kk_unbox_int` when `staticType` is a concrete
+/// (non-null) enum class, otherwise returns `exprID` unchanged.
+///
+/// Enum constants are raw ordinal Ints everywhere except when they round-trip
+/// through an Any-erased slot (e.g. an element read out of
+/// `values()`/`entries`, see `kk_enum_box_ordinal`), which leaves them as a
+/// boxed handle. `kk_unbox_int` is a no-op pass-through on an
+/// already-raw ordinal, so calling this on both operands of an enum
+/// `==`/`when` comparison normalizes either representation to a raw ordinal
+/// without needing to know which side (if either) is actually boxed.
+///
+/// Deliberately scoped to non-null enum types only: nullable enum
+/// comparisons are unrelated to the values()/entries element bug this
+/// exists for, and `kk_unbox_int` treats its null sentinel as ordinal 0,
+/// which would misclassify a null as the first enum entry.
+func unboxIfEnumTyped(
+    _ exprID: KIRExprID,
+    staticType: TypeID?,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout [KIRInstruction]
+) -> KIRExprID {
+    guard let staticType,
+          case let .classType(classType) = sema.types.kind(of: staticType),
+          classType.nullability == .nonNull,
+          let sym = sema.symbols.symbol(classType.classSymbol),
+          sym.kind == .enumClass
+    else {
+        return exprID
+    }
+    let intType = sema.types.make(.primitive(.int, .nonNull))
+    return emitNonThrowingCall(
+        callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+        arg: exprID,
+        resultType: intType,
+        arena: arena,
+        into: &instructions
+    )
+}
+
 /// Emits a primitive box call (`kk_box_int`/`kk_box_long`/...), and — when
 /// `rawSourceKind` is a non-null value class — an additional
 /// `kk_tag_value_class_box` call that tags the resulting box with the value
