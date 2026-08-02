@@ -46,6 +46,10 @@ final class DataFlowSemaPhase: CompilerPhase {
                 types: types,
                 interner: ctx.interner
             )
+            // STDLIB-SHARED-002: SemaModule was created before imported symbols were
+            // merged into the bundled index, so update it before any type-checker
+            // queries rely on source-backed stdlib declarations.
+            sema.bundledIndex = bundledIndex
         }
 
         registerSyntheticDelegateStubs(

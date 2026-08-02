@@ -91,6 +91,9 @@ extension DataFlowSemaPhase {
                 if record.isSealedClass {
                     flags.insert(.sealedType)
                 }
+                if record.isFunInterface, record.kind == .interface {
+                    flags.insert(.funInterface)
+                }
                 if record.isValueClass {
                     flags.insert(.valueType)
                 }
@@ -359,6 +362,8 @@ extension DataFlowSemaPhase {
         let isOperator: Bool
         let valueParameterIsVararg: [Bool]
         let valueParameterHasDefaultValues: [Bool]
+        let canThrow: Bool
+        let valueParameterNames: [String]
         let typeSignature: String?
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
@@ -376,6 +381,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isSealedClass: Bool
+        let isFunInterface: Bool
         let isValueClass: Bool
         let isExpect: Bool
         let isActual: Bool
@@ -398,6 +404,8 @@ extension DataFlowSemaPhase {
             isOperator: Bool = false,
             valueParameterIsVararg: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
+            canThrow: Bool = false,
+            valueParameterNames: [String] = [],
             typeSignature: String? = nil,
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
@@ -415,6 +423,7 @@ extension DataFlowSemaPhase {
             enumStaticInitLinkName: String? = nil,
             isDataClass: Bool = false,
             isSealedClass: Bool = false,
+            isFunInterface: Bool = false,
             isValueClass: Bool = false,
             isExpect: Bool = false,
             isActual: Bool = false,
@@ -436,6 +445,8 @@ extension DataFlowSemaPhase {
             self.isOperator = isOperator
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.canThrow = canThrow
+            self.valueParameterNames = valueParameterNames
             self.typeSignature = typeSignature
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
@@ -453,6 +464,7 @@ extension DataFlowSemaPhase {
             self.enumStaticInitLinkName = enumStaticInitLinkName
             self.isDataClass = isDataClass
             self.isSealedClass = isSealedClass
+            self.isFunInterface = isFunInterface
             self.isValueClass = isValueClass
             self.isExpect = isExpect
             self.isActual = isActual
@@ -649,6 +661,7 @@ extension DataFlowSemaPhase {
         if record.kind == .function || record.kind == .constructor {
             let signature = importedFunctionSignature(
                 record: record,
+                ownerSymbol: symbol,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
@@ -672,7 +685,7 @@ extension DataFlowSemaPhase {
                         parameterTypes: stubParameterTypes,
                         returnType: signature.returnType,
                         isSuspend: false,
-                        canThrow: false,
+                        canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
                         valueParameterIsVararg: [],
                         typeParameterSymbols: signature.typeParameterSymbols,

@@ -192,8 +192,11 @@ final class CallLowerer {
             .flatMap { name in name.isEmpty ? nil : interner.intern(name) }
             ?? interner.intern("__kk_atomic_unknown_create")
         let canThrow = sema.symbols.functionSignature(for: constructorSymbol)?.canThrow ?? false
+        // Keep the constructor symbol on the call so ABI lowering can resolve the
+        // FunctionSignature (e.g. type-parameter parameters for Pair/Triple) while
+        // the runtime factory callee handles allocation directly.
         instructions.append(.call(
-            symbol: nil,
+            symbol: constructorSymbol,
             callee: callee,
             arguments: finalArgIDs,
             result: result,

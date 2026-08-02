@@ -82,6 +82,8 @@ extension DataFlowSemaPhase {
                 isOperator: metadataRecord.isOperator,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                canThrow: metadataRecord.canThrow,
+                valueParameterNames: metadataRecord.valueParameterNames,
                 typeSignature: metadataRecord.typeSignature,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
@@ -99,6 +101,7 @@ extension DataFlowSemaPhase {
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isSealedClass: metadataRecord.isSealedClass,
+                isFunInterface: metadataRecord.isFunInterface,
                 isValueClass: metadataRecord.isValueClass,
                 isExpect: metadataRecord.isExpect,
                 isActual: metadataRecord.isActual,
@@ -118,6 +121,7 @@ extension DataFlowSemaPhase {
 
     func importedFunctionSignature(
         record: ImportedLibrarySymbolRecord,
+        ownerSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
@@ -175,11 +179,34 @@ extension DataFlowSemaPhase {
             from: functionType,
             types: types
         )
+        var valueParameterSymbols: [SymbolID] = []
+        for (index, _) in functionType.params.enumerated() {
+            let name: String
+            if index < record.valueParameterNames.count && !record.valueParameterNames[index].isEmpty {
+                name = record.valueParameterNames[index]
+            } else {
+                name = "__param\(index)"
+            }
+            let paramName = interner.intern(name)
+            let paramFQName = record.fqName + [paramName]
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: paramFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
             returnType: functionType.returnType,
             isSuspend: functionType.isSuspend,
+            canThrow: record.canThrow,
+            valueParameterSymbols: valueParameterSymbols,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             typeParameterSymbols: typeParameterSymbols

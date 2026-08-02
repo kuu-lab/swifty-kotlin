@@ -320,4 +320,131 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "Zm9vYg\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-007: imported source-backed stdlib extension functions
+    /// (e.g. `Duration.compareTo`) must be visible in the consumer's default-import
+    /// scope so member-style calls resolve to the concrete extension instead of
+    /// falling back to a broad short-name lookup that also sees `Comparable<T>.compareTo`
+    /// and reports an ambiguous overload.
+    func testDurationCompareToSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val d1 = 1.seconds
+            val d2 = 2.seconds
+            println(d2.compareTo(d1))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-008: `java.io.Closeable` imported as a synthetic nominal
+    /// anchor from a prebuilt stdlib artifact must retain its `kotlin.io.Closeable`
+    /// supertype so that user implementations are recognised as `Closeable` and
+    /// `.use {}` resolves and runs correctly.
+    func testCloseableUseSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import java.io.Closeable
+
+        class MyResource(val name: String) : Closeable {
+            override fun close() {
+                println("$name closed")
+            }
+        }
+
+        fun main() {
+            val result = MyResource("r1").use {
+                println("using r1")
+                42
+            }
+            println("result=$result")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "using r1\nr1 closed\nresult=42\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-009: synthetic operator extension functions (e.g.
+    /// `CharSequence.get`) must not shadow source-backed member functions
+    /// (e.g. `StringBuilder.get`) in the default-import scope. Inside
+    /// `buildString { append(get(1)) }`, `get(1)` must resolve to the real
+    /// `StringBuilder.get` member and print the correct character.
+    func testBuildStringReceiverGetSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println(buildString { append("abc"); append(get(1)) })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "abcb\n")
+        }
+    }
 }

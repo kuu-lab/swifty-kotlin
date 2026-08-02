@@ -1699,7 +1699,9 @@ final class CallTypeChecker {
             let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
             let funcFQName = comparisonsPkg + [calleeName]
             if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+                guard let sig = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.isSourceBackedSymbol(candidate)
+                else { return false }
                 return sig.parameterTypes.count == 2
                     && !sig.valueParameterIsVararg.contains(true)
             }) {

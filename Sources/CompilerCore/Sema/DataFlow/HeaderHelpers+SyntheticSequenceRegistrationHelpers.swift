@@ -472,7 +472,10 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 2
         }) {
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)
@@ -581,7 +584,10 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.count == 1
         }) {
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-001: Imported source-backed stdlib symbols already carry
+            // the correct compiled external link name; do not overwrite it with the
+            // runtime helper callee. Source declarations also remain source-backed.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)

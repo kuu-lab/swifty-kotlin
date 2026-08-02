@@ -17,6 +17,11 @@ package struct MetadataRecord {
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
+    /// Whether the function/constructor is declared `throws`.
+    package let canThrow: Bool
+    /// Resolved names of value parameters, in declaration order, used for
+    /// named-argument resolution on imported functions.
+    package let valueParameterNames: [String]
     /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
     let defaultStubExternalLinkName: String?
     let externalLinkName: String?
@@ -41,6 +46,9 @@ package struct MetadataRecord {
 
     // P5-74: sealed class flag
     package let isSealedClass: Bool
+
+    // STDLIB-SHARED-003: fun interface flag for SAM-constructor resolution
+    package let isFunInterface: Bool
 
     // P5-86: annotation metadata
     let annotations: [MetadataAnnotationRecord]
@@ -82,6 +90,8 @@ package struct MetadataRecord {
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
+        canThrow: Bool = false,
+        valueParameterNames: [String] = [],
         defaultStubExternalLinkName: String? = nil,
         externalLinkName: String? = nil,
         declaredFieldCount: Int? = nil,
@@ -98,6 +108,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
         isValueClass: Bool = false,
         valueClassUnderlyingTypeSig: String? = nil,
@@ -120,6 +131,8 @@ package struct MetadataRecord {
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+        self.canThrow = canThrow
+        self.valueParameterNames = valueParameterNames
         self.defaultStubExternalLinkName = defaultStubExternalLinkName
         self.externalLinkName = externalLinkName
         self.declaredFieldCount = declaredFieldCount
@@ -136,6 +149,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isSealedClass = isSealedClass
+        self.isFunInterface = isFunInterface
         self.annotations = annotations
         self.isValueClass = isValueClass
         self.valueClassUnderlyingTypeSig = valueClassUnderlyingTypeSig
@@ -474,10 +488,26 @@ package final class MetadataEncoder {
                     declaredItableSize: layout.itableSize,
                     fieldOffsets: fieldOffsetsStr.isEmpty ? nil : fieldOffsetsStr,
                     vtableSlots: vtableSlotsStr.isEmpty ? nil : vtableSlotsStr,
-                    itableSlots: itableSlotsStr.isEmpty ? nil : itableSlotsStr
+                    itableSlots: itableSlotsStr.isEmpty ? nil : itableSlotsStr,
+                    isDataClass: symbol.flags.contains(.dataType),
+                    isSealedClass: symbol.flags.contains(.sealedType),
+                    isFunInterface: symbol.flags.contains(.funInterface),
+                    isValueClass: symbol.flags.contains(.valueType),
+                    isExpect: symbol.flags.contains(.expectDeclaration),
+                    isActual: symbol.flags.contains(.actualDeclaration)
                 )
             }
-            return MetadataRecord(kind: symbol.kind, mangledName: mangled, fqName: fqName)
+            return MetadataRecord(
+                kind: symbol.kind,
+                mangledName: mangled,
+                fqName: fqName,
+                isDataClass: symbol.flags.contains(.dataType),
+                isSealedClass: symbol.flags.contains(.sealedType),
+                isFunInterface: symbol.flags.contains(.funInterface),
+                isValueClass: symbol.flags.contains(.valueType),
+                isExpect: symbol.flags.contains(.expectDeclaration),
+                isActual: symbol.flags.contains(.actualDeclaration)
+            )
         }
 
         var arity = 0
@@ -487,6 +517,8 @@ package final class MetadataEncoder {
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var canThrow = false
+        var valueParameterNames: [String] = []
         var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var abiReturnTypeSignature: String?
@@ -501,6 +533,10 @@ package final class MetadataEncoder {
             isOperator = symbol.flags.contains(.operatorFunction)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
+            canThrow = signature.canThrow
+            valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
+                symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
+            }
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
@@ -647,6 +683,7 @@ package final class MetadataEncoder {
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isSealedClass = symbol.flags.contains(.sealedType)
+        let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
         let rawIsValueClass = symbol.flags.contains(.valueType)
@@ -692,6 +729,8 @@ package final class MetadataEncoder {
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            canThrow: canThrow,
+            valueParameterNames: valueParameterNames,
             defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
             declaredFieldCount: declaredFieldCount,
@@ -708,6 +747,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isSealedClass: isSealedClass,
+            isFunInterface: isFunInterface,
             annotations: annotationEntries,
             isValueClass: isValueClass,
             valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
@@ -754,6 +794,12 @@ package final class MetadataEncoder {
                 if !record.valueParameterHasDefaultValues.isEmpty {
                     let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
                     fields.append("default=\(mask)")
+                }
+                if record.canThrow {
+                    fields.append("canThrow=1")
+                }
+                if !record.valueParameterNames.isEmpty {
+                    fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
                 }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
@@ -833,6 +879,9 @@ package final class MetadataEncoder {
             }
             if record.isSealedClass {
                 fields.append("sealedClass=1")
+            }
+            if record.isFunInterface {
+                fields.append("funInterface=1")
             }
             if record.isValueClass {
                 fields.append("valueClass=1")
@@ -1014,6 +1063,8 @@ final class MetadataDecoder {
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+                canThrow: rec.canThrow,
+                valueParameterNames: rec.valueParameterNames,
                 defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
                 externalLinkName: rec.externalLinkName,
                 declaredFieldCount: rec.declaredFieldCount,
@@ -1030,6 +1081,7 @@ final class MetadataDecoder {
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isSealedClass: rec.isSealedClass,
+                isFunInterface: rec.isFunInterface,
                 annotations: rec.annotations,
                 isValueClass: rec.isValueClass,
                 valueClassUnderlyingTypeSig: rec.valueClassUnderlyingTypeSig,
@@ -1058,6 +1110,8 @@ final class MetadataDecoder {
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
+        var canThrow: Bool = false
+        var valueParameterNames: [String] = []
         var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var declaredFieldCount: Int?
@@ -1074,6 +1128,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isSealedClass: Bool = false
+        var isFunInterface: Bool = false
         var isValueClass: Bool = false
         var valueClassUnderlyingTypeSig: String?
         var annotations: [MetadataAnnotationRecord] = []
@@ -1104,6 +1159,10 @@ final class MetadataDecoder {
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "default":
             record.valueParameterHasDefaultValues = value.map { $0 == "1" }
+        case "canThrow":
+            record.canThrow = value == "1" || value == "true"
+        case "paramNames":
+            record.valueParameterNames = value.split(separator: ",").map(String.init)
         case "defaultLink":
             record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":
@@ -1138,6 +1197,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "sealedClass":
             record.isSealedClass = value == "1" || value == "true"
+        case "funInterface":
+            record.isFunInterface = value == "1" || value == "true"
         case "valueClass":
             record.isValueClass = value == "1" || value == "true"
         case "valueUnderlying":
