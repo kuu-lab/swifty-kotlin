@@ -190,8 +190,9 @@
   - 削除 kk_*: `RuntimeStringConversion.swift` の該当関数（`rg -o '@_cdecl\("kk_string_to[A-Z][a-zA-Z]*(_radix)?"\)' Sources/Runtime/RuntimeStringConversion.swift` で列挙し Float/Double/BigDecimal/BigInteger を除く）
 - [ ] KSP-415: 浮動小数・BigNum パースを `__kk_` 降格する（`toFloat(OrNull)`, `toDouble(OrNull)`, `toBigDecimal*`, `toBigInteger*`）
   - Foundation 依存のためブリッジ残留。`kk_string_toFloat*`, `kk_string_toDouble*`, `kk_string_toBigDecimal*`, `kk_string_toBigInteger*`, `kk_bignum_toString` を `__kk_` へ改名し、Kotlin 側 `@KsSymbolName` 宣言経由に置換
-- [ ] KSP-416: エンコーディング系を `__kk_` 降格する（`toByteArray`, `encodeToByteArray`, `decodeToString`, `Charsets.*`）
+- [x] KSP-416: エンコーディング系を `__kk_` 降格する（`toByteArray`, `encodeToByteArray`, `decodeToString`, `Charsets.*`）
   - トランスコードはブリッジ残留。`kk_charset_*` 9 関数と `kk_string_toByteArray*`, `kk_string_encodeToByteArray*`, `kk_bytearray_decodeToString*`, `kk_byteArray_toKString` を `__kk_` へ改名。公開 API 層（オーバーロード分岐・境界検査・例外）は Kotlin 化。インライン `kotlinTextSource` の同 API と統合（KSP-502 と調整）
+  - 完了確認（2026-07-30、§13-7 の3点確認③）: `Sources/CompilerCore/Sema/TypeCheck/CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` に残っていた `toByteArray`/`encodeToByteArray`/`decodeToString` の name-string 特例8箇所を削除。stderr計装（`__TRACE_ENTRY`）による実地検証で、Golden全4スイート(15件)・diff_kotlinc全679件・関連diff_cases 13件・手作り境界ケース20+（ジェネリクス境界/CharSequence/smart-cast/safe-call/elvis/配列添字/lambda戻り値）のいずれもこのフォールバック関数へ到達しないことを確認した上で削除（`RuntimeABISpec` 未登録の `kk_string_toByteArray_charset` 系4関数がブリッジとして本当に到達するのとは対照的に、こちらは`kotlin.text`実宣言(StringEncoding.kt)への通常候補解決が常に先に成功するため完全に死んでいた）。削除後も同ゲート（Golden全4スイート・diff_kotlinc 679/679・対象ユニットテスト68件）が green であることを再確認済み
 - [ ] KSP-417: Unicode 正規化・codePoint・random を `__kk_` 降格する
   - `kk_normalization_form_*` 4 関数, `kk_string_normalize`, `kk_string_isNormalized`, `kk_string_codePointCount*` 3 関数, `kk_string_random(_random)` を `__kk_` へ改名（実装移植はしない）
 - [ ] KSP-418: format を完遂する（`String.format(_locale)` は `__kk_` 降格）
@@ -369,7 +370,8 @@
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
 - [ ] KSP-501: `BundledKotlinStdlib.kotlinCollectionsSource` を .kt 化する（`count`/`any`/`all`/`none`/`sumOf`/`maxByOrNull`/`minByOrNull` → `collections/ListAggregateHOF.kt` へ移設。live ツリーとの重複なしは 2026-07-01 に確認済み）
-- [ ] KSP-502: `kotlinTextSource` を .kt 化する（`repeat`/`reversed`/`padStart`/`padEnd`/`encodeToByteArray`×3/`decodeToString`×4/`indent`×2 → `text/` 配下へ。**注意**: `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin` は KSP-302 で処理済みのはず — 残っていれば重複させず統合）
+- [x] KSP-502: `kotlinTextSource` を .kt 化する（`repeat`/`reversed`/`padStart`/`padEnd`/`encodeToByteArray`×3/`decodeToString`×4/`indent`×2 → `text/` 配下へ。**注意**: `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin` は KSP-302 で処理済みのはず — 残っていれば重複させず統合）
+  - 完了確認（2026-07-30、KSP-416 完了作業のついでに検証）: `repeat`/`reversed`/`padStart`/`padEnd` は `Stdlib/kotlin/text/StringBasics.kt`、`toByteArray`/`encodeToByteArray`×3/`decodeToString`×4/`Charsets` は `Stdlib/kotlin/text/StringEncoding.kt`、`indent`×2（+ KSP-302 分の `trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/`replaceIndentByMargin`）は `Stdlib/kotlin/text/StringIndentFormat.kt` に実ロジックとして存在し、`BundledKotlinStdlib.kotlinTextSource` は空文字列、`excludedBundledStdlibFiles` にも非登録であることを確認済み
 - [ ] KSP-503: `kotlinSequencesSource`/`kotlinTimeSource` を .kt 化し、`BundledKotlinStdlib.swift` と `FrontendPhases.swift` の `residualSources` 注入を削除する
   - 完了: `rg 'BundledKotlinStdlib' Sources` 0 件 + G
 - [ ] KSP-504: ルート `Stdlib/` 死蔵ツリー（35 ファイル）を整理する
