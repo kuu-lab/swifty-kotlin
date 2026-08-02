@@ -7,6 +7,32 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
+    func testKotlinTextStringSearchDefaultArgumentsAndImplicitReceiver() throws {
+        let source = """
+        fun String.findDelimiter(delimiter: String): Int = indexOf(delimiter)
+
+        fun main() {
+            println("hello".findDelimiter("ll"))
+            println("hello".lastIndexOf('l'))
+            println("hello".lastIndexOf('l', 2))
+            println("hello".lastIndexOf('x'))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextStringSearchDefaultArgumentsAndImplicitReceiver",
+            expected:
+                """
+                2
+                3
+                2
+                -1
+                """
+                + "\n"
+        )
+    }
+
     func testKotlinTextSplitEdgeCases() throws {
         let source = """
         fun main() {
@@ -996,7 +1022,8 @@ extension CodegenBackendIntegrationTests {
             // lastIndexOf: not found
             println("hello".lastIndexOf("x"))
 
-            // lastIndexOf: empty target (returns length)
+            // lastIndexOf: empty target (BUG-169: matches kotlinc's default
+            // `startIndex = lastIndex`, i.e. `length - 1`, not `length`)
             println("hello".lastIndexOf(""))
 
             // lastIndexOf on empty source
@@ -1017,7 +1044,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 3
                 -1
-                5
+                4
                 -1
                 """
                 + "\n"

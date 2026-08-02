@@ -55,7 +55,8 @@ extension CollectionLiteralLoweringSupport {
     ) -> CollectionLiteralTrackedStaticTypeKind? {
         let kotlinPackage = [interner.intern("kotlin")]
         let collectionsPackage = kotlinPackage + [interner.intern("collections")]
-        let sequencesPackage = kotlinPackage + [interner.intern("sequences")]
+        // KSP-441〜447: Sequence は source 化済み。静的追跡は不要。
+        _ = (kotlinPackage + [interner.intern("sequences")])
 
         let listNames = [
             interner.intern("List"),
@@ -111,9 +112,10 @@ extension CollectionLiteralLoweringSupport {
             return .array
         }
 
-        if matchesStdlibType(symbol, package: sequencesPackage, simpleNames: [interner.intern("Sequence")]) {
-            return .sequence
-        }
+        // KSP-441〜447: Sequence は Kotlin source 化済み。静的型で Sequence 式を追跡しない。
+        // if matchesStdlibType(symbol, package: sequencesPackage, simpleNames: [interner.intern("Sequence")]) {
+        //     return .sequence
+        // }
 
         if matchesStdlibType(symbol, package: kotlinPackage, simpleNames: [interner.intern("String")]) {
             return .string

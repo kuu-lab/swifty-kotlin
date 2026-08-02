@@ -30,6 +30,13 @@ struct CodegenRuntimeObjectDiscoveryTests {
         try Data("\u{7f}ELF".utf8).write(to: url)
     }
 
+    private func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+            .path
+    }
+
     @Test
     func testDiscoversPerFileObjectsInRuntimeBuildDirectory() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -60,7 +67,7 @@ struct CodegenRuntimeObjectDiscoveryTests {
                 scratchRootDirectory: scratchRoot
             )
 
-            #expect(discovered == [wmoObject.path])
+            #expect(discovered.map(canonicalPath) == [canonicalPath(wmoObject.path)])
         }
     }
 
@@ -77,7 +84,9 @@ struct CodegenRuntimeObjectDiscoveryTests {
                 scratchRootDirectory: scratchRoot
             )
 
-            #expect(discovered == [buildDirectory.appendingPathComponent("RuntimeArrayBasics.swift.o").path])
+            #expect(discovered.map(canonicalPath) == [
+                canonicalPath(buildDirectory.appendingPathComponent("RuntimeArrayBasics.swift.o").path),
+            ])
         }
     }
 
@@ -115,7 +124,7 @@ struct CodegenRuntimeObjectDiscoveryTests {
                 scratchRootDirectory: scratchRoot
             )
 
-            #expect(discovered == [wmoObject.path])
+            #expect(discovered.map(canonicalPath) == [canonicalPath(wmoObject.path)])
         }
     }
 }
