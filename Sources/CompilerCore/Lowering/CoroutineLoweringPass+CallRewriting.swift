@@ -33,6 +33,7 @@ extension CoroutineLoweringPass {
         let sequenceBuilderBuildCallee: InternedString
         let sequenceBuilderBuildCoroCallee: InternedString
         let sequenceBuilderYieldAllCallee: InternedString
+        let sequenceBuilderYieldCallee: InternedString
         let iteratorBuilderBuildCallee: InternedString
         let iteratorBuilderBuildCoroCallee: InternedString
         let sequenceBuilderThunkByOriginalSymbol: [SymbolID: LoweredSuspendFunction]
@@ -1057,15 +1058,6 @@ extension CoroutineLoweringPass {
         let producerLoweredTarget = producer?.lowered ?? loweredTarget
 
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldAllCallee,
-               module: rewrite.module
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsAnyCallee(
                symbol: producerLoweredTarget.symbol,
                callees: [
@@ -1089,6 +1081,20 @@ extension CoroutineLoweringPass {
                isMatch: { name in
                    name.hasPrefix("kk_lambda_") || name.hasPrefix("kk_suspend_kk_lambda_")
                }
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldCallee,
+               module: rewrite.module
+           ),
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
            )
         {
             return nil

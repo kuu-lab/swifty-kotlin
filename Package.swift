@@ -33,6 +33,9 @@ let package = Package(
             dependencies: ["RuntimeABI"],
             resources: [
                 .copy("Stdlib"),
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-enable-testing"])
             ]
         ),
         .target(
