@@ -1,9 +1,9 @@
+import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndMetadata }
+@Suite(.runtimeIsolation(.gcAndMetadata))
+struct RuntimeMetadataAPITests {
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cString in
             cString.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { ptr in
@@ -12,7 +12,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    func testMetadataSerializationRoundTrip() throws {
+    @Test func metadataSerializationRoundTrip() throws {
         let metadata = KotlinMetadata(
             functions: [
                 KmFunction(
@@ -61,16 +61,18 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
         let serialized = String(decoding: data, as: UTF8.self)
         let decoded = try JSONDecoder().decode(KotlinMetadata.self, from: data)
 
-        XCTAssertEqual(decoded, metadata)
-        XCTAssertTrue(serialized.contains("\"pluginId\":\"sample.plugin\""))
+        #expect(decoded == metadata)
+        #expect(serialized.contains("\"pluginId\":\"sample.plugin\""))
     }
 
-    func testDeserializeRejectsInvalidJSON() {
+    @Test func deserializeRejectsInvalidJSON() {
         let data = Data("{not-json}".utf8)
-        XCTAssertThrowsError(try JSONDecoder().decode(KotlinMetadata.self, from: data))
+        #expect(throws: (any Error).self) {
+            try JSONDecoder().decode(KotlinMetadata.self, from: data)
+        }
     }
 
-    func testKmFunctionCanBeBuiltFromRuntimeBoxes() {
+    @Test func kmFunctionCanBeBuiltFromRuntimeBoxes() throws {
         let parameterRaw = __kk_kparameter_create(
             0,
             makeRuntimeString("value"),
@@ -90,21 +92,22 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
             makeRuntimeString("(kotlin.Int) -> kotlin.Int")
         )
 
-        guard let functionBox = runtimeObject(functionRaw, as: RuntimeKFunctionBox.self) else {
-            return XCTFail("Expected RuntimeKFunctionBox")
-        }
+        let functionBox = try #require(
+            runtimeObject(functionRaw, as: RuntimeKFunctionBox.self),
+            "Expected RuntimeKFunctionBox"
+        )
 
         let metadata = KmFunction(functionBox, annotations: [KmAnnotation(className: "sample.Test")])
-        XCTAssertEqual(metadata.name, "plusOne")
-        XCTAssertEqual(metadata.returnType, "kotlin.Int")
-        XCTAssertEqual(metadata.valueParameters.count, 1)
-        XCTAssertEqual(metadata.valueParameters.first?.name, "value")
-        XCTAssertTrue(metadata.valueParameters.first?.isOptional == true)
-        XCTAssertEqual(metadata.typeSignature, "(kotlin.Int) -> kotlin.Int")
-        XCTAssertEqual(metadata.annotations.map(\.className), ["sample.Test"])
+        #expect(metadata.name == "plusOne")
+        #expect(metadata.returnType == "kotlin.Int")
+        #expect(metadata.valueParameters.count == 1)
+        #expect(metadata.valueParameters.first?.name == "value")
+        #expect(metadata.valueParameters.first?.isOptional == true)
+        #expect(metadata.typeSignature == "(kotlin.Int) -> kotlin.Int")
+        #expect(metadata.annotations.map(\.className) == ["sample.Test"])
     }
 
-    func testKmConstructorCanBeBuiltFromRuntimeBoxes() {
+    @Test func kmConstructorCanBeBuiltFromRuntimeBoxes() {
         let classEntry = RuntimeKClassMetadataEntry(
             qualifiedName: "sample.Person",
             simpleName: "Person",
@@ -140,15 +143,15 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
         )
 
         let metadata = KmConstructor(box, annotations: [KmAnnotation(className: "sample.Inject")])
-        XCTAssertEqual(metadata.name, "<init>")
-        XCTAssertEqual(metadata.declaringClassName, "sample.Person")
-        XCTAssertEqual(metadata.valueParameters.map(\.name), ["name", "age"])
-        XCTAssertEqual(metadata.visibility, "PUBLIC")
-        XCTAssertTrue(metadata.isPrimary)
-        XCTAssertEqual(metadata.annotations.map(\.className), ["sample.Inject"])
+        #expect(metadata.name == "<init>")
+        #expect(metadata.declaringClassName == "sample.Person")
+        #expect(metadata.valueParameters.map(\.name) == ["name", "age"])
+        #expect(metadata.visibility == "PUBLIC")
+        #expect(metadata.isPrimary)
+        #expect(metadata.annotations.map(\.className) == ["sample.Inject"])
     }
 
-    func testFindAssociatedObjectReturnsNullWhenNoRuntimeHandleIsRecorded() {
+    @Test func findAssociatedObjectReturnsNullWhenNoRuntimeHandleIsRecorded() {
         var classEntry = RuntimeKClassMetadataEntry(
             qualifiedName: "sample.Host",
             simpleName: "Host",
@@ -177,7 +180,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
         let kclassRaw = __kk_kclass_create(90210, makeRuntimeString("Host"))
         let result = __kk_kclass_find_associated_object(kclassRaw, makeRuntimeString("Binding"))
 
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        #expect(result == runtimeNullSentinelInt)
     }
 
     private func runtimeObject<T: AnyObject>(_ raw: Int, as type: T.Type) -> T? {

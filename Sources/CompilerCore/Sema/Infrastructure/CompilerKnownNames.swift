@@ -357,6 +357,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
+    let kotlinEnumsEnumEntriesFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
@@ -557,6 +558,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsArrayDequeFQName = [kotlin, kotlinCollections, arrayDeque]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
+        kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]
         kotlinxCoroutinesDeferredFQName = [kotlinx, coroutines, deferred]
         kotlinxCoroutinesChannelFQName = [kotlinx, coroutines, channels, channel]
@@ -719,6 +721,10 @@ package struct KnownCompilerNames {
         symbol.name == list || symbol.name == mutableList
             || symbolMatches(symbol, fqName: kotlinCollectionsListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableListFQName)
+            // kotlin.enums.EnumEntries<T> is a read-only List<T> subtype (Kotlin
+            // 1.9+ `EnumClass.entries`). Treat it exactly like List so the
+            // collection member-call fallback (.size, .forEach, etc.) resolves.
+            || symbolMatches(symbol, fqName: kotlinEnumsEnumEntriesFQName)
     }
 
     func isMapLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
