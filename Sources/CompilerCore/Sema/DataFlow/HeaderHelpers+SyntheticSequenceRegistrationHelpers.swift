@@ -393,8 +393,11 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.parameterTypes.isEmpty
         }) {
-            // KSP-441〜447: source 関数があれば外部リンクで上書きしない。
-            if symbols.symbol(existing)?.declSite != nil {
+            // STDLIB-SHARED-015: source 関数 (parsed source or imported library)
+            // already carries the compiled ABI name; do not overwrite it with the
+            // runtime helper.  Imported stdlib symbols have declSite nil but are
+            // still source-backed via the .importedLibrary flag.
+            if symbols.isSourceBackedSymbol(existing) {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)

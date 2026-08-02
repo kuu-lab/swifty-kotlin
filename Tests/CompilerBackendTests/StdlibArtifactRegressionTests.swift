@@ -447,4 +447,51 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "abcb\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-010: `emptySequence()` must resolve to the source-backed
+    /// stdlib factory (not a runtime `RuntimeSequenceBox`) so that `withIndex()`
+    /// and other source-implemented `Sequence` extensions can call `source.iterator()`
+    /// through normal virtual dispatch.
+    func testEmptySequenceWithIndexSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val indexed = sequenceOf(10, 20, 30).withIndex().toList()
+            println(indexed)
+
+            val first = sequenceOf(10, 20, 30).withIndex().take(1).toList()
+            println(first)
+
+            val empty = emptySequence<Int>().withIndex().toList()
+            println(empty)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                "[IndexedValue(index=0, value=10), IndexedValue(index=1, value=20), IndexedValue(index=2, value=30)]\n[IndexedValue(index=0, value=10)]\n[]\n"
+            )
+        }
+    }
 }

@@ -176,9 +176,10 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             ) else {
+                let fq = entry.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 diagnostics.warning(
                     "KSWIFTK-LIB-0004",
-                    "Unknown metadata vtable symbol in \(metadataPath): \(entry.fqName)",
+                    "Unknown metadata vtable symbol in \(metadataPath): \(fq) (arity=\(entry.arity), isSuspend=\(entry.isSuspend))",
                     range: nil
                 )
                 continue

@@ -160,7 +160,16 @@ extension DataFlowSemaPhase {
 
         var syntheticPackagePaths: Set<[InternedString]> = []
         var syntheticPackageModules: [[InternedString]: InternedString] = [:]
-        for binding in importedBindings where binding.record.kind != .package {
+        // STDLIB-SHARED-011: Type/value parameters and local symbols belong to a
+        // real owner; their FQ name prefixes must not be synthesised as packages.
+        let packageOwnerRecordKinds: Set<SymbolKind> = [
+            .class, .interface, .object, .enumClass, .annotationClass,
+            .typeAlias, .function, .property, .constructor
+        ]
+        for binding in importedBindings
+            where binding.record.kind != .package
+            && packageOwnerRecordKinds.contains(binding.record.kind)
+        {
             let fq = binding.record.fqName
             let moduleFQN = symbols.moduleFQN(for: binding.symbol)
             for length in 1 ..< fq.count {

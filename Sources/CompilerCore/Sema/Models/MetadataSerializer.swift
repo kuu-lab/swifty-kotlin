@@ -219,9 +219,38 @@ package final class MetadataEncoder {
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
                         return false
                     }
+                    // STDLIB-SHARED-012: Top-level synthetic classes generated during
+                    // lowering (e.g. SAM wrappers like `kk_sam_wrapper_*`) are not part
+                    // of the stdlib surface and must not survive into the artifact.
+                    if keepAsSyntheticNominalAnchor, symbol.fqName.count <= 1 {
+                        return false
+                    }
+                }
+                // STDLIB-SHARED-011: When synthetic functions are excluded, their child
+                // type/value parameters must also be excluded. Otherwise metadata leaks
+                // orphaned records like `List.toMap.K` that become spurious package
+                // symbols on the consumer side and block synthetic member re-registration.
+                if !includeSynthetic {
+                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    while let p = parentID, let parent = symbols.symbol(p) {
+                        if parent.flags.contains(.synthetic) {
+                            let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(parent.kind)
+                            let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && parent.kind == .typeAlias
+                            if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
+                                return false
+                            }
+                        }
+                        parentID = symbols.parentSymbol(for: p)
+                    }
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
+                }
+                // STDLIB-SHARED-016: Compiler-generated enum static helpers
+                // (values/valueOf/entries) for non-public enum classes are not part
+                // of the stdlib surface and cannot be resolved on the consumer side.
+                if isNonPublicEnumStaticHelper(symbolID: symbol.id, symbols: symbols, interner: interner) {
+                    return false
                 }
                 // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
                 // These are compiler internals and are always re-injected on every compilation.
@@ -932,6 +961,34 @@ package final class MetadataEncoder {
         return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
     }
 
+    /// True for compiler-generated enum static helpers (`values`, `valueOf`,
+    /// `entries`) that belong to a non-public enum class.  These slots are not
+    /// reachable from consumer code and cannot be resolved on import, so they
+    /// should be omitted from serialized vtable/itable layouts.
+    private func isNonPublicEnumStaticHelper(
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = symbols.symbol(symbolID),
+              symbol.kind == .function
+        else {
+            return false
+        }
+        let name = interner.resolve(symbol.name)
+        guard name == "values" || name == "valueOf" || name == "entries" else {
+            return false
+        }
+        var ancestorID = symbols.parentSymbol(for: symbol.id)
+        while let ancestor = ancestorID, let ancestorSymbol = symbols.symbol(ancestor) {
+            if ancestorSymbol.kind == .enumClass {
+                return ancestorSymbol.visibility != .public
+            }
+            ancestorID = symbols.parentSymbol(for: ancestor)
+        }
+        return false
+    }
+
     func serializeVTableSlots(
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
@@ -947,6 +1004,9 @@ package final class MetadataEncoder {
             // helpers like Random.stepXorWow).  The consumer resolves each entry
             // by FQ name/arity; if it cannot be imported, the slot is skipped at
             // import time, not at serialization time.
+            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
+                return nil
+            }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -972,6 +1032,9 @@ package final class MetadataEncoder {
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID) else {
+                return nil
+            }
+            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
             // ITable slot layout is part of the nominal type shape and must round-trip
