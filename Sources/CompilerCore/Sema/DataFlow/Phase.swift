@@ -67,18 +67,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
-        let stringBuilderOwner = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("text"),
-            ctx.interner.intern("StringBuilder"),
-        ]
-        if bundledIndex.contains(ownerFQName: stringBuilderOwner, name: ctx.interner.intern("append"), arity: 1) {
-            patchSourceBackedStringBuilderSupertypes(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner
-            )
-        }
         patchSourceBackedCharIteratorReturnType(
             symbols: symbols,
             types: types,
@@ -185,6 +173,28 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem, ctx: CompilationContext
     ) {
         bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        // BUG-166: StringBuilder's Appendable/CharSequence conformance is
+        // synthetic (not written in the bundled Kotlin source's `class
+        // StringBuilder { ... }` declaration), so bindInheritanceEdges above —
+        // which recomputes every nominal's directSupertypes from its AST
+        // super-type clause and defaults to just `Any` when that clause is
+        // empty — unconditionally overwrites whatever this patch had set
+        // if it ran any earlier (e.g. before this function, as a prior
+        // version of this fix did). That left `val x: Appendable =
+        // StringBuilder()` unable to satisfy the assignment's subtype
+        // constraint (KSWIFTK-TYPE-0001) despite Appendable's own itable
+        // layout being otherwise correct. Patching here, immediately after
+        // bindInheritanceEdges and before every other validation pass and
+        // synthesizeNominalLayouts below, ensures both the constraint solver
+        // and itable slot synthesis see the complete supertype list.
+        patchSourceBackedStringBuilderSupertypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+        validateTypeParameterUpperBounds(
+            symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -247,7 +257,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
-        synthesizeNominalLayouts(symbols: symbols, types: types)
+        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

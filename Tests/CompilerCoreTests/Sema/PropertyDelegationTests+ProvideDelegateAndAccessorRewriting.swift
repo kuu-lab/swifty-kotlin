@@ -128,7 +128,7 @@ extension DelegateStorageSymbolTableTests {
                 // is taken.  Both are valid.
                 if callees.contains("provideDelegate") {
                     // If provideDelegate was emitted, it must be a
-                    // method call (non-nil symbol) with 2 args.
+                    // method call with the receiver plus 2 Kotlin arguments.
                     let provideDelegateCalls = ctor.body.compactMap { instruction
                         -> (symbol: SymbolID?, args: [KIRExprID])? in
                         guard case let .call(sym, callee, args, _, _, _, _, _) = instruction,
@@ -137,7 +137,7 @@ extension DelegateStorageSymbolTableTests {
                     }
                     if let call = provideDelegateCalls.first {
                         #expect(call.symbol != nil)
-                        #expect(call.args.count == 2)
+                        #expect(call.args.count == 3)
                     }
                 }
             }
@@ -145,9 +145,8 @@ extension DelegateStorageSymbolTableTests {
     }
 
     @Test func testProvideDelegateCallShapeWhenEmitted() throws {
-        // This test verifies that IF provideDelegate is emitted in the
-        // constructor KIR, it uses the correct shape: method call on
-        // delegate storage (non-nil symbol) with exactly 2 arguments.
+        // A member provideDelegate call must target the resolved operator and
+        // pass the raw delegate receiver before thisRef and KProperty.
         // The golden test `property_delegation.kt` covers the full
         // output; this unit test validates the KIR instruction shape.
         let source = """
@@ -164,6 +163,7 @@ extension DelegateStorageSymbolTableTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
@@ -178,13 +178,16 @@ extension DelegateStorageSymbolTableTests {
                           interner.resolve(callee) == "provideDelegate" else { return nil }
                     return (symbol: sym, args: args)
                 }
-                // If any provideDelegate call was emitted, verify it
-                // follows the method-call convention.
-                for call in provideDelegateCalls {
-                    #expect(call.symbol != nil, "provideDelegate should be emitted as method call with non-nil symbol")
-                    #expect(call.args.count == 2,
-                                   "provideDelegate should have exactly 2 arguments (thisRef, kProperty)")
-                }
+                let call = try #require(provideDelegateCalls.first)
+                let callSymbol = try #require(call.symbol)
+                #expect(
+                    sema.symbols.symbol(callSymbol)?.name == interner.intern("provideDelegate"),
+                    "provideDelegate must use the resolved operator symbol"
+                )
+                #expect(
+                    call.args.count == 3,
+                    "provideDelegate must receive delegate, thisRef, and KProperty"
+                )
             }
         }
     }

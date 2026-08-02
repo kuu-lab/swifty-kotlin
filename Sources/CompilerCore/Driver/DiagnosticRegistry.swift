@@ -591,6 +591,12 @@ enum DiagnosticRegistry {
             summary: "Type argument does not satisfy upper bound constraint."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0305",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Type parameter's upper bounds combine two or more mutually exclusive class types."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,

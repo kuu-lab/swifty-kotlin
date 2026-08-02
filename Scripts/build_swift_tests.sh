@@ -26,4 +26,17 @@ source "$SCRIPT_DIR/lib/common.sh"
 # RuntimeABI/LSPServer) paid for a full rebuild in the second pass anyway.
 # One warnings-visible build-tests call is strictly more correct and faster.
 echo "build_swift_tests.sh: building source and test targets." >&2
-swift build --build-tests "$@"
+
+# Optional CI-only speed knobs. These are intentionally opt-in via an env var
+# so local developer builds keep debug info by default. Note:
+# --disable-index-store cannot be combined with swift build --build-tests on
+# Linux because XCTest test discovery reads the index store; disabling it
+# causes "error: index store path does not exist" for the discovered-tests
+# target. -debug-info-format none is safe and reduces object file size/I/O.
+declare -a swiftpm_args=()
+if [[ "${KSWIFTK_CI_FAST_BUILD:-}" == "1" ]]; then
+  echo "build_swift_tests.sh: enabling fast build flags." >&2
+  swiftpm_args+=(-debug-info-format none)
+fi
+
+swift build --build-tests "${swiftpm_args[@]}" "$@"

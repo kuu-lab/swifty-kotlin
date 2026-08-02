@@ -40,7 +40,10 @@ func runtimeArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
     guard isObjectPointer else {
         return nil
     }
-    return tryCast(ptr, to: RuntimeArrayBox.self)
+    guard let box = tryCast(ptr, to: RuntimeArrayBox.self) else {
+        return nil
+    }
+    return box
 }
 
 func runtimeIsHeapObject(_ rawValue: Int) -> Bool {
