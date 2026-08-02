@@ -25,5 +25,47 @@ source "$SCRIPT_DIR/lib/common.sh"
 # (LSPServerTests's dependency closura: CompilerCore/CompilerBackend/Runtime/
 # RuntimeABI/LSPServer) paid for a full rebuild in the second pass anyway.
 # One warnings-visible build-tests call is strictly more correct and faster.
-echo "build_swift_tests.sh: building source and test targets." >&2
-swift build --build-tests "$@"
+#
+# When SWIFT_TEST_BUILD_TARGETS is set, build only those targets one at a time
+# so multiple CI lanes can each build the minimal set they need. Because
+# SwiftPM's `--target` is not cumulative, multiple targets must be built in a
+# loop with one `swift build --target <T>` invocation per target. Every
+# invocation receives the same command-line flags (and the same cache flags,
+# when compilation caching is enabled) so SwiftPM can reuse already-built
+# artifacts across the loop and across the subsequent `swift test --skip-build`.
+#
+# With the Swift 6.3+ `swiftbuild` build system, per-test-target products are
+# named `<Target>-test-runner` (e.g. `CompilerCoreTests-test-runner`). The
+# build system can be selected via SWIFT_BUILD_SYSTEM (default: native).
+build_targets="${SWIFT_TEST_BUILD_TARGETS:-}"
+build_system="${SWIFT_BUILD_SYSTEM:-}"
+
+declare -a swift_build_args=("$@")
+
+# Make sure any selected build system is applied to every invocation.
+if [[ -n "$build_system" ]]; then
+    swift_build_args+=(--build-system "$build_system")
+fi
+
+# Enable swiftbuild's integrated compilation cache if requested.
+kswiftk_setup_compile_cache_env
+
+# Append compilation-caching flags if requested. This must match the flags used
+# by any later `swift test --skip-build` invocation so the incremental cache is
+# not invalidated.
+kswiftk_append_compile_cache_flags swift_build_args
+
+if [[ -z "$build_targets" ]]; then
+    echo "build_swift_tests.sh: building source and all test targets." >&2
+    swift build --build-tests "${swift_build_args[@]}"
+else
+    echo "build_swift_tests.sh: building selected test targets: $build_targets" >&2
+    for target in $build_targets; do
+        # swiftbuild creates per-test-target products as `<Target>-test-runner`.
+        if [[ "$build_system" == "swiftbuild" ]]; then
+            target="${target}-test-runner"
+        fi
+        echo "build_swift_tests.sh: building --target $target" >&2
+        swift build --target "$target" "${swift_build_args[@]}"
+    done
+fi
