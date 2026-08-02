@@ -1,4 +1,6 @@
 
+import RuntimeABI
+
 final class CallLowerer {
     unowned let driver: KIRLoweringDriver
 
@@ -125,7 +127,8 @@ final class CallLowerer {
     }
 
     /// True for synthetic runtime-backed factory constructors that allocate
-    /// their own object (atomic scalar boxes and java.math.BigInteger).
+    /// their own object (atomic scalar boxes, java.math.BigInteger, and
+    /// built-in exception classes).
     private func isAtomicScalarConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -140,6 +143,36 @@ final class CallLowerer {
         }
         return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
             || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
+            || isRuntimeFactoryConstructor(symbolID, sema: sema)
+    }
+
+    /// True when the constructor's runtime ABI entry point is a factory that
+    /// allocates and returns an object handle (e.g. built-in exception
+    /// `kk_*_exception_new_message`). Such constructors must not receive an
+    /// implicit `this` allocated by `kk_object_new`.
+    private func isRuntimeFactoryConstructor(
+        _ symbolID: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let externalLinkName = sema.symbols.externalLinkName(for: symbolID),
+              !externalLinkName.isEmpty,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == externalLinkName })
+        else {
+            return false
+        }
+        let abiValueParameters = spec.parameters.filter { parameter in
+            !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+        }
+        guard abiValueParameters.count == signature.parameterTypes.count else {
+            return false
+        }
+        switch spec.returnType {
+        case .intptr, .opaquePointer, .nullableOpaquePointer:
+            return true
+        default:
+            return false
+        }
     }
 
     private func lowerAtomicScalarConstructorCall(

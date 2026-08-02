@@ -151,4 +151,84 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "300 2 4 4\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-003: built-in exception constructors are runtime factories
+    /// (`kk_*_exception_new_message`) and must not receive an implicit `this`
+    /// allocated by `kk_object_new`; otherwise the message handle is misread and
+    /// `Throwable.message` is empty in the consumer.
+    func testExceptionMessageThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            try {
+                throw IllegalStateException("shared boom")
+            } catch (e: IllegalStateException) {
+                println("caught: ${e.message}")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "caught: shared boom\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-004: generic `maxOf`/`minOf` overloads on `Comparable`
+    /// work through the shared stdlib artifact even though their `Comparable<T>`
+    /// upper bound is not preserved in metadata; the CallLowerer recognizes the
+    /// uniform type-parameter signature and lowers the comparison inline.
+    func testMaxOfComparableThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println(maxOf("banana", "apple"))
+            println(maxOf("cherry", "apple", "banana"))
+            println(maxOf("date", "banana", "apple", "cherry"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "banana\ncherry\ndate\n")
+        }
+    }
 }
