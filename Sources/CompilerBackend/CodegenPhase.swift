@@ -50,7 +50,7 @@ final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
+                try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
                     try backend.emitObject(
                         module: kir,
                         outputObjectPath: path,
