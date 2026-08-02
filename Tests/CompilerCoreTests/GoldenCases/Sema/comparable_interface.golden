@@ -50,7 +50,7 @@ expr e@12:48 name(b) type=Int ref=compareInts.$2.b
 expr e@12:44#1 binary(lessThan) lhs=e@12:44 rhs=e@12:48 type=Boolean
 expr e@14:68 name(a) type=Temperature ref=compareTemperatures.$3.a
 expr e@14:72 name(b) type=Temperature ref=compareTemperatures.$3.b
-expr e@14:68#1 binary(lessThan) lhs=e@14:68 rhs=e@14:72 type=<error>
+expr e@14:68#1 binary(lessThan) lhs=e@14:68 rhs=e@14:72 type=Boolean call=Temperature.compareTo
 expr e@16:58 name(a) type=Temperature ref=compareGe.$1.a
 expr e@16:63 name(b) type=Temperature ref=compareGe.$1.b
-expr e@16:58#1 binary(greaterOrEqual) lhs=e@16:58 rhs=e@16:63 type=<error>
+expr e@16:58#1 binary(greaterOrEqual) lhs=e@16:58 rhs=e@16:63 type=Boolean call=Temperature.compareTo

@@ -162,6 +162,15 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
+            // Comparison operators desugar to compareTo(), which always returns Int.
+            // The binary expression itself is Boolean, so do not pass that as the
+            // call's expected return type; otherwise Int <: Boolean fails.
+            let operatorExpectedType: TypeID? = switch op {
+            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                intType
+            default:
+                expectedType
+            }
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: CallExpr(
@@ -169,7 +178,7 @@ extension ExprTypeChecker {
                     calleeName: operatorName,
                     args: [CallArg(type: rhs)]
                 ),
-                expectedType: expectedType,
+                expectedType: operatorExpectedType,
                 implicitReceiverType: lhs,
                 ctx: ctx.semaCtx
             )
