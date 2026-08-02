@@ -274,7 +274,7 @@ jobs:
       - name: Build kswiftc
         env:
           SWIFT_BUILD_JOBS: "4"
-        run: swift build --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
@@ -326,6 +326,7 @@ jobs:
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
           KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
+          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \
