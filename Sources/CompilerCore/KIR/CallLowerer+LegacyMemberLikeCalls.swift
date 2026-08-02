@@ -277,6 +277,38 @@ extension CallLowerer {
             return true
         }()
 
+        // Iterable<T?>.requireNoNulls(): Sema binds the Sequence-source
+        // requireNoNulls extension as chosenCallee even for a non-Sequence
+        // Iterable/Collection receiver, so isSourceBackedTerminalCall is true and
+        // the terminal iterable-runtime fallback further below is skipped. The
+        // call then lowers to a source call that iterates the list as a Sequence
+        // and yields an empty result. Route non-Sequence iterable/collection
+        // receivers to the runtime kk_iterable_requireNoNulls, which validates the
+        // elements and returns the same collection (mirrors the kk_iterable_*
+        // dispatch used for any()/all()).
+        if args.isEmpty,
+           interner.resolve(calleeName) == "requireNoNulls"
+        {
+            let nonNullReceiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            )
+            if !isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               sema.bindings.isCollectionExpr(receiverExpr)
+                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner),
+               !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterable_requireNoNulls"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         if args.count == 1,
            interner.resolve(calleeName) == "sortedWith"
         {
