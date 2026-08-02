@@ -2834,6 +2834,22 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
+                if let calleeName,
+                   let receiverType = ctx.implicitReceiverType,
+                   let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
+                       id,
+                       calleeName: calleeName,
+                       receiverType: receiverType,
+                       args: args,
+                       range: range,
+                       ctx: ctx,
+                       locals: &locals,
+                       expectedType: expectedType,
+                       explicitTypeArgs: explicitTypeArgs
+                   )
+                {
+                    return recovered
+                }
                 ctx.semaCtx.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType

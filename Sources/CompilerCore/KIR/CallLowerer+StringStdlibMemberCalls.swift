@@ -20,9 +20,22 @@ extension CallLowerer {
         ) else {
             return nil
         }
+        let memberName = interner.resolve(calleeName)
+        if memberName == "lastIndexOf",
+           args.count == 1,
+           let argument = args.first,
+           sema.types.isSubtype(
+               sema.types.makeNonNullable(
+                   sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType
+               ),
+               sema.types.charType
+           )
+        {
+            return nil
+        }
         let dispatchKey = MemberDispatchKey(
             receiverKind: receiverKind,
-            memberName: interner.resolve(calleeName),
+            memberName: memberName,
             arity: args.count
         )
         guard let runtimeCall = MemberRuntimeDispatch.stringRuntimeCall(for: dispatchKey) else {

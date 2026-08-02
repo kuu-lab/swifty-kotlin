@@ -1,11 +1,9 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathSetAttributeTests {
     private func makeRuntimeString(_ value: String) -> Int {
         let bytes = Array(value.utf8)
         return bytes.withUnsafeBufferPointer { buffer -> Int in
@@ -18,7 +16,7 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         kk_path_new(makeRuntimeString(path))
     }
 
-    func testSetAttributeLastModifiedTimeSetsModificationDate() throws {
+    @Test func setAttributeLastModifiedTimeSetsModificationDate() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -30,14 +28,14 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let modDate = try XCTUnwrap(attrs[.modificationDate] as? Date)
-        XCTAssertEqual(modDate.timeIntervalSince1970, 1000.0, accuracy: 1.0)
+        let modDate = try #require(attrs[.modificationDate] as? Date)
+        #expect(abs(modDate.timeIntervalSince1970 - 1000.0) <= 1.0)
     }
 
-    func testSetAttributeWithoutViewPrefixSetsModificationDate() throws {
+    @Test func setAttributeWithoutViewPrefixSetsModificationDate() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -49,14 +47,14 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let modDate = try XCTUnwrap(attrs[.modificationDate] as? Date)
-        XCTAssertEqual(modDate.timeIntervalSince1970, 2000.0, accuracy: 1.0)
+        let modDate = try #require(attrs[.modificationDate] as? Date)
+        #expect(abs(modDate.timeIntervalSince1970 - 2000.0) <= 1.0)
     }
 
-    func testSetAttributeLastAccessTimeSucceedsForExistingFile() throws {
+    @Test func setAttributeLastAccessTimeSucceedsForExistingFile() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -68,11 +66,11 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
     }
 
-    func testSetAttributeLastAccessTimeOnNonExistentFileThrows() {
+    @Test func setAttributeLastAccessTimeOnNonExistentFileThrows() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
 
@@ -82,10 +80,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an IOException for lastAccessTime on a non-existent path")
+        #expect(thrown != 0, "Expected an IOException for lastAccessTime on a non-existent path")
     }
 
-    func testSetAttributeCreationTimeSucceeds() throws {
+    @Test func setAttributeCreationTimeSucceeds() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -97,18 +95,18 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
         // On macOS, verify the creation date was actually changed.
         // On Linux, creation time is not settable but the call must still succeed.
         #if canImport(Darwin)
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let creationDate = try XCTUnwrap(attrs[.creationDate] as? Date)
-        XCTAssertEqual(creationDate.timeIntervalSince1970, 1000.0, accuracy: 1.0)
+        let creationDate = try #require(attrs[.creationDate] as? Date)
+        #expect(abs(creationDate.timeIntervalSince1970 - 1000.0) <= 1.0)
         #endif
     }
 
-    func testSetAttributeCreationTimeOnNonExistentFileThrows() {
+    @Test func setAttributeCreationTimeOnNonExistentFileThrows() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
 
@@ -118,10 +116,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an IOException for creationTime on a non-existent path")
+        #expect(thrown != 0, "Expected an IOException for creationTime on a non-existent path")
     }
 
-    func testSetAttributeUnparseableValueThrows() throws {
+    @Test func setAttributeUnparseableValueThrows() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -133,10 +131,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an IllegalArgumentException for unparseable value")
+        #expect(thrown != 0, "Expected an IllegalArgumentException for unparseable value")
     }
 
-    func testSetAttributeUnsupportedAttributeThrows() throws {
+    @Test func setAttributeUnsupportedAttributeThrows() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -148,10 +146,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an UnsupportedOperationException for unsupported attribute")
+        #expect(thrown != 0, "Expected an UnsupportedOperationException for unsupported attribute")
     }
 
-    func testSetAttributeOnNonExistentFileThrows() {
+    @Test func setAttributeOnNonExistentFileThrows() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
 
@@ -161,10 +159,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         _ = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 0, &thrown)
 
-        XCTAssertNotEqual(thrown, 0, "Expected an IOException for a non-existent path")
+        #expect(thrown != 0, "Expected an IOException for a non-existent path")
     }
 
-    func testSetAttributeIgnoresOptionsArgument() throws {
+    @Test func setAttributeIgnoresOptionsArgument() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -176,11 +174,11 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, valueRaw, 42, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
     }
 
-    func testSetAttributeWithFileTimeBoxAsValue() throws {
+    @Test func setAttributeWithFileTimeBoxAsValue() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -192,10 +190,10 @@ final class RuntimePathSetAttributeTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let resultRaw = kk_path_setAttribute(pathRaw, attributeRaw, fileTimeRaw, 0, &thrown)
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, pathRaw)
+        #expect(thrown == 0)
+        #expect(resultRaw == pathRaw)
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let modDate = try XCTUnwrap(attrs[.modificationDate] as? Date)
-        XCTAssertEqual(modDate.timeIntervalSince1970, 3000.0, accuracy: 1.0)
+        let modDate = try #require(attrs[.modificationDate] as? Date)
+        #expect(abs(modDate.timeIntervalSince1970 - 3000.0) <= 1.0)
     }
 }
