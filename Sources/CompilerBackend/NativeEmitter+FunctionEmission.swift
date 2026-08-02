@@ -798,24 +798,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_filter_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filter_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_filterIndexed_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filterIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_filterNot_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_filterNot_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
+                // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
+                // source (StringHOF.kt); no flat emission spec.
                 "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_ifBlank_flat",
                     stringArgumentCount: 1,
@@ -1358,34 +1342,8 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_count_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_count_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_any_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_any_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_all_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_all_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_none_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_none_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
+                // KSP-410: count/any/all/none are bundled Kotlin source
+                // (StringHOF.kt); no flat emission spec.
                 "kk_string_indexOfFirst_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOfFirst_flat",
                     stringArgumentCount: 1,
@@ -1400,27 +1358,8 @@ extension NativeEmitter {
                     canThrow: true,
                     defaultMissingClosureRaw: true
                 ),
-                "kk_string_find_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_find_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_findLast_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_partition_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_partition_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
+                // KSP-410: find/findLast/partition are bundled Kotlin source
+                // (StringHOF.kt); no flat emission spec.
                 "kk_string_map_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_map_flat",
                     stringArgumentCount: 1,
@@ -1456,48 +1395,9 @@ extension NativeEmitter {
                     canThrow: true,
                     defaultMissingClosureRaw: true
                 ),
-                "kk_string_reduceOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightIndexed_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightIndexed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightIndexedOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightIndexedOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_reduceRightOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_reduceRightOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_sumBy_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_sumBy_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_sumByDouble_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_sumByDouble_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
+                // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
+                // reduceRightIndexedOrNull/reduceRightOrNull are bundled
+                // Kotlin source (StringHOF.kt); no flat emission spec.
                 "kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toBoolean_flat",
                     stringArgumentCount: 1,
