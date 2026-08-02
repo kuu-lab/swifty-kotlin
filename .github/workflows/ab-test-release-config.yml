@@ -1,0 +1,189 @@
+name: A/B Unit Test Release Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      swift_version:
+        description: 'Swift version to use'
+        required: true
+        default: '6.3'
+      workers:
+        description: 'Parallel workers / build jobs'
+        required: true
+        default: '4'
+      timeout_minutes:
+        description: 'Per-configuration job timeout (minutes)'
+        required: true
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  ab-test:
+    name: ${{ matrix.label }}
+    runs-on: self-hosted
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: debug
+            build_config: debug
+            optimize_compiler_core: false
+            label: 現行debug
+          - config: release
+            build_config: release
+            optimize_compiler_core: false
+            label: swift test -c release
+          - config: compiler-core-opt
+            build_config: debug
+            optimize_compiler_core: true
+            label: CompilerCore本体だけを最適化した構成
+    env:
+      KSWIFTK_OPTIMIZE_COMPILER_CORE: ${{ matrix.optimize_compiler_core && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare self-hosted runner
+        uses: ./.github/actions/setup-self-hosted
+
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: ${{ inputs.swift_version }}
+
+      - name: Show toolchain versions
+        run: swift --version
+
+      - name: Build and run unit tests
+        env:
+          SWIFT_TEST_WORKERS: ${{ inputs.workers }}
+          SWIFT_TEST_BUILD_JOBS: ${{ inputs.workers }}
+        run: |
+          optimize_flag=""
+          if [[ "${{ matrix.optimize_compiler_core }}" == "true" ]]; then
+            optimize_flag="--optimize-compiler-core"
+          fi
+          bash Scripts/ab_unit_tests.sh \
+            --build-config ${{ matrix.build_config }} \
+            $optimize_flag \
+            --workers ${{ inputs.workers }} \
+            --output "$RUNNER_TEMP/metrics-${{ matrix.config }}.tsv"
+
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ab-metrics-${{ matrix.config }}
+          path: ${{ runner.temp }}/metrics-${{ matrix.config }}.tsv
+          if-no-files-found: ignore
+          retention-days: 30
+
+  compare:
+    name: Compare A/B metrics
+    runs-on: ubuntu-latest
+    if: always()
+    needs: ab-test
+    steps:
+      - name: Download metrics artifacts
+        id: download
+        uses: actions/download-artifact@v7
+        with:
+          path: metrics
+          pattern: ab-metrics-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Summarize A/B results
+        run: |
+          python3 <<'PY'
+          import glob
+          import os
+          import sys
+
+          def read_metrics(path):
+              data = {}
+              try:
+                  with open(path) as f:
+                      for line in f:
+                          line = line.strip()
+                          if not line or '\t' not in line:
+                              continue
+                          key, value = line.split('\t', 1)
+                          if value.isdigit():
+                              data[key] = int(value)
+              except FileNotFoundError:
+                  pass
+              return data
+
+          files = sorted(glob.glob('metrics/metrics-*.tsv'))
+          if not files:
+              print('No metrics artifacts found.', file=sys.stderr)
+              sys.exit(0)
+
+          rows = []
+          for f in files:
+              config = os.path.basename(f).replace('metrics-', '').replace('.tsv', '')
+              d = read_metrics(f)
+              build = d.get('build', 0)
+              total = d.get('total', sum(v for k, v in d.items() if k != 'total'))
+              tests = total - build
+              rows.append((config, build, tests, total))
+
+          labels = {
+              'debug': '現行debug',
+              'release': 'swift test -c release',
+              'compiler-core-opt': 'CompilerCore本体だけを最適化した構成',
+          }
+
+          def pct(new, old):
+              if old == 0:
+                  return 'N/A'
+              return f'{100 * (old - new) / old:.1f}%'
+
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              with open(summary_path, 'a') as out:
+                  out.write('## A/B Unit Test Metrics (same SHA)\n\n')
+                  out.write('| Config | Label | Build (s) | Tests (s) | Total (s) |\n')
+                  out.write('|---|---|---:|---:|---:|\n')
+                  for config, build, tests, total in rows:
+                      out.write(f'| `{config}` | {labels.get(config, config)} | {build} | {tests} | {total} |\n')
+                  out.write('\n')
+
+                  debug = next((r for r in rows if r[0] == 'debug'), None)
+                  if debug:
+                      _, dbuild, _, dtotal = debug
+                      out.write('### Improvement vs debug (positive = faster)\n\n')
+                      out.write('| Config | Total | Build | Tests |\n')
+                      out.write('|---|---|---:|---:|\n')
+                      for config, build, tests, total in rows:
+                          if config == 'debug':
+                              continue
+                          out.write(f'| `{config}` | {pct(total, dtotal)} | {pct(build, dbuild)} | {pct(tests, dtotal - dbuild)} |\n')
+                      out.write('\n')
+
+                      for config, build, tests, total in rows:
+                          if config == 'debug':
+                              continue
+                          if dtotal == 0:
+                              continue
+                          improvement = 100 * (dtotal - total) / dtotal
+                          if improvement >= 15:
+                              out.write(f'**Success: `{config}` reduced total job time by {improvement:.1f}%**\n\n')
+                          else:
+                              out.write(f'`{config}` did not meet the 15% total reduction threshold (improvement: {improvement:.1f}%).\n\n')
+
+          # Also print a concise text summary for the log.
+          print('\nA/B Unit Test Metrics')
+          print('---------------------')
+          for config, build, tests, total in rows:
+              print(f"{config:20} build={build:>6}s tests={tests:>6}s total={total:>6}s")
+          print('---------------------')
+          if debug:
+              print(f"Baseline debug total: {dtotal}s")
+              for config, build, tests, total in rows:
+                  if config != 'debug' and dtotal:
+                      print(f"{config} total improvement vs debug: {pct(total, dtotal)}")
+          PY

@@ -1,5 +1,8 @@
 // swift-tools-version: 6.2
 import PackageDescription
+import Foundation
+
+let optimizeCompilerCore = ProcessInfo.processInfo.environment["KSWIFTK_OPTIMIZE_COMPILER_CORE"] == "1"
 
 let package = Package(
     name: "KSwiftK",
@@ -33,7 +36,10 @@ let package = Package(
             dependencies: ["RuntimeABI"],
             resources: [
                 .copy("Stdlib"),
-            ]
+            ],
+            swiftSettings: optimizeCompilerCore
+                ? [.unsafeFlags(["-O"], .when(configuration: .debug))]
+                : []
         ),
         .target(
             name: "CompilerBackend",
