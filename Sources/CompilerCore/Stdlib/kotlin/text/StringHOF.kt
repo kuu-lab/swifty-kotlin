@@ -1,0 +1,351 @@
+package kotlin.text
+
+import kswiftk.internal.*
+
+// MIGRATION-TEXT-008 / KSP-410
+// String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
+//
+// BUG-169: a bundled top-level function's parameter whose type is itself a
+// function type with a NAMED label on one of its own parameters (e.g.
+// `(acc: Char, Char) -> Char` or `(value: Char) -> Boolean`), when invoked
+// by name inside the body, fails Sema resolution ("Unresolved function") —
+// or, if that label happens to coincide with another top-level
+// declaration's parameter name, a codegen bug emits a call to an undefined
+// global symbol instead of the local closure value, failing at link time.
+// This is NOT about arity: an unlabeled arity-1 type like `(Char) -> R`
+// works fine, and an unlabeled arity-2/3 type like `(Char, Char) -> Char`
+// or `(Int, Char, Char) -> Char` also works fine — only the presence of a
+// parameter label inside the function type triggers it. Every
+// filterIndexed/onEachIndexed/reduce*/fold* signature below therefore drops
+// the upstream stdlib's documentation-only labels (`acc:`, `index:`,
+// `value:`) while keeping the same parameter order and types. See TODO.md
+// BUG-169 for the minimal repro.
+//
+// BUG-170: none of the functions here return a bare, unbounded generic `R`
+// inferred from a nullable-returning (`R?`) lambda body shaped like
+// `{ x -> if (cond) y else null }` without an explicit type argument or
+// expected type at the call site — mapNotNull/firstNotNullOf/
+// firstNotNullOfOrNull hit "Type constraint could not be satisfied" with
+// that exact (very common) call shape and stay Swift-side too. The
+// already-shipped `List<T>.mapNotNull` (two type parameters, `T` fixed from
+// the receiver) is unaffected, so this looks specific to inferring a *lone*
+// type parameter purely from a nullable lambda return. See TODO.md BUG-170
+// for the minimal repro.
+//
+// BUG-171: map/mapIndexed stay Swift-side (RuntimeStringHOF.swift) — NOT
+// because of BUG-169/170, but because a bundled function of shape
+// `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns the WRONG
+// VALUES (raw unboxed scalars instead of boxed elements, e.g.
+// `"abc".map { it }` prints `[97, 98, 99]` instead of `[a, b, c]`) whenever
+// `R` resolves concretely to `Char` or `Boolean` (confirmed both by
+// inference and by explicit `<Char>` type argument; `<Any>` at the same
+// call site is unaffected). The bug reproduces with ANY receiver type
+// (String, CharArray — not String-specific) and is isolated to storing the
+// transform's result into a `List<R>`: the identical accumulator shape
+// (`fold`/`reduce`, where `R` is returned bare rather than stored in a
+// list) is unaffected. This is silent data corruption, not a compile/link
+// failure, so unlike BUG-169 it cannot be avoided by a source-level
+// workaround in this file (the bad unbox is baked into the lambda's own
+// compiled body by ABI lowering, before `map` ever sees the value). See
+// TODO.md BUG-171 for the minimal repro.
+//
+// CharSequence-receiver functions read the length via the
+// __string_struct_get_length bridge (matching the established pattern in
+// StringEmptyBlankLines.kt / StringIndentFormat.kt): calling the bare
+// `length` property through an interface-typed `this` silently reads as 0
+// instead of dispatching to the underlying String, which makes every loop
+// below it a silent no-op. Indexing (`this[i]`) is unaffected.
+
+public fun String.filter(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public fun String.filterNot(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        val c = this[i]
+        if (!predicate(c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public fun CharSequence.any(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        if (predicate(this[i])) return true
+        i++
+    }
+    return false
+}
+
+public fun CharSequence.all(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        if (!predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun CharSequence.none(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        if (predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun CharSequence.count(predicate: (Char) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        if (predicate(this[i])) count++
+        i++
+    }
+    return count
+}
+
+public fun CharSequence.find(predicate: (Char) -> Boolean): Char? {
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i++
+    }
+    return null
+}
+
+public fun CharSequence.findLast(predicate: (Char) -> Boolean): Char? {
+    var i = __string_struct_get_length(this) - 1
+    while (i >= 0) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i--
+    }
+    return null
+}
+
+public fun String.onEach(action: (Char) -> Unit): String {
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        action(this[i])
+        i++
+    }
+    return this
+}
+
+public fun CharSequence.partition(predicate: (Char) -> Boolean): Pair<String, String> {
+    val matched = StringBuilder()
+    val unmatched = StringBuilder()
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(c)) matched.append(c) else unmatched.append(c)
+        i++
+    }
+    return Pair(matched.toString(), unmatched.toString())
+}
+
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public fun CharSequence.sumBy(selector: (Char) -> Int): Int {
+    var sum = 0
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public fun CharSequence.sumByDouble(selector: (Char) -> Double): Double {
+    var sum = 0.0
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+public fun CharSequence.filterIndexed(predicate: (Int, Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        val c = this[i]
+        if (predicate(i, c)) sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+public fun String.onEachIndexed(action: (Int, Char) -> Unit): String {
+    var i = 0
+    val sz = length
+    while (i < sz) {
+        action(i, this[i])
+        i++
+    }
+    return this
+}
+
+public fun CharSequence.reduce(operation: (Char, Char) -> Char): Char {
+    val sz = __string_struct_get_length(this)
+    if (sz == 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceOrNull(operation: (Char, Char) -> Char): Char? {
+    val sz = __string_struct_get_length(this)
+    if (sz == 0) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceIndexed(operation: (Int, Char, Char) -> Char): Char {
+    val sz = __string_struct_get_length(this)
+    if (sz == 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceIndexedOrNull(operation: (Int, Char, Char) -> Char): Char? {
+    val sz = __string_struct_get_length(this)
+    if (sz == 0) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < sz) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRight(operation: (Char, Char) -> Char): Char {
+    var i = __string_struct_get_length(this) - 1
+    if (i < 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightOrNull(operation: (Char, Char) -> Char): Char? {
+    var i = __string_struct_get_length(this) - 1
+    if (i < 0) return null
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightIndexed(operation: (Int, Char, Char) -> Char): Char {
+    var i = __string_struct_get_length(this) - 1
+    if (i < 0) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun CharSequence.reduceRightIndexedOrNull(operation: (Int, Char, Char) -> Char): Char? {
+    var i = __string_struct_get_length(this) - 1
+    if (i < 0) return null
+    var accumulator = this[i]
+    i--
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun <R> CharSequence.fold(initial: R, operation: (R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        accumulator = operation(accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun <R> CharSequence.foldIndexed(initial: R, operation: (Int, R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    val sz = __string_struct_get_length(this)
+    while (i < sz) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
+public fun <R> CharSequence.foldRight(initial: R, operation: (Char, R) -> R): R {
+    var accumulator = initial
+    var i = __string_struct_get_length(this) - 1
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+
+public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (Int, Char, R) -> R): R {
+    var accumulator = initial
+    var i = __string_struct_get_length(this) - 1
+    while (i >= 0) {
+        accumulator = operation(i, this[i], accumulator)
+        i--
+    }
+    return accumulator
+}
+

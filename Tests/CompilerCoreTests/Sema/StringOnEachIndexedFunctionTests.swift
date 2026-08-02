@@ -4,9 +4,9 @@ import Foundation
 import Testing
 
 /// STDLIB-TEXT-FN-040: Validates that `String.onEachIndexed(action)` resolves
-/// through Sema and lowers to the runtime helper `kk_string_onEachIndexed`.
-/// The synthetic surface signature is
-/// `String.onEachIndexed(action: (Int, Char) -> Unit): String`.
+/// through Sema. After KSP-410 it is bundled Kotlin source (StringHOF.kt);
+/// see StringSyntheticMemberLinkTests for the "carries no C external link"
+/// check.
 @Suite
 struct StringOnEachIndexedFunctionTests {
     @Test
@@ -53,54 +53,10 @@ struct StringOnEachIndexedFunctionTests {
         }
     }
 
-    @Test
-    func testStringOnEachIndexedLinksToRuntimeHelper() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "onEachIndexed"].map { ctx.interner.intern($0) }
-            let stringReceiverSymbol = try #require(
-                sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                    guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                        return false
-                    }
-                    guard signature.receiverType == sema.types.stringType,
-                          signature.parameterTypes.count == 1
-                    else { return false }
-                    return signature.returnType == sema.types.stringType
-                },
-                "Expected String.onEachIndexed synthetic to be registered"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: stringReceiverSymbol) == "kk_string_onEachIndexed"
-            )
-        }
-    }
-
-    @Test
-    func testStringOnEachIndexedLowersToRuntimeHelper() throws {
-        let source = """
-        fun main() {
-            val s = "abc"
-            s.onEachIndexed { i, c -> print(i) }
-            "xyz".onEachIndexed { index, ch -> print(ch) }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let onEachIndexedFlags = try #require(
-                throwFlags["kk_string_onEachIndexed"],
-                "Expected kk_string_onEachIndexed call sites to appear in main()"
-            )
-            #expect(onEachIndexedFlags.count == 2, "Expected two kk_string_onEachIndexed invocations")
-        }
-    }
+    // KSP-410: String.onEachIndexed is bundled Kotlin source (StringHOF.kt),
+    // so it no longer registers as a synthetic extension with a C external
+    // link name and no longer lowers to a single flat runtime call site.
+    // See StringSyntheticMemberLinkTests.testStringHOFMembersAreBundledKotlin
+    // for the "carries no C external link" coverage.
 }
 #endif
