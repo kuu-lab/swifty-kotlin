@@ -50,19 +50,21 @@ final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
-                    try backend.emitObject(
-                        module: kir,
-                        outputObjectPath: path,
-                        interner: ctx.interner,
-                        typeSystem: ctx.sema?.types,
-                        symbols: ctx.sema?.symbols,
-                        sourceManager: ctx.sourceManager,
-                        fileFacadeNamesByFileID: fileFacadeNamesByFileID,
-                        reflectionMetadataRecords: reflectionRecords,
-                        reflectionMetadataSymbolPrefix: ctx.options.moduleName
-                    )
-                }
+                // Object emission is pure LLVM work and does not need the
+                // cross-process executable-toolchain lock; only the link step
+                // (which invokes `swiftc`) is serialized per target to avoid
+                // parallel-linker contention on shared toolchain state.
+                try backend.emitObject(
+                    module: kir,
+                    outputObjectPath: path,
+                    interner: ctx.interner,
+                    typeSystem: ctx.sema?.types,
+                    symbols: ctx.sema?.symbols,
+                    sourceManager: ctx.sourceManager,
+                    fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                    reflectionMetadataRecords: reflectionRecords,
+                    reflectionMetadataSymbolPrefix: ctx.options.moduleName
+                )
                 ctx.storeGeneratedObjectPath(path)
 
             case .library:
@@ -444,6 +446,7 @@ final class CodegenPhase: CompilerPhase {
 
         var objectInitializerLinkNames: [SymbolID: String] = [:]
         var companionInitializerLinkNames: [SymbolID: String] = [:]
+        var enumStaticInitLinkNames: [SymbolID: String] = [:]
         for decl in module.arena.declarations {
             guard case let .function(function) = decl,
                   let linkName = functionLinkNamesBySymbol[function.symbol]
@@ -455,6 +458,12 @@ final class CodegenPhase: CompilerPhase {
                 objectInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
             } else if let ownerID = Self.companionInitializerOwnerSymbolID(from: functionName) {
                 companionInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let ownerID = Self.enumStaticInitOwnerSymbolID(
+                from: functionName,
+                symbol: function.symbol,
+                sema: sema
+            ) {
+                enumStaticInitLinkNames[ownerID] = linkName
             }
         }
 
@@ -472,7 +481,8 @@ final class CodegenPhase: CompilerPhase {
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
-            companionInitializerLinkNames: companionInitializerLinkNames
+            companionInitializerLinkNames: companionInitializerLinkNames,
+            enumStaticInitLinkNames: enumStaticInitLinkNames
         )
         return encoder.serialize(records)
     }
@@ -542,5 +552,29 @@ final class CodegenPhase: CompilerPhase {
         let parts = suffix.split(separator: "_").map(String.init)
         guard parts.count >= 2, let ownerID = parts.first else { return nil }
         return Int32(ownerID)
+    }
+
+    /// Returns the owner enum class symbol for a synthetic enum static
+    /// initializer (`__enum_static_init_<ClassName>`) by looking up the
+    /// function's parent FQ name in `sema.symbols`.
+    private static func enumStaticInitOwnerSymbolID(
+        from name: String,
+        symbol: SymbolID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        let prefix = "__enum_static_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        guard let functionSymbol = sema.symbols.symbol(symbol),
+              functionSymbol.fqName.count >= 2
+        else {
+            return nil
+        }
+        let ownerFQName = Array(functionSymbol.fqName.dropLast())
+        guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return ownerSymbol
     }
 }

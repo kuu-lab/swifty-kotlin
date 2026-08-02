@@ -435,6 +435,7 @@ public final class SymbolTable {
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -1022,6 +1023,14 @@ public final class SymbolTable {
 
     public func companionObjectInitializerSymbol(for owner: SymbolID) -> SymbolID? {
         companionObjectInitializerSymbols[owner]
+    }
+
+    public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        enumStaticInitSymbols[owner] = initializer
+    }
+
+    public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
+        enumStaticInitSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {

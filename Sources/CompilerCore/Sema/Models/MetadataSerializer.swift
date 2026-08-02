@@ -33,6 +33,8 @@ package struct MetadataRecord {
     let objectInitializerLinkName: String?
     /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
     let companionInitializerLinkName: String?
+    /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
+    package let enumStaticInitLinkName: String?
 
     // P5-74: data class flag
     package let isDataClass: Bool
@@ -93,6 +95,7 @@ package struct MetadataRecord {
         itableSlots: String? = nil,
         objectInitializerLinkName: String? = nil,
         companionInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isSealedClass: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
@@ -130,6 +133,7 @@ package struct MetadataRecord {
         self.itableSlots = itableSlots
         self.objectInitializerLinkName = objectInitializerLinkName
         self.companionInitializerLinkName = companionInitializerLinkName
+        self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isSealedClass = isSealedClass
         self.annotations = annotations
@@ -187,7 +191,8 @@ package final class MetadataEncoder {
         excludeSourceFileIDs: Set<Int32> = [],
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         objectInitializerLinkNames: [SymbolID: String] = [:],
-        companionInitializerLinkNames: [SymbolID: String] = [:]
+        companionInitializerLinkNames: [SymbolID: String] = [:],
+        enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -242,7 +247,8 @@ package final class MetadataEncoder {
                 runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
                 includedSymbolIDs: exportedSymbolIDs,
                 objectInitializerLinkNames: objectInitializerLinkNames,
-                companionInitializerLinkNames: companionInitializerLinkNames
+                companionInitializerLinkNames: companionInitializerLinkNames,
+                enumStaticInitLinkNames: enumStaticInitLinkNames
             ))
         }
         return records
@@ -436,7 +442,8 @@ package final class MetadataEncoder {
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         includedSymbolIDs: Set<SymbolID>? = nil,
         objectInitializerLinkNames: [SymbolID: String] = [:],
-        companionInitializerLinkNames: [SymbolID: String] = [:]
+        companionInitializerLinkNames: [SymbolID: String] = [:],
+        enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -597,6 +604,7 @@ package final class MetadataEncoder {
         var itableSlotsStr: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var enumStaticInitLinkName: String?
 
         if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
             declaredInstanceSizeWords = layout.instanceSizeWords
@@ -632,6 +640,9 @@ package final class MetadataEncoder {
                 objectInitializerLinkName = objectInitializerLinkNames[symbol.id]
             }
             companionInitializerLinkName = companionInitializerLinkNames[symbol.id]
+            if symbol.kind == .enumClass {
+                enumStaticInitLinkName = enumStaticInitLinkNames[symbol.id]
+            }
         }
 
         let isDataClass = symbol.flags.contains(.dataType)
@@ -694,6 +705,7 @@ package final class MetadataEncoder {
             itableSlots: itableSlotsStr,
             objectInitializerLinkName: objectInitializerLinkName,
             companionInitializerLinkName: companionInitializerLinkName,
+            enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isSealedClass: isSealedClass,
             annotations: annotationEntries,
@@ -811,6 +823,9 @@ package final class MetadataEncoder {
                 }
                 if let companionInitLink = record.companionInitializerLinkName, !companionInitLink.isEmpty {
                     fields.append("companionInitLink=\(companionInitLink)")
+                }
+                if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
+                    fields.append("enumStaticInitLink=\(enumStaticInitLink)")
                 }
             }
             if record.isDataClass {
@@ -1012,6 +1027,7 @@ final class MetadataDecoder {
                 itableSlots: rec.itableSlots,
                 objectInitializerLinkName: rec.objectInitializerLinkName,
                 companionInitializerLinkName: rec.companionInitializerLinkName,
+                enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isSealedClass: rec.isSealedClass,
                 annotations: rec.annotations,
@@ -1055,6 +1071,7 @@ final class MetadataDecoder {
         var itableSlots: String?
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
+        var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isSealedClass: Bool = false
         var isValueClass: Bool = false
@@ -1115,6 +1132,8 @@ final class MetadataDecoder {
             record.objectInitializerLinkName = value.isEmpty ? nil : value
         case "companionInitLink":
             record.companionInitializerLinkName = value.isEmpty ? nil : value
+        case "enumStaticInitLink":
+            record.enumStaticInitLinkName = value.isEmpty ? nil : value
         case "dataClass":
             record.isDataClass = value == "1" || value == "true"
         case "sealedClass":

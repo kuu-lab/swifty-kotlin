@@ -373,6 +373,7 @@ extension DataFlowSemaPhase {
         let itableSlots: [ImportedITableSlotEntry]
         let objectInitializerLinkName: String?
         let companionInitializerLinkName: String?
+        let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isSealedClass: Bool
         let isValueClass: Bool
@@ -411,6 +412,7 @@ extension DataFlowSemaPhase {
             itableSlots: [ImportedITableSlotEntry] = [],
             objectInitializerLinkName: String? = nil,
             companionInitializerLinkName: String? = nil,
+            enumStaticInitLinkName: String? = nil,
             isDataClass: Bool = false,
             isSealedClass: Bool = false,
             isValueClass: Bool = false,
@@ -448,6 +450,7 @@ extension DataFlowSemaPhase {
             self.itableSlots = itableSlots
             self.objectInitializerLinkName = objectInitializerLinkName
             self.companionInitializerLinkName = companionInitializerLinkName
+            self.enumStaticInitLinkName = enumStaticInitLinkName
             self.isDataClass = isDataClass
             self.isSealedClass = isSealedClass
             self.isValueClass = isValueClass
@@ -592,7 +595,7 @@ extension DataFlowSemaPhase {
             cache: cache,
             isStdlibArtifact: isStdlibArtifact
         )
-        applyImportedNominalMetadata(binding, symbols: symbols, pendingSupertypeEdges: &pendingSupertypeEdges)
+        applyImportedNominalMetadata(binding, symbols: symbols, interner: interner, pendingSupertypeEdges: &pendingSupertypeEdges)
     }
 
     private func applyImportedBindingMetadata(
@@ -926,11 +929,26 @@ extension DataFlowSemaPhase {
     private func applyImportedNominalMetadata(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
+        interner: StringInterner,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])]
     ) {
         let record = binding.record
         guard isNominalLayoutTargetSymbol(record.kind) else {
             return
+        }
+
+        // Restore the parent link for imported nominal types (e.g. nested enum
+        // classes like Base64.PaddingOption). Without this, member lookup on
+        // the nested owner fails and the consumer falls back to treating the
+        // nested type as a constructor call, breaking enum entry references.
+        if record.fqName.count >= 2 {
+            let ownerFQName = Array(record.fqName.dropLast())
+            let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
+            if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
+                symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
+            } else if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
+                symbols.setParentSymbol(ownerSymbol, for: binding.symbol)
+            }
         }
 
         let hasLayoutHint =
@@ -951,6 +969,27 @@ extension DataFlowSemaPhase {
         }
         if let superFQName = record.superFQName, !superFQName.isEmpty {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
+        }
+
+        // Import the precompiled enum static initializer link so the consumer
+        // can call it before `main`, ensuring enum entry globals are initialized.
+        if record.kind == .enumClass,
+           let enumStaticInitLink = record.enumStaticInitLinkName,
+           !enumStaticInitLink.isEmpty
+        {
+            let initName = interner.intern("__enum_static_init")
+            let initFQName = record.fqName + [initName]
+            let initSymbol = symbols.define(
+                kind: .function,
+                name: initName,
+                fqName: initFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setExternalLinkName(enumStaticInitLink, for: initSymbol)
+            symbols.setParentSymbol(binding.symbol, for: initSymbol)
+            symbols.setEnumStaticInitSymbol(initSymbol, for: binding.symbol)
         }
     }
 }

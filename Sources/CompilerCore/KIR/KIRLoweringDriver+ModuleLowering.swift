@@ -327,21 +327,12 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         allTopLevelInitInstructions: inout KIRLoweringEmitContext
     ) {
-        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
-            let initializerSymbol: SymbolID?
-            switch symbol.kind {
-            case .object:
-                initializerSymbol = sema.symbols.objectInitializerSymbol(for: symbol.id)
-            case .class, .interface, .enumClass, .annotationClass:
-                initializerSymbol = sema.symbols.companionObjectInitializerSymbol(for: symbol.id)
-            default:
-                initializerSymbol = nil
-            }
-            guard let initializerSymbol else { continue }
+        func appendInitializer(_ initializerSymbol: SymbolID?) {
+            guard let initializerSymbol else { return }
             guard let externalLinkName = sema.symbols.externalLinkName(for: initializerSymbol),
                   !externalLinkName.isEmpty
             else {
-                continue
+                return
             }
             let result = arena.appendTemporary(type: sema.types.unitType)
             allTopLevelInitInstructions.append(
@@ -354,6 +345,20 @@ extension KIRLoweringDriver {
                     thrownResult: nil
                 )
             )
+        }
+
+        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            switch symbol.kind {
+            case .object:
+                appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))
+            case .class, .interface, .annotationClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+            case .enumClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+                appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
+            default:
+                break
+            }
         }
     }
 

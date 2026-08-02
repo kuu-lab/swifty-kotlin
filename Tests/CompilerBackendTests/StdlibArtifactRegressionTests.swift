@@ -277,4 +277,47 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-006: enum entry references from a precompiled stdlib
+    /// artifact must have their global ordinal slots initialized. The shared
+    /// artifact contains the `__enum_static_init_*` function; the consumer's
+    /// top-level initializer must call it before `main` so that enum entry
+    /// objects such as `Base64.PaddingOption.ABSENT` behave correctly.
+    func testEnumEntryStaticInitializerSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.ExperimentalEncodingApi
+
+        @OptIn(ExperimentalEncodingApi::class)
+        fun main() {
+            val noPad = Base64.Default.withPadding(Base64.PaddingOption.ABSENT)
+            println(noPad.encode("foob".encodeToByteArray()))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "Zm9vYg\n")
+        }
+    }
 }
