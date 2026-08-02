@@ -477,12 +477,6 @@ struct CollectionLiteralLookupTables {
     var kkStringIteratorName: InternedString { stringLookup.kkStringIteratorName }
     var kkStringIteratorHasNextName: InternedString { stringLookup.kkStringIteratorHasNextName }
     var kkStringIteratorNextName: InternedString { stringLookup.kkStringIteratorNextName }
-    var kkStringFilterName: InternedString { stringLookup.kkStringFilterName }
-    var kkStringMapName: InternedString { stringLookup.kkStringMapName }
-    var kkStringCountName: InternedString { stringLookup.kkStringCountName }
-    var kkStringAnyName: InternedString { stringLookup.kkStringAnyName }
-    var kkStringAllName: InternedString { stringLookup.kkStringAllName }
-    var kkStringNoneName: InternedString { stringLookup.kkStringNoneName }
     var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
 
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)

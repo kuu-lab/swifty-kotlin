@@ -413,37 +413,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapIndexed_flat", argumentMode: .normalized)
         case ("mapNotNull", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapNotNull_flat", argumentMode: .normalized)
-        case ("filterIndexed", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_filterIndexed_flat", argumentMode: .normalized)
-        case ("filterNot", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_filterNot_flat", argumentMode: .normalized)
-        case ("count", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_count_flat", argumentMode: .normalized)
-        case ("any", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_any_flat", argumentMode: .normalized)
-        case ("all", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_all_flat", argumentMode: .normalized)
-        case ("none", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_none_flat", argumentMode: .normalized)
-        case ("find", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_find_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("findLast", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_findLast_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("partition", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_partition_flat",
-                canThrow: true,
-                argumentMode: .normalized,
-                thrownResultMode: .nullableAny
-            )
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
         case ("chunkedSequence", 1):

@@ -566,31 +566,13 @@ extension CallLowerer {
             finalArguments.append(envPtrExpr)
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
-        case "kk_string_filter",
+        case "kk_string_indexOfFirst",
+             "kk_string_indexOfLast",
              "kk_string_map",
-             "kk_string_count",
-             "kk_string_any",
-             "kk_string_all",
-             "kk_string_none",
              "kk_string_mapIndexed",
              "kk_string_mapNotNull",
              "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull",
-             "kk_string_reduceRightIndexed",
-             "kk_string_reduceRightIndexedOrNull",
-             "kk_string_reduceRightOrNull",
-             "kk_string_reduce",
-             "kk_string_reduceIndexedOrNull",
-             "kk_string_reduceOrNull",
-             "kk_string_sumBy",
-             "kk_string_sumByDouble",
-             "kk_string_filterIndexed",
-             "kk_string_filterNot",
-             "kk_string_onEach",
-             "kk_string_onEachIndexed",
-            "kk_string_find",
-            "kk_string_findLast",
-            "kk_string_partition":
+             "kk_string_firstNotNullOfOrNull":
             true
         default:
             false
@@ -1197,13 +1179,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_count"),
             interner.intern("kk_string_firstNotNullOf_flat"),
             interner.intern("kk_string_firstNotNullOfOrNull_flat"),
-            interner.intern("kk_string_reduce"),
-            interner.intern("kk_string_reduceOrNull"),
-            interner.intern("kk_string_reduceRightIndexed"),
-            interner.intern("kk_string_reduceRightIndexedOrNull"),
-            interner.intern("kk_string_reduceRightOrNull"),
-            interner.intern("kk_string_sumBy"),
-            interner.intern("kk_string_sumByDouble"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),

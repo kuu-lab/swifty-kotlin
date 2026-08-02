@@ -34,52 +34,6 @@ func runtimeStringUTF16CodeUnitsFromFlat(
     Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).utf16)
 }
 
-private func runtimeStringFromValue(_ value: RuntimeValue) -> String? {
-    if value.tag == RuntimeValue.stringTag {
-        return runtimeStringFromFlatFields(
-            data: UnsafePointer<UInt8>(bitPattern: value.payload0),
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
-    }
-    if value.tag == RuntimeValue.rawTag {
-        return extractString(from: UnsafeMutableRawPointer(bitPattern: value.payload0))
-    }
-    return nil
-}
-
-private func runtimeStringScalars(from value: RuntimeValue, caller: StaticString) -> [UnicodeScalar] {
-    guard let string = runtimeStringFromValue(value) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received non-string collection element")
-    }
-    return Array(string.unicodeScalars)
-}
-
-private func runtimeStringMatchPair(offset: Int, scalars: [UnicodeScalar]) -> Int {
-    var length = 0
-    var byteCount = 0
-    var hash = 0
-    let data = runtimeRegisterFlatString(
-        String(String.UnicodeScalarView(scalars)),
-        outLength: &length,
-        outByteCount: &byteCount,
-        outHash: &hash
-    )
-    guard let data else {
-        return runtimeNullSentinelInt
-    }
-    return runtimePairNew(
-        firstValue: RuntimeValue(raw: offset),
-        secondValue: RuntimeValue(
-            stringData: Int(bitPattern: data),
-            length: length,
-            byteCount: byteCount,
-            hash: hash
-        )
-    )
-}
-
 @_cdecl("kk_string_trim_flat")
 public func kk_string_trim_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -280,76 +234,10 @@ public func kk_string_single_flat(
     return Int(codeUnits[0])
 }
 
-@_cdecl("kk_string_find_flat")
-public func kk_string_find_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "find predicate")
-            return runtimeNullSentinelInt
-        }
-        if maybeUnbox(result) != 0 {
-            return kk_box_char(Int(scalar.value))
-        }
-    }
-    return runtimeNullSentinelInt
-}
-
-@_cdecl("kk_string_findLast_flat")
-public func kk_string_findLast_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    var foundChar: UnicodeScalar?
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "findLast predicate")
-            return runtimeNullSentinelInt
-        }
-        if maybeUnbox(result) != 0 {
-            foundChar = scalar
-        }
-    }
-    if let char = foundChar {
-        return kk_box_char(Int(char.value))
-    }
-    return runtimeNullSentinelInt
-}
-
 // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are
 // bundled Kotlin source (StringIndexOf.kt); their flat runtime bridges were removed.
+// KSP-410: find/findLast are bundled Kotlin source (StringHOF.kt); their flat runtime
+// bridges were removed.
 
 @_cdecl("kk_string_isEmpty_flat")
 public func kk_string_isEmpty_flat(
