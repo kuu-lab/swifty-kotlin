@@ -555,7 +555,6 @@ final class CodegenPhase: CompilerPhase {
         guard parts.count >= 2, let ownerID = parts.first else { return nil }
         return Int32(ownerID)
     }
-
     /// Returns the owner enum class symbol for a synthetic enum static
     /// initializer (`__enum_static_init_<ClassName>`) by looking up the
     /// function's parent FQ name in `sema.symbols`.
