@@ -1,9 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-006): JVM kotlinc reference passes; kswiftc candidate
-// fails with KSWIFTK-TYPE-0001 because PluginRegistry.update's own methods
-// index-access their own `MutableMap` property (`plugins[pluginId]` get/set)
-// via implicit `this`. Minimal repro: an object/class whose method indexes
-// its own MutableMap<K, V> property fails type-constraint solving, while
-// top-level vars, method-local maps, and external property access do not.
 // STDLIB-REFL-173: compiler plugin API baseline
 // Exercises CommandProcessor, ExtensionRegistrar, IrGenerationExtension,
 // ClassBuilderInterceptor, and plugin metadata storage in a self-contained
@@ -145,5 +139,8 @@ fun main() {
     println("extensions=${meta?.registeredExtensions?.joinToString(",")}")
     println("generatedModules=${meta?.generatedModules?.joinToString(",")}")
     println("interceptedClasses=${meta?.interceptedClasses?.joinToString(",")}")
-    println("options=${meta?.options?.entries?.sortedBy { it.key }?.joinToString(",") { "${it.key}=${it.value}" }}")
+    val optionsSummary = meta?.options?.entries?.let { entries ->
+        entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+    }
+    println("options=$optionsSummary")
 }
