@@ -110,21 +110,43 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
+        // BUG-166: needs externalLinkName for the same reason as `contains`
+        // below — without it, calling isEmpty() through a `Collection<T>`-typed
+        // (rather than concrete `List<T>`/`Set<T>`-typed) receiver requires
+        // virtual itable dispatch, which the built-in List/Set runtime boxes
+        // never register for.
         defineCollectionFunctionMember(
             name: "isEmpty",
             parameterTypes: [],
             returnType: types.booleanType,
-            flags: [.synthetic]
+            flags: [.synthetic],
+            externalLinkName: "kk_collection_isEmpty"
         )
 
         // Variance note: Collection declares `out E`, but contains() uses E in
         // parameter (contravariant) position. This matches Kotlin's own declaration
         // where `contains` has `@UnsafeVariance E` — the mismatch is intentional.
+        //
+        // BUG-166: externalLinkName is required here, not optional. Without it,
+        // a call through a `Collection<T>`-typed receiver (as opposed to a
+        // concrete `List<T>`/`Set<T>`-typed one, which resolves `contains`
+        // through the name-based collection dispatch fallback before this
+        // member is ever considered) binds to this member as a real
+        // `chosenCallee` and requires virtual itable dispatch — but the
+        // built-in List/Set runtime boxes never register themselves into the
+        // itable system (they bypass kk_object_new construction entirely), so
+        // dispatch panics with KSWIFTK-RUNTIME-0001 ("method not found in
+        // vtable/itable"). Setting externalLinkName makes
+        // CallLowerer+MemberCallDefaultsAndResolution.tryEmitVirtualDispatch
+        // skip virtual dispatch and call the (already receiver-type-agnostic)
+        // kk_op_contains directly instead, exactly like the random/
+        // randomOrNull/last members below.
         defineCollectionFunctionMember(
             name: "contains",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
-            flags: [.synthetic, .operatorFunction]
+            flags: [.synthetic, .operatorFunction],
+            externalLinkName: "kk_op_contains"
         )
 
         // last(): E — modeled directly here because Collection member lookup does

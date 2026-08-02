@@ -135,10 +135,10 @@ expr e@35:43 string(abc) type=String
 expr e@35:43#1 memberCall recv=e@35:43 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
 expr e@37:33 string(hello) type=String
 expr e@37:54 string(he) type=String
-expr e@37:33#1 memberCall recv=e@37:33 callee=removePrefix args=[_:e@37:54] type=String call=kotlin.text.removePrefix
+expr e@37:33#1 memberCall recv=e@37:33 callee=removePrefix args=[_:e@37:54] type=String call=kotlin.text.removePrefix#0
 expr e@39:33 string(hello) type=String
 expr e@39:54 string(lo) type=String
-expr e@39:33#1 memberCall recv=e@39:33 callee=removeSuffix args=[_:e@39:54] type=String call=kotlin.text.removeSuffix
+expr e@39:33#1 memberCall recv=e@39:33 callee=removeSuffix args=[_:e@39:54] type=String call=kotlin.text.removeSuffix#0
 expr e@41:39 string([hello]) type=String
 expr e@41:67 string([) type=String
 expr e@41:72 string(]) type=String

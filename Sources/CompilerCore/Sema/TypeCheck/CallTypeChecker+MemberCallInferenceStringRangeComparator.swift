@@ -85,6 +85,32 @@ extension CallTypeChecker {
         ) {
             return boundType
         }
+        if let boundType = tryBindStringChunkedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
+        if let boundType = tryBindStringWindowedTransform(
+            id,
+            calleeName: calleeName,
+            receiverType: stringHOFReceiverType,
+            args: args,
+            safeCall: safeCall,
+            ast: ast,
+            ctx: ctx,
+            locals: &locals,
+            explicitTypeArgs: explicitTypeArgs
+        ) {
+            return boundType
+        }
 
         // Early String HOF fallback: String HOF members need lambda inference with
         // expected types so the implicit `it` parameter (Char) gets bound correctly.
