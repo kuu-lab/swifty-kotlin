@@ -361,7 +361,11 @@ extension DataFlowSemaPhase {
             }.first
 
             if let existing {
-                symbols.setExternalLinkName(extLink, for: existing)
+                // Only patch imported stdlib artifact symbols with a runtime
+                // bridge; source-backed bundled declarations remain inlineable.
+                if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                    symbols.setExternalLinkName(extLink, for: existing)
+                }
                 continue
             }
 
