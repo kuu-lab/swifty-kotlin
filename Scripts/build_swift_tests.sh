@@ -22,9 +22,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 # locally with --build-system native, the engine CI's ubuntu-latest runners
 # use). Net effect of the old two-pass design: 5 of 6 test targets never got
 # warning coverage from the first pass at all, and the targets that did
-# (LSPServerTests's dependency closura: CompilerCore/CompilerBackend/Runtime/
+# (LSPServerTests's dependency closure: CompilerCore/CompilerBackend/Runtime/
 # RuntimeABI/LSPServer) paid for a full rebuild in the second pass anyway.
-# One warnings-visible build-tests call is strictly more correct and faster.
 #
 # When SWIFT_TEST_BUILD_TARGETS is set, build only those targets one at a time
 # so multiple CI lanes can each build the minimal set they need. Because
@@ -41,6 +40,17 @@ build_targets="${SWIFT_TEST_BUILD_TARGETS:-}"
 build_system="${SWIFT_BUILD_SYSTEM:-}"
 
 declare -a swift_build_args=("$@")
+
+# Optional CI-only speed knobs. These are intentionally opt-in via an env var
+# so local developer builds keep debug info by default. Note:
+# --disable-index-store cannot be combined with swift build --build-tests on
+# Linux because XCTest test discovery reads the index store; disabling it
+# causes "error: index store path does not exist" for the discovered-tests
+# target. -debug-info-format none is safe and reduces object file size/I/O.
+if [[ "${KSWIFTK_CI_FAST_BUILD:-}" == "1" ]]; then
+    echo "build_swift_tests.sh: enabling fast build flags." >&2
+    swift_build_args+=(-debug-info-format none)
+fi
 
 # Make sure any selected build system is applied to every invocation.
 if [[ -n "$build_system" ]]; then
