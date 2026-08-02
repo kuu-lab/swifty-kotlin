@@ -673,6 +673,23 @@ extension CallLowerer {
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
             preconditionFailure("Bitwise/shift binary operators must be lowered through member-call special handling")
         }
+        if op == .equal || op == .notEqual {
+            // A values()/entries element read out of an Any-erased array is a
+            // boxed ordinal, while a direct enum reference (e.g.
+            // Direction.NORTH) is a raw one -- normalize both operands so the
+            // comparison isn't a boxed-handle-vs-raw-ordinal mismatch. See
+            // unboxIfEnumTyped.
+            let normalizedLhsID = unboxIfEnumTyped(
+                lhsID, staticType: sema.bindings.exprTypes[lhs],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            let normalizedRhsID = unboxIfEnumTyped(
+                rhsID, staticType: sema.bindings.exprTypes[rhs],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            instructions.append(.binary(op: kirOp, lhs: normalizedLhsID, rhs: normalizedRhsID, result: result))
+            return result
+        }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
         return result
     }

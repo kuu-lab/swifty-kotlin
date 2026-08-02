@@ -492,4 +492,3 @@ public func kk_string_format_locale_flat(
         outHash: outHash
     )
 }
-

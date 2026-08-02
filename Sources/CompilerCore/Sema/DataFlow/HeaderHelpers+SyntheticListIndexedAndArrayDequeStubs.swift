@@ -578,6 +578,32 @@ extension DataFlowSemaPhase {
         registerPropertyGetter(name: "index", ret: types.intType, externalLinkName: "kk_pair_first")
         registerPropertyGetter(name: "value", ret: tType, externalLinkName: "kk_pair_second")
 
+        // Constructor: IndexedValue(index, value) → kk_indexed_value_new (STDLIB-563)
+        let initName = interner.intern("<init>")
+        let initFQName = fqName + [initName]
+        if symbols.lookup(fqName: initFQName) == nil {
+            let initSymbol = symbols.define(
+                kind: .constructor,
+                name: initName,
+                fqName: initFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(symbol, for: initSymbol)
+            symbols.setExternalLinkName("kk_indexed_value_new", for: initSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [types.intType, tType],
+                    returnType: receiverType,
+                    typeParameterSymbols: [tSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: initSymbol
+            )
+        }
+
         return symbol
     }
 
