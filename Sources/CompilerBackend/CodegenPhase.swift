@@ -50,21 +50,23 @@ final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                // Object emission is pure LLVM work and does not need the
-                // cross-process executable-toolchain lock; only the link step
-                // (which invokes `swiftc`) is serialized per target to avoid
-                // parallel-linker contention on shared toolchain state.
-                try backend.emitObject(
-                    module: kir,
-                    outputObjectPath: path,
-                    interner: ctx.interner,
-                    typeSystem: ctx.sema?.types,
-                    symbols: ctx.sema?.symbols,
-                    sourceManager: ctx.sourceManager,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID,
-                    reflectionMetadataRecords: reflectionRecords,
-                    reflectionMetadataSymbolPrefix: ctx.options.moduleName
-                )
+                // Object emission is serialized per-process on Linux because
+                // LLVM target state is not thread-safe; cross-process locking is
+                // unnecessary because each `kswiftc` process has its own LLVM
+                // context and output path. The link step still uses a file lock.
+                try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
+                    try backend.emitObject(
+                        module: kir,
+                        outputObjectPath: path,
+                        interner: ctx.interner,
+                        typeSystem: ctx.sema?.types,
+                        symbols: ctx.sema?.symbols,
+                        sourceManager: ctx.sourceManager,
+                        fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                        reflectionMetadataRecords: reflectionRecords,
+                        reflectionMetadataSymbolPrefix: ctx.options.moduleName
+                    )
+                }
                 ctx.storeGeneratedObjectPath(path)
 
             case .library:

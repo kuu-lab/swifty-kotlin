@@ -55,6 +55,19 @@ struct ArrayLookupNames {
     let kkArrayFlatMapName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
+    let kkArrayMapIndexedName: InternedString
+    let kkArrayFilterIndexedName: InternedString
+    let kkArrayMapNotNullName: InternedString
+    let kkArrayFilterNotName: InternedString
+    let kkArrayFilterNotNullName: InternedString
+    let kkArrayFirstName: InternedString
+    let kkArrayFirstOrNullName: InternedString
+    let kkArrayLastName: InternedString
+    let kkArrayLastOrNullName: InternedString
+    let kkArrayFirstPredicateName: InternedString
+    let kkArrayLastPredicateName: InternedString
+    let kkArrayFindName: InternedString
+    let kkArrayFindLastName: InternedString
     // Array member names (STDLIB-087/088/089)
     let toMutableListName: InternedString
     let toTypedArrayName: InternedString
@@ -114,6 +127,19 @@ struct ArrayLookupNames {
         kkArrayFlatMapName = interner.intern("kk_array_flatMap")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
+        kkArrayMapIndexedName = interner.intern("kk_array_mapIndexed")
+        kkArrayFilterIndexedName = interner.intern("kk_array_filterIndexed")
+        kkArrayMapNotNullName = interner.intern("kk_array_mapNotNull")
+        kkArrayFilterNotName = interner.intern("kk_array_filterNot")
+        kkArrayFilterNotNullName = interner.intern("kk_array_filterNotNull")
+        kkArrayFirstName = interner.intern("kk_array_first")
+        kkArrayFirstOrNullName = interner.intern("kk_array_firstOrNull")
+        kkArrayLastName = interner.intern("kk_array_last")
+        kkArrayLastOrNullName = interner.intern("kk_array_lastOrNull")
+        kkArrayFirstPredicateName = interner.intern("kk_array_first_predicate")
+        kkArrayLastPredicateName = interner.intern("kk_array_last_predicate")
+        kkArrayFindName = interner.intern("kk_array_find")
+        kkArrayFindLastName = interner.intern("kk_array_findLast")
         toMutableListName = interner.intern("toMutableList")
         toTypedArrayName = interner.intern("toTypedArray")
         copyOfName = interner.intern("copyOf")

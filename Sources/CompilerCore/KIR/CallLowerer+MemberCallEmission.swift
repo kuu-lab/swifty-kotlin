@@ -567,33 +567,13 @@ extension CallLowerer {
             finalArguments.append(envPtrExpr)
         }
         let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
-        case "kk_string_filter",
+        case "kk_string_indexOfFirst",
+             "kk_string_indexOfLast",
              "kk_string_map",
-             "kk_string_count",
-             "kk_string_any",
-             "kk_string_all",
-             "kk_string_none",
              "kk_string_mapIndexed",
              "kk_string_mapNotNull",
              "kk_string_firstNotNullOf",
-             "kk_string_firstNotNullOfOrNull",
-             "kk_string_reduceRightIndexed",
-             "kk_string_reduceRightIndexedOrNull",
-             "kk_string_reduceRightOrNull",
-             "kk_string_reduce",
-             "kk_string_reduceIndexedOrNull",
-             "kk_string_reduceOrNull",
-             "kk_string_sumBy",
-             "kk_string_sumByDouble",
-             "kk_string_filterIndexed",
-             "kk_string_filterNot",
-             "kk_string_indexOfFirst",
-             "kk_string_indexOfLast",
-             "kk_string_onEach",
-             "kk_string_onEachIndexed",
-            "kk_string_find",
-            "kk_string_findLast",
-            "kk_string_partition":
+             "kk_string_firstNotNullOfOrNull":
             true
         default:
             false
@@ -1200,13 +1180,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_count"),
             interner.intern("kk_string_firstNotNullOf_flat"),
             interner.intern("kk_string_firstNotNullOfOrNull_flat"),
-            interner.intern("kk_string_reduce"),
-            interner.intern("kk_string_reduceOrNull"),
-            interner.intern("kk_string_reduceRightIndexed"),
-            interner.intern("kk_string_reduceRightIndexedOrNull"),
-            interner.intern("kk_string_reduceRightOrNull"),
-            interner.intern("kk_string_sumBy"),
-            interner.intern("kk_string_sumByDouble"),
             interner.intern("kk_string_zipTransform"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunked_sequence_transform"),
@@ -1339,13 +1312,35 @@ extension CallLowerer {
             }
         } else {
             // Fallback when callableValueInfo is unavailable (e.g. stored lambda /
-            // function reference): treat lambdaID as the function pointer and pass
-            // zero as the environment pointer so the argument count always matches
-            // the closure-conversion ABI.
-            fnPtrExpr = lambdaID
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            envPtrExpr = zeroExpr
+            // function reference forwarded as an ordinary argument to a bundled
+            // Kotlin-source HOF, which boxes it via kk_function_create_1 rather
+            // than lowering it with the raw closure-trampoline shape). lambdaID
+            // may be a boxed Function1 object or an already-raw function
+            // reference; kk_function_value_fn_ptr/closure_raw resolve either
+            // shape at runtime (naively treating a boxed value as a raw fnPtr
+            // and invoking it directly crashes — see BUG-... Sequence
+            // chunked/windowed transform).
+            let intType = sema.types.intType
+            let fnPtrResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [lambdaID],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            fnPtrExpr = fnPtrResult
+            let closureRawResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [lambdaID],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            envPtrExpr = closureRawResult
         }
         return (fnPtrExpr, envPtrExpr)
     }
