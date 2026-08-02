@@ -1752,33 +1752,15 @@ extension CallLowerer {
             let isCharSequenceTextHelper = calleeStr == "ifBlank"
                 || calleeStr == "ifEmpty"
                 || calleeStr == "chunkedSequence"
-                || calleeStr == "count"
-                || calleeStr == "any"
-                || calleeStr == "all"
-                || calleeStr == "none"
                 || calleeStr == "indexOfFirst"
                 || calleeStr == "indexOfLast"
-                || calleeStr == "find"
-                || calleeStr == "findLast"
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
-                || calleeStr == "reduceOrNull"
-                || calleeStr == "reduceRightIndexed"
-                || calleeStr == "reduceRightIndexedOrNull"
-                || calleeStr == "reduceRightOrNull"
-                || calleeStr == "sumBy"
-                || calleeStr == "sumByDouble"
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
             if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
                 if calleeStr == "firstNotNullOf"
                     || calleeStr == "firstNotNullOfOrNull"
-                    || calleeStr == "reduceOrNull"
-                    || calleeStr == "reduceRightIndexed"
-                    || calleeStr == "reduceRightIndexedOrNull"
-                    || calleeStr == "reduceRightOrNull"
-                    || calleeStr == "sumBy"
-                    || calleeStr == "sumByDouble"
                 {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
@@ -1809,20 +1791,8 @@ extension CallLowerer {
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf":
                         "kk_string_firstNotNullOf_flat"
-                    case "firstNotNullOfOrNull":
-                        "kk_string_firstNotNullOfOrNull_flat"
-                    case "reduceOrNull":
-                        "kk_string_reduceOrNull_flat"
-                    case "reduceRightIndexed":
-                        "kk_string_reduceRightIndexed_flat"
-                    case "reduceRightIndexedOrNull":
-                        "kk_string_reduceRightIndexedOrNull_flat"
-                    case "sumBy":
-                        "kk_string_sumBy_flat"
-                    case "sumByDouble":
-                        "kk_string_sumByDouble_flat"
                     default:
-                        "kk_string_reduceRightOrNull_flat"
+                        "kk_string_firstNotNullOfOrNull_flat"
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -1936,28 +1906,10 @@ extension CallLowerer {
                     ("kk_string_mapIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
                     ("kk_string_mapNotNull_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "filterIndexed":
-                    ("kk_string_filterIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "filterNot":
-                    ("kk_string_filterNot_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "count":
-                    ("kk_string_count_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "any":
-                    ("kk_string_any_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "all":
-                    ("kk_string_all_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "none":
-                    ("kk_string_none_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfFirst":
                     ("kk_string_indexOfFirst_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
                     ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "find":
-                    ("kk_string_find_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "findLast":
-                    ("kk_string_findLast_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "partition":
-                    ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
@@ -1969,23 +1921,9 @@ extension CallLowerer {
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
-                        || calleeStr == "find"
-                        || calleeStr == "findLast"
-                        || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                    // Only `partition` captures the thrown result into a register so the
-                    // caller can inspect it.  All other HOFs propagate exceptions through
-                    // the standard thrown-channel codegen path (thrownResult == nil),
-                    // which emits an early return when the channel is non-zero.  Setting
-                    // thrownResult to non-nil for those HOFs would silently swallow the
-                    // exception instead of propagating it.
-                    let stringHOFThrownResult: KIRExprID? = calleeStr == "partition"
-                        ? arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
-                        )
-                        : nil
+                    let stringHOFThrownResult: KIRExprID? = nil
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCall.callee),
