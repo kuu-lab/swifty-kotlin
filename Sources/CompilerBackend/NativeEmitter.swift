@@ -323,6 +323,16 @@ struct NativeEmitter {
                parent.kind != .package {
                 return false
             }
+            // Synthetic singleton stubs (e.g. kotlin.system.System) have no
+            // backing state and no initializer, so their global slot is never
+            // emitted. Returning zero for their symbolRef is safe because the
+            // only uses are as receivers for static-like runtime bridges that
+            // discard the receiver.
+            if symbols?.objectInitializerSymbol(for: symbol) == nil,
+               symbols?.externalLinkName(for: symbol)?.isEmpty != false,
+               symbols?.nominalLayout(for: symbol)?.instanceFieldCount == 0 {
+                return false
+            }
             return true
         case .class, .interface, .enumClass, .annotationClass, .typeAlias,
              .function, .constructor, .typeParameter, .valueParameter,

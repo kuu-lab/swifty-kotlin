@@ -231,4 +231,50 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "banana\ncherry\ndate\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-005: synthetic singleton objects without backing state
+    /// (e.g. `kotlin.system.System`) do not require a global root slot in the
+    /// consumer. The CallLowerer emits their `symbolRef`, but the backend must
+    /// not declare an external global for an object that has no initializer,
+    /// no external factory, and no fields.
+    func testSyntheticSingletonObjectSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val millis = System.currentTimeMillis()
+            println(millis > 0)
+
+            val t1 = System.nanoTime()
+            val t2 = System.nanoTime()
+            println(t2 >= t1)
+
+            val millis2 = System.currentTimeMillis()
+            println(millis2 >= millis)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\n")
+        }
+    }
 }
