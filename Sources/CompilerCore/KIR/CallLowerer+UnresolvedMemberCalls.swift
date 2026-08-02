@@ -530,9 +530,16 @@ extension CallLowerer {
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-        let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
-            || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
-            && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // A receiver whose static type is the bare Iterable/Collection/Set
+        // interface always routes through this fallback: isConcreteCollectionLikeType
+        // (despite its name) also matches those bare interface symbols, not just
+        // concrete implementations, so relying on its negation alone would wrongly
+        // exclude them and leave members like `joinToString` unresolved.
+        let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+        let useIterableRuntimeForCollectionFallback = isBareIterableCollectionOrSetInterfaceType
+            || (sema.bindings.isCollectionExpr(receiverExpr)
+                && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner))
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
@@ -623,9 +630,9 @@ extension CallLowerer {
                     return nil
                 }
             case joinToName:
-                return interner.intern("kk_sequence_joinTo")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinTo" : "kk_sequence_joinTo")
             case joinToStringName:
-                return interner.intern("kk_sequence_joinToString")
+                return interner.intern(useIterableRuntimeForCollectionFallback ? "kk_iterable_joinToString" : "kk_sequence_joinToString")
             case sumOfName:
                 return interner.intern("kk_sequence_sumOf")
             case sumByName:

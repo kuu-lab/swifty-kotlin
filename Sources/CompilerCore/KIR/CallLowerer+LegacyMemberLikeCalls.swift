@@ -2322,18 +2322,16 @@ extension CallLowerer {
         if args.count <= 4, interner.resolve(calleeName) == "joinToString" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            // BUG-167: a `Collection<T>`- or `Iterable<T>`-typed receiver (as
-            // opposed to a concretely-typed List/Set/etc., or a receiver only
-            // inferred to be collection-like via isCollectionExpr) was
-            // wrongly excluded here — isConcreteCollectionLikeType's
-            // isCollectionLikeSymbol classifies the bare "Collection"/"Set"
-            // interface names as "concrete" for other, unrelated dispatch
-            // purposes, so !isConcreteCollectionLikeType was always false for
-            // them and this whole name-based fallback (the only place that
-            // resolves joinToString when Sema left chosenCallee unbound) was
-            // skipped, producing an unresolved `_joinToString` link error.
-            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            // A receiver whose static type is the bare Iterable/Collection/Set
+            // interface always qualifies: isConcreteCollectionLikeType (despite its
+            // name) also matches those bare interface symbols, not just concrete
+            // implementations, so relying on its negation alone would wrongly exclude
+            // them here too (mirrors the fix in unresolvedSyntheticMemberCallee).
+            let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            let isSequenceReceiver = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            if isSequenceReceiver
+                || isBareIterableCollectionOrSetInterfaceType
                 || isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
@@ -2379,7 +2377,8 @@ extension CallLowerer {
                     )
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_sequence_joinToString_transform"),
+                        callee: interner.intern(isBareIterableCollectionOrSetInterfaceType
+                            ? "kk_iterable_joinToString_transform" : "kk_sequence_joinToString_transform"),
                         arguments: [loweredReceiverID] + joinArgs + [fnPtrExpr, envPtrExpr],
                         result: result,
                         canThrow: true,
@@ -2415,9 +2414,13 @@ extension CallLowerer {
                             joinArgs.append(exprID)
                         }
                     }
-                    let joinToStringCallee = isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-                        ? arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
-                        : interner.intern("kk_sequence_joinToString")
+                    let joinToStringCallee = if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                        arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
+                    } else if isBareIterableCollectionOrSetInterfaceType {
+                        interner.intern("kk_iterable_joinToString")
+                    } else {
+                        interner.intern("kk_sequence_joinToString")
+                    }
                     instructions.append(.call(
                         symbol: nil,
                         callee: joinToStringCallee,
