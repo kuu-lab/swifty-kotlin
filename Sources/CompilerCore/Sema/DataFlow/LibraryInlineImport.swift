@@ -440,6 +440,17 @@ extension DataFlowSemaPhase {
             let raw = String(token.dropFirst("temp:".count))
             return Int32(raw).map(KIRExprKind.temporary)
         }
+        if token.hasPrefix("externB64:") {
+            let encoded = String(token.dropFirst("externB64:".count))
+            guard let decoded = decodeBase64String(encoded) else {
+                return nil
+            }
+            return .externSymbolAddress(interner.intern(decoded))
+        }
+        if token.hasPrefix("extern:") {
+            let name = String(token.dropFirst("extern:".count))
+            return .externSymbolAddress(interner.intern(name))
+        }
         return nil
     }
 

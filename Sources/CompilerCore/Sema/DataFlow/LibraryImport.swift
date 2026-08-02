@@ -82,6 +82,9 @@ extension DataFlowSemaPhase {
                 if record.isInline, record.kind == .function {
                     flags.insert(.inlineFunction)
                 }
+                if record.isOperator, record.kind == .function {
+                    flags.insert(.operatorFunction)
+                }
                 if record.isDataClass {
                     flags.insert(.dataType)
                 }
@@ -196,7 +199,8 @@ extension DataFlowSemaPhase {
         _ work: LibraryImportDeferredWork,
         symbols: SymbolTable,
         types: TypeSystem,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
     ) {
         for edge in work.pendingSupertypeEdges {
             guard let superSymbol = symbols.lookupAll(fqName: edge.superFQName)
@@ -214,15 +218,34 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // Resolve companion object references so ClassName.member() shorthand works.
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            if let companionFQName = binding.record.companionObjectFQName,
+               let companionSymbol = symbols.lookupAll(fqName: companionFQName)
+                   .compactMap({ symbols.symbol($0) })
+                   .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })?.id
+            {
+                symbols.setCompanionObjectSymbol(companionSymbol, for: binding.symbol)
+            }
+        }
+
         for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             applyImportedNominalLayout(
                 record: binding.record,
                 symbol: binding.symbol,
                 symbols: symbols,
                 diagnostics: diagnostics,
-                metadataPath: binding.metadataPath
+                metadataPath: binding.metadataPath,
+                interner: interner
             )
         }
+
+        applyImportedObjectAndCompanionInitializerSymbols(
+            work: work,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // P5-78: resolve sealed subclass FQ names to SymbolIDs for cross-module exhaustiveness
         for binding in work.importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
@@ -239,6 +262,72 @@ extension DataFlowSemaPhase {
                 symbols.setSealedSubclasses(resolvedSubclasses, for: binding.symbol)
             } else {
                 symbols.setSealedSubclasses([], for: binding.symbol)
+            }
+        }
+    }
+
+    /// Synthesizes function symbols for precompiled object/companion initializers
+    /// discovered in library metadata so that consumers can call them before user `main`.
+    private func applyImportedObjectAndCompanionInitializerSymbols(
+        work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
+            let record = binding.record
+            let ownerSymbol = binding.symbol
+
+            if record.kind == .object,
+               let linkName = record.objectInitializerLinkName,
+               !linkName.isEmpty
+            {
+                let name = interner.intern("__object_init")
+                let fqName = record.fqName + [name]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setObjectInitializerSymbol(initSymbol, for: ownerSymbol)
+            }
+
+            if let linkName = record.companionInitializerLinkName,
+               !linkName.isEmpty,
+               symbols.companionObjectSymbol(for: ownerSymbol) != nil
+            {
+                let name = interner.intern("__companion_init")
+                let fqName = record.fqName + [name]
+                let initSymbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setParentSymbol(ownerSymbol, for: initSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: types.unitType
+                    ),
+                    for: initSymbol
+                )
+                symbols.setExternalLinkName(linkName, for: initSymbol)
+                symbols.setCompanionObjectInitializerSymbol(initSymbol, for: ownerSymbol)
             }
         }
     }
@@ -267,6 +356,7 @@ extension DataFlowSemaPhase {
         let arity: Int
         let isSuspend: Bool
         let isInline: Bool
+        let isOperator: Bool
         let valueParameterIsVararg: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         let typeSignature: String?
@@ -277,9 +367,12 @@ extension DataFlowSemaPhase {
         let declaredVtableSize: Int?
         let declaredItableSize: Int?
         let superFQName: [InternedString]?
+        let companionObjectFQName: [InternedString]?
         let fieldOffsets: [ImportedFieldOffsetEntry]
         let vtableSlots: [ImportedVTableSlotEntry]
         let itableSlots: [ImportedITableSlotEntry]
+        let objectInitializerLinkName: String?
+        let companionInitializerLinkName: String?
         let isDataClass: Bool
         let isSealedClass: Bool
         let isValueClass: Bool
@@ -293,6 +386,82 @@ extension DataFlowSemaPhase {
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
+
+        init(
+            kind: SymbolKind,
+            mangledName: String = "",
+            fqName: [InternedString] = [],
+            arity: Int = 0,
+            isSuspend: Bool = false,
+            isInline: Bool = false,
+            isOperator: Bool = false,
+            valueParameterIsVararg: [Bool] = [],
+            valueParameterHasDefaultValues: [Bool] = [],
+            typeSignature: String? = nil,
+            defaultStubExternalLinkName: String? = nil,
+            externalLinkName: String? = nil,
+            declaredFieldCount: Int? = nil,
+            declaredInstanceSizeWords: Int? = nil,
+            declaredVtableSize: Int? = nil,
+            declaredItableSize: Int? = nil,
+            superFQName: [InternedString]? = nil,
+            companionObjectFQName: [InternedString]? = nil,
+            fieldOffsets: [ImportedFieldOffsetEntry] = [],
+            vtableSlots: [ImportedVTableSlotEntry] = [],
+            itableSlots: [ImportedITableSlotEntry] = [],
+            objectInitializerLinkName: String? = nil,
+            companionInitializerLinkName: String? = nil,
+            isDataClass: Bool = false,
+            isSealedClass: Bool = false,
+            isValueClass: Bool = false,
+            isExpect: Bool = false,
+            isActual: Bool = false,
+            valueClassUnderlyingTypeSig: String? = nil,
+            annotations: [MetadataAnnotationRecord] = [],
+            sealedSubclassFQNames: [[InternedString]] = [],
+            propertyReceiverTypeSignature: String? = nil,
+            propertyGetterExternalLinkName: String? = nil,
+            abiReturnTypeSignature: String? = nil,
+            propertyGetterAbiReturnTypeSignature: String? = nil,
+            isMutable: Bool = false
+        ) {
+            self.kind = kind
+            self.mangledName = mangledName
+            self.fqName = fqName
+            self.arity = arity
+            self.isSuspend = isSuspend
+            self.isInline = isInline
+            self.isOperator = isOperator
+            self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.typeSignature = typeSignature
+            self.defaultStubExternalLinkName = defaultStubExternalLinkName
+            self.externalLinkName = externalLinkName
+            self.declaredFieldCount = declaredFieldCount
+            self.declaredInstanceSizeWords = declaredInstanceSizeWords
+            self.declaredVtableSize = declaredVtableSize
+            self.declaredItableSize = declaredItableSize
+            self.superFQName = superFQName
+            self.companionObjectFQName = companionObjectFQName
+            self.fieldOffsets = fieldOffsets
+            self.vtableSlots = vtableSlots
+            self.itableSlots = itableSlots
+            self.objectInitializerLinkName = objectInitializerLinkName
+            self.companionInitializerLinkName = companionInitializerLinkName
+            self.isDataClass = isDataClass
+            self.isSealedClass = isSealedClass
+            self.isValueClass = isValueClass
+            self.isExpect = isExpect
+            self.isActual = isActual
+            self.valueClassUnderlyingTypeSig = valueClassUnderlyingTypeSig
+            self.annotations = annotations
+            self.sealedSubclassFQNames = sealedSubclassFQNames
+            self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
+            self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+            self.abiReturnTypeSignature = abiReturnTypeSignature
+            self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
+            self.isMutable = isMutable
+        }
     }
 
     struct ImportedLibraryBinding {
@@ -442,7 +611,7 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         symbols: SymbolTable
     ) {
-        guard record.kind == .function || record.kind == .property || record.kind == .field,
+        guard record.kind == .function || record.kind == .property || record.kind == .field || record.kind == .constructor,
               record.fqName.count >= 2
         else {
             return
@@ -474,7 +643,7 @@ extension DataFlowSemaPhase {
         let record = binding.record
         let symbol = binding.symbol
 
-        if record.kind == .function {
+        if record.kind == .function || record.kind == .constructor {
             let signature = importedFunctionSignature(
                 record: record,
                 symbols: symbols,

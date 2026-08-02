@@ -433,6 +433,8 @@ public final class SymbolTable {
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
+    private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -1004,6 +1006,22 @@ public final class SymbolTable {
 
     public func companionObjectSymbol(for owner: SymbolID) -> SymbolID? {
         companionObjectSymbols[owner]
+    }
+
+    public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectInitializerSymbols[object] = initializer
+    }
+
+    public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectInitializerSymbols[object]
+    }
+
+    public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        companionObjectInitializerSymbols[owner] = initializer
+    }
+
+    public func companionObjectInitializerSymbol(for owner: SymbolID) -> SymbolID? {
+        companionObjectInitializerSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {

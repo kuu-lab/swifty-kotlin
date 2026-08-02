@@ -147,7 +147,8 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
-        metadataPath: String
+        metadataPath: String,
+        interner: StringInterner
     ) {
         guard !record.fieldOffsets.isEmpty || !record.vtableSlots.isEmpty || !record.itableSlots.isEmpty else {
             return
@@ -172,7 +173,8 @@ extension DataFlowSemaPhase {
                 fqName: entry.fqName,
                 arity: entry.arity,
                 isSuspend: entry.isSuspend,
-                symbols: symbols
+                symbols: symbols,
+                interner: interner
             ) else {
                 diagnostics.warning(
                     "KSWIFTK-LIB-0004",
@@ -262,9 +264,11 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         arity: Int,
         isSuspend: Bool,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> SymbolID? {
-        let candidates = symbols.lookupAll(fqName: fqName)
+        let allSymbolIDs = symbols.lookupAll(fqName: fqName)
+        let candidates = allSymbolIDs
             .compactMap { symbols.symbol($0) }
             .filter { symbol in
                 guard symbol.kind == .function,

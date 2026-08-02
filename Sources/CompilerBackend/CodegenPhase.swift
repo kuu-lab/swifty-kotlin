@@ -214,9 +214,6 @@ final class CodegenPhase: CompilerPhase {
                 fileFacadeNamesByFileID: facadeNames
             )
         }
-        let funcDecls = module.arena.declarations.filter { if case .function = $0 { return true } else { return false } }
-        let inlineDecls = funcDecls.filter { if case .function(let f) = $0, f.isInline { return true } else { return false } }
-        print("DEBUG emitInlineKIRArtifacts: total funcs=\(funcDecls.count), inline funcs=\(inlineDecls.count)")
         for decl in module.arena.declarations {
             guard case let .function(function) = decl, function.isInline else {
                 continue
@@ -233,11 +230,13 @@ final class CodegenPhase: CompilerPhase {
             )
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
+            let parameterSymbols = Set(function.params.map(\.symbol))
             let bodyLines = function.body.map { instruction in
                 serializeInlineInstruction(
                     instruction,
                     interner: ctx.interner,
                     functionLinkNames: functionLinkNamesBySymbol,
+                    parameterSymbols: parameterSymbols,
                     symbols: sema.symbols
                 )
             }.joined(separator: "\n")
@@ -259,6 +258,7 @@ final class CodegenPhase: CompilerPhase {
         _ instruction: KIRInstruction,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
+        parameterSymbols: Set<SymbolID>,
         symbols: SymbolTable?
     ) -> String {
         switch instruction {
@@ -275,7 +275,7 @@ final class CodegenPhase: CompilerPhase {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) target=\(target)"
         case let .constValue(result, value):
-            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner))"
+            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, parameterSymbols: parameterSymbols, symbols: symbols))"
         case let .binary(op, lhs, rhs, result):
             return "binary op=\(op) lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) result=\(result.rawValue)"
         case .returnUnit:
@@ -344,7 +344,13 @@ final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func serializeInlineExprKind(_ value: KIRExprKind, interner: StringInterner) -> String {
+    private func serializeInlineExprKind(
+        _ value: KIRExprKind,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        parameterSymbols: Set<SymbolID>,
+        symbols: SymbolTable?
+    ) -> String {
         switch value {
         case let .intLiteral(intValue):
             "int:\(intValue)"
@@ -365,9 +371,15 @@ final class CodegenPhase: CompilerPhase {
         case let .stringLiteral(text):
             "stringB64:\(base64Encode(interner.resolve(text)))"
         case let .symbolRef(symbol):
-            "symbol:\(symbol.rawValue)"
+            if parameterSymbols.contains(symbol) {
+                "symbol:\(symbol.rawValue)"
+            } else if let linkName = functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
+                "externB64:\(base64Encode(linkName))"
+            } else {
+                "symbol:\(symbol.rawValue)"
+            }
         case let .externSymbolAddress(name):
-            "extern:\(name)"
+            "externB64:\(base64Encode(interner.resolve(name)))"
         case let .temporary(raw):
             "temp:\(raw)"
         case .null:
@@ -429,6 +441,23 @@ final class CodegenPhase: CompilerPhase {
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols
         )
+
+        var objectInitializerLinkNames: [SymbolID: String] = [:]
+        var companionInitializerLinkNames: [SymbolID: String] = [:]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  let linkName = functionLinkNamesBySymbol[function.symbol]
+            else {
+                continue
+            }
+            let functionName = ctx.interner.resolve(function.name)
+            if let ownerID = Self.objectInitializerOwnerSymbolID(from: functionName) {
+                objectInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let ownerID = Self.companionInitializerOwnerSymbolID(from: functionName) {
+                companionInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            }
+        }
+
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
@@ -437,10 +466,13 @@ final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
+            includeNonPublic: ctx.options.stdlibOnly,
             includeSynthetic: includeSynthetic,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
-            runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs
+            runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
+            objectInitializerLinkNames: objectInitializerLinkNames,
+            companionInitializerLinkNames: companionInitializerLinkNames
         )
         return encoder.serialize(records)
     }
@@ -488,5 +520,27 @@ final class CodegenPhase: CompilerPhase {
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
         )
+    }
+
+    /// Parses the owner symbol ID embedded in a synthetic top-level object
+    /// initializer name (`__object_init_<objectID>_<initID>`).
+    private static func objectInitializerOwnerSymbolID(from name: String) -> Int32? {
+        let prefix = "__object_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        let suffix = String(name.dropFirst(prefix.count))
+        let parts = suffix.split(separator: "_").map(String.init)
+        guard let first = parts.first else { return nil }
+        return Int32(first)
+    }
+
+    /// Parses the owner class symbol ID embedded in a synthetic companion
+    /// object initializer name (`__companion_init_<ownerID>_<companionID>_<initID>`).
+    private static func companionInitializerOwnerSymbolID(from name: String) -> Int32? {
+        let prefix = "__companion_init_"
+        guard name.hasPrefix(prefix) else { return nil }
+        let suffix = String(name.dropFirst(prefix.count))
+        let parts = suffix.split(separator: "_").map(String.init)
+        guard parts.count >= 2, let ownerID = parts.first else { return nil }
+        return Int32(ownerID)
     }
 }

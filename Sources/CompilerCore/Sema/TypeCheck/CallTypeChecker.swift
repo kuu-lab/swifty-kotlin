@@ -1157,12 +1157,12 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           args.count == 2,
+           (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicIntArray",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(
+           let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
-               fqComponents: ["kotlin", "concurrent", "atomics", "AtomicIntArray"],
+               className: "AtomicIntArray",
                ctx: ctx
            )
         {
@@ -1181,42 +1181,35 @@ final class CallTypeChecker {
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
             )
-            let initExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: intType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: initExpectedType
-            )
-            let resultType = sema.symbols.lookupAll(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("concurrent"),
-                interner.intern("atomics"),
-                interner.intern("AtomicIntArray"),
-            ]).first(where: { candidate in
-                sema.symbols.symbol(candidate)?.kind == .class
-            }).map { symbol in
-                sema.types.make(.classType(ClassType(
-                    classSymbol: symbol,
-                    args: [],
-                    nullability: .nonNull
+            if args.count == 2 {
+                let initExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [intType],
+                    returnType: intType
                 )))
-            } ?? sema.types.anyType
+                _ = driver.inferExpr(
+                    args[1].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: initExpectedType
+                )
+            }
+            let resultType = sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .atomicIntArrayFactory)
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
         }
 
         if let calleeName,
-           args.count == 2,
+           (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicLongArray",
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(
+           let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
-               fqComponents: ["kotlin", "concurrent", "atomics", "AtomicLongArray"],
+               className: "AtomicLongArray",
                ctx: ctx
            )
         {
@@ -1236,30 +1229,23 @@ final class CallTypeChecker {
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
             )
-            let initExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [intType],
-                returnType: longType
-            )))
-            _ = driver.inferExpr(
-                args[1].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: initExpectedType
-            )
-            let resultType = sema.symbols.lookupAll(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("concurrent"),
-                interner.intern("atomics"),
-                interner.intern("AtomicLongArray"),
-            ]).first(where: { candidate in
-                sema.symbols.symbol(candidate)?.kind == .class
-            }).map { symbol in
-                sema.types.make(.classType(ClassType(
-                    classSymbol: symbol,
-                    args: [],
-                    nullability: .nonNull
+            if args.count == 2 {
+                let initExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [intType],
+                    returnType: longType
                 )))
-            } ?? sema.types.anyType
+                _ = driver.inferExpr(
+                    args[1].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: initExpectedType
+                )
+            }
+            let resultType = sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .atomicLongArrayFactory)
             sema.bindings.bindExprType(id, type: resultType)
             return resultType

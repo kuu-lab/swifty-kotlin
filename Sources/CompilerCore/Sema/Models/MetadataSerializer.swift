@@ -11,6 +11,7 @@ package struct MetadataRecord {
     package let arity: Int
     package let isSuspend: Bool
     package let isInline: Bool
+    package let isOperator: Bool
     let typeSignature: String?
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
@@ -24,9 +25,14 @@ package struct MetadataRecord {
     let declaredVtableSize: Int?
     let declaredItableSize: Int?
     package let superFQName: String?
+    package let companionObjectFQName: String?
     let fieldOffsets: String?
     let vtableSlots: String?
     let itableSlots: String?
+    /// Link name of the precompiled top-level object initializer (e.g. `__object_init_*`).
+    let objectInitializerLinkName: String?
+    /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
+    let companionInitializerLinkName: String?
 
     // P5-74: data class flag
     package let isDataClass: Bool
@@ -70,6 +76,7 @@ package struct MetadataRecord {
         arity: Int = 0,
         isSuspend: Bool = false,
         isInline: Bool = false,
+        isOperator: Bool = false,
         typeSignature: String? = nil,
         valueParameterIsVararg: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -80,9 +87,12 @@ package struct MetadataRecord {
         declaredVtableSize: Int? = nil,
         declaredItableSize: Int? = nil,
         superFQName: String? = nil,
+        companionObjectFQName: String? = nil,
         fieldOffsets: String? = nil,
         vtableSlots: String? = nil,
         itableSlots: String? = nil,
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
         isDataClass: Bool = false,
         isSealedClass: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
@@ -103,6 +113,7 @@ package struct MetadataRecord {
         self.arity = arity
         self.isSuspend = isSuspend
         self.isInline = isInline
+        self.isOperator = isOperator
         self.typeSignature = typeSignature
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -113,9 +124,12 @@ package struct MetadataRecord {
         self.declaredVtableSize = declaredVtableSize
         self.declaredItableSize = declaredItableSize
         self.superFQName = superFQName
+        self.companionObjectFQName = companionObjectFQName
         self.fieldOffsets = fieldOffsets
         self.vtableSlots = vtableSlots
         self.itableSlots = itableSlots
+        self.objectInitializerLinkName = objectInitializerLinkName
+        self.companionInitializerLinkName = companionInitializerLinkName
         self.isDataClass = isDataClass
         self.isSealedClass = isSealedClass
         self.annotations = annotations
@@ -171,7 +185,9 @@ package final class MetadataEncoder {
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
         excludeSourceFileIDs: Set<Int32> = [],
-        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = []
+        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
+        objectInitializerLinkNames: [SymbolID: String] = [:],
+        companionInitializerLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -179,7 +195,9 @@ package final class MetadataEncoder {
                     return false
                 }
                 if !includeSynthetic && symbol.flags.contains(.synthetic) {
-                    if !(includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)) {
+                    let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
+                    let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
+                    if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
                         return false
                     }
                 }
@@ -222,7 +240,9 @@ package final class MetadataEncoder {
                 inlineFunctionSymbols: inlineFunctionSymbols,
                 metadataAnchorOnly: isSyntheticNominalAnchor,
                 runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
-                includedSymbolIDs: exportedSymbolIDs
+                includedSymbolIDs: exportedSymbolIDs,
+                objectInitializerLinkNames: objectInitializerLinkNames,
+                companionInitializerLinkNames: companionInitializerLinkNames
             ))
         }
         return records
@@ -414,7 +434,9 @@ package final class MetadataEncoder {
         inlineFunctionSymbols: Set<SymbolID> = [],
         metadataAnchorOnly: Bool = false,
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
-        includedSymbolIDs: Set<SymbolID>? = nil
+        includedSymbolIDs: Set<SymbolID>? = nil,
+        objectInitializerLinkNames: [SymbolID: String] = [:],
+        companionInitializerLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -427,12 +449,34 @@ package final class MetadataEncoder {
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
 
         if metadataAnchorOnly {
+            // Synthetic nominal anchors (e.g. kotlin.Comparator) still need their
+            // layout to round-trip so that consumer-side interface dispatch can
+            // resolve abstract method slots. Include declared sizes and slot
+            // mappings without exporting function/type details.
+            if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
+                let fieldOffsetsStr = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                let vtableSlotsStr = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                let itableSlotsStr = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                return MetadataRecord(
+                    kind: symbol.kind,
+                    mangledName: mangled,
+                    fqName: fqName,
+                    declaredFieldCount: layout.instanceFieldCount,
+                    declaredInstanceSizeWords: layout.instanceSizeWords,
+                    declaredVtableSize: layout.vtableSize,
+                    declaredItableSize: layout.itableSize,
+                    fieldOffsets: fieldOffsetsStr.isEmpty ? nil : fieldOffsetsStr,
+                    vtableSlots: vtableSlotsStr.isEmpty ? nil : vtableSlotsStr,
+                    itableSlots: itableSlotsStr.isEmpty ? nil : itableSlotsStr
+                )
+            }
             return MetadataRecord(kind: symbol.kind, mangledName: mangled, fqName: fqName)
         }
 
         var arity = 0
         var isSuspend = false
         var isInline = false
+        var isOperator = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -447,6 +491,7 @@ package final class MetadataEncoder {
             // Source flags may be set for runtime-backed synthetic functions that have
             // no KIR body, and those must not try to load a missing inline-kir file.
             isInline = inlineFunctionSymbols.contains(symbol.id)
+            isOperator = symbol.flags.contains(.operatorFunction)
             valueParameterIsVararg = signature.valueParameterIsVararg
             valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
             typeSignature = mangler.mangledSignature(
@@ -546,9 +591,12 @@ package final class MetadataEncoder {
         var declaredVtableSize: Int?
         var declaredItableSize: Int?
         var superFQName: String?
+        var companionObjectFQName: String?
         var fieldOffsetsStr: String?
         var vtableSlotsStr: String?
         var itableSlotsStr: String?
+        var objectInitializerLinkName: String?
+        var companionInitializerLinkName: String?
 
         if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
             declaredInstanceSizeWords = layout.instanceSizeWords
@@ -573,6 +621,17 @@ package final class MetadataEncoder {
             {
                 superFQName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             }
+            if let companionSymbolID = symbols.companionObjectSymbol(for: symbol.id),
+               let includedSymbolIDs = includedSymbolIDs,
+               includedSymbolIDs.contains(companionSymbolID),
+               let companionSymbol = symbols.symbol(companionSymbolID)
+            {
+                companionObjectFQName = companionSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            }
+            if symbol.kind == .object {
+                objectInitializerLinkName = objectInitializerLinkNames[symbol.id]
+            }
+            companionInitializerLinkName = companionInitializerLinkNames[symbol.id]
         }
 
         let isDataClass = symbol.flags.contains(.dataType)
@@ -618,6 +677,7 @@ package final class MetadataEncoder {
             arity: arity,
             isSuspend: isSuspend,
             isInline: isInline,
+            isOperator: isOperator,
             typeSignature: typeSignature,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -628,9 +688,12 @@ package final class MetadataEncoder {
             declaredVtableSize: declaredVtableSize,
             declaredItableSize: declaredItableSize,
             superFQName: superFQName,
+            companionObjectFQName: companionObjectFQName,
             fieldOffsets: fieldOffsetsStr,
             vtableSlots: vtableSlotsStr,
             itableSlots: itableSlotsStr,
+            objectInitializerLinkName: objectInitializerLinkName,
+            companionInitializerLinkName: companionInitializerLinkName,
             isDataClass: isDataClass,
             isSealedClass: isSealedClass,
             annotations: annotationEntries,
@@ -671,6 +734,7 @@ package final class MetadataEncoder {
                 fields.append("arity=\(record.arity)")
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
+                fields.append("operator=\(record.isOperator ? 1 : 0)")
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -739,6 +803,15 @@ package final class MetadataEncoder {
                 if let superFq = record.superFQName {
                     fields.append("superFq=\(superFq)")
                 }
+                if let companionFq = record.companionObjectFQName {
+                    fields.append("companionFq=\(companionFq)")
+                }
+                if let objectInitLink = record.objectInitializerLinkName, !objectInitLink.isEmpty {
+                    fields.append("objectInitLink=\(objectInitLink)")
+                }
+                if let companionInitLink = record.companionInitializerLinkName, !companionInitLink.isEmpty {
+                    fields.append("companionInitLink=\(companionInitLink)")
+                }
             }
             if record.isDataClass {
                 fields.append("dataClass=1")
@@ -805,9 +878,11 @@ package final class MetadataEncoder {
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
                 return nil
             }
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
-            }
+            // Vtable layout must survive the round-trip even for methods that are
+            // private or synthetic (e.g. Any.toString/hashCode/equals, internal
+            // helpers like Random.stepXorWow).  The consumer resolves each entry
+            // by FQ name/arity; if it cannot be imported, the slot is skipped at
+            // import time, not at serialization time.
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -835,9 +910,8 @@ package final class MetadataEncoder {
             guard let symbol = symbols.symbol(symbolID) else {
                 return nil
             }
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
-            }
+            // ITable slot layout is part of the nominal type shape and must round-trip
+            // completely, even for synthetic or non-public interface supertypes.
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -921,6 +995,7 @@ final class MetadataDecoder {
                 arity: rec.arity,
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
+                isOperator: rec.isOperator,
                 typeSignature: rec.typeSignature,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -931,9 +1006,12 @@ final class MetadataDecoder {
                 declaredVtableSize: rec.declaredVtableSize,
                 declaredItableSize: rec.declaredItableSize,
                 superFQName: rec.superFQName,
+                companionObjectFQName: rec.companionObjectFQName,
                 fieldOffsets: rec.fieldOffsets,
                 vtableSlots: rec.vtableSlots,
                 itableSlots: rec.itableSlots,
+                objectInitializerLinkName: rec.objectInitializerLinkName,
+                companionInitializerLinkName: rec.companionInitializerLinkName,
                 isDataClass: rec.isDataClass,
                 isSealedClass: rec.isSealedClass,
                 annotations: rec.annotations,
@@ -960,6 +1038,7 @@ final class MetadataDecoder {
         var arity: Int = 0
         var isSuspend: Bool = false
         var isInline: Bool = false
+        var isOperator: Bool = false
         var typeSignature: String?
         var valueParameterIsVararg: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -970,9 +1049,12 @@ final class MetadataDecoder {
         var declaredVtableSize: Int?
         var declaredItableSize: Int?
         var superFQName: String?
+        var companionObjectFQName: String?
         var fieldOffsets: String?
         var vtableSlots: String?
         var itableSlots: String?
+        var objectInitializerLinkName: String?
+        var companionInitializerLinkName: String?
         var isDataClass: Bool = false
         var isSealedClass: Bool = false
         var isValueClass: Bool = false
@@ -999,6 +1081,8 @@ final class MetadataDecoder {
             record.isSuspend = value == "1" || value == "true"
         case "inline":
             record.isInline = value == "1" || value == "true"
+        case "operator":
+            record.isOperator = value == "1" || value == "true"
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "default":
@@ -1019,12 +1103,18 @@ final class MetadataDecoder {
             record.declaredItableSize = Int(value)
         case "superFq":
             record.superFQName = value.isEmpty ? nil : value
+        case "companionFq":
+            record.companionObjectFQName = value.isEmpty ? nil : value
         case "fieldOffsets":
             record.fieldOffsets = value.isEmpty ? nil : value
         case "vtableSlots":
             record.vtableSlots = value.isEmpty ? nil : value
         case "itableSlots":
             record.itableSlots = value.isEmpty ? nil : value
+        case "objectInitLink":
+            record.objectInitializerLinkName = value.isEmpty ? nil : value
+        case "companionInitLink":
+            record.companionInitializerLinkName = value.isEmpty ? nil : value
         case "dataClass":
             record.isDataClass = value == "1" || value == "true"
         case "sealedClass":

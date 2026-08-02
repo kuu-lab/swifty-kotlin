@@ -1535,10 +1535,15 @@ extension CallTypeChecker {
         return sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
-                  !symbol.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   let declaredReceiver = signature.receiverType
             else {
+                return false
+            }
+            // Source-backed bundled stdlib extensions are not synthetic; imported
+            // stdlib artifact symbols are synthetic + importedLibrary and should
+            // still be considered here so shared-path code can resolve them.
+            if symbol.flags.contains(.synthetic), !symbol.flags.contains(.importedLibrary) {
                 return false
             }
             if requireOperator, !symbol.flags.contains(.operatorFunction) {

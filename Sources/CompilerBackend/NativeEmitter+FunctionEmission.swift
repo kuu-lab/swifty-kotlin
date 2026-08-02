@@ -1983,13 +1983,22 @@ extension NativeEmitter {
 
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
-            if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName],
-               spec.parameters.count == parameters.count {
-                resolvedParameters = zip(parameters, spec.parameters).map { kotlinType, abiParam in
-                    if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
-                        return typeSystem.intType
+            if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName] {
+                // Runtime callees that throw carry a trailing `outThrown` channel
+                // that is not part of the Kotlin parameter list, so exclude it
+                // when matching against the source-level signature.
+                let abiValueParameters = spec.parameters.filter { parameter in
+                    !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+                }
+                if abiValueParameters.count == parameters.count {
+                    resolvedParameters = zip(parameters, abiValueParameters).map { kotlinType, abiParam in
+                        if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
+                            return typeSystem.intType
+                        }
+                        return kotlinType
                     }
-                    return kotlinType
+                } else {
+                    resolvedParameters = parameters
                 }
                 if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
                     resolvedReturnType = typeSystem.intType

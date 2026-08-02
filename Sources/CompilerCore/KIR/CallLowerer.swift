@@ -124,6 +124,52 @@ final class CallLowerer {
         return result
     }
 
+    /// True for synthetic runtime-backed factory constructors that allocate
+    /// their own object (atomic scalar boxes and java.math.BigInteger).
+    private func isAtomicScalarConstructor(
+        _ symbolID: SymbolID?,
+        sema: SemaModule,
+        knownNames: KnownCompilerNames
+    ) -> Bool {
+        guard let symbolID,
+              sema.symbols.symbol(symbolID)?.kind == .constructor,
+              let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+        else {
+            return false
+        }
+        return knownNames.isAtomicScalarFactorySymbol(ownerInfo)
+            || knownNames.isBoxedRuntimeFactorySymbol(ownerInfo)
+    }
+
+    private func lowerAtomicScalarConstructorCall(
+        constructorSymbol: SymbolID,
+        finalArgIDs: [KIRExprID],
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let result = arena.appendTemporary(type: resultType)
+        // The runtime factory (e.g. `kk_atomic_int_create` or `kk_biginteger_fromString`)
+        // allocates the box itself; we must not precede it with `kk_object_new`
+        // and an implicit `this` argument.
+        let callee = sema.symbols.externalLinkName(for: constructorSymbol)
+            .flatMap { name in name.isEmpty ? nil : interner.intern(name) }
+            ?? interner.intern("__kk_atomic_unknown_create")
+        let canThrow = sema.symbols.functionSignature(for: constructorSymbol)?.canThrow ?? false
+        instructions.append(.call(
+            symbol: nil,
+            callee: callee,
+            arguments: finalArgIDs,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: nil
+        ))
+        return result
+    }
+
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
     /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
@@ -967,17 +1013,31 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
+        if callableInvokeCallee == nil,
+           loweredCallable == nil,
+           let chosen,
+           isAtomicScalarConstructor(chosen, sema: sema, knownNames: knownNames)
+        {
+            return lowerAtomicScalarConstructorCall(
+                constructorSymbol: chosen,
+                finalArgIDs: finalArgIDs,
+                resultType: boundType ?? sema.types.anyType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         if callableInvokeCallee != nil {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
         }
         if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
         } else if let chosen,
-                  sema.symbols.symbol(chosen)?.kind == .constructor,
-                  sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+                  sema.symbols.symbol(chosen)?.kind == .constructor
         {
             // Constructor calls need an allocated object as the implicit receiver (p0).
-            // Allocate via kk_array_new(slotCount) and prepend it to the argument list.
+            // Allocate via kk_object_new(slotCount) and prepend it to the argument list.
             // Derive slot count from NominalLayout.instanceSizeWords of the owning class.
             let allocType = boundType ?? sema.types.anyType
             let intType = sema.types.make(.primitive(.int, .nonNull))

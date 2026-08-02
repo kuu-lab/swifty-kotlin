@@ -62,7 +62,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             importDeferredWork,
             symbols: symbols,
             types: types,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
         )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.

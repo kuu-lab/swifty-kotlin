@@ -29,6 +29,10 @@ extension DataFlowSemaPhase {
                 let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
                 return parsed.isEmpty ? nil : parsed
             }
+            let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
+                let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
+                return parsed.isEmpty ? nil : parsed
+            }
             let fieldOffsets: [ImportedFieldOffsetEntry] = if let fieldOffsetsStr = metadataRecord.fieldOffsets {
                 parseImportedFieldOffsets(
                     token: fieldOffsetsStr,
@@ -75,6 +79,7 @@ extension DataFlowSemaPhase {
                 arity: metadataRecord.arity,
                 isSuspend: metadataRecord.isSuspend,
                 isInline: metadataRecord.isInline,
+                isOperator: metadataRecord.isOperator,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 typeSignature: metadataRecord.typeSignature,
@@ -85,9 +90,12 @@ extension DataFlowSemaPhase {
                 declaredVtableSize: metadataRecord.declaredVtableSize,
                 declaredItableSize: metadataRecord.declaredItableSize,
                 superFQName: superFQName,
+                companionObjectFQName: companionObjectFQName,
                 fieldOffsets: fieldOffsets,
                 vtableSlots: vtableSlots,
                 itableSlots: itableSlots,
+                objectInitializerLinkName: metadataRecord.objectInitializerLinkName,
+                companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isSealedClass: metadataRecord.isSealedClass,
                 isValueClass: metadataRecord.isValueClass,

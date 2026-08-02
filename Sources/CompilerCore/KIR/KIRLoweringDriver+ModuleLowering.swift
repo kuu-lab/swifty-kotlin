@@ -64,6 +64,13 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: &allTopLevelInitInstructions
         )
 
+        appendImportedLibraryInitializerCalls(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &allTopLevelInitInstructions
+        )
+
         postProcessTopLevelInitializersAndDelegates(
             ast: ast,
             sema: sema,
@@ -310,6 +317,42 @@ extension KIRLoweringDriver {
             )
             allTopLevelInitInstructions.append(
                 .copy(from: result, to: storage)
+            )
+        }
+    }
+
+    private func appendImportedLibraryInitializerCalls(
+        arena: KIRArena,
+        sema: SemaModule,
+        interner: StringInterner,
+        allTopLevelInitInstructions: inout KIRLoweringEmitContext
+    ) {
+        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            let initializerSymbol: SymbolID?
+            switch symbol.kind {
+            case .object:
+                initializerSymbol = sema.symbols.objectInitializerSymbol(for: symbol.id)
+            case .class, .interface, .enumClass, .annotationClass:
+                initializerSymbol = sema.symbols.companionObjectInitializerSymbol(for: symbol.id)
+            default:
+                initializerSymbol = nil
+            }
+            guard let initializerSymbol else { continue }
+            guard let externalLinkName = sema.symbols.externalLinkName(for: initializerSymbol),
+                  !externalLinkName.isEmpty
+            else {
+                continue
+            }
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            allTopLevelInitInstructions.append(
+                .call(
+                    symbol: initializerSymbol,
+                    callee: interner.intern(externalLinkName),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
             )
         }
     }
