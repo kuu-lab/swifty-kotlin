@@ -62,6 +62,24 @@ public func __kk_string_builder_new_from_string_flat(
     )
 }
 
+// BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
+// StringBuilder.kt) — construction is entirely native. The capacity is only
+// ever used as a preallocation hint (this runtime doesn't preallocate string
+// storage), but real Kotlin/Java still rejects a negative capacity with
+// NegativeArraySizeException, so this must validate rather than silently
+// ignore it the way falling through to __kk_string_builder_new did before.
+@_cdecl("__kk_string_builder_new_capacity_checked")
+public func __kk_string_builder_new_capacity_checked(
+    _ capacity: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
+        return 0
+    }
+    return runtimeStringBuilderNew(initial: "")
+}
+
 private func runtimeStringBuilderNew(initial: String) -> Int {
     runtimeRegisterStringBuilderType(registerRuntimeObject(RuntimeStringBuilderBox(initial)))
 }

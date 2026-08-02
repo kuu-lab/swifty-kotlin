@@ -160,7 +160,12 @@ struct StringInternerTests {
             }
         }
 
-        #expect(group.wait(timeout: .now() + .seconds(10)) == .success, "Concurrent intern timed out")
+        // A generous timeout: this is ~1000 trivial dictionary operations
+        // across 10 threads, but on a heavily loaded CI runner the
+        // DispatchQueue.global() tasks can sit unscheduled for a while
+        // before they even start, so a tight bound flakes under load
+        // rather than catching a genuine deadlock.
+        #expect(group.wait(timeout: .now() + .seconds(60)) == .success, "Concurrent intern timed out")
 
         // Verify IDs captured during the concurrent phase resolve correctly
         for (str, id) in capturedIDs.snapshot() {
@@ -184,7 +189,8 @@ struct StringInternerTests {
             }
         }
 
-        #expect(group.wait(timeout: .now() + .seconds(10)) == .success, "Concurrent resolve timed out")
+        // See testConcurrentInternDoesNotCrash for why this is generous.
+        #expect(group.wait(timeout: .now() + .seconds(60)) == .success, "Concurrent resolve timed out")
     }
 }
 #endif

@@ -250,16 +250,7 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_char_isTitleCase", parameters: [
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_check_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_check_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_cname_lookup", parameters: [
             p("externNameRaw", .intptr),
         ]),
@@ -816,16 +807,7 @@ public extension RuntimeABISpec {
             p("byteCount", .intptr),
             p("hash", .intptr),
         ]),
-        abiParitySpec("kk_require_not_null", parameters: [
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_require_not_null_lazy", parameters: [
-            p("value", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+
         abiParitySpec("kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),
@@ -913,15 +895,6 @@ public extension RuntimeABISpec {
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
         ], returnType: .nullableUInt8Pointer),
-        abiParitySpec("kk_string_partition_flat", parameters: [
-            p("receiverData", .nullableConstUInt8Pointer),
-            p("receiverLength", .intptr),
-            p("receiverByteCount", .intptr),
-            p("receiverHash", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
