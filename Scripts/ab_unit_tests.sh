@@ -83,7 +83,7 @@ record_metric() {
     printf '%s\t%s\n' "$1" "$2" >> "$metrics_file"
 }
 
-strict_flags=(-Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency)
+strict_flags=(-Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency -Xswiftc -enable-testing)
 
 declare -a build_args=(-j "$workers" "${strict_flags[@]}")
 if [[ "$build_config" == "release" ]]; then
