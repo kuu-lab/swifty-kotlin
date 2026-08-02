@@ -164,7 +164,9 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: **都度コンパイル + 計測から始め、閾値超過で初めてキャッシュを設計する**（早すぎる最適化をしない）。
+方針: 通常のユーザーコンパイルは都度コンパイルを維持する。一方、
+`diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
+移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`

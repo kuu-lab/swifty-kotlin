@@ -40,7 +40,8 @@ final class LLVMBackend {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = []
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        emitInlineOnlyFunctions: Bool = false
     ) throws {
         try emitNative(
             context: "object",
@@ -58,7 +59,8 @@ final class LLVMBackend {
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                     reflectionMetadataRecords: reflectionMetadataRecords,
                     reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-                    linkOnceODRSymbols: linkOnceODRSymbols
+                    linkOnceODRSymbols: linkOnceODRSymbols,
+                    emitInlineOnlyFunctions: emitInlineOnlyFunctions
                 )
                 try emitter.emitObject(outputPath: outputObjectPath)
             }

@@ -83,6 +83,15 @@ extension CallTypeChecker {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
         }
+        // Imported library extension properties are intentionally omitted from
+        // file scopes and are resolved through member lookup instead. Recover
+        // their synthetic accessors by short name when scope lookup found none;
+        // the receiver check keeps this fallback type-directed.
+        if getterCandidates.isEmpty {
+            for candidate in sema.symbols.lookupByShortName(calleeName) {
+                collectGetterCandidate(from: candidate, requireSynthetic: true)
+            }
+        }
         guard !getterCandidates.isEmpty else {
             return nil
         }

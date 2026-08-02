@@ -470,6 +470,17 @@ extension DataFlowSemaPhase {
         }
         let companionName = interner.intern("Companion")
         let companionFQName = ownerInfo.fqName + [companionName]
+        // Reuse a companion nominal already imported from a shared stdlib
+        // artifact; otherwise source-backed companion extensions would carry
+        // a receiver type tied to a duplicate synthetic symbol.
+        if let importedCompanion = symbols.lookupAll(fqName: companionFQName)
+            .compactMap({ symbols.symbol($0) })
+            .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })
+        {
+            symbols.setParentSymbol(ownerSymbol, for: importedCompanion.id)
+            symbols.setCompanionObjectSymbol(importedCompanion.id, for: ownerSymbol)
+            return companionFQName
+        }
         let companionSymbol = symbols.define(
             kind: .object,
             name: companionName,

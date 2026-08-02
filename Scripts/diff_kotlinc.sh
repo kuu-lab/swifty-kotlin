@@ -761,7 +761,11 @@ else
   echo "Kotlinc reference cache: disabled"
 fi
 echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
-echo "Stdlib artifact: ${STDLIB_ARTIFACT:-}"
+if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+  echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
+else
+  echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
+fi
 echo "Target: $TARGET"
 echo "=================================="
 
@@ -773,6 +777,8 @@ warm_kotlinc
 # compile below will reference it with --stdlib-library instead of recompiling
 # bundled stdlib sources.
 build_stdlib_artifact || exit 1
+echo "Stdlib artifact: $STDLIB_ARTIFACT"
+echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
 
 # Emits this shard's cases (interleaved sharding via lib/common.sh;
 # DIFF_SHARD_COUNT == 1 emits everything).

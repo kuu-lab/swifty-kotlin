@@ -179,6 +179,18 @@ extension DataFlowSemaPhase {
         }
         let companionName = interner.intern("Companion")
         let companionFQName = ownerInfo.fqName + [companionName]
+        // A precompiled stdlib artifact declares the companion object before
+        // synthetic registration runs. Reuse that symbol so imported
+        // companion extension signatures and the source-level shorthand
+        // (`Instant.fromEpochMilliseconds(...)`) resolve to one nominal type.
+        if let importedCompanion = symbols.lookupAll(fqName: companionFQName)
+            .compactMap({ symbols.symbol($0) })
+            .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })
+        {
+            symbols.setParentSymbol(ownerSymbol, for: importedCompanion.id)
+            symbols.setCompanionObjectSymbol(importedCompanion.id, for: ownerSymbol)
+            return companionFQName
+        }
         let companionSymbol = symbols.define(
             kind: .object,
             name: companionName,

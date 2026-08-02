@@ -159,7 +159,8 @@ final class CodegenPhase: CompilerPhase {
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-            linkOnceODRSymbols: bundledSymbolIDs
+            linkOnceODRSymbols: bundledSymbolIDs,
+            emitInlineOnlyFunctions: ctx.options.stdlibOnly
         )
         ctx.storeGeneratedObjectPath(objectPath)
 

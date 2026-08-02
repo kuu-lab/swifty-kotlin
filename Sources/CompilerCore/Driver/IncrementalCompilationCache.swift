@@ -380,9 +380,27 @@ public final class IncrementalCompilationCache {
     }
 
     private static func buildConfigurationHash(for options: CompilerOptions) -> String {
-        let stdlibManifestHash = (options.includeStdlib || options.stdlibOnly || options.stdlibLibraryPath != nil)
-            ? BundledKotlinStdlib.manifestHash()
-            : ""
+        let stdlibManifestHash: String
+        if let artifactPath = options.stdlibLibraryPath {
+            // Hash the manifest advertised by the selected artifact, rather
+            // than only the compiler's bundled hash. This prevents a cache hit
+            // when a caller replaces the artifact at the same path.
+            let manifestPath = URL(fileURLWithPath: artifactPath)
+                .appendingPathComponent("manifest.json")
+            if let data = try? Data(contentsOf: manifestPath),
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let hash = object["stdlibManifestHash"] as? String,
+               !hash.isEmpty
+            {
+                stdlibManifestHash = hash
+            } else {
+                stdlibManifestHash = "missing"
+            }
+        } else if options.includeStdlib || options.stdlibOnly {
+            stdlibManifestHash = BundledKotlinStdlib.manifestHash()
+        } else {
+            stdlibManifestHash = ""
+        }
         let config = IncrementalBuildConfiguration(
             schemaVersion: 1,
             moduleName: options.moduleName,

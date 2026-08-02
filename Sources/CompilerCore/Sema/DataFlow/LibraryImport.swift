@@ -97,6 +97,9 @@ extension DataFlowSemaPhase {
                 if record.isValueClass {
                     flags.insert(.valueType)
                 }
+                if record.isFunInterface {
+                    flags.insert(.funInterface)
+                }
                 if record.isExpect {
                     flags.insert(.expectDeclaration)
                 }
@@ -413,12 +416,12 @@ extension DataFlowSemaPhase {
             arity: Int = 0,
             isSuspend: Bool = false,
             isInline: Bool = false,
-        isOperator: Bool = false,
-        valueParameterIsVararg: [Bool] = [],
-        valueParameterHasDefaultValues: [Bool] = [],
-        canThrow: Bool = false,
-        valueParameterNames: [String] = [],
-        reifiedTypeParameterIndices: Set<Int> = [],
+            isOperator: Bool = false,
+            valueParameterIsVararg: [Bool] = [],
+            valueParameterHasDefaultValues: [Bool] = [],
+            canThrow: Bool = false,
+            valueParameterNames: [String] = [],
+            reifiedTypeParameterIndices: Set<Int> = [],
             typeSignature: String? = nil,
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
@@ -456,12 +459,12 @@ extension DataFlowSemaPhase {
             self.arity = arity
             self.isSuspend = isSuspend
             self.isInline = isInline
-        self.isOperator = isOperator
-        self.valueParameterIsVararg = valueParameterIsVararg
-        self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
-        self.canThrow = canThrow
-        self.valueParameterNames = valueParameterNames
-        self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
+            self.isOperator = isOperator
+            self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+            self.canThrow = canThrow
+            self.valueParameterNames = valueParameterNames
+            self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
             self.typeSignature = typeSignature
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
@@ -687,6 +690,19 @@ extension DataFlowSemaPhase {
                 allowPlaceholders: isStdlibArtifact
             )
             symbols.setFunctionSignature(signature, for: symbol)
+            // Extension functions are represented as package-level FQ names in
+            // metadata, but source compilation attaches them to their nominal
+            // receiver for member fallback/dispatch lookup. Reconstruct that
+            // ownership from the decoded receiver type so imported stdlib
+            // extensions (for example Sequence.chunked/windowed) follow the
+            // same resolution path as bundled source declarations.
+            if let receiverType = signature.receiverType,
+               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
+               isNominalLayoutTargetSymbol(receiverSymbol.kind)
+            {
+                symbols.setParentSymbol(receiverSymbol.id, for: symbol)
+            }
             if let defaultStubLink = record.defaultStubExternalLinkName, !defaultStubLink.isEmpty,
                signature.valueParameterHasDefaultValues.contains(true)
             {
@@ -917,6 +933,23 @@ extension DataFlowSemaPhase {
                 "Inline KIR path for '\(record.mangledName)' escapes inline directory",
                 range: nil
             )
+            return
+        }
+        guard FileManager.default.fileExists(atPath: inlinePath) else {
+            let recordFQName = record.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if binding.isStdlibArtifact {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0023",
+                    "Stdlib artifact is missing inline KIR for '" + recordFQName + "': " + inlinePath,
+                    range: nil
+                )
+            } else {
+                diagnostics.warning(
+                    "KSWIFTK-LIB-0002",
+                    "Unable to read inline KIR artifact: " + inlinePath,
+                    range: nil
+                )
+            }
             return
         }
         guard let inlineFunction = parseImportedInlineFunction(
