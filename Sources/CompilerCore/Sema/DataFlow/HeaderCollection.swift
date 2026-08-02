@@ -534,6 +534,15 @@ extension DataFlowSemaPhase {
                     scope: classScope,
                     interner: interner
                 )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    enumType: classType,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
             }
             if declaration.flags.contains(.dataType) {
                 collectSyntheticDataClassMethods(
@@ -1088,6 +1097,8 @@ extension DataFlowSemaPhase {
             return ["kotlin", "text", "Charset"].map { interner.intern($0) }
         case "__bundled_kotlin/Throwable.kt":
             return ["kotlin", "Throwable"].map { interner.intern($0) }
+        case "__bundled_kotlin/sequences/Sequence.kt":
+            return ["kotlin", "sequences", "Sequence"].map { interner.intern($0) }
         default:
             return nil
         }
@@ -1153,6 +1164,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
 

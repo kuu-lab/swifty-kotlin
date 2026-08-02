@@ -178,6 +178,26 @@ final class InlineLoweringPass: LoweringPass {
         var result: [KIRInstruction] = []
         result.reserveCapacity(instructions.count)
         var finallyGuardDepth = 0
+        // A call's own `canThrow` flag is not a reliable "can the callee ever
+        // throw" predicate for ordinary (non-synthetic) functions -- it
+        // defaults to `false` and is only ever explicitly set to `true` for
+        // synthetic native-bridge stub registrations. A regular Kotlin
+        // function that throws conditionally (e.g. `checkWindowSizeStep`
+        // inside `Sequence.chunked`/`windowed`'s bundled Kotlin-source body,
+        // whose `throw` sits inside a nested `if`) still compiles its call
+        // sites with `canThrow: false, thrownResult: nil`, since that
+        // function has no local try/catch of its own: codegen unconditionally
+        // checks every call's outThrown slot regardless of the KIR-level
+        // `canThrow` flag, and `thrownResult == nil` means "propagate
+        // implicitly via my own outThrown parameter" -- correct as long as
+        // the function compiles standalone. Once auto-inlining
+        // (KIRLoweringDriver's `hasLambdaParam` heuristic) splices this body
+        // into a caller with its own enclosing try/catch, "my own outThrown"
+        // becomes the *caller's* outThrown, silently skipping the caller's
+        // catch block. Rerouting on `thrownResult == nil` alone (regardless
+        // of `canThrow`) catches this; for a call that genuinely cannot
+        // throw, the added check is simply dead code (it never observes a
+        // thrown value), not a correctness risk.
         for instruction in instructions {
             if case .beginFinallyGuard = instruction {
                 finallyGuardDepth += 1
@@ -194,8 +214,8 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
             switch instruction {
-            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType)
-                where canThrow && thrownResult == nil:
+            case let .call(symbol, callee, arguments, callResult, _, thrownResult, isSuperCall, qualifiedSuperType)
+                where thrownResult == nil:
                 result.append(.call(
                     symbol: symbol,
                     callee: callee,
@@ -207,8 +227,8 @@ final class InlineLoweringPass: LoweringPass {
                     qualifiedSuperType: qualifiedSuperType
                 ))
                 result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .virtualCall(symbol, callee, receiver, arguments, callResult, canThrow, thrownResult, dispatch)
-                where canThrow && thrownResult == nil:
+            case let .virtualCall(symbol, callee, receiver, arguments, callResult, _, thrownResult, dispatch)
+                where thrownResult == nil:
                 result.append(.virtualCall(
                     symbol: symbol,
                     callee: callee,

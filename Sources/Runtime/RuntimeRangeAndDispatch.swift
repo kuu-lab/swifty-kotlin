@@ -561,6 +561,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
         return kk_list_iterator(rangeRaw)
     }
+    if runtimeIndexingIterableBox(from: rangeRaw) != nil {
+        return kk_indexing_iterable_iterator(rangeRaw)
+    }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
     }

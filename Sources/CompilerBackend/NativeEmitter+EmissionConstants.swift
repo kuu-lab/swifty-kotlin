@@ -730,7 +730,10 @@ extension NativeEmitter {
                let typeSystem,
                case .stringStruct = typeSystem.kind(of: expectedType)
             {
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
+                // BUG-168: `length` is the Unicode scalar count (matching the scalar-indexed
+                // space `indexOf`/`substring`/etc. use), not the UTF-8 byte count — those only
+                // coincide for ASCII text. `byteCount` is genuinely the UTF-8 byte count.
+                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.unicodeScalars.count)) ?? state.zeroValue
                 let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
                 let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
                 return buildStringAggregate(
