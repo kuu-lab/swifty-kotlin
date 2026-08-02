@@ -220,10 +220,24 @@ extension ControlFlowLowerer {
 
         if let loweredSubjectID {
             let matchesID = arena.appendTemporary(type: boolType)
+            // Mirror the boxed-vs-raw normalization in
+            // CallLowerer+Operators.swift's lowerBinaryExpr: `when (e0) {
+            // Direction.NORTH -> ... }` desugars to `==` comparisons here,
+            // not through lowerBinaryExpr, so it needs the same fix.
+            let normalizedSubjectID = unboxIfEnumTyped(
+                loweredSubjectID,
+                staticType: subjectExprID.flatMap { sema.bindings.exprTypes[$0] },
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
+            let normalizedConditionID = unboxIfEnumTyped(
+                conditionValueID,
+                staticType: sema.bindings.exprTypes[conditionExprID],
+                sema: sema, arena: arena, interner: interner, into: &instructions
+            )
             instructions.append(.binary(
                 op: .equal,
-                lhs: loweredSubjectID,
-                rhs: conditionValueID,
+                lhs: normalizedSubjectID,
+                rhs: normalizedConditionID,
                 result: matchesID
             ))
             return matchesID
