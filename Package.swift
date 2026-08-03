@@ -2,6 +2,9 @@
 import PackageDescription
 import Foundation
 
+// Allow CI to compile CompilerCore with -O in debug builds without changing the
+// default debug configuration, based on A/B measurements that showed a ~40%
+// total job time reduction for the CompilerCore test shards.
 let optimizeCompilerCore = ProcessInfo.processInfo.environment["KSWIFTK_OPTIMIZE_COMPILER_CORE"] == "1"
 
 let package = Package(
