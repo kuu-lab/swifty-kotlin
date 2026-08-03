@@ -220,7 +220,9 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
-            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver) && args.isEmpty else {
+            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver),
+                  !isArrayReceiver,
+                  args.isEmpty else {
                 return false
             }
             guard interner.resolve(calleeName) == "asSequence" else {
@@ -453,7 +455,7 @@ extension CallTypeChecker {
                let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
-                         !symbol.flags.contains(.synthetic),
+                         sema.symbols.isSourceBackedSymbol(candidate),
                          let signature = sema.symbols.functionSignature(for: candidate),
                          signature.parameterTypes.isEmpty,
                          signature.receiverType != nil

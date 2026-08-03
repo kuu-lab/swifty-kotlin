@@ -164,7 +164,13 @@ final class CallLowerer {
         let abiValueParameters = spec.parameters.filter { parameter in
             !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
         }
-        guard abiValueParameters.count == signature.parameterTypes.count else {
+        let expandedParameterCount = signature.parameterTypes.reduce(0) { count, type in
+            if sema.types.makeNonNullable(type) == sema.types.stringType {
+                return count + 4
+            }
+            return count + 1
+        }
+        guard abiValueParameters.count == expandedParameterCount else {
             return false
         }
         switch spec.returnType {

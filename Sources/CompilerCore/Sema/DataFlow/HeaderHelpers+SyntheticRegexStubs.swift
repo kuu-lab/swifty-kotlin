@@ -744,7 +744,9 @@ extension DataFlowSemaPhase {
     /// Set propertyType on each enum entry so that resolveClassNameMemberValue
     /// (which checks `.field` + propertyType) can resolve `RegexOption.XXX`.
     /// If the enum was imported as a nominal anchor its entries are missing, so
-    /// synthesise them here as well.
+    /// synthesise them here as well. Mark each entry as a compile-time constant
+    /// ordinal so the shared stdlib path emits `intLiteral` values that the
+    /// runtime regex functions can `kk_unbox_int` correctly.
     private func setRegexOptionEntryTypes(
         enumSymbol: SymbolID,
         enumType: TypeID,
@@ -757,7 +759,7 @@ extension DataFlowSemaPhase {
             "UNIX_LINES", "COMMENTS", "CANON_EQ",
         ]
         let enumFQName = enumInfo.fqName
-        for entry in entries {
+        for (ordinal, entry) in entries.enumerated() {
             let entryName = interner.intern(entry)
             let entryFQName = enumFQName + [entryName]
             let entrySymbol: SymbolID
@@ -777,6 +779,8 @@ extension DataFlowSemaPhase {
             if symbols.propertyType(for: entrySymbol) == nil {
                 symbols.setPropertyType(enumType, for: entrySymbol)
             }
+            symbols.insertFlags([.constValue], for: entrySymbol)
+            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
         }
     }
 

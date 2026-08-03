@@ -494,4 +494,250 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-ARTIFACT-011: synthetic `String.contains` extension must bind a real
+    /// call symbol through the shared stdlib artifact so KIR lowering emits the
+    /// dedicated `kk_string_contains_str_flat` helper instead of a generic
+    /// `kk_op_contains` dispatch. This regresses when pure synthetic operator
+    /// extensions are excluded from the default-import scope and the string
+    /// fallback returns a type without a `CallBinding`.
+    func testStringContainsSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println("Kotlin".contains("otl"))
+            println("Kotlin".contains("abc"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-012: `Array.asSequence()` must lower to the runtime
+    /// `kk_array_asSequence` bridge through the shared stdlib artifact so that
+    /// downstream `Sequence.filterIsInstance`/`toList` operate on the array
+    /// elements instead of silently producing an empty list.
+    func testArrayAsSequenceFilterIsInstanceSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val values: Array<Any> = arrayOf(1, "two", 3)
+            println(values.asSequence().filterIsInstance<Int>().toList())
+            println(values.asSequence().filterIsInstance<String>().toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "[1, 3]\n[two]\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-013: imported inline-KIR bodies must preserve floating-point
+    /// and character literals. `sumByDouble` uses `double:0.0` as its loop
+    /// accumulator; if `LibraryInlineImport` drops `double:` tokens the accumulator
+    /// is left uninitialized, so the second `sumByDouble` call reuses the first
+    /// call's result.
+    func testSumByDoubleLiteralInImportedInlineKIR() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println("abc".sumByDouble { it.code.toDouble() / 2 })
+            println("".sumByDouble { it.code.toDouble() / 2 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "147.0\n0.0\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-014: member properties with custom getters (e.g.
+    /// `Result.isSuccess`/`isFailure`) must round-trip through the shared stdlib
+    /// artifact with `propertyGetterExternalLinkName`. Otherwise the consumer
+    /// falls back to a field-offset read and crashes or misreads the value.
+    func testResultMemberPropertyGetterSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val s = runCatching { 10 }
+            val f = runCatching { throw RuntimeException("x") }
+            println("s.isSuccess=${s.isSuccess} s.isFailure=${s.isFailure}")
+            println("f.isSuccess=${f.isSuccess} f.isFailure=${f.isFailure}")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-015: imported synthetic enum entries (e.g.
+    /// `RegexOption`) must carry `.constValue` and an ordinal expression so
+    /// the shared stdlib path emits `intLiteral` values instead of unresolved
+    /// `symbolRef` constants. Otherwise `Regex(..., RegexOption.XXX)` is passed
+    /// an object pointer or ignored by the runtime.
+    func testRegexOptionConstantsSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlin.text.RegexOption
+
+        fun main() {
+            println(Regex("[a-z]+", RegexOption.IGNORE_CASE).matches("ABC"))
+            println(Regex("^line", RegexOption.MULTILINE).containsMatchIn("first\\nline two"))
+            println(Regex("a.b", RegexOption.DOT_MATCHES_ALL).containsMatchIn("a\\nb"))
+            println(Regex("[a-z]+", RegexOption.LITERAL).containsMatchIn("[a-z]+"))
+            println(Regex(".", RegexOption.UNIX_LINES).containsMatchIn("a"))
+            println(Regex("a b  # match ab", RegexOption.COMMENTS).containsMatchIn("ab"))
+            println(Regex("[a-z]+", setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)).matches("HELLO"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-016: imported synthetic enum entries for
+    /// `CharDirectionality` must round-trip as compile-time ordinals so the
+    /// shared stdlib `Char.directionality` extension can compare directionality
+    /// values by ordinal.
+    func testCharDirectionalityConstantsSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlin.text.CharDirectionality
+
+        fun main() {
+            println('A'.directionality == CharDirectionality.LEFT_TO_RIGHT)
+            println('\\u05D0'.directionality == CharDirectionality.RIGHT_TO_LEFT)
+            println('5'.directionality == CharDirectionality.EUROPEAN_NUMBER)
+            println(' '.directionality == CharDirectionality.WHITESPACE)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\n")
+        }
+    }
 }

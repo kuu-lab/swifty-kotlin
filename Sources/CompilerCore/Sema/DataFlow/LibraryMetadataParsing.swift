@@ -25,9 +25,15 @@ extension DataFlowSemaPhase {
             guard !fqName.isEmpty else {
                 continue
             }
-            let superFQName: [InternedString]? = metadataRecord.superFQName.flatMap { value in
-                let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
-                return parsed.isEmpty ? nil : parsed
+            let superFQNames: [[InternedString]]? = metadataRecord.superFQName.flatMap { value in
+                // Multiple direct supertypes are encoded as comma-separated FQ names,
+                // e.g. "kotlin.collections.Collection,kotlin.collections.Iterable".
+                let names = value.split(separator: ",")
+                guard !names.isEmpty else { return nil }
+                let parsed = names.map { name in
+                    name.split(separator: ".").map { interner.intern(String($0)) }
+                }
+                return parsed.isEmpty || parsed.contains(where: { $0.isEmpty }) ? nil : parsed
             }
             let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
                 let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
@@ -91,7 +97,8 @@ extension DataFlowSemaPhase {
                 declaredInstanceSizeWords: metadataRecord.declaredInstanceSizeWords,
                 declaredVtableSize: metadataRecord.declaredVtableSize,
                 declaredItableSize: metadataRecord.declaredItableSize,
-                superFQName: superFQName,
+                superFQName: superFQNames?.first,
+                superFQNames: superFQNames,
                 companionObjectFQName: companionObjectFQName,
                 fieldOffsets: fieldOffsets,
                 vtableSlots: vtableSlots,

@@ -364,6 +364,8 @@ extension CallLowerer {
                 return interner.intern("kk_array_filterNot")
             case "filterNotNull":
                 return interner.intern("kk_array_filterNotNull")
+            case "asSequence":
+                return interner.intern("kk_array_asSequence")
             // NOTE: branches on `hofArity` (source-level arg count), not the raw
             // `argumentCount` parameter above — `argumentCount` can arrive with
             // the receiver already prepended by some call sites (see the

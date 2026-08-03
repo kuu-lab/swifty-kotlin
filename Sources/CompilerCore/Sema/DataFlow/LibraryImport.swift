@@ -381,6 +381,7 @@ extension DataFlowSemaPhase {
         let declaredVtableSize: Int?
         let declaredItableSize: Int?
         let superFQName: [InternedString]?
+        let superFQNames: [[InternedString]]?
         let companionObjectFQName: [InternedString]?
         let fieldOffsets: [ImportedFieldOffsetEntry]
         let vtableSlots: [ImportedVTableSlotEntry]
@@ -423,6 +424,7 @@ extension DataFlowSemaPhase {
             declaredVtableSize: Int? = nil,
             declaredItableSize: Int? = nil,
             superFQName: [InternedString]? = nil,
+            superFQNames: [[InternedString]]? = nil,
             companionObjectFQName: [InternedString]? = nil,
             fieldOffsets: [ImportedFieldOffsetEntry] = [],
             vtableSlots: [ImportedVTableSlotEntry] = [],
@@ -464,6 +466,7 @@ extension DataFlowSemaPhase {
             self.declaredVtableSize = declaredVtableSize
             self.declaredItableSize = declaredItableSize
             self.superFQName = superFQName
+            self.superFQNames = superFQNames
             self.companionObjectFQName = companionObjectFQName
             self.fieldOffsets = fieldOffsets
             self.vtableSlots = vtableSlots
@@ -828,6 +831,57 @@ extension DataFlowSemaPhase {
                 symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
             }
         }
+
+        // Member properties with custom getters also carry a precompiled getter
+        // link name. Restore a synthetic accessor so reads route through it.
+        if record.propertyGetterExternalLinkName != nil,
+           record.propertyReceiverTypeSignature == nil,
+           let ownerSymbol = symbols.parentSymbol(for: symbol),
+           let ownerInfo = symbols.symbol(ownerSymbol),
+           (ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object)
+        {
+            symbols.setPropertyHasCustomGetter(true, for: symbol)
+            let ownerType = types.make(.classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull)))
+            let getName = interner.intern("get")
+            let getterFQName = record.fqName + [getName]
+            let getterSymbol = symbols.define(
+                kind: .function,
+                name: getName,
+                fqName: getterFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(symbol, for: getterSymbol)
+            symbols.setAccessorOwnerProperty(symbol, for: getterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: ownerType,
+                    parameterTypes: [],
+                    returnType: propertyType
+                ),
+                for: getterSymbol
+            )
+            symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: symbol)
+            if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                symbols.setExternalLinkName(getterLink, for: getterSymbol)
+            }
+            if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature,
+               let getterAbiReturnType = decodeImportedTypeSignature(
+                   token: getterAbiSig,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner,
+                   diagnostics: diagnostics,
+                   metadataPath: binding.metadataPath,
+                   ownerFQName: record.fqName,
+                   cache: cache,
+                   allowPlaceholders: isStdlibArtifact
+               )
+            {
+                symbols.setFunctionABIReturnType(getterAbiReturnType, for: getterSymbol)
+            }
+        }
     }
 
     private func importInlineFunctionIfNeeded(
@@ -989,7 +1043,8 @@ extension DataFlowSemaPhase {
                 for: binding.symbol
             )
         }
-        if let superFQName = record.superFQName, !superFQName.isEmpty {
+        let allSuperFQNames = record.superFQNames ?? record.superFQName.map { [$0] } ?? []
+        for superFQName in allSuperFQNames where !superFQName.isEmpty {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
         }
 

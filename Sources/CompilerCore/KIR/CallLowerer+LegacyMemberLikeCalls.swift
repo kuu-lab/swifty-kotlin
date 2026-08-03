@@ -189,7 +189,7 @@ extension CallLowerer {
             ) != nil {
                 return true
             }
-            return sema.symbols.symbol(chosenCallee)?.declSite == nil
+            return !sema.symbols.isSourceBackedSymbol(chosenCallee)
         }()
         let normalizedArgIDs: [KIRExprID] = {
             guard shouldAdaptCollectionHOFArguments else {
@@ -2494,7 +2494,7 @@ extension CallLowerer {
                 // user-written inline function call is lowered) handle it
                 // instead.
                 let hasRealPredicateDecl = ["any", "all", "none"].contains(calleeStr)
-                    && chosenCalleeForArgumentAdaptation.map { sema.symbols.symbol($0)?.declSite != nil } == true
+                    && chosenCalleeForArgumentAdaptation.map { sema.symbols.isSourceBackedSymbol($0) } == true
                 let rawRuntimeCallee: String? = switch calleeStr {
                 case "map":
                     "kk_array_map"
@@ -3110,8 +3110,7 @@ extension CallLowerer {
                     guard let sourceCallee = chosenBase64Callee,
                           let symbol = sema.symbols.symbol(sourceCallee),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: sourceCallee) ?? "").isEmpty
+                          sema.symbols.isSourceBackedSymbol(sourceCallee)
                     else {
                         return false
                     }
@@ -3422,12 +3421,8 @@ extension CallLowerer {
         // this call to that source declaration, this shortcut must not
         // discard it and skip past the require() checks.
         let windowedIsSourceBacked: Bool = {
-            guard let chosenBase64Callee,
-                  sema.symbols.symbol(chosenBase64Callee)?.declSite != nil
-            else {
-                return false
-            }
-            return (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+            guard let chosenBase64Callee else { return false }
+            return sema.symbols.isSourceBackedSymbol(chosenBase64Callee)
         }()
 
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276

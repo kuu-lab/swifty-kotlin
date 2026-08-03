@@ -200,8 +200,7 @@ extension CallTypeChecker {
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(candidate),
               symbol.kind == .function,
-              symbol.declSite != nil,
-              (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+              sema.symbols.isSourceBackedSymbol(candidate),
               let signature = sema.symbols.functionSignature(for: candidate)
         else {
             return false

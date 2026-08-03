@@ -415,6 +415,30 @@ extension DataFlowSemaPhase {
             let value = String(token.dropFirst("int:".count))
             return Int64(value).map(KIRExprKind.intLiteral)
         }
+        if token.hasPrefix("long:") {
+            let value = String(token.dropFirst("long:".count))
+            return Int64(value).map(KIRExprKind.longLiteral)
+        }
+        if token.hasPrefix("uint:") {
+            let value = String(token.dropFirst("uint:".count))
+            return UInt64(value).map(KIRExprKind.uintLiteral)
+        }
+        if token.hasPrefix("ulong:") {
+            let value = String(token.dropFirst("ulong:".count))
+            return UInt64(value).map(KIRExprKind.ulongLiteral)
+        }
+        if token.hasPrefix("float:") {
+            let value = String(token.dropFirst("float:".count))
+            return Double(value).map(KIRExprKind.floatLiteral)
+        }
+        if token.hasPrefix("double:") {
+            let value = String(token.dropFirst("double:".count))
+            return Double(value).map(KIRExprKind.doubleLiteral)
+        }
+        if token.hasPrefix("char:") {
+            let value = String(token.dropFirst("char:".count))
+            return UInt32(value).map(KIRExprKind.charLiteral)
+        }
         if token.hasPrefix("bool:") {
             let value = String(token.dropFirst("bool:".count))
             return .boolLiteral(value == "1" || value == "true")

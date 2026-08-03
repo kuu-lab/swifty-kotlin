@@ -230,7 +230,10 @@ package final class MetadataEncoder {
                 // type/value parameters must also be excluded. Otherwise metadata leaks
                 // orphaned records like `List.toMap.K` that become spurious package
                 // symbols on the consumer side and block synthetic member re-registration.
-                if !includeSynthetic {
+                // Source-backed declarations (e.g. bundled stdlib functions under a
+                // synthetic package stub) are still exported; only synthesized helpers
+                // without a source declSite are pruned by parent synthetics.
+                if !includeSynthetic, symbol.declSite == nil {
                     var parentID = symbols.parentSymbol(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -278,7 +281,7 @@ package final class MetadataEncoder {
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
                 && Self.nominalKinds.contains(symbol.kind)
-            records.append(buildRecord(
+            let built = buildRecord(
                 for: symbol,
                 symbols: symbols,
                 types: types,
@@ -292,7 +295,8 @@ package final class MetadataEncoder {
                 objectInitializerLinkNames: objectInitializerLinkNames,
                 companionInitializerLinkNames: companionInitializerLinkNames,
                 enumStaticInitLinkNames: enumStaticInitLinkNames
-            ))
+            )
+            records.append(built)
         }
         return records
     }
@@ -498,38 +502,27 @@ package final class MetadataEncoder {
         )
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
 
-        if metadataAnchorOnly {
-            // Synthetic nominal anchors (e.g. kotlin.Comparator) still need their
-            // layout to round-trip so that consumer-side interface dispatch can
-            // resolve abstract method slots. Include declared sizes and slot
-            // mappings without exporting function/type details.
-            if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
-                let fieldOffsetsStr = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-                let vtableSlotsStr = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-                let itableSlotsStr = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-                return MetadataRecord(
-                    kind: symbol.kind,
-                    mangledName: mangled,
-                    fqName: fqName,
-                    declaredFieldCount: layout.instanceFieldCount,
-                    declaredInstanceSizeWords: layout.instanceSizeWords,
-                    declaredVtableSize: layout.vtableSize,
-                    declaredItableSize: layout.itableSize,
-                    fieldOffsets: fieldOffsetsStr.isEmpty ? nil : fieldOffsetsStr,
-                    vtableSlots: vtableSlotsStr.isEmpty ? nil : vtableSlotsStr,
-                    itableSlots: itableSlotsStr.isEmpty ? nil : itableSlotsStr,
-                    isDataClass: symbol.flags.contains(.dataType),
-                    isSealedClass: symbol.flags.contains(.sealedType),
-                    isFunInterface: symbol.flags.contains(.funInterface),
-                    isValueClass: symbol.flags.contains(.valueType),
-                    isExpect: symbol.flags.contains(.expectDeclaration),
-                    isActual: symbol.flags.contains(.actualDeclaration)
-                )
+        // STDLIB-SHARED-014: Direct supertype FQ names are needed even for
+        // synthetic nominal anchors (e.g. List, Iterable) so that consumers
+        // can walk the type hierarchy during member-call fallback resolution.
+        let computedSuperFQName: String? = {
+            guard Self.nominalKinds.contains(symbol.kind) else { return nil }
+            let directSupertypeSymbols = symbols.directSupertypes(for: symbol.id)
+            let superFQNames = directSupertypeSymbols.compactMap { superSymbolID in
+                symbols.symbol(superSymbolID)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
             }
+            return superFQNames.isEmpty ? nil : superFQNames.joined(separator: ",")
+        }()
+
+        if metadataAnchorOnly {
+            // Synthetic nominal anchors need kind/mangledName/fqName/flags plus
+            // supertype edges to round-trip. Layout is omitted because the
+            // consumer already reconstructs the nominal layout for these anchors.
             return MetadataRecord(
                 kind: symbol.kind,
                 mangledName: mangled,
                 fqName: fqName,
+                superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
@@ -624,13 +617,17 @@ package final class MetadataEncoder {
                     nameResolver: { interner.resolve($0) }
                 )
             }
-            // Extension properties are lowered as a getter accessor function in the
-            // artifact objects. Record that function's link name so consumers can
-            // call the precompiled getter directly.
-            if propertyReceiverTypeSignature != nil,
-               let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol.id)
-            {
-                propertyGetterExternalLinkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol)
+            // Properties with custom getters are lowered as accessor functions in
+            // the artifact objects. Record that function's link name so consumers
+            // can call the precompiled getter directly.
+            let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol.id)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id)
+            let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
+                || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
+            if hasCustomGetter,
+               let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
+               !linkName.isEmpty {
+                propertyGetterExternalLinkName = linkName
                 if runtimeCallbackRawReturnSymbolIDs.contains(getterSymbol) {
                     propertyGetterAbiReturnTypeSignature = metadataTypeSignature(
                         types.intType,
@@ -671,28 +668,26 @@ package final class MetadataEncoder {
         var companionInitializerLinkName: String?
         var enumStaticInitLinkName: String?
 
-        if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
-            declaredInstanceSizeWords = layout.instanceSizeWords
-            declaredFieldCount = layout.instanceFieldCount
-            declaredVtableSize = layout.vtableSize
-            declaredItableSize = layout.itableSize
+        if Self.nominalKinds.contains(symbol.kind) {
+            superFQName = computedSuperFQName
+            if let layout = symbols.nominalLayout(for: symbol.id) {
+                declaredInstanceSizeWords = layout.instanceSizeWords
+                declaredFieldCount = layout.instanceFieldCount
+                declaredVtableSize = layout.vtableSize
+                declaredItableSize = layout.itableSize
 
-            let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-            if !serializedFieldOffsets.isEmpty {
-                fieldOffsetsStr = serializedFieldOffsets
-            }
-            let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-            if !serializedVTableSlots.isEmpty {
-                vtableSlotsStr = serializedVTableSlots
-            }
-            let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
-            if !serializedITableSlots.isEmpty {
-                itableSlotsStr = serializedITableSlots
-            }
-            if let superClass = layout.superClass,
-               let superSymbol = symbols.symbol(superClass)
-            {
-                superFQName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                if !serializedFieldOffsets.isEmpty {
+                    fieldOffsetsStr = serializedFieldOffsets
+                }
+                let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                if !serializedVTableSlots.isEmpty {
+                    vtableSlotsStr = serializedVTableSlots
+                }
+                let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                if !serializedITableSlots.isEmpty {
+                    itableSlotsStr = serializedITableSlots
+                }
             }
             if let companionSymbolID = symbols.companionObjectSymbol(for: symbol.id),
                let includedSymbolIDs = includedSymbolIDs,

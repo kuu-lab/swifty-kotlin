@@ -406,6 +406,7 @@ public final class SymbolTable {
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
+    private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
@@ -707,6 +708,14 @@ public final class SymbolTable {
 
     public func propertyType(for symbol: SymbolID) -> TypeID? {
         propertyTypes[symbol]
+    }
+
+    public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
+        propertyHasCustomGetter[symbol] = value
+    }
+
+    public func propertyHasCustomGetter(for symbol: SymbolID) -> Bool {
+        propertyHasCustomGetter[symbol] ?? false
     }
 
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
@@ -1167,11 +1176,13 @@ public final class SymbolTable {
     /// (either bundled/user source or an imported library symbol), as opposed
     /// to a synthetic runtime stub. Imported library symbols are treated as
     /// source-backed because they carry the ABI name of the originally
-    /// compiled declaration.
+    /// compiled declaration. Symbols with a `declSite` are source-backed even
+    /// when they carry an explicit `externalLinkName` (e.g. `@KsSymbolName`
+    /// bundled stdlib functions); synthetic stubs have no `declSite`.
     public func isSourceBackedSymbol(_ symbolID: SymbolID) -> Bool {
         guard let symbol = self.symbol(symbolID) else { return false }
         if symbol.flags.contains(.importedLibrary) { return true }
-        return symbol.declSite != nil && (externalLinkName(for: symbolID) ?? "").isEmpty
+        return symbol.declSite != nil
     }
 }
 

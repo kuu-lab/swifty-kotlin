@@ -157,6 +157,19 @@ final class DataFlowSemaPhase: CompilerPhase {
                 for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
             ) else { continue }
             importedStdlibKeys.insert(key)
+
+            // STDLIB-SHARED-012: Source-backed extension functions imported from a
+            // stdlib artifact must be attached to their receiver nominal type so
+            // collection/sequence member-call fallback resolution (which keys off
+            // parentSymbol == owner) can find them. Skip retained runtime-bridge
+            // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            guard symbol.kind == .function,
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
+                  let signature = symbols.functionSignature(for: symbol.id),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType))
+            else { continue }
+            symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol.id)
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
