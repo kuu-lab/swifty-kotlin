@@ -178,14 +178,22 @@ extension CallLowerer {
                 isComparableUpperBound(bound, sema: sema)
             })
         })
+        let isPrimitiveOverload = !isComparatorOverload
+            && signature.typeParameterSymbols.isEmpty
+            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
         let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
             && !isComparatorOverload
             && isUniformTypeParameterOverload(signature, sema: sema)
-        let isGenericComparable = hasComparableUpperBound || isGenericTypeParameterOverload
-        let isPrimitiveOverload = !isGenericComparable
-            && !isComparatorOverload
-            && signature.typeParameterSymbols.isEmpty
-            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
+        // Source-backed maxOf/minOf declare `T : Comparable<T>`. Precompiled
+        // .kklib metadata currently drops type-parameter upper bounds, so the
+        // imported signature has type parameters without bounds. Still treat
+        // that shape as the generic-comparable overload so we lower via
+        // kk_compare_any instead of a bare `maxOf` external call.
+        let isGenericComparable = hasComparableUpperBound
+            || isGenericTypeParameterOverload
+            || (!isComparatorOverload
+                && !isPrimitiveOverload
+                && !signature.typeParameterSymbols.isEmpty)
 
         guard isGenericComparable || isComparatorOverload || isPrimitiveOverload else {
             return nil
