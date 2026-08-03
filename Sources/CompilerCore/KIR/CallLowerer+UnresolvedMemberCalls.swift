@@ -530,16 +530,26 @@ extension CallLowerer {
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-        // A receiver whose static type is the bare Iterable/Collection/Set
-        // interface always routes through this fallback: isConcreteCollectionLikeType
-        // (despite its name) also matches those bare interface symbols, not just
-        // concrete implementations, so relying on its negation alone would wrongly
-        // exclude them and leave members like `joinToString` unresolved.
-        let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-            || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-        let useIterableRuntimeForCollectionFallback = isBareIterableCollectionOrSetInterfaceType
-            || (sema.bindings.isCollectionExpr(receiverExpr)
-                && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner))
+        let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
+            || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
+            && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        // Bare Iterable/Collection/Set interfaces are also matched by
+        // isConcreteCollectionLikeType, so the gate above excludes them. That is
+        // intentional for general HOF routing: Set must fall through to the
+        // isSetLikeType block / CollectionLiteral Set-HOF rewrite (kk_set_*), not
+        // kk_sequence_* (mapNotNull/flatMap/count on a set handle would return empty
+        // or 0). Only joinTo/joinToString lack that set-specific path and would
+        // otherwise stay unresolved — handle those alone.
+        if memberName == "joinTo" || memberName == "joinToString" {
+            let isBareIterableCollectionOrSetInterfaceType =
+                isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            if isBareIterableCollectionOrSetInterfaceType {
+                return interner.intern(
+                    memberName == "joinTo" ? "kk_iterable_joinTo" : "kk_iterable_joinToString"
+                )
+            }
+        }
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let internedMemberName = interner.intern(memberName)
             let mapName = interner.intern("map")
