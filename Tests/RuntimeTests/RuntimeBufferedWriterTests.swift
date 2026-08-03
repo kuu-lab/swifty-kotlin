@@ -2,7 +2,7 @@ import Foundation
 @testable import Runtime
 import Testing
 
-@Suite(.serialized, .runtimeIsolation(.gcOnly))
+@Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeBufferedWriterTests {
     // MARK: - STDLIB-IO-FN-010: File.bufferedWriter()
 
