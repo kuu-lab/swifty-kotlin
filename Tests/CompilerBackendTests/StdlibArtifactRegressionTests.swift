@@ -740,4 +740,46 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-017: source-implemented `Sequence` HOFs (`flatMap`,
+    /// `flatMapIndexed`) dispatch `Sequence.iterator()` on runtime-backed
+    /// collections (`List`) returned by their lambdas. Runtime-backed
+    /// collection boxes must advertise the `Sequence` itable so the generated
+    /// interface dispatch resolves even when the type checker picks the
+    /// `Sequence` overload for an `Iterable`/`List` result. `String.lineSequence()`
+    /// also relies on `RuntimeSequenceBox`/`RuntimeSequenceIteratorBox` itables.
+    func testSequenceFlatMapAndLineSequenceSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println(sequenceOf(1, 2).flatMap { listOf(it, it * 10) }.toList())
+            println(sequenceOf(1, 2).flatMapIndexed { index, value -> listOf(index, value * 10) }.toList())
+            println("line1\nline2".lineSequence().toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[line1, line2]\n")
+        }
+    }
 }
