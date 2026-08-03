@@ -51,6 +51,10 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
         }
     }
 
+    if let comparableResult = runtimeCompareComparableValues(lhs: lhsRaw, rhs: rhsRaw) {
+        return comparableResult
+    }
+
     return lhsRaw < rhsRaw ? -1 : 1
 }
 
