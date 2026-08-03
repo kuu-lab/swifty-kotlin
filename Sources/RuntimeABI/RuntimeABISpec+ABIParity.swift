@@ -34,20 +34,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_any_javaClass", parameters: [
             p("receiverRaw", .intptr),
         ]),
-        abiParitySpec("kk_array_isArrayOf", parameters: [
-            p("arrayRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_andThen", parameters: [
-            p("functionRaw", .intptr),
-            p("nextRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_compose", parameters: [
-            p("functionRaw", .intptr),
-            p("beforeRaw", .intptr),
-        ]),
-        abiParitySpec("kk_function_curried", parameters: [
-            p("functionRaw", .intptr),
-        ]),
         abiParitySpec("kk_future_getState", parameters: [
             p("futureRaw", .intptr),
         ]),

@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+env:
+  # A/B measurements showed that compiling CompilerCore with -O in debug builds
+  # reduces the longest CI job (verify-core CompilerCore shards) by ~40% while
+  # keeping all tests green. This only affects debug builds; release builds in
+  # verify-diff are unchanged because the Package.swift guard is gated on
+  # .when(configuration: .debug).
+  KSWIFTK_OPTIMIZE_COMPILER_CORE: "1"
+
 # Successive pushes to the same PR cancel all in-flight verification jobs.
 # Non-PR events get a unique group per run and are never cancelled.
 concurrency:
