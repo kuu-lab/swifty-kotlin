@@ -164,13 +164,7 @@ final class CallLowerer {
         let abiValueParameters = spec.parameters.filter { parameter in
             !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
         }
-        let expandedParameterCount = signature.parameterTypes.reduce(0) { count, type in
-            if sema.types.makeNonNullable(type) == sema.types.stringType {
-                return count + 4
-            }
-            return count + 1
-        }
-        guard abiValueParameters.count == expandedParameterCount else {
+        guard abiParametersMatchFactorySignature(abiValueParameters, signature) else {
             return false
         }
         switch spec.returnType {
@@ -179,6 +173,52 @@ final class CallLowerer {
         default:
             return false
         }
+    }
+
+    /// Checks whether the runtime ABI parameters (with the trailing `outThrown`
+    /// slot removed) line up with the Kotlin-level constructor signature.
+    /// A `String` parameter may be lowered as a single pointer/handle or as a
+    /// flat 4-word aggregate (`data`, `length`, `byteCount`, `hash`) depending on
+    /// the ABI entry point; the backend has its own tables for the latter, so
+    /// this helper recognises the flat-string pattern so `String` factory
+    /// constructors are not mistaken for normal `this`-accepting constructors.
+    private func abiParametersMatchFactorySignature(
+        _ abiParameters: [RuntimeABIParameter],
+        _ signature: FunctionSignature
+    ) -> Bool {
+        var abiIndex = 0
+        for _ in signature.parameterTypes {
+            guard abiIndex < abiParameters.count else { return false }
+            if isFlatStringGroup(at: abiIndex, in: abiParameters) {
+                abiIndex += 4
+            } else {
+                abiIndex += 1
+            }
+        }
+        return abiIndex == abiParameters.count
+    }
+
+    private func isFlatStringGroup(
+        at index: Int,
+        in parameters: [RuntimeABIParameter]
+    ) -> Bool {
+        guard index + 3 < parameters.count else { return false }
+        let dataParam = parameters[index]
+        let lengthParam = parameters[index + 1]
+        let byteCountParam = parameters[index + 2]
+        let hashParam = parameters[index + 3]
+        guard dataParam.type == .nullableConstUInt8Pointer,
+              lengthParam.type == .intptr,
+              byteCountParam.type == .intptr,
+              hashParam.type == .intptr,
+              dataParam.name.hasSuffix("Data")
+        else {
+            return false
+        }
+        let prefix = String(dataParam.name.dropLast(4))
+        return lengthParam.name == "\(prefix)Length"
+            && byteCountParam.name == "\(prefix)ByteCount"
+            && hashParam.name == "\(prefix)Hash"
     }
 
     private func lowerAtomicScalarConstructorCall(
