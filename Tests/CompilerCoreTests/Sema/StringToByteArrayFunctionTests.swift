@@ -1,7 +1,7 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-092: Validates that `String.toByteArray()` and its charset overload
+/// STDLIB-TEXT-FN-092: Validates that `String.toByteArray()` and its charset overloads
 /// resolve through Sema and link to the correct runtime entries.
 ///
 /// Overloads covered:
@@ -13,38 +13,16 @@ import Testing
 /// the `__kk_`-prefixed runtime bridges in `Sources/Runtime/RuntimeStringEncoding.swift`.
 @Suite
 struct StringToByteArrayFunctionTests {
-    @Test func testToByteArrayNoArgResolvesInSource() throws {
+    @Test func testToByteArrayOverloadsResolveInSource() throws {
         let ctx = makeContextFromSource("""
         fun getBytes(s: String): ByteArray = s.toByteArray()
 
         fun getLiteralBytes(): ByteArray = "hello".toByteArray()
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toByteArray() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToByteArrayWithCharsetResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun getUtf8Bytes(s: String): ByteArray = s.toByteArray(Charsets.UTF_8)
-
         fun getAsciiBytes(s: String): ByteArray = s.toByteArray(Charsets.US_ASCII)
-
         fun getLatin1Bytes(s: String): ByteArray = s.toByteArray(Charsets.ISO_8859_1)
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toByteArray(charset) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToByteArrayAllCharsetsResolveInSource() throws {
-        let ctx = makeContextFromSource("""
         fun totalBytes(s: String): Int {
             val a = s.toByteArray(Charsets.UTF_8).size
             val b = s.toByteArray(Charsets.ISO_8859_1).size
@@ -57,26 +35,18 @@ struct StringToByteArrayFunctionTests {
             val i = s.toByteArray(Charsets.UTF_32LE).size
             return a + b + c + d + e + f + g + h + i
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected all Charsets variants to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToByteArraySizeAccessResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun byteCount(s: String): Int {
             return s.toByteArray().size
         }
         """)
+
         try runSema(ctx)
+
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected toByteArray().size to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected String.toByteArray() overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }

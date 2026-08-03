@@ -8,23 +8,17 @@ import Testing
 /// `String` (Kotlin's `CharSequence` implementation).
 @Suite
 struct StringReversedFunctionTests {
-    @Test func testReversedOnStringLiteralResolves() throws {
+    @Test func testReversedResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun main() {
-            val s: String = "hello".reversed()
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testReversedOnStringVariableResolves() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
+            val literal: String = "hello".reversed()
             val source: String = "kotlin"
             val flipped: String = source.reversed()
+            val n: Int = "abcde".reversed().length
+            val chained: String = "abc".reversed().reversed()
         }
         """)
+
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
@@ -36,32 +30,11 @@ struct StringReversedFunctionTests {
             val s = "abc".reversed(1)
         }
         """)
+
         try runSema(ctx)
         #expect(
             ctx.diagnostics.hasError,
             "expected error for extra argument, got: \(ctx.diagnostics.diagnostics)"
         )
-    }
-
-    @Test func testReversedReturnTypeIsString() throws {
-        // The return must be a String so subsequent String members (length) resolve.
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val n: Int = "abcde".reversed().length
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testReversedChainable() throws {
-        // Reversing twice should still produce a String compatible with String APIs.
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val s: String = "abc".reversed().reversed()
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
