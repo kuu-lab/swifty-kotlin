@@ -1,9 +1,12 @@
+#if canImport(Testing)
+import Foundation
 import RuntimeABI
-import XCTest
+import Testing
 
 // MARK: - Runtime Export / RuntimeABISpec Reconciliation
 
-extension ABIMismatchTests {
+@Suite
+struct ABIMismatchRuntimeExportParityTests {
     /// The String/Regex/Locale ABI surface is governed by the branch's flat-only
     /// contract, so it is reconciled by the dedicated flat-string tests rather than
     /// the cross-section export/spec parity checks here.
@@ -15,6 +18,7 @@ extension ABIMismatchTests {
             || name.hasPrefix("kk_locale_")
     }
 
+    @Test
     func testRuntimeExportsHaveMatchingRuntimeABISpecEntries() throws {
         let exported = try runtimeExportedABIs()
         let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
@@ -26,12 +30,13 @@ extension ABIMismatchTests {
             }
             .sorted()
 
-        XCTAssertTrue(
+        #expect(
             missing.isEmpty,
             "Runtime exported ABI names missing from RuntimeABISpec: \(missing.joined(separator: ", "))"
         )
     }
 
+    @Test
     func testRuntimeExportSignaturesMatchRuntimeABISpec() throws {
         let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
         for exported in try runtimeExportedABIs() {
@@ -39,23 +44,22 @@ extension ABIMismatchTests {
             guard !allowedRuntimeExportOnlyABINames.contains(exported.name) else { continue }
             // Generic functions cannot have their parameter types validated against C ABI types
             guard exported.returnType != "generic" else { continue }
-            let spec = try XCTUnwrap(
+            let spec = try #require(
                 specsByName[exported.name],
                 "Runtime export '\(exported.name)' from \(exported.source) has no RuntimeABISpec entry"
             )
-            XCTAssertEqual(
-                spec.returnTypeString,
-                exported.returnType,
+            #expect(
+                spec.returnTypeString == exported.returnType,
                 "Return type mismatch for runtime export '\(exported.name)' from \(exported.source)"
             )
-            XCTAssertEqual(
-                spec.parameterTypeStrings,
-                exported.parameterTypes,
+            #expect(
+                spec.parameterTypeStrings == exported.parameterTypes,
                 "Parameter type mismatch for runtime export '\(exported.name)' from \(exported.source)"
             )
         }
     }
 
+    @Test
     func testSpecOnlyRuntimeABINamesAreExplicitlyAllowed() throws {
         let exportedNames = Set(try runtimeExportedABIs().map { $0.name })
         let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
@@ -64,7 +68,7 @@ extension ABIMismatchTests {
             .subtracting(allowedSpecOnlyRuntimeABINames)
             .sorted()
 
-        XCTAssertTrue(
+        #expect(
             unexpected.isEmpty,
             "RuntimeABISpec entries without Runtime exports must be allowlisted: \(unexpected.joined(separator: ", "))"
         )
@@ -96,7 +100,6 @@ extension ABIMismatchTests {
             "kk_annotation_get_arguments",
             "kk_annotation_simple_class_name",
             "kk_any_javaClass",
-            "kk_array_isArrayOf",
             "kk_callable_ref_call_0",
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
@@ -420,3 +423,4 @@ extension ABIMismatchTests {
             .deletingLastPathComponent()
     }
 }
+#endif

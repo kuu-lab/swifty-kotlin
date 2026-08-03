@@ -50,20 +50,6 @@ public func __kk_string_builder_new() -> Int {
     runtimeStringBuilderNew(initial: "")
 }
 
-/// Backs `StringBuilder(capacity: Int)`. The capacity is purely advisory in
-/// this runtime (RuntimeStringBuilderBox grows its Swift String dynamically),
-/// but real Kotlin/JVM still requires rejecting negative values with
-/// `NegativeArraySizeException` — mirrors `kk_array_new_checked`.
-@_cdecl("__kk_string_builder_new_with_capacity")
-public func __kk_string_builder_new_with_capacity(_ capacity: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard capacity >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
-        return 0
-    }
-    return runtimeStringBuilderNew(initial: "")
-}
-
 @_cdecl("__kk_string_builder_new_from_string_flat")
 public func __kk_string_builder_new_from_string_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -74,6 +60,24 @@ public func __kk_string_builder_new_from_string_flat(
     runtimeStringBuilderNew(
         initial: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     )
+}
+
+// BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body (see
+// StringBuilder.kt) — construction is entirely native. The capacity is only
+// ever used as a preallocation hint (this runtime doesn't preallocate string
+// storage), but real Kotlin/Java still rejects a negative capacity with
+// NegativeArraySizeException, so this must validate rather than silently
+// ignore it the way falling through to __kk_string_builder_new did before.
+@_cdecl("__kk_string_builder_new_capacity_checked")
+public func __kk_string_builder_new_capacity_checked(
+    _ capacity: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard capacity >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
+        return 0
+    }
+    return runtimeStringBuilderNew(initial: "")
 }
 
 private func runtimeStringBuilderNew(initial: String) -> Int {

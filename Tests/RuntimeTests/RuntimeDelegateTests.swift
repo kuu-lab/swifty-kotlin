@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private final class DelegateCallbackState: @unchecked Sendable {
     private let lock = NSLock()
@@ -226,75 +226,74 @@ private let vetoableOrderCallback: KKDelegateObserverEntryPoint = { _, _, _, _ i
     return 1
 }
 
-final class RuntimeDelegateTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndDelegate }
-    override func resetIsolatedRuntimeTestState() {
-        gDelegateState.reset()
-        gLazyPublicationState.reset()
-    }
+private func resetRuntimeDelegateTestState() {
+    gDelegateState.reset()
+    gLazyPublicationState.reset()
+}
 
+@Suite(.runtimeIsolation(.gcAndDelegate, resetAdditionalState: resetRuntimeDelegateTestState))
+struct RuntimeDelegateTests {
     // MARK: - Lazy Delegate Tests
 
-    func testLazyCreateReturnsNonZeroHandle() {
+    @Test func lazyCreateReturnsNonZeroHandle() {
         let fnPtr = unsafeBitCast(lazySimple42, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1) // SYNCHRONIZED
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
     }
 
-    func testLazyGetValueInvokesInitializerOnce() {
+    @Test func lazyGetValueInvokesInitializerOnce() {
         let fnPtr = unsafeBitCast(lazyCountingInitCConv, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1) // SYNCHRONIZED
 
         let firstRead = kk_lazy_get_value(handle)
-        XCTAssertEqual(firstRead, 99)
-        XCTAssertEqual(gDelegateState.lazyCallCountSnapshot(), 1)
+        #expect(firstRead == 99)
+        #expect(gDelegateState.lazyCallCountSnapshot() == 1)
 
         let secondRead = kk_lazy_get_value(handle)
-        XCTAssertEqual(secondRead, 99)
-        XCTAssertEqual(gDelegateState.lazyCallCountSnapshot(), 1, "Initializer should only be called once")
+        #expect(secondRead == 99)
+        #expect(gDelegateState.lazyCallCountSnapshot() == 1, "Initializer should only be called once")
     }
 
-    func testLazyNoneModeAlsoWorks() {
+    @Test func lazyNoneModeAlsoWorks() {
         let fnPtr = unsafeBitCast(lazySimple77, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 0) // NONE
 
         let value = kk_lazy_get_value(handle)
-        XCTAssertEqual(value, 77)
+        #expect(value == 77)
     }
 
-    func testLazyOfCreatesInitializedLazyValue() {
+    @Test func lazyOfCreatesInitializedLazyValue() {
         let handle = kk_lazy_of(123)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_lazy_is_initialized(handle), 1)
-        XCTAssertEqual(kk_lazy_get_value(handle), 123)
+        #expect(handle != 0)
+        #expect(kk_lazy_is_initialized(handle) == 1)
+        #expect(kk_lazy_get_value(handle) == 123)
     }
 
-    func testLazyGetValueWithInvalidHandleReturnsZero() {
+    @Test func lazyGetValueWithInvalidHandleReturnsZero() {
         let value = kk_lazy_get_value(0)
-        XCTAssertEqual(value, 0)
+        #expect(value == 0)
     }
 
-    func testLazyIsInitializedReturnsFalseBeforeAccess() {
+    @Test func lazyIsInitializedReturnsFalseBeforeAccess() {
         let fnPtr = unsafeBitCast(lazySimple42, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1)
-        XCTAssertEqual(kk_lazy_is_initialized(handle), 0,
-                       "Lazy should not be initialized before first access")
+        #expect(kk_lazy_is_initialized(handle) == 0,
+                "Lazy should not be initialized before first access")
     }
 
-    func testLazyIsInitializedReturnsTrueAfterAccess() {
+    @Test func lazyIsInitializedReturnsTrueAfterAccess() {
         let fnPtr = unsafeBitCast(lazySimple42, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1)
         _ = kk_lazy_get_value(handle)
-        XCTAssertNotEqual(kk_lazy_is_initialized(handle), 0,
-                          "Lazy should be initialized after first access")
+        #expect(kk_lazy_is_initialized(handle) != 0,
+                "Lazy should be initialized after first access")
     }
 
-    func testLazyIsInitializedWithInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_lazy_is_initialized(0), 0)
+    @Test func lazyIsInitializedWithInvalidHandleReturnsZero() {
+        #expect(kk_lazy_is_initialized(0) == 0)
     }
 
-    func testLazyPublicationModeAllowsConcurrentInitializationButPublishesOneValue() {
+    @Test func lazyPublicationModeAllowsConcurrentInitializationButPublishesOneValue() {
         let fnPtr = unsafeBitCast(lazyPublicationInitCConv, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 2) // PUBLICATION
 
@@ -312,116 +311,116 @@ final class RuntimeDelegateTests: IsolatedRuntimeXCTestCase {
 
         let didObserveInitializers = gLazyPublicationState.waitForInitializerEntries(2)
         gLazyPublicationState.releaseInitializers(2)
-        XCTAssertTrue(didObserveInitializers)
-        XCTAssertEqual(group.wait(timeout: .now() + .seconds(5)), .success)
+        #expect(didObserveInitializers)
+        #expect(group.wait(timeout: .now() + .seconds(5)) == .success)
 
-        XCTAssertEqual(values.value, [lazyPublicationValue, lazyPublicationValue])
-        XCTAssertEqual(gLazyPublicationState.callCountSnapshot(), 2)
-        XCTAssertEqual(kk_lazy_is_initialized(handle), 1)
+        #expect(values.value == [lazyPublicationValue, lazyPublicationValue])
+        #expect(gLazyPublicationState.callCountSnapshot() == 2)
+        #expect(kk_lazy_is_initialized(handle) == 1)
     }
 
     // MARK: - Observable Delegate Tests
 
-    func testObservableCreateAndGetValue() {
+    @Test func observableCreateAndGetValue() {
         let cbPtr = unsafeBitCast(observableNoopCallback, to: Int.self)
         let handle = kk_observable_create(10, cbPtr)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
 
         let value = kk_observable_get_value(handle)
-        XCTAssertEqual(value, 10)
+        #expect(value == 10)
     }
 
-    func testObservableSetValueInvokesCallbackAfterChange() {
+    @Test func observableSetValueInvokesCallbackAfterChange() {
         let cbPtr = unsafeBitCast(observableCaptureCallback, to: Int.self)
         let handle = kk_observable_create(10, cbPtr)
 
         let result = kk_observable_set_value(handle, 20)
-        XCTAssertEqual(result, 20)
+        #expect(result == 20)
 
         // Callback should have been invoked with old=10, new=20
-        XCTAssertEqual(gDelegateState.observableCapturedOldSnapshot(), 10)
-        XCTAssertEqual(gDelegateState.observableCapturedNewSnapshot(), 20)
+        #expect(gDelegateState.observableCapturedOldSnapshot() == 10)
+        #expect(gDelegateState.observableCapturedNewSnapshot() == 20)
 
         let current = kk_observable_get_value(handle)
-        XCTAssertEqual(current, 20)
+        #expect(current == 20)
     }
 
-    func testObservableCallbackOrderMatchesKotlinc() {
+    @Test func observableCallbackOrderMatchesKotlinc() {
         // In kotlinc, observable callback fires AFTER the value is already changed.
         let cbPtr = unsafeBitCast(observableOrderCallback, to: Int.self)
         let handle = kk_observable_create(5, cbPtr)
         gDelegateState.setObservableHandle(handle)
 
         _ = kk_observable_set_value(handle, 15)
-        XCTAssertEqual(gDelegateState.observableValueInsideCallbackSnapshot(), 15,
-                       "Value should be updated before callback is invoked")
+        #expect(gDelegateState.observableValueInsideCallbackSnapshot() == 15,
+                "Value should be updated before callback is invoked")
     }
 
-    func testObservableGetValueWithInvalidHandleReturnsZero() {
+    @Test func observableGetValueWithInvalidHandleReturnsZero() {
         let value = kk_observable_get_value(0)
-        XCTAssertEqual(value, 0)
+        #expect(value == 0)
     }
 
     // MARK: - Vetoable Delegate Tests
 
-    func testVetoableCreateAndGetValue() {
+    @Test func vetoableCreateAndGetValue() {
         let cbPtr = unsafeBitCast(vetoableAcceptCallback, to: Int.self)
         let handle = kk_vetoable_create(100, cbPtr)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
 
         let value = kk_vetoable_get_value(handle)
-        XCTAssertEqual(value, 100)
+        #expect(value == 100)
     }
 
-    func testVetoableAcceptsChangeWhenCallbackReturnsNonZero() {
+    @Test func vetoableAcceptsChangeWhenCallbackReturnsNonZero() {
         let cbPtr = unsafeBitCast(vetoableAcceptCallback, to: Int.self)
         let handle = kk_vetoable_create(100, cbPtr)
 
         let result = kk_vetoable_set_value(handle, 200)
-        XCTAssertEqual(result, 200)
+        #expect(result == 200)
 
         let current = kk_vetoable_get_value(handle)
-        XCTAssertEqual(current, 200)
+        #expect(current == 200)
     }
 
-    func testVetoableRejectsChangeWhenCallbackReturnsZero() {
+    @Test func vetoableRejectsChangeWhenCallbackReturnsZero() {
         let cbPtr = unsafeBitCast(vetoableRejectCallback, to: Int.self)
         let handle = kk_vetoable_create(100, cbPtr)
 
         let result = kk_vetoable_set_value(handle, 200)
-        XCTAssertEqual(result, 100, "Value should remain unchanged when vetoed")
+        #expect(result == 100, "Value should remain unchanged when vetoed")
 
         let current = kk_vetoable_get_value(handle)
-        XCTAssertEqual(current, 100)
+        #expect(current == 100)
     }
 
-    func testVetoableCallbackOrderMatchesKotlinc() {
+    @Test func vetoableCallbackOrderMatchesKotlinc() {
         // In kotlinc, vetoable callback fires BEFORE the value is changed.
         let cbPtr = unsafeBitCast(vetoableOrderCallback, to: Int.self)
         let handle = kk_vetoable_create(50, cbPtr)
         gDelegateState.setVetoableHandle(handle)
 
         _ = kk_vetoable_set_value(handle, 60)
-        XCTAssertEqual(gDelegateState.vetoableValueInsideCallbackSnapshot(), 50,
-                       "Value should NOT be updated before vetoable callback")
+        #expect(gDelegateState.vetoableValueInsideCallbackSnapshot() == 50,
+                "Value should NOT be updated before vetoable callback")
     }
 
-    func testVetoableGetValueWithInvalidHandleReturnsZero() {
+    @Test func vetoableGetValueWithInvalidHandleReturnsZero() {
         let value = kk_vetoable_get_value(0)
-        XCTAssertEqual(value, 0)
+        #expect(value == 0)
     }
 
     // MARK: - NotNull Delegate Tests
 
-    func testNotNullSetThenGetReturnsAssignedValue() {
+    @Test func notNullSetThenGetReturnsAssignedValue() {
         let handle = kk_notNull_create()
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
 
         let written = kk_notNull_set_value(handle, 321)
-        XCTAssertEqual(written, 321)
+        #expect(written == 321)
 
         let current = kk_notNull_get_value(handle)
-        XCTAssertEqual(current, 321)
+        #expect(current == 321)
     }
 
     // STDLIB-PROP-ABI-001: reads-before-assignment must terminate with a helpful message.
@@ -431,8 +430,8 @@ final class RuntimeDelegateTests: IsolatedRuntimeXCTestCase {
     // DelegatePropertyKIRTests.testNotNullDelegateReadBeforeAssignmentTrapsWithHelpfulMessage.
     // Future: when the compiler lowers notNull gets as throwing calls, add a unit test here
     // that passes an outThrown pointer and verifies an IllegalStateException is set.
-    func testNotNullHandleIsNonZeroAfterCreate() {
+    @Test func notNullHandleIsNonZeroAfterCreate() {
         let handle = kk_notNull_create()
-        XCTAssertNotEqual(handle, 0, "kk_notNull_create must return a non-zero handle")
+        #expect(handle != 0, "kk_notNull_create must return a non-zero handle")
     }
 }

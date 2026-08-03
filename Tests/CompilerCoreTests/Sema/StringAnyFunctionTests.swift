@@ -2,8 +2,9 @@
 import Testing
 
 /// STDLIB-TEXT-FN-002: Validates that `CharSequence.any(predicate)` resolves
-/// through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_any_flat` for String receivers.
+/// through Sema for `String` / `CharSequence` receivers. After KSP-410 it is
+/// bundled Kotlin source (StringHOF.kt); see StringSyntheticMemberLinkTests
+/// for the "carries no C external link" check.
 @Suite
 struct StringAnyFunctionTests {
     @Test func testAnyWithPredicateResolvesInSource() throws {

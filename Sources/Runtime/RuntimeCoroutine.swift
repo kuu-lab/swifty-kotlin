@@ -745,6 +745,13 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             let value = result
             let thrown = thrownException
             lock.unlock()
+            if thrown != 0, let callerState {
+                // Already completed exceptionally: resume the caller's continuation
+                // with the exception and report suspension so the state machine
+                // throws after it returns.
+                _ = callerState.resume(withException: thrown)
+                return .suspended
+            }
             return .completed(result: value, thrownException: thrown)
         }
         lock.unlock()
@@ -780,8 +787,8 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// `awaitResult(callerState:afterResume:)` (CORO-004); see `kk_kxmini_async_await`.
     func awaitResult() -> Int {
         switch awaitResult(callerState: nil) {
-        case .completed(let result, _):
-            return result
+        case .completed(let result, let thrown):
+            return thrown != 0 ? thrown : result
         case .suspended:
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: blocking awaitResult cannot suspend")
         }

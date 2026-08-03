@@ -60,18 +60,18 @@ final class ControlFlowLowerer {
             isClassMember = false
         }
         let virtualArguments: [KIRExprID] = isClassMember ? [] : [receiverID]
-        if let receiverExpr,
-           let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-               chosenCallee: callBinding.chosenCallee,
-               calleeName: calleeName,
-               receiverExpr: receiverExpr,
-               loweredReceiverID: receiverID,
-               isSuperCall: false,
-               finalArguments: virtualArguments,
-               result: result,
-               sema: sema,
-               interner: interner
-           ) {
+        if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+            chosenCallee: callBinding.chosenCallee,
+            calleeName: calleeName,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: receiverID,
+            isSuperCall: false,
+            finalArguments: virtualArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
             instructions.append(virtualInstruction)
         } else {
             instructions.append(.call(
@@ -606,16 +606,20 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        // Only resolve for user-defined class types and the bundled Range/Progression
-        // and Channel classes whose `iterator()` operators are now supplied by
-        // Kotlin source.
+        // Only resolve for user-defined class types and bundled Range/Progression,
+        // Channel, or source Sequence/Iterator classes whose `iterator()` operators
+        // are now supplied by Kotlin source.
         guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               !classSymbol.flags.contains(.synthetic)
                 || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
+                || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
         else {
             return nil
         }
+        // KSP-441: Allow synthetic Sequence/Iterator symbols to resolve source `iterator()`.
+        // Range-like types still fall through to the dedicated range intrinsics when
+        // they have no operator iterator() candidate.
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")

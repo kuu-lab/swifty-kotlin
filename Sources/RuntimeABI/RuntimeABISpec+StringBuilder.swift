@@ -9,15 +9,6 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_string_builder_new_with_capacity",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "StringBuilder"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_string_builder_new_from_string_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -28,6 +19,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "StringBuilder",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_new_capacity_checked",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_builder_append_obj",
