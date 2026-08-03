@@ -22,6 +22,10 @@ package struct MetadataRecord {
     /// Resolved names of value parameters, in declaration order, used for
     /// named-argument resolution on imported functions.
     package let valueParameterNames: [String]
+    /// Indices of reified type parameters, in declaration order, so that
+    /// call sites append the correct runtime type-token arguments for inline
+    /// functions imported from a precompiled stdlib artifact.
+    package let reifiedTypeParameterIndices: Set<Int>
     /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
     let defaultStubExternalLinkName: String?
     let externalLinkName: String?
@@ -92,6 +96,7 @@ package struct MetadataRecord {
         valueParameterHasDefaultValues: [Bool] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
+        reifiedTypeParameterIndices: Set<Int> = [],
         defaultStubExternalLinkName: String? = nil,
         externalLinkName: String? = nil,
         declaredFieldCount: Int? = nil,
@@ -133,6 +138,7 @@ package struct MetadataRecord {
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
+        self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         self.defaultStubExternalLinkName = defaultStubExternalLinkName
         self.externalLinkName = externalLinkName
         self.declaredFieldCount = declaredFieldCount
@@ -541,6 +547,7 @@ package final class MetadataEncoder {
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow = false
         var valueParameterNames: [String] = []
+        var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var abiReturnTypeSignature: String?
@@ -559,6 +566,7 @@ package final class MetadataEncoder {
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
+            reifiedTypeParameterIndices = signature.reifiedTypeParameterIndices
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
@@ -680,7 +688,7 @@ package final class MetadataEncoder {
                 if !serializedFieldOffsets.isEmpty {
                     fieldOffsetsStr = serializedFieldOffsets
                 }
-                let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs, mangler: mangler, types: types)
                 if !serializedVTableSlots.isEmpty {
                     vtableSlotsStr = serializedVTableSlots
                 }
@@ -755,6 +763,7 @@ package final class MetadataEncoder {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
+            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
             defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
             declaredFieldCount: declaredFieldCount,
@@ -824,6 +833,10 @@ package final class MetadataEncoder {
                 }
                 if !record.valueParameterNames.isEmpty {
                     fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
+                }
+                if !record.reifiedTypeParameterIndices.isEmpty {
+                    let indices = record.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ",")
+                    fields.append("reified=\(indices)")
                 }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
@@ -988,7 +1001,9 @@ package final class MetadataEncoder {
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
         interner: StringInterner,
-        includedSymbolIDs: Set<SymbolID>? = nil
+        includedSymbolIDs: Set<SymbolID>? = nil,
+        mangler: NameMangler? = nil,
+        types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
@@ -997,8 +1012,8 @@ package final class MetadataEncoder {
             // Vtable layout must survive the round-trip even for methods that are
             // private or synthetic (e.g. Any.toString/hashCode/equals, internal
             // helpers like Random.stepXorWow).  The consumer resolves each entry
-            // by FQ name/arity; if it cannot be imported, the slot is skipped at
-            // import time, not at serialization time.
+            // by FQ name/arity/type-signature so that overloaded methods with the
+            // same arity map to the correct slot.
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
@@ -1009,14 +1024,34 @@ package final class MetadataEncoder {
             let signature = symbols.functionSignature(for: symbolID)
             let arity = signature?.parameterTypes.count ?? 0
             let isSuspend = signature?.isSuspend ?? false
-            let key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+            let typeSignature: String? = if let mangler, let types {
+                mangler.mangledSignature(
+                    for: symbol,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: { interner.resolve($0) }
+                )
+            } else {
+                nil
+            }
+            let key: String
+            if let typeSignature, !typeSignature.isEmpty {
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
+            } else {
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+            }
             return (key, slot)
         }
         let sorted = pairs.sorted { lhs, rhs in
             if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
             return lhs.0 < rhs.0
         }
-        return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
+        // Use `|` as the entry separator because the type-signature component
+        // of each key may contain commas (e.g. function parameter lists).
+        // Prefix with `v2:` so single-entry tokens are distinguishable from the
+        // legacy comma-separated format.
+        let body = sorted.map { "\($0.0)@\($0.1)" }.joined(separator: "|")
+        return "v2:\(body)"
     }
 
     func serializeITableSlots(
@@ -1123,6 +1158,7 @@ final class MetadataDecoder {
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
+                reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
                 defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
                 externalLinkName: rec.externalLinkName,
                 declaredFieldCount: rec.declaredFieldCount,
@@ -1170,6 +1206,7 @@ final class MetadataDecoder {
         var valueParameterHasDefaultValues: [Bool] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
+        var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var declaredFieldCount: Int?
@@ -1221,6 +1258,10 @@ final class MetadataDecoder {
             record.canThrow = value == "1" || value == "true"
         case "paramNames":
             record.valueParameterNames = value.split(separator: ",").map(String.init)
+        case "reified":
+            record.reifiedTypeParameterIndices = Set(
+                value.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            )
         case "defaultLink":
             record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":

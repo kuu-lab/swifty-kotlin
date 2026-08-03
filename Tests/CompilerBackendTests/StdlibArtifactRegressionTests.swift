@@ -782,4 +782,86 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "[1, 10, 2, 20]\n[0, 10, 1, 20]\n[line1, line2]\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-018: `Random.nextBytes(size: Int)` is an open method with
+    /// multiple `nextBytes` overloads. The shared stdlib artifact's vtable slot
+    /// layout must round-trip with enough type information to disambiguate
+    /// overloads that have the same arity, so that `nextBytes(size)` dispatches to
+    /// the correct `nextBytes(array)` implementation instead of an unmapped slot.
+    func testRandomNextBytesSizeSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            println(Random(99).nextBytes(8).size)
+            println(Random.nextBytes(8).size)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "8\n8\n")
+        }
+    }
+
+    /// STDLIB-ARTIFACT-019: `List.filterIsInstance<R>()` is an inline reified HOF.
+    /// The shared stdlib artifact's function metadata must round-trip the set of
+    /// reified type parameter indices, so the consumer's call lowerer appends the
+    /// runtime type-token argument required by the imported inline KIR body.
+    func testFilterIsInstanceSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val mixed: List<Any> = listOf(1, "hello", 2, "world", 3)
+            val strings = mixed.filterIsInstance<String>()
+            val ints = mixed.filterIsInstance<Int>()
+            println(strings)
+            println(ints)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "[hello, world]\n[1, 2, 3]\n")
+        }
+    }
 }

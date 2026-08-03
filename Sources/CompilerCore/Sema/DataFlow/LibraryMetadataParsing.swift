@@ -90,6 +90,7 @@ extension DataFlowSemaPhase {
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 canThrow: metadataRecord.canThrow,
                 valueParameterNames: metadataRecord.valueParameterNames,
+                reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
@@ -216,7 +217,8 @@ extension DataFlowSemaPhase {
             valueParameterSymbols: valueParameterSymbols,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
-            typeParameterSymbols: typeParameterSymbols
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
         )
     }
 

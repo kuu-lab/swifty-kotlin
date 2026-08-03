@@ -942,8 +942,9 @@ Foo.kklib/
 
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
+* inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
 
-**注意**：この方式は Kotlin の inline を跨モジュールで成立させるために必須。
+**注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 
 ---
 

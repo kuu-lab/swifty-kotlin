@@ -246,6 +246,7 @@ extension DataFlowSemaPhase {
                 record: binding.record,
                 symbol: binding.symbol,
                 symbols: symbols,
+                types: types,
                 diagnostics: diagnostics,
                 metadataPath: binding.metadataPath,
                 interner: interner
@@ -354,6 +355,7 @@ extension DataFlowSemaPhase {
         let arity: Int
         let isSuspend: Bool
         let slot: Int
+        let typeSignature: String?
     }
 
     struct ImportedITableSlotEntry {
@@ -373,6 +375,7 @@ extension DataFlowSemaPhase {
         let valueParameterHasDefaultValues: [Bool]
         let canThrow: Bool
         let valueParameterNames: [String]
+        let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
@@ -416,6 +419,7 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: [Bool] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
+            reifiedTypeParameterIndices: Set<Int> = [],
             typeSignature: String? = nil,
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
@@ -458,6 +462,7 @@ extension DataFlowSemaPhase {
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
+            self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
             self.typeSignature = typeSignature
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
