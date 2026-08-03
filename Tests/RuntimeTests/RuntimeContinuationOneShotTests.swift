@@ -11,7 +11,7 @@ import Testing
 // (resume(with:)) and the exception path (resume(withException:)), and that
 // concurrent callers on separate threads are correctly serialised.
 
-@Suite(.serialized, .runtimeIsolation(.gcOnly))
+@Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeContinuationOneShotTests {
     // MARK: - Helpers
 
@@ -33,14 +33,16 @@ struct RuntimeContinuationOneShotTests {
     // MARK: - Basic one-shot guard: success value
 
     /// First `resume(with:)` returns nil (no error).
-    @Test func testFirstResumeWithValueReturnsNil() {
+    @Test
+    func firstResumeWithValueReturnsNil() {
         let state = makeFreshState()
         let result = state.resume(with: 42)
         #expect(result == nil, "First resume(with:) must succeed (return nil)")
     }
 
     /// Second `resume(with:)` returns an IllegalStateException.
-    @Test func testSecondResumeWithValueReturnsIllegalStateException() {
+    @Test
+    func secondResumeWithValueReturnsIllegalStateException() {
         let state = makeFreshState()
         _ = state.resume(with: 42)
         let doubleResumeEx = state.resume(with: 99)
@@ -52,7 +54,8 @@ struct RuntimeContinuationOneShotTests {
     }
 
     /// The IllegalStateException message must contain "Already resumed".
-    @Test func testDoubleResumeWithValueExceptionMessage() throws {
+    @Test
+    func doubleResumeWithValueExceptionMessage() throws {
         let state = makeFreshState()
         _ = state.resume(with: 7)
         let ex = try #require(state.resume(with: 13))
@@ -70,7 +73,8 @@ struct RuntimeContinuationOneShotTests {
     // MARK: - Basic one-shot guard: exception value
 
     /// First `resume(withException:)` returns nil (no error).
-    @Test func testFirstResumeWithExceptionReturnsNil() {
+    @Test
+    func firstResumeWithExceptionReturnsNil() {
         let state = makeFreshState()
         let ex = runtimeAllocateThrowable(message: "boom")
         let result = state.resume(withException: ex)
@@ -78,7 +82,8 @@ struct RuntimeContinuationOneShotTests {
     }
 
     /// Second `resume(withException:)` (after first success resume) returns ISE.
-    @Test func testSecondResumeWithExceptionAfterSuccessReturnsISE() {
+    @Test
+    func secondResumeWithExceptionAfterSuccessReturnsISE() {
         let state = makeFreshState()
         _ = state.resume(with: 1)
         let ex = runtimeAllocateThrowable(message: "boom2")
@@ -91,7 +96,8 @@ struct RuntimeContinuationOneShotTests {
     }
 
     /// Second `resume(withException:)` after first exception resume also returns ISE.
-    @Test func testSecondResumeWithExceptionAfterExceptionReturnsISE() {
+    @Test
+    func secondResumeWithExceptionAfterExceptionReturnsISE() {
         let state = makeFreshState()
         let ex1 = runtimeAllocateThrowable(message: "first exception")
         _ = state.resume(withException: ex1)
@@ -107,7 +113,8 @@ struct RuntimeContinuationOneShotTests {
     // MARK: - resetResumeState resets the guard
 
     /// After `resetResumeState()`, a fresh resume must succeed (no ISE).
-    @Test func testResetResumeStateAllowsSecondResumeToSucceed() {
+    @Test
+    func resetResumeStateAllowsSecondResumeToSucceed() {
         let state = makeFreshState()
         _ = state.resume(with: 1)
         // Simulate the coroutine loop advancing to the next suspend point
@@ -120,7 +127,8 @@ struct RuntimeContinuationOneShotTests {
 
     /// `deliverDoubleResumeException` must overwrite `thrownException` so that
     /// the coroutine body observes the violation when it next reads state.
-    @Test func testDeliverDoubleResumeExceptionSetsThrownException() {
+    @Test
+    func deliverDoubleResumeExceptionSetsThrownException() {
         let state = makeFreshState()
         _ = state.resume(with: 42)
         // Simulate what the C-level entry points do on double-resume.
@@ -139,7 +147,8 @@ struct RuntimeContinuationOneShotTests {
 
     /// Calling `kk_coroutine_continuation_resume` twice must not crash and must
     /// surface the IllegalStateException via `thrownException` on the second call.
-    @Test func testCLevelResumeGuardSurfacesIllegalStateExceptionViaThrownException() throws {
+    @Test
+    func cLevelResumeGuardSurfacesIllegalStateExceptionViaThrownException() throws {
         let continuation = kk_coroutine_continuation_new(8001)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
@@ -162,7 +171,8 @@ struct RuntimeContinuationOneShotTests {
 
     /// Calling `kk_coroutine_continuation_resume_with_exception` twice must
     /// surface ISE via `thrownException`.
-    @Test func testCLevelResumeWithExceptionGuardSurfacesISE() throws {
+    @Test
+    func cLevelResumeWithExceptionGuardSurfacesISE() throws {
         let continuation = kk_coroutine_continuation_new(8002)
         defer { _ = kk_coroutine_state_exit(continuation, 0) }
 
@@ -187,7 +197,8 @@ struct RuntimeContinuationOneShotTests {
 
     /// Only one of two concurrent `resume(with:)` calls must succeed; the other
     /// must return an IllegalStateException.  This exercises the lock path.
-    @Test func testConcurrentDoubleResumeOnlyOneSucceeds() {
+    @Test
+    func concurrentDoubleResumeOnlyOneSucceeds() {
         let iterations = 200
         var successCount = 0
         var failureCount = 0
