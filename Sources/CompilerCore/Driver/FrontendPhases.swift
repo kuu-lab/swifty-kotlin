@@ -468,7 +468,8 @@ final class BuildASTPhase: CompilerPhase {
                 from: root,
                 in: cst,
                 interner: interner,
-                astArena: arena
+                astArena: arena,
+                excludingTopLevelFunDecls: true
             )
             scriptBody = scriptExprs
 
