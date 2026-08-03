@@ -1,13 +1,13 @@
 
 extension DataFlowSemaPhase {
-    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem) {
+    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         guard !nominalIDs.isEmpty else { return }
         let topoOrder = buildTopoOrder(nominalIDs: nominalIDs, symbols: symbols)
         for nominalID in topoOrder {
-            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types)
+            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
         }
     }
 
@@ -35,7 +35,7 @@ extension DataFlowSemaPhase {
         return topoOrder
     }
 
-    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem) {
+    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
         guard let nominalSymbol = symbols.symbol(nominalID) else { return }
         if nominalSymbol.flags.contains(.synthetic),
            symbols.nominalLayout(for: nominalID) != nil
@@ -78,10 +78,11 @@ extension DataFlowSemaPhase {
         }
 
         var nextVtableSlot = max(inheritedVtableSize, (vtableSlots.values.max() ?? -1) + 1)
-        let ownMethods = symbols.children(ofFQName: nominalSymbol.fqName)
-            .filter { id in symbols.symbol(id)?.kind == .function }
-            .sorted(by: { $0.rawValue < $1.rawValue })
-            .compactMap { symbols.symbol($0) }
+        let ownMethods = Self.orderedOwnMethods(
+            for: nominalSymbol,
+            symbols: symbols,
+            interner: interner
+        )
         for method in ownMethods {
             let key = methodDispatchKey(for: method, symbols: symbols)
             let candidates = inheritedCandidatesByKey[key]
@@ -306,5 +307,41 @@ extension DataFlowSemaPhase {
             }
         }
         return true
+    }
+
+    /// Returns the direct function children of `nominalSymbol`, sorted stably by
+    /// raw symbol ID. For `kotlin.sequences.Sequence` we force `iterator()` to be
+    /// assigned vtable slot 0. The runtime helper that traverses source Sequence
+    /// objects (`runtimeTraverseSourceSequenceObject`) dispatches `iterator()`
+    /// through the Sequence itable using a fixed method slot; keeping that slot
+    /// at 0 lets the compiler and runtime agree without passing per-interface
+    /// method counts across the ABI.
+    private static func orderedOwnMethods(
+        for nominalSymbol: SemanticSymbol,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> [SemanticSymbol] {
+        let methods = symbols.children(ofFQName: nominalSymbol.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function }
+
+        let isSequence = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "sequences"
+            && interner.resolve(nominalSymbol.name) == "Sequence"
+        guard isSequence else {
+            return methods.sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        }
+
+        return methods.sorted { lhs, rhs in
+            let lhsIsIterator = interner.resolve(lhs.name) == "iterator"
+                && (symbols.functionSignature(for: lhs.id)?.parameterTypes.isEmpty ?? false)
+            let rhsIsIterator = interner.resolve(rhs.name) == "iterator"
+                && (symbols.functionSignature(for: rhs.id)?.parameterTypes.isEmpty ?? false)
+            if lhsIsIterator != rhsIsIterator {
+                return lhsIsIterator && !rhsIsIterator
+            }
+            return lhs.id.rawValue < rhs.id.rawValue
+        }
     }
 }
