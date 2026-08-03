@@ -145,13 +145,13 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             if lhsRank < rank {
                 let convCallee = conversionCallee(fromRank: lhsRank, toRank: rank, interner: interner)
                 let converted = arena.appendTemporary(type: arena.exprType(result))
-                newBody.append(.call(symbol: nil, callee: convCallee, arguments: [lhs], result: converted, canThrow: false, thrownResult: nil))
+                emitNonThrowingCall(callee: convCallee, arg: lhs, result: converted, into: &newBody)
                 effectiveLhs = converted
             }
             if rhsRank < rank {
                 let convCallee = conversionCallee(fromRank: rhsRank, toRank: rank, interner: interner)
                 let converted = arena.appendTemporary(type: arena.exprType(result))
-                newBody.append(.call(symbol: nil, callee: convCallee, arguments: [rhs], result: converted, canThrow: false, thrownResult: nil))
+                emitNonThrowingCall(callee: convCallee, arg: rhs, result: converted, into: &newBody)
                 effectiveRhs = converted
             }
         }

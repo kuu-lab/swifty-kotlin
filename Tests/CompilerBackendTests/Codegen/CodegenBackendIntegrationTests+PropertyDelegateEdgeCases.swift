@@ -233,6 +233,185 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
+
+    // A class member's `by lazy { ... }` body used to lower into a standalone
+    // function with no way to reach the enclosing instance, so any reference
+    // to an instance member inside the block (here, the primary-constructor
+    // property `label`) silently resolved to nothing instead of the captured
+    // value.
+    func testMemberLazyDelegateCapturesEnclosingInstanceProperty() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            println(a.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegateCapturesLabel",
+            expected:
+                """
+                a
+                """ + "\n"
+        )
+    }
+
+    // The delegate handle (`$delegate_x`, holding the `Lazy` instance) used to
+    // be stored in a single module-global slot shared by every instance of the
+    // class, so constructing a second `Foo` clobbered the first instance's
+    // delegate — both `a.x` and `b.x` observed whichever instance was
+    // constructed last instead of their own captured `label`.
+    func testMemberLazyDelegateUsesPerInstanceStorage() throws {
+        let source = """
+        class Foo(val label: String) {
+            val x by lazy { label }
+        }
+        fun main() {
+            val a = Foo("a")
+            val b = Foo("b")
+            println(a.x)
+            println(b.x)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegatePerInstanceStorage",
+            expected:
+                """
+                a
+                b
+                """ + "\n"
+        )
+    }
+
+    // MARK: - BUG-146: local delegate with a provideDelegate operator
+
+    // `val x by Factory()` where `Factory` exposes `provideDelegate` used to
+    // bind `x` to the `Factory()` instance itself: no provideDelegate call was
+    // emitted and getValue resolved against the wrong receiver, so `println(x)`
+    // printed the factory's raw object handle. The effective delegate is
+    // provideDelegate's return value (same rule as member/top-level delegated
+    // properties in KIRLoweringDriver+ProvideDelegate.swift).
+
+    func testCodegenLocalProvideDelegateReturnsString() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val v: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = v
+        }
+        class StrFactory(private val v: String) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): StrDelegate = StrDelegate(v.uppercase())
+        }
+        fun main() {
+            val name by StrFactory("hello")
+            println(name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalProvideDelegateString",
+            expected:
+                """
+                HELLO
+                """ + "\n"
+        )
+    }
+
+    func testCodegenLocalProvideDelegateVarSetValueRoundTrips() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class IntBox(private var stored: Int) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = stored
+            operator fun setValue(thisRef: Any?, property: KProperty<*>, newValue: Int) { stored = newValue }
+        }
+        class IntBoxFactory(private val initial: Int) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): IntBox = IntBox(initial)
+        }
+        fun main() {
+            var counter by IntBoxFactory(10)
+            println(counter)
+            counter = 42
+            println(counter)
+            counter = counter + 1
+            println(counter)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalProvideDelegateVarSetValue",
+            expected:
+                """
+                10
+                42
+                43
+                """ + "\n"
+        )
+    }
+
+    func testCodegenTopLevelProvideDelegateStillWorks() throws {
+        // Regression guard: top-level provideDelegate already worked through
+        // KIRLoweringDriver+ProvideDelegate.swift and must be unaffected by the
+        // new local-declaration path.
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val v: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = v
+        }
+        class StrFactory(private val v: String) {
+            operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): StrDelegate = StrDelegate(v.uppercase())
+        }
+        val topName by StrFactory("hi")
+        fun main() {
+            println(topName)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelProvideDelegateStillWorks",
+            expected:
+                """
+                HI
+                """ + "\n"
+        )
+    }
+
+    func testCodegenMemberProvideDelegateUsesResolvedOperator() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class StrDelegate(private val value: String) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = value
+        }
+        class StrFactory(private val value: String) {
+            operator fun provideDelegate(thisRef: Any?, property: KProperty<*>): StrDelegate =
+                StrDelegate(value.uppercase())
+        }
+        class Holder {
+            val name by StrFactory("member")
+        }
+        fun main() {
+            println(Holder().name)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberProvideDelegateResolvedOperator",
+            expected:
+                """
+                MEMBER
+                """ + "\n"
+        )
+    }
+
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
         // Regression guard: member-property custom delegates already worked
         // before this fix and share DeclTypeChecker+PropertyHelpers.swift's

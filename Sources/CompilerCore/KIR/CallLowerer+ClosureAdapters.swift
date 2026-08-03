@@ -436,10 +436,25 @@ extension CallLowerer {
         }
 
         let valueArgOffset = signature.receiverType == nil ? 0 : 1
+        // A trailing lambda binds to the callee's LAST parameter regardless of
+        // how many defaulted parameters sit before it (e.g. `windowed(3) { ...
+        // }` skips `step`/`partialWindows` via their defaults) -- so
+        // `sourceArgExprs` (the arguments as the user actually wrote them) can
+        // be shorter than `signature.parameterTypes` by exactly that gap.
+        // Naively indexing `sourceArgExprs[parameterIndex]` then misses the
+        // trailing lambda argument entirely for the real last parameter,
+        // silently skipping its materialization (dropping the wrapped
+        // function-value handle and, with it, any captured closure state).
+        let lastParameterIndex = signature.parameterTypes.count - 1
+        let hasTrailingLambdaGap = sourceArgExprs.count < signature.parameterTypes.count
+            && !sourceArgExprs.isEmpty
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
+            let sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
+                ? sourceArgExprs.count - 1
+                : parameterIndex
             guard finalArgIndex < arguments.count,
-                  parameterIndex < sourceArgExprs.count,
+                  sourceArgExprs.indices.contains(sourceArgExprIndex),
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
@@ -451,7 +466,7 @@ extension CallLowerer {
             }
             arguments[finalArgIndex] = materializeFunctionValueArgument(
                 loweredArgID: arguments[finalArgIndex],
-                argExprID: sourceArgExprs[parameterIndex],
+                argExprID: sourceArgExprs[sourceArgExprIndex],
                 functionType: functionType,
                 sema: sema,
                 arena: arena,
@@ -581,14 +596,12 @@ extension CallLowerer {
         }
 
         let boxedResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: boxCallee,
-            arguments: [callResult],
+            arg: callResult,
             result: boxedResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &body
+        )
         body.append(.returnValue(boxedResult))
         body.append(.endBlock)
 
@@ -951,14 +964,12 @@ extension CallLowerer {
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
             let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_new"),
-                arguments: [countExpr],
+                arg: countExpr,
                 result: arrayExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             for i in 0..<loweredArguments.count {
                 let selector = makeCollectionHOFSelectorArgument(
@@ -989,14 +1000,12 @@ extension CallLowerer {
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
             let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_new"),
-                arguments: [countExpr],
+                arg: countExpr,
                 result: arrayExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
 
             for argIndex in 2..<loweredArguments.count {
                 let selectorOffset = argIndex - 2

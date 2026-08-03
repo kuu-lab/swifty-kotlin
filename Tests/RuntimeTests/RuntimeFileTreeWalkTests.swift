@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-TYPE-004: Runtime tests for kotlin.io.FileTreeWalk
 //
@@ -71,12 +71,10 @@ private func treeWalkPaths(_ walkRaw: Int) -> [String] {
     }
 }
 
-// MARK: - Test class
+// MARK: - Test suite
 
-final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeFileTreeWalkTests {
     // MARK: - Instance helpers
 
     private func runtimeTestFileHandle(_ path: String) -> Int {
@@ -118,29 +116,29 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Box creation
 
-    func testWalkTopDownCreatesValidHandle() throws {
+    @Test func walkTopDownCreatesValidHandle() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let fileRaw = runtimeTestFileHandle(dir.path)
         let walkRaw = kk_file_walkTopDown(fileRaw)
-        XCTAssertNotEqual(walkRaw, 0, "kk_file_walkTopDown must return a non-null handle")
+        #expect(walkRaw != 0, "kk_file_walkTopDown must return a non-null handle")
     }
 
-    func testWalkBottomUpCreatesValidHandle() throws {
+    @Test func walkBottomUpCreatesValidHandle() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let fileRaw = runtimeTestFileHandle(dir.path)
         let walkRaw = kk_file_walkBottomUp(fileRaw)
-        XCTAssertNotEqual(walkRaw, 0, "kk_file_walkBottomUp must return a non-null handle")
+        #expect(walkRaw != 0, "kk_file_walkBottomUp must return a non-null handle")
     }
 
     // MARK: - toList traversal
 
-    func testToListIncludesRootDirectory() throws {
+    @Test func toListIncludesRootDirectory() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -150,13 +148,10 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(walkRaw)
         let paths = filePathsFromList(listRaw)
 
-        XCTAssertTrue(
-            paths.contains(dir.path),
-            "toList() must include the root directory itself; got \(paths)"
-        )
+        #expect(paths.contains(dir.path), "toList() must include the root directory itself; got \(paths)")
     }
 
-    func testToListIncludesNestedFile() throws {
+    @Test func toListIncludesNestedFile() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let file = dir.appendingPathComponent("hello.txt")
@@ -168,13 +163,10 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(walkRaw)
         let paths = filePathsFromList(listRaw)
 
-        XCTAssertTrue(
-            paths.contains(file.path),
-            "toList() must include files inside the root directory; got \(paths)"
-        )
+        #expect(paths.contains(file.path), "toList() must include files inside the root directory; got \(paths)")
     }
 
-    func testToListCountMatchesFileSystemEntries() throws {
+    @Test func toListCountMatchesFileSystemEntries() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -188,12 +180,12 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let paths = filePathsFromList(listRaw)
 
         // root + a.txt + sub/ + sub/b.txt = 4
-        XCTAssertEqual(paths.count, 4, "toList() must enumerate all entries; got \(paths)")
+        #expect(paths.count == 4, "toList() must enumerate all entries; got \(paths)")
     }
 
     // MARK: - TOP_DOWN order
 
-    func testTopDownVisitsDirectoryBeforeContents() throws {
+    @Test func topDownVisitsDirectoryBeforeContents() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -205,37 +197,37 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(walkRaw)
         let paths = filePathsFromList(listRaw)
 
-        let subIndex = try XCTUnwrap(paths.firstIndex(of: sub.path), "sub/ must be in list")
-        let fileIndex = try XCTUnwrap(
+        let subIndex = try #require(paths.firstIndex(of: sub.path), "sub/ must be in list")
+        let fileIndex = try #require(
             paths.firstIndex(of: sub.appendingPathComponent("c.txt").path),
             "c.txt must be in list"
         )
-        XCTAssertLessThan(subIndex, fileIndex, "TOP_DOWN: directory must appear before its contents")
+        #expect(subIndex < fileIndex, "TOP_DOWN: directory must appear before its contents")
     }
 
-    func testTopDownReturnsRootFirst() throws {
+    @Test func topDownReturnsRootFirst() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let paths = treeWalkPaths(kk_file_walkTopDown(rtwFileHandle(root)))
 
-        XCTAssertFalse(paths.isEmpty)
-        XCTAssertEqual(paths.first, root)
+        #expect(!paths.isEmpty)
+        #expect(paths.first == root)
     }
 
-    func testTopDownIncludesAllNodes() throws {
+    @Test func topDownIncludesAllNodes() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let paths = treeWalkPaths(kk_file_walkTopDown(rtwFileHandle(root)))
 
         // root + file1.txt + subdir + subdir/file2.txt = 4
-        XCTAssertEqual(paths.count, 4)
+        #expect(paths.count == 4)
     }
 
     // MARK: - BOTTOM_UP order
 
-    func testBottomUpVisitsContentsBeforeDirectory() throws {
+    @Test func bottomUpVisitsContentsBeforeDirectory() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -247,37 +239,37 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(walkRaw)
         let paths = filePathsFromList(listRaw)
 
-        let subIndex = try XCTUnwrap(paths.firstIndex(of: sub.path), "sub/ must be in list")
-        let fileIndex = try XCTUnwrap(
+        let subIndex = try #require(paths.firstIndex(of: sub.path), "sub/ must be in list")
+        let fileIndex = try #require(
             paths.firstIndex(of: sub.appendingPathComponent("d.txt").path),
             "d.txt must be in list"
         )
-        XCTAssertLessThan(fileIndex, subIndex, "BOTTOM_UP: contents must appear before their directory")
+        #expect(fileIndex < subIndex, "BOTTOM_UP: contents must appear before their directory")
     }
 
-    func testBottomUpRootIsLast() throws {
+    @Test func bottomUpRootIsLast() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let paths = treeWalkPaths(kk_file_walkBottomUp(rtwFileHandle(root)))
 
-        XCTAssertFalse(paths.isEmpty)
-        XCTAssertEqual(paths.last, root)
+        #expect(!paths.isEmpty)
+        #expect(paths.last == root)
     }
 
-    func testBottomUpContainsSameNodesAsTopDown() throws {
+    @Test func bottomUpContainsSameNodesAsTopDown() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let topDown = treeWalkPaths(kk_file_walkTopDown(rtwFileHandle(root)))
         let bottomUp = treeWalkPaths(kk_file_walkBottomUp(rtwFileHandle(root)))
 
-        XCTAssertEqual(Set(topDown), Set(bottomUp))
+        #expect(Set(topDown) == Set(bottomUp))
     }
 
     // MARK: - maxDepth
 
-    func testMaxDepthZeroReturnsOnlyRoot() throws {
+    @Test func maxDepthZeroReturnsOnlyRoot() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -289,10 +281,10 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(limitedRaw)
         let paths = filePathsFromList(listRaw)
 
-        XCTAssertEqual(paths, [dir.path], "maxDepth(0) must return only the root; got \(paths)")
+        #expect(paths == [dir.path], "maxDepth(0) must return only the root; got \(paths)")
     }
 
-    func testMaxDepthOneLimitsToDirectChildren() throws {
+    @Test func maxDepthOneLimitsToDirectChildren() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         let nested = sub.appendingPathComponent("nested", isDirectory: true)
@@ -306,17 +298,11 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_file_tree_walk_to_list(limitedRaw)
         let paths = filePathsFromList(listRaw)
 
-        XCTAssertTrue(
-            paths.contains(sub.path),
-            "maxDepth(1) must include direct children; got \(paths)"
-        )
-        XCTAssertFalse(
-            paths.contains(nested.path),
-            "maxDepth(1) must exclude grandchildren; got \(paths)"
-        )
+        #expect(paths.contains(sub.path), "maxDepth(1) must include direct children; got \(paths)")
+        #expect(!paths.contains(nested.path), "maxDepth(1) must exclude grandchildren; got \(paths)")
     }
 
-    func testMaxDepthDoesNotMutateOriginalWalk() throws {
+    @Test func maxDepthDoesNotMutateOriginalWalk() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = dir.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -329,13 +315,13 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let fullListRaw = kk_file_tree_walk_to_list(walkRaw)
         let fullPaths = filePathsFromList(fullListRaw)
 
-        XCTAssertTrue(
+        #expect(
             fullPaths.contains(sub.path),
             "maxDepth() must return a new walk and not mutate the original; got \(fullPaths)"
         )
     }
 
-    func testMaxDepth0YieldsOnlyRoot() throws {
+    @Test func maxDepth0YieldsOnlyRoot() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
@@ -345,11 +331,11 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         )
         let paths = treeWalkPaths(walkRaw)
 
-        XCTAssertEqual(paths.count, 1)
-        XCTAssertEqual(paths.first, root)
+        #expect(paths.count == 1)
+        #expect(paths.first == root)
     }
 
-    func testMaxDepth1StopsAtFirstLevel() throws {
+    @Test func maxDepth1StopsAtFirstLevel() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
@@ -361,39 +347,39 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
 
         // root (depth=0), file1.txt (depth=1), subdir (depth=1) = 3
         // subdir/file2.txt (depth=2) must NOT appear.
-        XCTAssertEqual(paths.count, 3)
-        XCTAssertFalse(paths.contains(where: { $0.hasSuffix("file2.txt") }))
+        #expect(paths.count == 3)
+        #expect(!paths.contains(where: { $0.hasSuffix("file2.txt") }))
     }
 
     // MARK: - Empty directory
 
-    func testEmptyDirectoryReturnsOnlyRoot() throws {
+    @Test func emptyDirectoryReturnsOnlyRoot() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let paths = treeWalkPaths(kk_file_walkTopDown(rtwFileHandle(dir.path)))
 
-        XCTAssertEqual(paths.count, 1)
-        XCTAssertEqual(paths.first, dir.path)
+        #expect(paths.count == 1)
+        #expect(paths.first == dir.path)
     }
 
     // MARK: - Single file
 
-    func testSingleFileYieldsJustItself() throws {
+    @Test func singleFileYieldsJustItself() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try "content".write(to: file, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: file) }
 
         let paths = treeWalkPaths(kk_file_walkTopDown(rtwFileHandle(file.path)))
 
-        XCTAssertEqual(paths.count, 1)
-        XCTAssertEqual(paths.first, file.path)
+        #expect(paths.count == 1)
+        #expect(paths.first == file.path)
     }
 
     // MARK: - onEnter
 
-    func testOnEnterIsCalledForDirectories() throws {
+    @Test func onEnterIsCalledForDirectories() throws {
         treeWalkOnEnterCount = 0
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -407,10 +393,10 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         _ = treeWalkPaths(walkRaw)
 
         // onEnter is called for root and subdir = 2 directories.
-        XCTAssertEqual(treeWalkOnEnterCount, 2)
+        #expect(treeWalkOnEnterCount == 2)
     }
 
-    func testOnEnterFalseSkipsSubtree() throws {
+    @Test func onEnterFalseSkipsSubtree() throws {
         treeWalkOnEnterCount = 0
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -425,14 +411,14 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
 
         // onEnter returns false for all dirs → only directory nodes are yielded,
         // no file children.
-        XCTAssertTrue(paths.contains(root))
-        XCTAssertFalse(paths.contains(where: { $0.hasSuffix("file1.txt") }))
-        XCTAssertFalse(paths.contains(where: { $0.hasSuffix("file2.txt") }))
+        #expect(paths.contains(root))
+        #expect(!paths.contains(where: { $0.hasSuffix("file1.txt") }))
+        #expect(!paths.contains(where: { $0.hasSuffix("file2.txt") }))
     }
 
     // MARK: - onLeave
 
-    func testOnLeaveCalledForEachDirectory() throws {
+    @Test func onLeaveCalledForEachDirectory() throws {
         treeWalkOnLeaveCount = 0
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -446,32 +432,32 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         _ = treeWalkPaths(walkRaw)
 
         // onLeave is called after exiting each directory: root and subdir = 2.
-        XCTAssertEqual(treeWalkOnLeaveCount, 2)
+        #expect(treeWalkOnLeaveCount == 2)
     }
 
     // MARK: - STDLIB-IO-PATH-FN-039: kk_file_walk (no-arg, defaults to TOP_DOWN)
 
-    func testFileWalkDefaultIsTopDown() throws {
+    @Test func fileWalkDefaultIsTopDown() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let paths = treeWalkPaths(kk_file_walk(rtwFileHandle(root)))
 
-        XCTAssertFalse(paths.isEmpty)
-        XCTAssertEqual(paths.first, root, "kk_file_walk must default to TOP_DOWN (root first)")
+        #expect(!paths.isEmpty)
+        #expect(paths.first == root, "kk_file_walk must default to TOP_DOWN (root first)")
     }
 
-    func testFileWalkIncludesAllNodes() throws {
+    @Test func fileWalkIncludesAllNodes() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let paths = treeWalkPaths(kk_file_walk(rtwFileHandle(root)))
 
         // root + file1.txt + subdir + subdir/file2.txt = 4
-        XCTAssertEqual(paths.count, 4)
+        #expect(paths.count == 4)
     }
 
-    func testFileWalkWithDirectionTopDown() throws {
+    @Test func fileWalkWithDirectionTopDown() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
@@ -479,11 +465,11 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let walkRaw = kk_file_walk_with_direction(rtwFileHandle(root), kk_box_int(0))
         let paths = treeWalkPaths(walkRaw)
 
-        XCTAssertEqual(paths.first, root, "Direction TOP_DOWN (0) must yield root first")
-        XCTAssertEqual(paths.count, 4)
+        #expect(paths.first == root, "Direction TOP_DOWN (0) must yield root first")
+        #expect(paths.count == 4)
     }
 
-    func testFileWalkWithDirectionBottomUp() throws {
+    @Test func fileWalkWithDirectionBottomUp() throws {
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
 
@@ -491,13 +477,13 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         let walkRaw = kk_file_walk_with_direction(rtwFileHandle(root), kk_box_int(1))
         let paths = treeWalkPaths(walkRaw)
 
-        XCTAssertEqual(paths.last, root, "Direction BOTTOM_UP (1) must yield root last")
-        XCTAssertEqual(paths.count, 4)
+        #expect(paths.last == root, "Direction BOTTOM_UP (1) must yield root last")
+        #expect(paths.count == 4)
     }
 
     // MARK: - forEach
 
-    func testForEachVisitsAllNodes() throws {
+    @Test func forEachVisitsAllNodes() throws {
         treeWalkVisitedPaths = []
         let root = try makeTempDirTree()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -511,8 +497,8 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(treeWalkVisitedPaths.count, 4)
-        XCTAssertTrue(treeWalkVisitedPaths.contains(root))
+        #expect(thrown == 0)
+        #expect(treeWalkVisitedPaths.count == 4)
+        #expect(treeWalkVisitedPaths.contains(root))
     }
 }

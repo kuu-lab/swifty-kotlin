@@ -349,6 +349,46 @@ extension CallLowerer {
                 return interner.intern("kk_array_find")
             case "findLast":
                 return interner.intern("kk_array_findLast")
+            // Array HOF gap fix: mapIndexed/filterIndexed/mapNotNull/filterNot/
+            // filterNotNull/first/firstOrNull/last/lastOrNull previously failed
+            // Sema member resolution outright (see
+            // CallTypeChecker+ArrayMemberFallback.swift), so this switch was
+            // never reached for them.
+            case "mapIndexed":
+                return interner.intern("kk_array_mapIndexed")
+            case "filterIndexed":
+                return interner.intern("kk_array_filterIndexed")
+            case "mapNotNull":
+                return interner.intern("kk_array_mapNotNull")
+            case "filterNot":
+                return interner.intern("kk_array_filterNot")
+            case "filterNotNull":
+                return interner.intern("kk_array_filterNotNull")
+            // NOTE: branches on `hofArity` (source-level arg count), not the raw
+            // `argumentCount` parameter above — `argumentCount` can arrive with
+            // the receiver already prepended by some call sites (see the
+            // `hofArity` doc comment at the top of this function), which would
+            // otherwise misroute a bare `first()`/`last()` call to the
+            // predicate-taking runtime function with a garbage fnPtr/closureRaw
+            // and crash. Caught via an end-to-end SIGSEGV repro during manual
+            // verification, not by the type checker (both routes type-check
+            // identically).
+            case "first":
+                return hofArity == 0
+                    ? interner.intern("kk_array_first")
+                    : interner.intern("kk_array_first_predicate")
+            case "firstOrNull":
+                return hofArity == 0
+                    ? interner.intern("kk_array_firstOrNull")
+                    : interner.intern("kk_array_find")
+            case "last":
+                return hofArity == 0
+                    ? interner.intern("kk_array_last")
+                    : interner.intern("kk_array_last_predicate")
+            case "lastOrNull":
+                return hofArity == 0
+                    ? interner.intern("kk_array_lastOrNull")
+                    : interner.intern("kk_array_findLast")
             default:
                 break
             }
@@ -951,6 +991,21 @@ extension CallLowerer {
                     ]
                 {
                     return interner.intern("kk_list_reduceRightIndexed")
+                }
+            }
+        case "reduceRightOrNull":
+            switch knownNames.collectionKind(of: symbol) {
+            case .list?, .set?, .collection?:
+                return interner.intern("kk_list_reduceRightOrNull")
+            default:
+                if symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                {
+                    return interner.intern("kk_list_reduceRightOrNull")
                 }
             }
         case "reduceRightIndexedOrNull":

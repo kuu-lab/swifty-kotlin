@@ -135,7 +135,8 @@ extension DataFlowSemaPhase {
         registerIterableAsSequenceMember(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex
         )
         registerIterableJoinToMember(
             symbols: symbols, types: types, interner: interner,
@@ -372,7 +373,8 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             listInterfaceSymbol: listInterfaceSymbol,
             mapInterfaceSymbol: mapSymbols.mapSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            bundledIndex: bundledIndex
         )
 
         registerCollectionToListMember(
@@ -393,7 +395,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                kotlinCollectionsPkg: kotlinCollectionsPkg
+                kotlinCollectionsPkg: kotlinCollectionsPkg,
+                bundledIndex: bundledIndex
             )
             registerMutableCollectionSequenceAddAllMembers(
                 symbols: symbols,
