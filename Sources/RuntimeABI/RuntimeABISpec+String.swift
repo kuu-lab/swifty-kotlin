@@ -1302,6 +1302,19 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
+        // BUG-172: boxes a values()/entries element as a genuine ordinal Int
+        // (tagged with its declared name for generic Any-printing) instead of
+        // a pre-baked name string.
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_box_ordinal",
+            parameters: [
+                RuntimeABIParameter(name: "ordinal", type: .intptr),
+                RuntimeABIParameter(name: "namePtr", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
         // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
             name: "kk_string_toBoolean_flat",
