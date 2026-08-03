@@ -128,4 +128,39 @@ extension CollectionLiteralConstructionLoweringPass {
         ]
         return resolved.fqName.starts(with: javaIOFilePrefix)
     }
+
+    /// True when the resolved callee is a bundled Kotlin source declaration
+    /// (has a source `declSite` and no runtime external link), meaning the
+    /// lowering pass should not rewrite it to a `kk_*` runtime helper.
+    func isSourceBacked(
+        symbol: SymbolID?,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let symbol,
+              let sema = ctx.sema,
+              let resolved = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return resolved.declSite != nil
+            && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
+
+    /// True when the resolved callee's receiver type is `kotlin.sequences.Sequence<T>`.
+    /// Used to keep source Sequence `flatMap`/`flatMapIndexed` routed through the
+    /// runtime pipeline while allowing List/Map/Set source `flatMap` to lower normally.
+    func isSequenceReceiverType(
+        symbol: SymbolID,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let sema = ctx.sema,
+              let signature = sema.symbols.functionSignature(for: symbol),
+              let receiverType = signature.receiverType,
+              let (_, classSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else {
+            return false
+        }
+        let expected = [ctx.interner.intern("kotlin"), ctx.interner.intern("sequences"), ctx.interner.intern("Sequence")]
+        return classSymbol.fqName == expected
+    }
 }

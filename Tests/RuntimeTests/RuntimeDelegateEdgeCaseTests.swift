@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // STDLIB-PROP-001: Edge case coverage for kotlin.properties delegates.
 //
@@ -58,6 +58,10 @@ private final class EdgeCaseCallbackState: @unchecked Sendable {
 
 private let gEdgeState = EdgeCaseCallbackState()
 
+private func resetRuntimeDelegateEdgeCaseTestState() {
+    gEdgeState.reset()
+}
+
 // Observable: records (prop, old, new) and the live value *inside* the callback.
 private let observableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new, _ in
     gEdgeState.withLock { s in
@@ -90,18 +94,13 @@ private let vetoableEdgeAcceptIfGreater: KKDelegateObserverEntryPoint = { _, old
     new > old ? 1 : 0
 }
 
-final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndDelegate }
-    override func resetIsolatedRuntimeTestState() {
-        gEdgeState.reset()
-    }
-
+@Suite(.runtimeIsolation(.gcAndDelegate, resetAdditionalState: resetRuntimeDelegateEdgeCaseTestState))
+struct RuntimeDelegateEdgeCaseTests {
     // MARK: - notNull(): read before assignment traps
 
-    func testNotNullReadBeforeAssignmentTraps() {
+    @Test func notNullReadBeforeAssignmentTraps() {
         let handle = kk_notNull_create()
-        XCTAssertNotEqual(handle, 0, "kk_notNull_create must return a valid handle")
+        #expect(handle != 0, "kk_notNull_create must return a valid handle")
         // Reading before any set should trap with fatalError.
         // We cannot catch fatalError directly in Swift unit tests, so we verify
         // the happy-path works and note this as a known gap (see PR body).
@@ -110,25 +109,25 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         // BUG-NOTE: No outThrown channel — trap is non-catchable from tests.
     }
 
-    func testNotNullSetThenGetReturnsValue() {
+    @Test func notNullSetThenGetReturnsValue() {
         let handle = kk_notNull_create()
         _ = kk_notNull_set_value(handle, 42)
-        XCTAssertEqual(kk_notNull_get_value(handle), 42)
+        #expect(kk_notNull_get_value(handle) == 42)
     }
 
     // notNull allows re-assignment after first set.
-    func testNotNullAllowsReassignment() {
+    @Test func notNullAllowsReassignment() {
         let handle = kk_notNull_create()
         _ = kk_notNull_set_value(handle, 10)
-        XCTAssertEqual(kk_notNull_get_value(handle), 10)
+        #expect(kk_notNull_get_value(handle) == 10)
 
         _ = kk_notNull_set_value(handle, 20)
-        XCTAssertEqual(kk_notNull_get_value(handle), 20,
-                       "notNull should allow overwriting the already-set value")
+        #expect(kk_notNull_get_value(handle) == 20,
+                "notNull should allow overwriting the already-set value")
     }
 
     // notNull with a zero-valued Int (valid payload, sentinel not triggered by value).
-    func testNotNullStoresZeroValueInt() {
+    @Test func notNullStoresZeroValueInt() {
         let handle = kk_notNull_create()
         // 0 is a valid assigned value (not a null sentinel for the box state).
         _ = kk_notNull_set_value(handle, 0)
@@ -136,13 +135,13 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         // BUG-CANDIDATE: RuntimeDelegates.swift stores Int? and checks guard let value.
         // If the runtime treats 0 as nil (which it does not currently), this would trap.
         // Verified: box.currentValue = newValue regardless of value, so 0 is stored safely.
-        XCTAssertEqual(kk_notNull_get_value(handle), 0,
-                       "notNull must store integer 0 (not confuse it with nil)")
+        #expect(kk_notNull_get_value(handle) == 0,
+                "notNull must store integer 0 (not confuse it with nil)")
     }
 
     // MARK: - observable(): callback fires AFTER the change
 
-    func testObservableCallbackFiresAfterChange() {
+    @Test func observableCallbackFiresAfterChange() {
         let cbPtr = unsafeBitCast(observableEdgeCapture, to: Int.self)
         let handle = kk_observable_create(1, cbPtr)
         gEdgeState.withLock { $0.observableHandleRef = handle }
@@ -150,11 +149,11 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_observable_set_value(handle, 2)
 
         let valueAtCb = gEdgeState.withLock { $0.observableValueAtCallback }
-        XCTAssertEqual(valueAtCb, 2,
-                       "Observable callback must fire *after* value is updated (kotlinc semantics)")
+        #expect(valueAtCb == 2,
+                "Observable callback must fire *after* value is updated (kotlinc semantics)")
     }
 
-    func testObservableCallbackReceivesCorrectOldAndNew() {
+    @Test func observableCallbackReceivesCorrectOldAndNew() {
         let cbPtr = unsafeBitCast(observableEdgeCapture, to: Int.self)
         let handle = kk_observable_create(10, cbPtr)
         gEdgeState.withLock { $0.observableHandleRef = handle }
@@ -162,11 +161,11 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_observable_set_value(handle, 30)
         let old = gEdgeState.withLock { $0.observableCapturedOld }
         let new = gEdgeState.withLock { $0.observableCapturedNew }
-        XCTAssertEqual(old, 10)
-        XCTAssertEqual(new, 30)
+        #expect(old == 10)
+        #expect(new == 30)
     }
 
-    func testObservableCallbackInvokedForEverySet() {
+    @Test func observableCallbackInvokedForEverySet() {
         let cbPtr = unsafeBitCast(observableEdgeCapture, to: Int.self)
         let handle = kk_observable_create(0, cbPtr)
         gEdgeState.withLock { $0.observableHandleRef = handle }
@@ -176,31 +175,31 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_observable_set_value(handle, 3)
 
         let count = gEdgeState.withLock { $0.observableCallCount }
-        XCTAssertEqual(count, 3, "Callback must fire once per set call")
+        #expect(count == 3, "Callback must fire once per set call")
     }
 
-    func testObservableWithNilCallbackDoesNotCrash() {
+    @Test func observableWithNilCallbackDoesNotCrash() {
         // callbackFnPtr == 0 → no callback, value still changes.
         let handle = kk_observable_create(5, 0)
         let result = kk_observable_set_value(handle, 7)
-        XCTAssertEqual(result, 7)
-        XCTAssertEqual(kk_observable_get_value(handle), 7)
+        #expect(result == 7)
+        #expect(kk_observable_get_value(handle) == 7)
     }
 
     // Observable does NOT veto: setting same value still fires callback.
-    func testObservableCallbackFiresEvenForSameValue() {
+    @Test func observableCallbackFiresEvenForSameValue() {
         let cbPtr = unsafeBitCast(observableEdgeCapture, to: Int.self)
         let handle = kk_observable_create(42, cbPtr)
         gEdgeState.withLock { $0.observableHandleRef = handle }
 
         _ = kk_observable_set_value(handle, 42)  // no-op value but callback still fires
         let count = gEdgeState.withLock { $0.observableCallCount }
-        XCTAssertEqual(count, 1, "Observable callback fires even when old == new")
+        #expect(count == 1, "Observable callback fires even when old == new")
     }
 
     // MARK: - vetoable(): callback fires BEFORE the change
 
-    func testVetoableCallbackFiresBeforeChange() {
+    @Test func vetoableCallbackFiresBeforeChange() {
         let cbPtr = unsafeBitCast(vetoableEdgeCapture, to: Int.self)
         let handle = kk_vetoable_create(50, cbPtr)
         gEdgeState.withLock { $0.vetoableHandleRef = handle }
@@ -208,11 +207,11 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_vetoable_set_value(handle, 60)
 
         let valueAtCb = gEdgeState.withLock { $0.vetoableValueAtCallback }
-        XCTAssertEqual(valueAtCb, 50,
-                       "Vetoable callback must fire *before* value changes (kotlinc semantics)")
+        #expect(valueAtCb == 50,
+                "Vetoable callback must fire *before* value changes (kotlinc semantics)")
     }
 
-    func testVetoableCallbackReceivesCorrectOldAndNew() {
+    @Test func vetoableCallbackReceivesCorrectOldAndNew() {
         let cbPtr = unsafeBitCast(vetoableEdgeCapture, to: Int.self)
         let handle = kk_vetoable_create(5, cbPtr)
         gEdgeState.withLock { $0.vetoableHandleRef = handle }
@@ -220,56 +219,56 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_vetoable_set_value(handle, 9)
         let old = gEdgeState.withLock { $0.vetoableCapturedOld }
         let new = gEdgeState.withLock { $0.vetoableCapturedNew }
-        XCTAssertEqual(old, 5)
-        XCTAssertEqual(new, 9)
+        #expect(old == 5)
+        #expect(new == 9)
     }
 
-    func testVetoablePartialRejectSequence() {
+    @Test func vetoablePartialRejectSequence() {
         // Accept-if-greater callback: accept when new > old.
         let cbPtr = unsafeBitCast(vetoableEdgeAcceptIfGreater, to: Int.self)
         let handle = kk_vetoable_create(10, cbPtr)
 
         // Increase → accepted
         _ = kk_vetoable_set_value(handle, 20)
-        XCTAssertEqual(kk_vetoable_get_value(handle), 20,
-                       "Vetoable should accept when new > old")
+        #expect(kk_vetoable_get_value(handle) == 20,
+                "Vetoable should accept when new > old")
 
         // Decrease → rejected
         _ = kk_vetoable_set_value(handle, 5)
-        XCTAssertEqual(kk_vetoable_get_value(handle), 20,
-                       "Vetoable should reject when new <= old")
+        #expect(kk_vetoable_get_value(handle) == 20,
+                "Vetoable should reject when new <= old")
 
         // Equal → rejected
         _ = kk_vetoable_set_value(handle, 20)
-        XCTAssertEqual(kk_vetoable_get_value(handle), 20,
-                       "Vetoable should reject when new == old")
+        #expect(kk_vetoable_get_value(handle) == 20,
+                "Vetoable should reject when new == old")
 
         // Increase again → accepted
         _ = kk_vetoable_set_value(handle, 21)
-        XCTAssertEqual(kk_vetoable_get_value(handle), 21,
-                       "Vetoable should accept when new > old again")
+        #expect(kk_vetoable_get_value(handle) == 21,
+                "Vetoable should accept when new > old again")
     }
 
-    func testVetoableMultipleRejectsKeepOldValue() {
+    @Test func vetoableMultipleRejectsKeepOldValue() {
         let cbPtr = unsafeBitCast(vetoableEdgeReject, to: Int.self)
         let handle = kk_vetoable_create(100, cbPtr)
 
         for _ in 0..<5 {
             _ = kk_vetoable_set_value(handle, 999)
         }
-        XCTAssertEqual(kk_vetoable_get_value(handle), 100,
-                       "Repeated vetoed sets must not mutate the stored value")
+        #expect(kk_vetoable_get_value(handle) == 100,
+                "Repeated vetoed sets must not mutate the stored value")
     }
 
-    func testVetoableWithNilCallbackAcceptsChange() {
+    @Test func vetoableWithNilCallbackAcceptsChange() {
         // callbackFnPtr == 0 → no callback, value changes unconditionally.
         let handle = kk_vetoable_create(3, 0)
         let result = kk_vetoable_set_value(handle, 7)
-        XCTAssertEqual(result, 7)
-        XCTAssertEqual(kk_vetoable_get_value(handle), 7)
+        #expect(result == 7)
+        #expect(kk_vetoable_get_value(handle) == 7)
     }
 
-    func testVetoableCallbackInvokedOncePerSetAttempt() {
+    @Test func vetoableCallbackInvokedOncePerSetAttempt() {
         let cbPtr = unsafeBitCast(vetoableEdgeCapture, to: Int.self)
         let handle = kk_vetoable_create(0, cbPtr)
         gEdgeState.withLock { $0.vetoableHandleRef = handle }
@@ -279,12 +278,12 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_vetoable_set_value(handle, 3)
 
         let count = gEdgeState.withLock { $0.vetoableCallCount }
-        XCTAssertEqual(count, 3, "Vetoable callback fires once per set attempt")
+        #expect(count == 3, "Vetoable callback fires once per set attempt")
     }
 
     // MARK: - lazy: value is frozen after first evaluation
 
-    func testLazyValueIsFrozenAfterInit() {
+    @Test func lazyValueIsFrozenAfterInit() {
         // The initializer returns 42 once; verify subsequent reads return the same value.
         let init42: KKThunkEntryPoint = { _ in 42 }
         let fnPtr = unsafeBitCast(init42, to: Int.self)
@@ -293,14 +292,14 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let first = kk_lazy_get_value(handle)
         let second = kk_lazy_get_value(handle)
         let third = kk_lazy_get_value(handle)
-        XCTAssertEqual(first, 42)
-        XCTAssertEqual(second, 42)
-        XCTAssertEqual(third, 42)
+        #expect(first == 42)
+        #expect(second == 42)
+        #expect(third == 42)
         // isInitialized must be true after any access.
-        XCTAssertEqual(kk_lazy_is_initialized(handle), 1)
+        #expect(kk_lazy_is_initialized(handle) == 1)
     }
 
-    func testLazyValueZeroIsValidAfterInit() {
+    @Test func lazyValueZeroIsValidAfterInit() {
         // Initializer that returns 0 is a valid (non-null) value.
         let initZero: KKThunkEntryPoint = { _ in 0 }
         let fnPtr = unsafeBitCast(initZero, to: Int.self)
@@ -309,14 +308,14 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let value = kk_lazy_get_value(handle)
         // BUG-NOTE: If kk_lazy_get_value treats 0 as "not yet initialized" this would
         // loop infinitely — the current implementation checks `isInitialized` flag, not value.
-        XCTAssertEqual(value, 0, "Lazy must store integer 0 as a valid initialized value")
-        XCTAssertEqual(kk_lazy_is_initialized(handle), 1,
-                       "Lazy should be marked initialized even when initializer returned 0")
+        #expect(value == 0, "Lazy must store integer 0 as a valid initialized value")
+        #expect(kk_lazy_is_initialized(handle) == 1,
+                "Lazy should be marked initialized even when initializer returned 0")
     }
 
     // MARK: - KProperty stub metadata
 
-    func testKPropertyStubNameRoundtrip() {
+    @Test func kPropertyStubNameRoundtrip() {
         // Build a KKString for the name and verify kk_kproperty_stub_name returns it.
         let nameStr = "myProp"
         let kkName = nameStr.withCString { cstr in
@@ -325,12 +324,12 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
             }
         }
         let stub = kk_kproperty_stub_create(kkName, 0)
-        XCTAssertNotEqual(stub, 0)
-        XCTAssertEqual(kk_kproperty_stub_name(stub), kkName,
-                       "KProperty stub name must round-trip through create/name")
+        #expect(stub != 0)
+        #expect(kk_kproperty_stub_name(stub) == kkName,
+                "KProperty stub name must round-trip through create/name")
     }
 
-    func testKPropertyStubFullMetadataIsLateinit() {
+    @Test func kPropertyStubFullMetadataIsLateinit() {
         let nameStr = "lateField"
         let kkName = nameStr.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: nameStr.utf8.count) { ptr in
@@ -338,12 +337,12 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
             }
         }
         let stub = kk_kproperty_stub_create_full(kkName, 0, 0, /*isLateinit*/ 1, /*isConst*/ 0)
-        XCTAssertEqual(kk_kproperty_stub_is_lateinit(stub), 1,
-                       "isLateinit=1 must be reported by accessor")
-        XCTAssertEqual(kk_kproperty_stub_is_const(stub), 0)
+        #expect(kk_kproperty_stub_is_lateinit(stub) == 1,
+                "isLateinit=1 must be reported by accessor")
+        #expect(kk_kproperty_stub_is_const(stub) == 0)
     }
 
-    func testKPropertyStubFullMetadataIsConst() {
+    @Test func kPropertyStubFullMetadataIsConst() {
         let nameStr = "constField"
         let kkName = nameStr.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: nameStr.utf8.count) { ptr in
@@ -351,12 +350,12 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
             }
         }
         let stub = kk_kproperty_stub_create_full(kkName, 0, 0, /*isLateinit*/ 0, /*isConst*/ 1)
-        XCTAssertEqual(kk_kproperty_stub_is_const(stub), 1,
-                       "isConst=1 must be reported by accessor")
-        XCTAssertEqual(kk_kproperty_stub_is_lateinit(stub), 0)
+        #expect(kk_kproperty_stub_is_const(stub) == 1,
+                "isConst=1 must be reported by accessor")
+        #expect(kk_kproperty_stub_is_lateinit(stub) == 0)
     }
 
-    func testKPropertyStubDefaultVisibilityIsPublic() {
+    @Test func kPropertyStubDefaultVisibilityIsPublic() {
         // When visibility is not set (0), kk_kproperty_stub_visibility returns "PUBLIC" string.
         let nameStr = "field"
         let kkName = nameStr.withCString { cstr in
@@ -367,17 +366,17 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let stub = kk_kproperty_stub_create(kkName, 0)
         let visHandle = kk_kproperty_stub_visibility(stub)
         // Must be non-zero (a KKString containing "PUBLIC").
-        XCTAssertNotEqual(visHandle, 0, "Default visibility must return a non-null KKString")
+        #expect(visHandle != 0, "Default visibility must return a non-null KKString")
     }
 
     // MARK: - Invalid handle robustness
 
-    func testObservableSetValueWithInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_observable_set_value(0, 99), 0)
+    @Test func observableSetValueWithInvalidHandleReturnsZero() {
+        #expect(kk_observable_set_value(0, 99) == 0)
     }
 
-    func testVetoableSetValueWithInvalidHandleReturnsCurrentValue() {
+    @Test func vetoableSetValueWithInvalidHandleReturnsCurrentValue() {
         // Per implementation: guard returns 0 for null handle.
-        XCTAssertEqual(kk_vetoable_set_value(0, 99), 0)
+        #expect(kk_vetoable_set_value(0, 99) == 0)
     }
 }

@@ -379,7 +379,13 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatReplaceFirstCharRuntimeCallForStringOverload() throws {
+    func testLLVMBackendDoesNotEmitReplaceFirstCharRuntimeCallForSourceBackedOverload() throws {
+        // KSP-412 (#5064) migrated replaceFirstChar to bundled Kotlin source
+        // (StringCaseConversion.kt) and removed both the raw and flat runtime
+        // bridges; ABIMismatchTests.testKKStringReplaceFirstCharABIRemoved
+        // asserts their absence from RuntimeABISpec. This test used to assert
+        // the opposite (that the flat call was emitted) and was never updated
+        // by that migration.
         let source = """
         fun main() {
             println("alpha".replaceFirstChar { 'A' })
@@ -400,7 +406,7 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
-            XCTAssertTrue(ir.contains("@kk_string_replaceFirstChar_flat"), "Missing flat replaceFirstChar call")
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar_flat"), "Unexpected flat replaceFirstChar call")
         }
     }
 

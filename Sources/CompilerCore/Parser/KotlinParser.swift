@@ -16,7 +16,9 @@ final class KotlinParser {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         var sawTopLevelStatement = false
-        var sawNonPropertyDecl = false
+        // Scripts (kotlinc -script / .kts) allow any declaration kind at top
+        // level alongside bare statements, but never a `package` declaration.
+        var sawPackageHeader = false
 
         var pendingImports: [SyntaxChild] = []
         var importRange = RangeAccumulator()
@@ -44,7 +46,7 @@ final class KotlinParser {
             switch token.kind {
             case .keyword(.package):
                 node = parsePackageHeader()
-                sawNonPropertyDecl = true
+                sawPackageHeader = true
             case .keyword(.import):
                 node = parseImportHeader()
                 pendingImports.append(.node(node))
@@ -53,14 +55,8 @@ final class KotlinParser {
                 continue
             case _ where isDeclarationStart(token.kind):
                 node = parseDeclaration()
-                if arena.node(node).kind != .propertyDecl {
-                    sawNonPropertyDecl = true
-                }
             case .softKeyword(.context):
                 node = parseDeclaration()
-                if arena.node(node).kind != .propertyDecl {
-                    sawNonPropertyDecl = true
-                }
             default:
                 let before = stream.index
                 node = parseStatement(inBlock: false)
@@ -84,7 +80,7 @@ final class KotlinParser {
 
         flushPendingImportsIfNeeded()
 
-        let rootKind: SyntaxKind = if sawTopLevelStatement, !sawNonPropertyDecl {
+        let rootKind: SyntaxKind = if sawTopLevelStatement, !sawPackageHeader {
             .script
         } else {
             .kotlinFile

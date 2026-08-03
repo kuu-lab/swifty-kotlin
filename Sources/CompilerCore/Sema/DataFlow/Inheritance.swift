@@ -13,6 +13,7 @@ extension DataFlowSemaPhase {
                     declID: declID,
                     currentPackage: file.packageFQName,
                     imports: file.imports,
+                    enclosingTypeParameters: [:],
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
@@ -27,6 +28,7 @@ extension DataFlowSemaPhase {
         declID: DeclID,
         currentPackage: [InternedString],
         imports: [ImportDecl],
+        enclosingTypeParameters: [InternedString: SymbolID],
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
@@ -62,11 +64,9 @@ extension DataFlowSemaPhase {
         // Without this, a supertype argument that names an own type parameter fails
         // to resolve and the supertype is recorded with no type arguments, which
         // breaks override covariance and polymorphic subtyping for the subclass.
-        var enclosingTypeParameters: [InternedString: SymbolID] = [:]
-        for typeParamSymbol in types.nominalTypeParameterSymbols(for: symbol) {
-            if let info = symbols.symbol(typeParamSymbol) {
-                enclosingTypeParameters[info.name] = typeParamSymbol
-            }
+        var mergedEnclosingTypeParameters = enclosingTypeParameters
+        for (name, paramSymbol) in buildTypeParameterMap(for: symbol, types: types, symbols: symbols) {
+            mergedEnclosingTypeParameters[name] = paramSymbol
         }
 
         var superSymbols: [SymbolID] = []
@@ -75,7 +75,7 @@ extension DataFlowSemaPhase {
                 superTypeRef,
                 currentPackage: currentPackage,
                 imports: imports,
-                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingTypeParameters: mergedEnclosingTypeParameters,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -130,6 +130,7 @@ extension DataFlowSemaPhase {
                 declID: nestedDeclID,
                 currentPackage: currentPackage,
                 imports: imports,
+                enclosingTypeParameters: mergedEnclosingTypeParameters,
                 ast: ast,
                 symbols: symbols,
                 bindings: bindings,
@@ -137,6 +138,19 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+    }
+
+    private func buildTypeParameterMap(
+        for owner: SymbolID,
+        types: TypeSystem,
+        symbols: SymbolTable
+    ) -> [InternedString: SymbolID] {
+        var map: [InternedString: SymbolID] = [:]
+        for typeParam in types.nominalTypeParameterSymbols(for: owner) {
+            guard let paramSym = symbols.symbol(typeParam) else { continue }
+            map[paramSym.name] = typeParam
+        }
+        return map
     }
 
     private struct ResolvedSupertype {
@@ -599,11 +613,7 @@ extension DataFlowSemaPhase {
                 }
                 var enclosingTypeParameters: [InternedString: SymbolID] = [:]
                 if let classSymbolID = bindings.declSymbols[declID] {
-                    for typeParamSymbol in types.nominalTypeParameterSymbols(for: classSymbolID) {
-                        if let info = symbols.symbol(typeParamSymbol) {
-                            enclosingTypeParameters[info.name] = typeParamSymbol
-                        }
-                    }
+                    enclosingTypeParameters = buildTypeParameterMap(for: classSymbolID, types: types, symbols: symbols)
                 }
                 for entry in classDecl.superTypeEntries where entry.delegateExpression != nil {
                     guard let resolved = resolveNominalSymbolAndTypeArgs(

@@ -3,9 +3,9 @@ import Foundation
 import Testing
 
 /// STDLIB-TEXT-FN-001: Validates that `CharSequence.all(predicate)` resolves
-/// through Sema for String receivers and lowers to the runtime helper
-/// `kk_string_all_flat`. The synthetic surface signature is
-/// `String.all(predicate: (Char) -> Boolean): Boolean`.
+/// through Sema for String receivers. After KSP-410 it is bundled Kotlin
+/// source (StringHOF.kt); see StringSyntheticMemberLinkTests for the
+/// "carries no C external link" check.
 @Suite
 struct StringAllFunctionTests {
     private func allMemberCallExprIDs(
@@ -62,57 +62,9 @@ struct StringAllFunctionTests {
         }
     }
 
-    /// Sema should expose `String.all` as a synthetic extension function whose
-    /// external link name is `kk_string_all_flat`.
-    @Test func testStringAllLinksToRuntimeHelper() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "all"].map { ctx.interner.intern($0) }
-            let stringReceiverSymbol = try #require(
-                sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                    guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                        return false
-                    }
-                    guard signature.receiverType == sema.types.stringType,
-                          signature.parameterTypes.count == 1
-                    else { return false }
-                    return signature.returnType == sema.types.booleanType
-                },
-                "Expected String.all synthetic to be registered"
-            )
-            #expect(
-                sema.symbols.externalLinkName(for: stringReceiverSymbol) == "kk_string_all"
-            )
-        }
-    }
-
-    /// Lowering should emit a `kk_string_all` call site for each invocation in
-    /// the source program and propagate the throw flag so that thrown
-    /// exceptions from the predicate can bubble up.
-    @Test func testStringAllLowersToRuntimeHelper() throws {
-        let source = """
-        fun main() {
-            val numeric = "123"
-            numeric.all { it.isDigit() }
-            val letters = "abc"
-            letters.all { it.isLetter() }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let allFlags = try #require(
-                throwFlags["kk_string_all_flat"],
-                "Expected kk_string_all_flat call sites to appear in main()"
-            )
-            #expect(allFlags.count == 2, "Expected two kk_string_all_flat invocations")
-        }
-    }
+    // KSP-410: String.all is bundled Kotlin source (StringHOF.kt), so it no
+    // longer registers as a synthetic extension with a C external link name
+    // and no longer lowers to a single flat runtime call site. See
+    // StringSyntheticMemberLinkTests.testStringHOFMembersAreBundledKotlin for
+    // the "carries no C external link" coverage.
 }

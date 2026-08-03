@@ -1,9 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-final class LoweringFlowCodegenTests: XCTestCase {
+private struct FlowTestFailure: Error, CustomStringConvertible {
+    let description: String
+}
+
+@Suite
+struct LoweringFlowCodegenTests {
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {
@@ -29,24 +36,27 @@ final class LoweringFlowCodegenTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
             var allCallees: [String] = []
             for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            XCTAssertTrue(allCallees.contains("kk_flow_create"))
-            XCTAssertTrue(allCallees.contains("kk_flow_emit"))
-            XCTAssertTrue(allCallees.contains("kk_flow_collect"))
-            XCTAssertTrue(allCallees.contains("kk_flow_single"))
-            XCTAssertFalse(allCallees.contains("flow"))
-            XCTAssertFalse(allCallees.contains("transform"))
-            XCTAssertFalse(allCallees.contains("collect"))
-            XCTAssertFalse(allCallees.contains("emit"))
-            XCTAssertFalse(allCallees.contains("single"))
+            #expect(allCallees.contains("kk_flow_create"))
+            #expect(allCallees.contains("kk_flow_emit"))
+            #expect(allCallees.contains("kk_flow_collect"))
+            #expect(allCallees.contains("kk_flow_single"))
+            #expect(!allCallees.contains("flow"))
+            #expect(!allCallees.contains("transform"))
+            #expect(!allCallees.contains("collect"))
+            #expect(!allCallees.contains("emit"))
+            #expect(!allCallees.contains("single"))
         }
     }
 
+    @Test
     func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID() throws {
         let source = """
         fun main() {
@@ -66,7 +76,9 @@ final class LoweringFlowCodegenTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
             var collectCallArgs: [KIRExprID]?
             for function in findAllKIRFunctions(in: module) {
                 for instruction in function.body {
@@ -83,26 +95,27 @@ final class LoweringFlowCodegenTests: XCTestCase {
                 }
             }
 
-            let callArgs = try XCTUnwrap(collectCallArgs, "Expected kk_flow_collect call after lowering.")
+            guard let callArgs = collectCallArgs else {
+                throw FlowTestFailure(description: "Expected kk_flow_collect call after lowering.")
+            }
             // (flowHandle, collectorFnPtr, collectorEnvPtr, continuation/functionID).
             // The third slot (collectorEnvPtr) was added so collectors that
             // capture outer variables (e.g. `collect { capturedList.add(it) }`)
             // receive their closure environment instead of always being invoked
             // with a null environment pointer.
-            XCTAssertEqual(callArgs.count, 4)
+            #expect(callArgs.count == 4)
 
             guard let collectorExpr = module.arena.expr(callArgs[1]),
                   case let .symbolRef(collectorSymbol) = collectorExpr
             else {
-                XCTFail("kk_flow_collect collector argument must be a symbol reference.")
-                return
+                throw FlowTestFailure(description: "kk_flow_collect collector argument must be a symbol reference.")
             }
 
             let collectorFunction = findAllKIRFunctions(in: module).first { function in
                 function.symbol == collectorSymbol
             }
             let collectorName = collectorFunction.map { ctx.interner.resolve($0.name) } ?? ""
-            XCTAssertTrue(
+            #expect(
                 collectorName.hasPrefix("kk_suspend_"),
                 "Collector argument should be rewritten to suspend-lowered entry point."
             )
@@ -110,14 +123,14 @@ final class LoweringFlowCodegenTests: XCTestCase {
             guard let functionIDExpr = module.arena.expr(callArgs[3]),
                   case let .intLiteral(functionID) = functionIDExpr
             else {
-                XCTFail("kk_flow_collect fourth argument must be a function ID literal.")
-                return
+                throw FlowTestFailure(description: "kk_flow_collect fourth argument must be a function ID literal.")
             }
-            XCTAssertNotEqual(functionID, 0)
-            XCTAssertEqual(functionID, Int64(collectorSymbol.rawValue))
+            #expect(functionID != 0)
+            #expect(functionID == Int64(collectorSymbol.rawValue))
         }
     }
 
+    @Test
     func testFlowMapCollectExecutablePrintsExpectedOutput() throws {
         let source = """
         suspend fun runFlowCollectExecutable() {
@@ -140,6 +153,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
         )
     }
 
+    @Test
     func testFlowCollectTwiceLowersBothCollectCalls() throws {
         let source = """
         suspend fun runFlowCollectTwice() {
@@ -161,17 +175,23 @@ final class LoweringFlowCodegenTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
             let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
                 let collectCount = callees.filter { $0 == "kk_flow_collect" }.count
                 return collectCount == 0 ? nil : collectCount
             }.reduce(0, +)
 
-            XCTAssertEqual(collectCalls, 2, "Lowering should preserve both collect calls for a reused cold flow.")
+            #expect(
+                collectCalls == 2,
+                "Lowering should preserve both collect calls for a reused cold flow."
+            )
         }
     }
 
+    @Test
     func testFlowLoweringInsertsFlowHandleReleaseCalls() throws {
         let source = """
         suspend fun runFlowOwnership() {
@@ -195,13 +215,15 @@ final class LoweringFlowCodegenTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            guard let module = ctx.kir else {
+                throw FlowTestFailure(description: "KIR module not produced after lowering.")
+            }
             var allCallees: [String] = []
             for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            XCTAssertTrue(allCallees.contains("kk_flow_release"))
+            #expect(allCallees.contains("kk_flow_release"))
         }
     }
 
@@ -210,6 +232,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
     // kk_flow_of / kk_flow_empty / kk_flow_as_flow bridges were removed. These
     // cases pin their end-to-end behavior, including the emitter-side capture of
     // an outer val inside an explicit flow { } builder.
+    @Test
     func testFlowOfVarargExecutablePrintsExpectedOutput() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -234,6 +257,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
         )
     }
 
+    @Test
     func testEmptyFlowExecutableEmitsNothing() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -257,6 +281,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
         )
     }
 
+    @Test
     func testAsFlowCollectionExecutablePrintsExpectedOutput() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -281,6 +306,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
         )
     }
 
+    @Test
     func testFlowBuilderCapturesOuterValExecutable() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -334,8 +360,9 @@ final class LoweringFlowCodegenTests: XCTestCase {
 
             let runResult = try CommandRunner.run(executable: outputPath, arguments: [])
             let normalizedStdout = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(runResult.exitCode, 0)
-            XCTAssertEqual(normalizedStdout, expectedStdout)
+            #expect(runResult.exitCode == 0)
+            #expect(normalizedStdout == expectedStdout)
         }
     }
 }
+#endif

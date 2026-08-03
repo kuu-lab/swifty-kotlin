@@ -194,23 +194,19 @@ struct StdlibSurfaceSpecTests {
             let sema = try #require(ctx.sema)
 
             let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
-                // List.mapIndexedTo is source-backed (ListHOF.kt) and has no
-                // synthetic runtime-bridge stub; the remaining entries are still
+                // Source-backed members (ListHOF.kt / Sequence*.kt) have no
+                // synthetic runtime-bridge stub; remaining entries are still
                 // synthetically registered with their runtime links.
                 (.list, ["kotlin", "collections", "List"], "associateTo", 2),
                 (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
                 (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
                 (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "groupBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexedTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMap", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "foldIndexed", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "first", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "minBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapTo", 2),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "fold", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
@@ -225,14 +221,11 @@ struct StdlibSurfaceSpecTests {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "requireNoNulls", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceOrNull", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "scan", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "reduce", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRightIndexedOrNull", 1),
             ]
 
