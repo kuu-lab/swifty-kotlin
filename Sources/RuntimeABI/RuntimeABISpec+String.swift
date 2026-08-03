@@ -674,6 +674,16 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_char_sequence_get",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "indexRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_lowercase",
