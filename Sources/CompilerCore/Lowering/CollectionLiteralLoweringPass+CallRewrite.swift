@@ -1,9 +1,9 @@
-import Foundation
-
 extension CollectionLiteralConstructionLoweringPass {
     private func shouldPreserveSourceBackedAggregateCall(
         symbol: SymbolID?,
         callee: InternedString,
+        arguments: [KIRExprID],
+        state: CollectionRewriteState,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
@@ -45,6 +45,8 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapIndexedToName
             || callee == lookup.mapNotNullToName
             || callee == lookup.mapIndexedNotNullToName
+            // KSP-441: Sequence source flatMap/flatMapIndexed is routed through the
+            // runtime pipeline; non-Sequence source flatMap is preserved.
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.flatMapToName
@@ -80,7 +82,10 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.firstName
             || callee == lookup.lastName
             || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName,
+            || callee == lookup.lastOrNullName
+            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
+            || callee == lookup.copyOfName
+            || callee == lookup.copyOfRangeName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
@@ -88,7 +93,30 @@ extension CollectionLiteralConstructionLoweringPass {
         else {
             return false
         }
-        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        guard (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty else {
+            return false
+        }
+        // STDLIB-pipeline §5 / KSP-441: take/drop have real require() validation
+        // in bundled source, but a runtime Sequence handle cannot be iterated by
+        // the source object-expression iterator. Allow the lowering pipeline to
+        // rewrite to kk_sequence_take/kk_sequence_drop when the receiver is known
+        // to be a runtime Sequence box.
+        //
+        // flatMap/flatMapIndexed are *not* preserved here: the bundled source
+        // implementations use overloaded extension object-expressions whose
+        // nested Iterator itable registration is broken (KSP-441). The lowering
+        // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
+        // in rewriteSequencePipelineCall instead.
+        if (callee == lookup.takeName || callee == lookup.dropName),
+           let receiverID = arguments.first,
+           state.sequenceExprIDs.contains(receiverID.rawValue) {
+            return false
+        }
+        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName),
+           isSequenceReceiverType(symbol: symbol, ctx: ctx) {
+            return false
+        }
+        return true
     }
 
     func lowerCallInstruction(
@@ -107,11 +135,11 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) {
-        let isDebugAsSequence = callee == lookup.asSequenceName
-        if isDebugAsSequence {
-            FileHandle.standardError.write(Data(
-                "KDEBUG lowerCallInstruction ENTRY asSequence argCount=\(arguments.count)\n".utf8
-            ))
+        // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
+        // bundled source declaration is absent. Track its result as a runtime
+        // Sequence handle so downstream take/drop rewrites still fire.
+        if callee == lookup.kkSequenceRequireNoNullsName, let result {
+            state.sequenceExprIDs.insert(result.rawValue)
         }
         if rewriteFactoryAndBuilderCall(
             symbol: symbol,
@@ -128,9 +156,6 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
-            if isDebugAsSequence {
-                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteFactoryAndBuilderCall\n".utf8))
-            }
             return
         }
 
@@ -147,9 +172,6 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
-            if isDebugAsSequence {
-                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteFileCall\n".utf8))
-            }
             return
         }
 
@@ -164,21 +186,17 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
-            if isDebugAsSequence {
-                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteArrayAndIteratorBridgeCall\n".utf8))
-            }
             return
         }
 
         if shouldPreserveSourceBackedAggregateCall(
             symbol: symbol,
             callee: callee,
+            arguments: arguments,
+            state: state,
             lookup: lookup,
             ctx: ctx
         ) {
-            if isDebugAsSequence {
-                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at shouldPreserveSourceBackedAggregateCall\n".utf8))
-            }
             loweredBody.append(instruction)
             return
         }
@@ -195,15 +213,9 @@ extension CollectionLiteralConstructionLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) {
-            if isDebugAsSequence {
-                FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence STOPPED at rewriteCollectionMemberCall\n".utf8))
-            }
             return
         }
 
-        if isDebugAsSequence {
-            FileHandle.standardError.write(Data("KDEBUG lowerCallInstruction asSequence REACHED rewriteSequenceCollectionCall\n".utf8))
-        }
         if rewriteSequenceCollectionCall(
             symbol: symbol,
             callee: callee,

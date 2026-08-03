@@ -137,6 +137,30 @@ the script, also set:
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
 ```
 
+Successful non-script reference compilations are reused across runs via
+`KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a
+second full run skips the per-case kotlinc compile entirely). Set it to
+another directory to relocate the cache, or to empty to disable:
+
+```bash
+KOTLINC_REF_CACHE_DIR=/tmp/kswiftk-kotlinc-refs \
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # relocate
+KOTLINC_REF_CACHE_DIR= \
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # disable
+```
+
+Each cached jar is keyed by the source name and contents, extra compiler
+flags, Kotlin compiler version, JDK version, and classpath contents.
+Script-style cases still execute through `kotlinc -script` on every run.
+Note that `--clean-runtime-cache` removes `.runtime-build` and therefore
+also the default reference cache.
+
+kotlinc invocations run with `-XX:TieredStopAtLevel=1` (C1-only JIT,
+~15-20% faster for these short-lived compiles) prepended to `JAVA_OPTS`;
+caller-provided `JAVA_OPTS` flags still win on conflict. Override or
+disable with `DIFF_KOTLINC_JAVA_OPTS` (empty disables). The plain `java`
+runs of reference jars are unaffected (`java` does not read `JAVA_OPTS`).
+
 Emit a machine-readable report (TSV) for CI tooling:
 
 ```bash

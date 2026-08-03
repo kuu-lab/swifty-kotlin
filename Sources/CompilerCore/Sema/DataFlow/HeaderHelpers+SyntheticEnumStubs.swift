@@ -45,8 +45,10 @@ extension DataFlowSemaPhase {
         // kotlin.enums.EnumEntries<T> — List-like read-only container for enum entries
         _ = ensureEnumEntriesInterface(
             symbols: symbols,
+            types: types,
             interner: interner,
-            kotlinEnumsPkg: kotlinEnumsPkg
+            kotlinEnumsPkg: kotlinEnumsPkg,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
         // enumValues<T>(): Array<T> — top-level inline reified
@@ -152,35 +154,63 @@ extension DataFlowSemaPhase {
 
     private func ensureEnumEntriesInterface(
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner,
-        kotlinEnumsPkg: [InternedString]
+        kotlinEnumsPkg: [InternedString],
+        kotlinCollectionsPkg: [InternedString]
     ) -> SymbolID {
         let enumEntriesName = interner.intern("EnumEntries")
         let enumEntriesFQName = kotlinEnumsPkg + [enumEntriesName]
-        if let existing = symbols.lookup(fqName: enumEntriesFQName) {
-            return existing
-        }
         let tParamName = interner.intern("T")
         let tParamFQName = enumEntriesFQName + [tParamName]
-        _ = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let enumEntriesSymbol = symbols.define(
-            kind: .interface,
-            name: enumEntriesName,
-            fqName: enumEntriesFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinEnumsPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: enumEntriesSymbol)
+
+        let enumEntriesSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumEntriesFQName) {
+            enumEntriesSymbol = existing
+        } else {
+            _ = symbols.define(
+                kind: .typeParameter,
+                name: tParamName,
+                fqName: tParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            enumEntriesSymbol = symbols.define(
+                kind: .interface,
+                name: enumEntriesName,
+                fqName: enumEntriesFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let pkg = symbols.lookup(fqName: kotlinEnumsPkg), pkg != .invalid {
+                symbols.setParentSymbol(pkg, for: enumEntriesSymbol)
+            }
         }
+
+        // kotlin.enums.EnumEntries<T> : kotlin.collections.List<T> (Kotlin 1.9+:
+        // `EnumClass.entries` is a read-only List<T>). Registering the
+        // supertype relationship in both the SymbolTable and TypeSystem
+        // nominal-supertype graphs (mirroring how List/Collection/Iterable
+        // register their own supertypes, e.g. registerSyntheticListStub) lets
+        // ordinary member-call resolution and the collection member-call
+        // fallback find List's real members (.size, .forEach, etc.) on an
+        // EnumEntries<T>-typed receiver instead of reporting "Unresolved
+        // member function".
+        guard let tParamSymbol = symbols.lookup(fqName: tParamFQName),
+              let listInterfaceSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("List")])
+        else {
+            return enumEntriesSymbol
+        }
+        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+        types.setNominalTypeParameterSymbols([tParamSymbol], for: enumEntriesSymbol)
+        types.setNominalTypeParameterVariances([.out], for: enumEntriesSymbol)
+        symbols.setDirectSupertypes([listInterfaceSymbol], for: enumEntriesSymbol)
+        types.setNominalDirectSupertypes([listInterfaceSymbol], for: enumEntriesSymbol)
+        symbols.setSupertypeTypeArgs([.out(tParamType)], for: enumEntriesSymbol, supertype: listInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.out(tParamType)], for: enumEntriesSymbol, supertype: listInterfaceSymbol)
+
         return enumEntriesSymbol
     }
 
@@ -388,6 +418,64 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(returnType, for: propSymbol)
             scope.insert(propSymbol)
         }
+    }
+
+    /// Registers the synthetic `values(): Array<T>` static factory on an enum
+    /// class itself (e.g. `Direction.values()`), mirroring how real Kotlin
+    /// exposes `values()` as a pseudo-static member of the enum class rather
+    /// than its companion. Unlike `valueOf`/`entries` (registered on the
+    /// companion by `collectSyntheticEnumCompanionMembers`), `values()` is
+    /// looked up directly under the enum class's own FQ name by the
+    /// class-name-receiver static-call resolution path (see
+    /// `inferRegularMemberCall`'s `staticMethodFQName` lookup), so its owner
+    /// here must be `ownerSymbol` (the enum class), not the companion.
+    ///
+    /// The corresponding KIR function body is synthesized later by
+    /// `DataEnumSealedSynthesisPass.appendSyntheticEnumValuesIfNeeded`, which
+    /// reuses this exact symbol (by FQ name + owner) so the call resolved
+    /// here at Sema time links to the KIR body generated during Lowering.
+    /// Called from HeaderCollection when processing enum classes.
+    func collectSyntheticEnumValuesMember(
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        enumType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        scope: Scope,
+        interner: StringInterner
+    ) {
+        let valuesName = interner.intern("values")
+        let valuesFQName = ownerFQName + [valuesName]
+        guard symbols.lookupAll(fqName: valuesFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .function }) else {
+            return
+        }
+        let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else {
+            return
+        }
+        let arrayType = types.make(.classType(ClassType(
+            classSymbol: arraySymbol,
+            args: [.invariant(enumType)],
+            nullability: .nonNull
+        )))
+        let funcSymbol = symbols.define(
+            kind: .function,
+            name: valuesName,
+            fqName: valuesFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [],
+                returnType: arrayType,
+                isSuspend: false
+            ),
+            for: funcSymbol
+        )
+        scope.insert(funcSymbol)
     }
 
     /// Registers synthetic companion members (valueOf, entries) for enum classes.

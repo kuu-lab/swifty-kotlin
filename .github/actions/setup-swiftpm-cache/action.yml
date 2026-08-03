@@ -1,0 +1,61 @@
+name: Setup SwiftPM build cache
+description: |
+  Restore the SwiftPM .build directory and optionally save it back.
+  Trusted non-PR runs should set save=true so that default-branch caches
+  can be restored by pull requests. Caches are keyed by runner OS, Swift
+  toolchain version, Package.swift contents, ci.yml, build variant, and the
+  commit SHA; restore-keys fall back to the most recent matching prefix.
+
+inputs:
+  swift-version:
+    description: Swift toolchain version used in the cache key.
+    required: true
+  save:
+    description: Set to 'true' to save the cache after this job completes.
+    required: false
+    default: "false"
+  build-variant:
+    description: Variant name (e.g. 'fast' or 'default') for compiler flag differences.
+    required: false
+    default: default
+
+outputs:
+  cache-hit:
+    description: Whether the primary cache key matched exactly.
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-key:
+    description: The primary cache key used for restore/save.
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute SwiftPM cache key
+      id: key
+      shell: bash
+      run: |
+        pkg_hash="${{ hashFiles('Package.swift') }}"
+        ci_hash="${{ hashFiles('.github/workflows/ci.yml') }}"
+        variant="${{ inputs.build-variant }}"
+
+        primary="swiftpm-${{ runner.os }}-swift-${{ inputs.swift-version }}-${pkg_hash}-${ci_hash}-${variant}-${{ github.sha }}"
+        prefix="swiftpm-${{ runner.os }}-swift-${{ inputs.swift-version }}-${pkg_hash}-${ci_hash}-${variant}-"
+
+        echo "primary=${primary}" >> "$GITHUB_OUTPUT"
+        echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore SwiftPM .build cache
+      id: restore
+      uses: actions/cache/restore@v5
+      with:
+        path: .build
+        key: ${{ steps.key.outputs.primary }}
+        restore-keys: |
+          ${{ steps.key.outputs.prefix }}
+
+    - name: Save SwiftPM .build cache
+      if: ${{ inputs.save == 'true' && steps.restore.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v5
+      with:
+        path: .build
+        key: ${{ steps.restore.outputs.cache-primary-key }}

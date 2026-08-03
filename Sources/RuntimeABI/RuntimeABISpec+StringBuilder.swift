@@ -21,6 +21,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_string_builder_new_capacity_checked",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_string_builder_append_obj",
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),

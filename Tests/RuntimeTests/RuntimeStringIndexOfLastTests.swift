@@ -1,5 +1,5 @@
 @testable import Runtime
-import XCTest
+import Testing
 
 private let isLetterB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
     charRaw == Int(Unicode.Scalar("b").value) ? 1 : 0
@@ -26,18 +26,10 @@ private func withFlatStringForIndexOfLast<T>(
     return body(constData, length, byteCount, hash)
 }
 
-final class RuntimeStringIndexOfLastTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
-    func testIndexOfLastReturnsLastMatchingIndex() {
+@Suite(.runtimeIsolation(.all))
+struct RuntimeStringIndexOfLastTests {
+    @Test
+    func indexOfLastReturnsLastMatchingIndex() {
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
 
         withFlatStringForIndexOfLast("abcabc") { data, length, byteCount, hash in
@@ -52,12 +44,13 @@ final class RuntimeStringIndexOfLastTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, 4)
+            #expect(thrown == 0)
+            #expect(result == 4)
         }
     }
 
-    func testIndexOfLastReturnsNegativeOneWhenNoMatch() {
+    @Test
+    func indexOfLastReturnsNegativeOneWhenNoMatch() {
         let predicate = unsafeBitCast(isLetterZ, to: Int.self)
 
         withFlatStringForIndexOfLast("abcabc") { data, length, byteCount, hash in
@@ -72,12 +65,13 @@ final class RuntimeStringIndexOfLastTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, -1)
+            #expect(thrown == 0)
+            #expect(result == -1)
         }
     }
 
-    func testIndexOfLastReturnsNegativeOneForEmptyString() {
+    @Test
+    func indexOfLastReturnsNegativeOneForEmptyString() {
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
 
         withFlatStringForIndexOfLast("") { data, length, byteCount, hash in
@@ -92,12 +86,13 @@ final class RuntimeStringIndexOfLastTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, -1)
+            #expect(thrown == 0)
+            #expect(result == -1)
         }
     }
 
-    func testIndexOfLastReturnsSingleCharIndexWhenOnlyOneMatch() {
+    @Test
+    func indexOfLastReturnsSingleCharIndexWhenOnlyOneMatch() {
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
 
         withFlatStringForIndexOfLast("abc") { data, length, byteCount, hash in
@@ -112,8 +107,8 @@ final class RuntimeStringIndexOfLastTests: XCTestCase {
                 &thrown
             )
 
-            XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(result, 1)
+            #expect(thrown == 0)
+            #expect(result == 1)
         }
     }
 }
