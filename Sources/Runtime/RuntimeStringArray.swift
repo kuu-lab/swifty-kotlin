@@ -1640,7 +1640,11 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        Swift.print(intBox.value)
+        if let enumEntryName = intBox.enumEntryName {
+            Swift.print(enumEntryName)
+        } else {
+            Swift.print(intBox.value)
+        }
         return
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
@@ -1880,7 +1884,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return boolBox.value ? "true" : "false"
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        return String(intBox.value)
+        return intBox.enumEntryName ?? String(intBox.value)
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
         return stringBox.value

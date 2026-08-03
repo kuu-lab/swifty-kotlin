@@ -425,6 +425,7 @@ public final class SymbolTable {
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
+    private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
@@ -948,6 +949,20 @@ public final class SymbolTable {
         typeParameterUpperBoundsMap[symbol] ?? []
     }
 
+    /// DEBT-SEMA-002: header collection resolves a type parameter's bounds (and can see
+    /// there is more than one) long before class inheritance edges are bound (see
+    /// `bindInheritanceEdges`, which runs afterwards in `runValidationPasses`). Recording the
+    /// symbol here defers the actual mutual-exclusivity check until inheritance edges exist,
+    /// so `TypeSystem.isSubtype` sees a fully-populated class hierarchy instead of treating
+    /// every not-yet-linked class pair as unrelated.
+    public func recordTypeParameterForBoundConflictCheck(_ symbol: SymbolID, declSite: SourceRange?) {
+        pendingTypeParameterBoundConflictChecks.append((symbol, declSite))
+    }
+
+    public func typeParametersPendingBoundConflictCheck() -> [(symbol: SymbolID, declSite: SourceRange?)] {
+        pendingTypeParameterBoundConflictChecks
+    }
+
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID
     }
@@ -1191,6 +1206,12 @@ public final class BindingTable {
     public private(set) var takeIfTakeUnlessKinds: [ExprID: TakeIfTakeUnlessKind] = [:]
     /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Tracks lambda literals passed to a KIR-level coroutine launcher
+    /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
+    /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
+    /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
+    /// escaping-callable-value (`kk_function_create_N`) ABI.
+    public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1619,6 +1640,17 @@ public final class BindingTable {
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
+    public func markCoroutineLauncherLambdaExpr(_ expr: ExprID) {
+        coroutineLauncherLambdaExprIDs.insert(expr)
+    }
+
+    /// Whether the lambda literal is a KIR-level coroutine launcher's block
+    /// argument (see `coroutineLauncherLambdaExprIDs`).
+    public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
+        coroutineLauncherLambdaExprIDs.contains(expr)
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.

@@ -19,7 +19,7 @@ extension CallTypeChecker {
         let calleeName = request.calleeName
         let args = request.args
 
-        if ["firstNotNullOf", "firstNotNullOfOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "sumBy", "sumByDouble", "takeLastWhile", "onEachIndexed"]
+        if ["firstNotNullOf", "firstNotNullOfOrNull", "takeLastWhile"]
             .contains(interner.resolve(calleeName)),
             args.count == 1,
             let lambdaExpr = ast.arena.expr(args[0].expr),
@@ -85,6 +85,28 @@ extension CallTypeChecker {
               !receiverPath.isEmpty,
               locals[receiverPath[0]] == nil
         else { return nil }
+
+        // A receiver path that itself names a declared class/interface/object/
+        // enum (e.g. a singleton `object`, or a class with a companion) is a
+        // type-qualified member access, not a package-qualified top-level
+        // function reference like `kotlin.math.abs`. Its member functions
+        // happen to be registered under the same owner-FQName + member-name
+        // scheme as genuine top-level functions, so without this check a call
+        // like `SomeObject.update(x) { ... }` would be misidentified as an FQN
+        // top-level call below, which infers every argument eagerly and
+        // leaves trailing lambda parameters without an expected type. Bail
+        // out here so the regular member-call path (which defers lambda
+        // inference until overload resolution picks a signature) handles it.
+        if let receiverSymbolID = sema.symbols.lookup(fqName: receiverPath),
+           let receiverSymbol = ctx.cachedSymbol(receiverSymbolID)
+        {
+            switch receiverSymbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return nil
+            default:
+                break
+            }
+        }
 
         let fqnPath = receiverPath + [calleeName]
         let fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in

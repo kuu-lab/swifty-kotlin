@@ -86,7 +86,9 @@ func appendObjectItableMethodRegistrations(
     interner: StringInterner,
     instructions: inout [KIRInstruction]
 ) {
-    guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+    guard let _ = sema.symbols.symbol(nominalSymbol),
+          let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol)
+    else {
         return
     }
 
@@ -119,11 +121,22 @@ func appendObjectItableMethodRegistrations(
             thrownResult: nil
         ))
 
-        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
+        // Sorted by slot number for deterministic codegen: vtableSlots is a
+        // Dictionary, whose iteration order is unspecified and can vary
+        // between process invocations (or even between two compilations in
+        // the same process, depending on insertion history) even for the
+        // same key set. Iterating it directly here previously went
+        // unnoticed because so few nominals reached this registration path
+        // with more than one interface method — StringBuilder's Appendable
+        // conformance (BUG-166) was the first to make it visible, as two
+        // otherwise-identical compilations of the same source emitted their
+        // three kk_object_register_itable_method calls in different orders.
+        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots.sorted(by: { $0.value < $1.value }) {
             let implementationSymbol = kirFindOverrideMethod(
                 for: methodSymbol,
                 in: nominalSymbol,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) ?? methodSymbol
             let methodSlot = Int64(methodSlotInt)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
@@ -188,31 +201,61 @@ func kirTransitiveInterfaceSupertypes(
 func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    interner: StringInterner
 ) -> SymbolID? {
     guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
         return nil
     }
-    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes ?? []
+
+    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceParamCount = interfaceParameterTypes?.count
 
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
     while let nominal = current, visited.insert(nominal).inserted {
         if let ownerSym = sema.symbols.symbol(nominal) {
-            let overrideFQName = ownerSym.fqName + [methodSym.name]
-            for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+            let children = sema.symbols.children(ofFQName: ownerSym.fqName)
+            var firstCandidate: SymbolID?
+            var arityMatch: SymbolID?
+            for candidate in children {
                 guard let candidateSym = sema.symbols.symbol(candidate),
                       candidateSym.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == nominal,
-                      kirOverrideParameterTypesMatch(
-                          candidateParameterTypes: sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? [],
-                          interfaceParameterTypes: interfaceParameterTypes,
-                          types: sema.types
-                      )
+                      candidateSym.name == methodSym.name,
+                      sema.symbols.parentSymbol(for: candidate) == nominal
                 else {
                     continue
                 }
-                return candidate
+                if firstCandidate == nil {
+                    firstCandidate = candidate
+                }
+                let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+                // Prefer a full parameter-type match so same-arity overloads
+                // (e.g. StringBuilder.append(Char) vs append(String)) land in
+                // the correct itable slot. Type parameters are wildcards.
+                if let interfaceParameterTypes,
+                   kirOverrideParameterTypesMatch(
+                       candidateParameterTypes: candidateParams,
+                       interfaceParameterTypes: interfaceParameterTypes,
+                       types: sema.types
+                   )
+                {
+                    return candidate
+                }
+                // BUG-166: fall back to arity matching when type IDs don't
+                // line up (e.g. untracked signatures), then to first name match.
+                if arityMatch == nil,
+                   let interfaceParamCount,
+                   candidateParams.count == interfaceParamCount
+                {
+                    arityMatch = candidate
+                }
+            }
+            if let arityMatch {
+                return arityMatch
+            }
+            if let firstCandidate {
+                return firstCandidate
             }
         }
         current = kirSuperclass(of: nominal, sema: sema)
