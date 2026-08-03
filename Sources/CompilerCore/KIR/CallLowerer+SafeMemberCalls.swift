@@ -1017,8 +1017,7 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             calleeName: effectiveCalleeName,
             argumentExprs: args.map(\.expr),
-            sema: sema,
-            debugInterner: interner
+            sema: sema
         ) ?? sema.bindings.callBindings[exprID]
         let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
             chosenCallee

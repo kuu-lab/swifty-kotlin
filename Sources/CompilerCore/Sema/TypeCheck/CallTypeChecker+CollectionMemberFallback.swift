@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 import RuntimeABI
 
 /// Member-call fallback resolution for Collection-typed receivers
@@ -37,11 +36,6 @@ extension CallTypeChecker {
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverClassification = receiverClassifier.classify(receiverID: receiverID)
         let isArrayReceiver = receiverClassification.isArrayReceiver
-        if memberName == "asSequence" {
-            FileHandle.standardError.write(Data(
-                "KDEBUG tryCollectionMemberFallback ENTER asSequence isArrayReceiver=\(isArrayReceiver) isCollectionReceiver=\(receiverClassification.isCollectionReceiver) isSequenceReceiver=\(receiverClassification.isSequenceReceiver) isIterableReceiver=\(receiverClassification.isIterableReceiver) admitNominalIterableReceiver=\(admitNominalIterableReceiver)\n".utf8
-            ))
-        }
         let isIterableWindowedTransformCall: Bool = {
             guard memberName == "windowed",
                   (2...4).contains(args.count),

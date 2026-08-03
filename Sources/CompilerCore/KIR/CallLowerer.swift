@@ -1,5 +1,3 @@
-import Foundation
-
 final class CallLowerer {
     unowned let driver: KIRLoweringDriver
 
@@ -1604,15 +1602,9 @@ final class CallLowerer {
         receiverExpr: ExprID,
         calleeName: InternedString,
         argumentExprs: [ExprID],
-        sema: SemaModule,
-        debugInterner: StringInterner? = nil
+        sema: SemaModule
     ) -> CallBinding? {
         let existingBinding = sema.bindings.callBindings[exprID]
-        if let debugInterner, debugInterner.resolve(calleeName) == "asSequence" {
-            FileHandle.standardError.write(Data(
-                "KDEBUG recoverMemberCallBinding ENTER asSequence existingBinding=\(String(describing: existingBinding)) callableTarget=\(String(describing: sema.bindings.callableTarget(for: exprID)))\n".utf8
-            ))
-        }
         if let existing = existingBinding,
            existing.chosenCallee != .invalid,
            sema.symbols.symbol(existing.chosenCallee) != nil

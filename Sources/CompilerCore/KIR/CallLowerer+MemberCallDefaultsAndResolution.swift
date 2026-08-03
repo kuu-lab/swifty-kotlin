@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
@@ -234,14 +233,6 @@ extension CallLowerer {
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        if fallbackName == "asSequence" {
-            let extLink = chosenCallee.flatMap { sema.symbols.externalLinkName(for: $0) }
-            let declSite = chosenCallee.flatMap { sema.symbols.symbol($0)?.declSite != nil }
-            FileHandle.standardError.write(Data(
-                "KDEBUG loweredMemberCalleeName ENTER asSequence chosenCallee=\(String(describing: chosenCallee)) extLink=\(String(describing: extLink)) declSite=\(String(describing: declSite)) receiverType=\(nonNullReceiverType)\n".utf8
-            ))
-        }
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,

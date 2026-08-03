@@ -353,7 +353,11 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
                     || callee == lookup.kkMapOfName {
             mapExprIDs.insert(result.rawValue)
-        } else if lookup.arrayOfFactoryNames.contains(callee) || callee == lookup.kkArrayNewName {
+        } else if lookup.arrayOfFactoryNames.contains(callee)
+            || callee == lookup.kkArrayNewName
+            // CallLowerer may already lower intArrayOf/arrayOf to kk_array_of before this pass.
+            || callee == lookup.kkArrayOfName
+        {
             arrayExprIDs.insert(result.rawValue)
         }
     }

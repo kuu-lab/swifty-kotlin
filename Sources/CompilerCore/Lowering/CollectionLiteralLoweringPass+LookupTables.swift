@@ -396,6 +396,7 @@ struct CollectionLiteralLookupTables {
     var kkArrayFlatMapName: InternedString { arrayLookup.kkArrayFlatMapName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
+    var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
     var kkArrayMapIndexedName: InternedString { arrayLookup.kkArrayMapIndexedName }
     var kkArrayFilterIndexedName: InternedString { arrayLookup.kkArrayFilterIndexedName }
     var kkArrayMapNotNullName: InternedString { arrayLookup.kkArrayMapNotNullName }
