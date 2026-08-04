@@ -1,7 +1,8 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
 // BUG-141 regression coverage: reading an interface's stored/abstract property
 // through an interface-typed receiver (object expression, named class, function
@@ -34,13 +35,12 @@ private func runInterfacePropertyDispatchCodegenPipeline(
     return ctx
 }
 
-final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
+@Suite
+struct CodegenBackendInterfacePropertyDispatchTests {
     private func assertKotlinOutput(
         _ source: String,
         moduleName: String,
-        expected: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        expected: String
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -54,10 +54,11 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, expected, file: file, line: line)
+            #expect(normalizedStdout == expected)
         }
     }
 
+    @Test
     func testObjectExpressionStoredPropertyReadThroughInterface() throws {
         // The canonical minimal repro from TODO.md BUG-141.
         let source = """
@@ -73,6 +74,7 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
         )
     }
 
+    @Test
     func testNamedClassStoredPropertyReadThroughInterface() throws {
         let source = """
         interface Holder { val value: Int }
@@ -88,6 +90,7 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
         )
     }
 
+    @Test
     func testInterfaceTypedParameterPropertyRead() throws {
         let source = """
         interface Holder { val value: Int }
@@ -103,6 +106,7 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
         )
     }
 
+    @Test
     func testCustomGetterPropertyReadThroughInterface() throws {
         let source = """
         interface Holder { val value: Int }
@@ -117,6 +121,7 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
         )
     }
 
+    @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
@@ -144,3 +149,4 @@ final class CodegenBackendInterfacePropertyDispatchTests: XCTestCase {
         )
     }
 }
+#endif
