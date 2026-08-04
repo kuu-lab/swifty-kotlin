@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
-import XCTest
+import Testing
 
 func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
     module.arena.declarations.compactMap { decl -> KIRFunction? in
@@ -19,7 +20,7 @@ func findKIRFunction(
     let function = findAllKIRFunctions(in: module).first { function in
         interner.resolve(function.name) == name
     }
-    return try XCTUnwrap(function, "KIR function '\(name)' not found in module", file: file, line: line)
+    return try #require(function, "KIR function '\(name)' not found in module")
 }
 
 func findKIRFunctionBody(
@@ -52,3 +53,4 @@ func extractThrowFlags(
         partial[interner.resolve(callee), default: []].append(canThrow)
     }
 }
+#endif
