@@ -34,6 +34,15 @@ struct BundledDeclarationIndex: Sendable {
         self = BundledDeclarationIndex(keys: keys.union([key]))
     }
 
+    mutating func insertImportedStdlibSymbols(
+        keys: Set<BundledMemberKey>,
+        interner: StringInterner
+    ) {
+        var merged = self.keys.union(keys)
+        Self.addListIterableAliases(to: &merged, interner: interner)
+        self = BundledDeclarationIndex(keys: merged)
+    }
+
     /// Build from AST bundled sources before SymbolTable header collection.
     /// AST scanning preserves the current phase order while supplying
     /// `(owner, name, arity)` keys to synthetic stub registration.
@@ -107,6 +116,7 @@ struct BundledDeclarationIndex: Sendable {
         var reported: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() {
             guard symbol.flags.contains(.synthetic) else { continue }
+            guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
             guard let key = Self.memberKey(
                 for: symbol,

@@ -4,10 +4,11 @@ extension DataFlowSemaPhase {
     func parseImportedInlineFunction(
         path: String,
         importedSymbol: SymbolID,
-        parameterCount: Int,
+        signature: FunctionSignature?,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        externalLinkNameToSymbol: [String: SymbolID]
     ) -> KIRFunction? {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             diagnostics.warning(
@@ -19,7 +20,8 @@ extension DataFlowSemaPhase {
         }
 
         var functionName = interner.intern("__imported_inline_\(importedSymbol.rawValue)")
-        var parsedParameterCount = max(0, parameterCount)
+        let signatureParameterCount = (signature?.receiverType != nil ? 1 : 0) + (signature?.parameterTypes.count ?? 0)
+        var parsedParameterCount = max(0, signatureParameterCount)
         var parsedParameterSymbols: [Int32] = []
         var isSuspend = false
         var bodyLines: [String] = []
@@ -93,9 +95,23 @@ extension DataFlowSemaPhase {
         }
         var params: [KIRParameter] = []
         var parameterSymbolMapping: [Int32: SymbolID] = [:]
+        let hasReceiver = signature?.receiverType != nil
         for index in 0 ..< parsedParameterCount {
             let localSymbol = importedInlineParameterSymbol(functionSymbol: importedSymbol, index: index)
-            params.append(KIRParameter(symbol: localSymbol, type: types.anyType))
+            let paramType: TypeID
+            if let signature, index == 0, let receiverType = signature.receiverType {
+                paramType = receiverType
+            } else if let signature, index < parsedParameterCount {
+                let parameterIndex = index - (hasReceiver ? 1 : 0)
+                if parameterIndex >= 0 && parameterIndex < signature.parameterTypes.count {
+                    paramType = signature.parameterTypes[parameterIndex]
+                } else {
+                    paramType = types.anyType
+                }
+            } else {
+                paramType = types.anyType
+            }
+            params.append(KIRParameter(symbol: localSymbol, type: paramType))
             if index < parsedParameterSymbols.count {
                 parameterSymbolMapping[parsedParameterSymbols[index]] = localSymbol
             }
@@ -111,7 +127,8 @@ extension DataFlowSemaPhase {
                 parameterSymbolMapping: parameterSymbolMapping,
                 interner: interner,
                 labelCounter: &importLabelCounter,
-                exprCounter: &importExprCounter
+                exprCounter: &importExprCounter,
+                externalLinkNameToSymbol: externalLinkNameToSymbol
             )
             body.append(contentsOf: instructions)
         }
@@ -123,7 +140,7 @@ extension DataFlowSemaPhase {
             symbol: importedSymbol,
             name: functionName,
             params: params,
-            returnType: types.anyType,
+            returnType: signature?.returnType ?? types.anyType,
             body: body,
             isSuspend: isSuspend,
             isInline: true
@@ -140,7 +157,8 @@ extension DataFlowSemaPhase {
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
         labelCounter: inout Int32,
-        exprCounter: inout Int32
+        exprCounter: inout Int32,
+        externalLinkNameToSymbol: [String: SymbolID]
     ) -> [KIRInstruction] {
         let parts = line.split(separator: " ")
         guard let opcode = parts.first else {
@@ -180,7 +198,8 @@ extension DataFlowSemaPhase {
             pairs: pairs,
             opcode: opcode,
             parameterSymbolMapping: parameterSymbolMapping,
-            interner: interner
+            interner: interner,
+            externalLinkNameToSymbol: externalLinkNameToSymbol
         ) else {
             return []
         }
@@ -192,7 +211,8 @@ extension DataFlowSemaPhase {
         pairs: [String: String],
         opcode: Substring,
         parameterSymbolMapping: [Int32: SymbolID],
-        interner: StringInterner
+        interner: StringInterner,
+        externalLinkNameToSymbol: [String: SymbolID]
     ) -> KIRInstruction? {
         switch opcode {
         case "nop":
@@ -245,6 +265,77 @@ extension DataFlowSemaPhase {
                 rhs: KIRExprID(rawValue: rhs),
                 result: KIRExprID(rawValue: result)
             )
+        case "unary":
+            guard let opRaw = pairs["op"], let op = parseUnaryOp(opRaw),
+                  let operandRaw = pairs["operand"], let operand = Int32(operandRaw),
+                  let resultRaw = pairs["result"], let result = Int32(resultRaw)
+            else {
+                return nil
+            }
+            return .unary(
+                op: op,
+                operand: KIRExprID(rawValue: operand),
+                result: KIRExprID(rawValue: result)
+            )
+        case "copy":
+            guard let fromRaw = pairs["from"], let from = Int32(fromRaw),
+                  let toRaw = pairs["to"], let to = Int32(toRaw)
+            else {
+                return nil
+            }
+            return .copy(
+                from: KIRExprID(rawValue: from),
+                to: KIRExprID(rawValue: to)
+            )
+        case "nullAssert":
+            guard let operandRaw = pairs["operand"], let operand = Int32(operandRaw),
+                  let resultRaw = pairs["result"], let result = Int32(resultRaw)
+            else {
+                return nil
+            }
+            return .nullAssert(
+                operand: KIRExprID(rawValue: operand),
+                result: KIRExprID(rawValue: result)
+            )
+        case "jumpIfNotNull":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+            else {
+                return nil
+            }
+            return .jumpIfNotNull(
+                value: KIRExprID(rawValue: value),
+                target: target
+            )
+        case "storeGlobal":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let symbolRaw = pairs["symbol"], let symbol = Int32(symbolRaw)
+            else {
+                return nil
+            }
+            return .storeGlobal(
+                value: KIRExprID(rawValue: value),
+                symbol: SymbolID(rawValue: symbol)
+            )
+        case "loadGlobal":
+            guard let resultRaw = pairs["result"], let result = Int32(resultRaw),
+                  let symbolRaw = pairs["symbol"], let symbol = Int32(symbolRaw)
+            else {
+                return nil
+            }
+            return .loadGlobal(
+                result: KIRExprID(rawValue: result),
+                symbol: SymbolID(rawValue: symbol)
+            )
+        case "rethrow":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else {
+                return nil
+            }
+            return .rethrow(value: KIRExprID(rawValue: value))
+        case "beginFinallyGuard":
+            return .beginFinallyGuard
+        case "endFinallyGuard":
+            return .endFinallyGuard
         case "returnUnit":
             return .returnUnit
         case "returnValue":
@@ -287,8 +378,16 @@ extension DataFlowSemaPhase {
             let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
+            var callSymbol: SymbolID? = nil
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty,
+               let consumerSymbol = externalLinkNameToSymbol[linkName]
+            {
+                callSymbol = consumerSymbol
+            }
             return .call(
-                symbol: nil,
+                symbol: callSymbol,
                 callee: interner.intern(calleeName),
                 arguments: args,
                 result: result,
@@ -316,6 +415,30 @@ extension DataFlowSemaPhase {
             let value = String(token.dropFirst("int:".count))
             return Int64(value).map(KIRExprKind.intLiteral)
         }
+        if token.hasPrefix("long:") {
+            let value = String(token.dropFirst("long:".count))
+            return Int64(value).map(KIRExprKind.longLiteral)
+        }
+        if token.hasPrefix("uint:") {
+            let value = String(token.dropFirst("uint:".count))
+            return UInt64(value).map(KIRExprKind.uintLiteral)
+        }
+        if token.hasPrefix("ulong:") {
+            let value = String(token.dropFirst("ulong:".count))
+            return UInt64(value).map(KIRExprKind.ulongLiteral)
+        }
+        if token.hasPrefix("float:") {
+            let value = String(token.dropFirst("float:".count))
+            return Double(value).map(KIRExprKind.floatLiteral)
+        }
+        if token.hasPrefix("double:") {
+            let value = String(token.dropFirst("double:".count))
+            return Double(value).map(KIRExprKind.doubleLiteral)
+        }
+        if token.hasPrefix("char:") {
+            let value = String(token.dropFirst("char:".count))
+            return UInt32(value).map(KIRExprKind.charLiteral)
+        }
         if token.hasPrefix("bool:") {
             let value = String(token.dropFirst("bool:".count))
             return .boolLiteral(value == "1" || value == "true")
@@ -341,6 +464,17 @@ extension DataFlowSemaPhase {
             let raw = String(token.dropFirst("temp:".count))
             return Int32(raw).map(KIRExprKind.temporary)
         }
+        if token.hasPrefix("externB64:") {
+            let encoded = String(token.dropFirst("externB64:".count))
+            guard let decoded = decodeBase64String(encoded) else {
+                return nil
+            }
+            return .externSymbolAddress(interner.intern(decoded))
+        }
+        if token.hasPrefix("extern:") {
+            let name = String(token.dropFirst("extern:".count))
+            return .externSymbolAddress(interner.intern(name))
+        }
         return nil
     }
 
@@ -354,8 +488,37 @@ extension DataFlowSemaPhase {
             .multiply
         case "divide":
             .divide
+        case "modulo":
+            .modulo
         case "equal":
             .equal
+        case "notEqual":
+            .notEqual
+        case "lessThan":
+            .lessThan
+        case "lessOrEqual":
+            .lessOrEqual
+        case "greaterThan":
+            .greaterThan
+        case "greaterOrEqual":
+            .greaterOrEqual
+        case "logicalAnd":
+            .logicalAnd
+        case "logicalOr":
+            .logicalOr
+        default:
+            nil
+        }
+    }
+
+    private func parseUnaryOp(_ raw: String) -> KIRUnaryOp? {
+        switch raw {
+        case "not":
+            .not
+        case "unaryPlus":
+            .unaryPlus
+        case "unaryMinus":
+            .unaryMinus
         default:
             nil
         }

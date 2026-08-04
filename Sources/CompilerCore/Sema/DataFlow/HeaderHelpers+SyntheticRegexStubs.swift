@@ -264,7 +264,8 @@ extension DataFlowSemaPhase {
         setRegexOptionEntryTypes(
             enumSymbol: regexOptionSymbol,
             enumType: regexOptionType,
-            symbols: symbols
+            symbols: symbols,
+            interner: interner
         )
 
         // --- STDLIB-REGEX-096: Regex.options: Set<RegexOption> ---
@@ -742,22 +743,44 @@ extension DataFlowSemaPhase {
 
     /// Set propertyType on each enum entry so that resolveClassNameMemberValue
     /// (which checks `.field` + propertyType) can resolve `RegexOption.XXX`.
+    /// If the enum was imported as a nominal anchor its entries are missing, so
+    /// synthesise them here as well. Mark each entry as a compile-time constant
+    /// ordinal so the shared stdlib path emits `intLiteral` values that the
+    /// runtime regex functions can `kk_unbox_int` correctly.
     private func setRegexOptionEntryTypes(
         enumSymbol: SymbolID,
         enumType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) {
         guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        let children = symbols.children(ofFQName: enumInfo.fqName)
-        for child in children {
-            guard let childSym = symbols.symbol(child),
-                  childSym.kind == .field
-            else {
-                continue
+        let entries = [
+            "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL", "LITERAL",
+            "UNIX_LINES", "COMMENTS", "CANON_EQ",
+        ]
+        let enumFQName = enumInfo.fqName
+        for (ordinal, entry) in entries.enumerated() {
+            let entryName = interner.intern(entry)
+            let entryFQName = enumFQName + [entryName]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryName,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(enumSymbol, for: entrySymbol)
             }
-            if symbols.propertyType(for: child) == nil {
-                symbols.setPropertyType(enumType, for: child)
+            if symbols.propertyType(for: entrySymbol) == nil {
+                symbols.setPropertyType(enumType, for: entrySymbol)
             }
+            symbols.insertFlags([.constValue], for: entrySymbol)
+            symbols.setConstValueExprKind(.intLiteral(Int64(ordinal)), for: entrySymbol)
         }
     }
 

@@ -223,6 +223,31 @@ extension CoroutineLoweringPass {
         return thunkBody
     }
 
+    /// Returns `true` when `symbol` is one of the actual kotlinx.coroutines
+    /// launcher declarations (`runBlocking`, `launch`, `async`, `produce`).
+    /// This lets us distinguish user-defined methods that happen to share a name
+    /// (e.g. `Producer.produce`) from real coroutine builders.
+    func isKnownCoroutineLauncherSymbol(_ symbol: SymbolID, using rewrite: SuspendRewriteContext) -> Bool {
+        guard let sema = rewrite.ctx.sema,
+              let sym = sema.symbols.symbol(symbol),
+              !sym.fqName.isEmpty
+        else {
+            return false
+        }
+        let interner = rewrite.ctx.interner
+        let fqName = sym.fqName
+        let lastName = interner.resolve(fqName[fqName.count - 1])
+        guard lastName == "runBlocking"
+           || lastName == "launch"
+           || lastName == "async"
+           || lastName == "produce"
+        else {
+            return false
+        }
+        let package = fqName.dropLast().map { interner.resolve($0) }.joined(separator: ".")
+        return package == "kotlinx.coroutines" || package == "kotlinx.coroutines.channels"
+    }
+
     func rewriteLauncherCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -243,6 +268,11 @@ extension CoroutineLoweringPass {
 
         guard let runtimeLauncherCallee = rewrite.kxMiniLauncherRuntimeCallees[call.callee]
         else {
+            return nil
+        }
+        // A real source-backed function with a launcher name (e.g. a user-defined
+        // `Producer.produce` method) is not a coroutine builder.
+        if let symbol = call.symbol, !isKnownCoroutineLauncherSymbol(symbol, using: rewrite) {
             return nil
         }
         let produceCallee = rewrite.ctx.interner.intern("produce")

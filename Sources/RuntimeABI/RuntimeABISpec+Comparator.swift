@@ -33,6 +33,48 @@ public extension RuntimeABISpec {
             section: "Comparator"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_comparator_from_selector",
+            parameters: [
+                RuntimeABIParameter(name: "selFn", type: .intptr),
+                RuntimeABIParameter(name: "selClosure", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Comparator",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_comparator_from_selector_descending",
+            parameters: [
+                RuntimeABIParameter(name: "selFn", type: .intptr),
+                RuntimeABIParameter(name: "selClosure", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Comparator",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_comparator_from_selector_trampoline",
+            parameters: [
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Comparator"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_comparator_from_selector_descending_trampoline",
+            parameters: [
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Comparator"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_comparator_from_multi_selectors_trampoline",
             parameters: [
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
