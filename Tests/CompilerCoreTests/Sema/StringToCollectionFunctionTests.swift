@@ -5,7 +5,7 @@ import Testing
 /// resolves through Sema and preserves the destination collection type.
 @Suite
 struct StringToCollectionFunctionTests {
-    @Test func testToCollectionReturnsDestinationTypeForStringAndCharSequence() throws {
+    @Test func testToCollectionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun collectString(s: String): MutableList<Char> {
             val destination = mutableListOf<Char>('z')
@@ -32,11 +32,7 @@ struct StringToCollectionFunctionTests {
             errors.isEmpty,
             "Expected CharSequence.toCollection to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testToCollectionSyntheticLinkRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "text", "toCollection"].map { ctx.interner.intern($0) }
         let links = Set(

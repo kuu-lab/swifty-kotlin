@@ -20,20 +20,7 @@ struct StringToMutableListFunctionTests {
         fun explodeLiteral(): MutableList<Char> {
             return "hello".toMutableList()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toMutableList to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test
-    func testToMutableListResultIsMutable() throws {
-        // The returned list must support MutableList members (`add`) — i.e. the
-        // inferred return type really is MutableList<Char>, not List<Char>.
-        let ctx = makeContextFromSource("""
         fun appendBang(s: String): Int {
             val chars = s.toMutableList()
             chars.add('!')
@@ -44,7 +31,7 @@ struct StringToMutableListFunctionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected toMutableList result to accept MutableList members, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected toMutableList to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
