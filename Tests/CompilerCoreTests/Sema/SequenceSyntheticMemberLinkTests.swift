@@ -1245,265 +1245,43 @@ struct SequenceSyntheticMemberLinkTests {
         }
     }
 
-
-
-    @Test func testSequenceRandomResolvesInCallExpressions() throws {
-        let source = "fun pickValue(): Int { return sequenceOf(7).random() }"
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "sequences", "Sequence", "random"].map { ctx.interner.intern($0) }
-            let links = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_random"))
-        }
-    }
-
-
-    @Test func testSequenceWithIndexResolvesInCallExpressions() throws {
+    @Test func testSequenceSyntheticMemberLinksAdditionalResolutions() throws {
         let source = """
+        fun pickValue(): Int { return sequenceOf(7).random() }
         fun indexedValuesSize(): Int {
             val values = sequenceOf(10, 20, 30)
             return values.withIndex().toList().size
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.withIndex surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let extensionFQName = ["kotlin", "sequences", "withIndex"]
-                .map { ctx.interner.intern($0) }
-            let withIndexSymbol = try #require(
-                sema.symbols.lookup(fqName: extensionFQName),
-                "Expected Sequence.withIndex source extension to be registered"
-            )
-            #expect(sema.symbols.externalLinkName(for: withIndexSymbol) == nil)
-
-            let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("IndexedValue"),
-            ]))
-            let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
-            guard case let .classType(sequenceType) = sema.types.kind(of: signature.returnType),
-                  let firstArg = sequenceType.args.first
-            else {
-                Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
-                return
-            }
-            let elementType: TypeID
-            switch firstArg {
-            case .invariant(let t), .out(let t), .in(let t):
-                elementType = t
-            case .star:
-                Issue.record("Expected Sequence.withIndex() element type, got star projection")
-                return
-            }
-            guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
-                Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
-                return
-            }
-            #expect(indexedValueType.classSymbol == indexedValueSymbol)
-        }
-    }
-
-
-    @Test func testSequenceSumByResolvesInCallExpressions() throws {
-        let source = """
-        fun weighted(): Int {
+        fun weightedDouble(): Int {
             val values = sequenceOf(1, 2, 3)
             return values.sumBy { value ->
                 if (value == 2) 10 else value
             }
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.sumBy surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "sumBy"]
-                .map { ctx.interner.intern($0) }
-            let sumBySymbols = sema.symbols.lookupAll(fqName: memberFQName)
-            let links = Set(sumBySymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_sumBy"))
-            let sumBySymbol = try #require(sumBySymbols.first)
-            #expect(
-                sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "Sequence.sumBy should carry Deprecated metadata"
-            )
-        }
-    }
-
-
-    @Test func testSequenceSumByDoubleResolvesInCallExpressions() throws {
-        let source = """
         fun weighted(): Double {
             val values = sequenceOf(1, 2, 3)
             return values.sumByDouble { value ->
                 if (value == 2) 1.5 else 0.25
             }
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "sumByDouble"]
-                .map { ctx.interner.intern($0) }
-            let sumByDoubleSymbols = sema.symbols.lookupAll(fqName: memberFQName)
-            let links = Set(sumByDoubleSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_sumByDouble"))
-            let sumByDoubleSymbol = try #require(sumByDoubleSymbols.first)
-            #expect(
-                sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "Sequence.sumByDouble should carry Deprecated metadata"
-            )
-        }
-    }
-
-
-    @Test func testSequenceMinWithOrNullResolvesInCallExpressions() throws {
-        let source = """
-        fun smallestByReverseOrder(): Int? {
+        fun smallestByReverseOrderOrNull(): Int? {
             val values = sequenceOf(5, 2, 3)
             return values.minWithOrNull(reverseOrder<Int>())
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.minWithOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "minWithOrNull"]
-                .map { ctx.interner.intern($0) }
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_minWithOrNull"))
-
-            let symbol = try #require(symbols.first)
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(signature.parameterTypes.count == 1)
-        }
-    }
-
-
-    @Test func testSequenceFilterIsInstanceToResolvesInCallExpressions() throws {
-        let source = """
         fun collectInts(): MutableList<Int> {
             val values: Sequence<Any> = sequenceOf(1, "two", 3)
             val dest = mutableListOf<Int>(0)
             return values.filterIsInstanceTo(dest)
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.filterIsInstanceTo surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "filterIsInstanceTo"
-            })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected Sequence.filterIsInstanceTo to bind to its synthetic runtime callee"
-            )
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_filterIsInstanceTo")
-            #expect(
-                sema.bindings.isCollectionExpr(callExpr),
-                "Expected filterIsInstanceTo result to be tracked as a collection expression"
-            )
-        }
-    }
-
-
-    @Test func testSequenceMinOrNullResolvesInCallExpressions() throws {
-        let source = """
         fun smallest(): Int? {
             val values = sequenceOf(5, 2, 3)
             return values.minOrNull()
         }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence.minOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "minOrNull"]
-                .map { ctx.interner.intern($0) }
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_minOrNull"))
-
-            let symbol = try #require(symbols.first)
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(signature.typeParameterUpperBoundsList.count == 1)
-            #expect(!signature.typeParameterUpperBoundsList[0].isEmpty)
-        }
-    }
-
-
-    @Test func testSequenceMinWithResolvesInCallExpressions() throws {
-        let source = """
         fun smallestByReverseOrder(): Int {
             val values = sequenceOf(5, 2, 3)
             return values.minWith(reverseOrder<Int>())
         }
         """
-
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1512,19 +1290,133 @@ struct SequenceSyntheticMemberLinkTests {
                 .joined(separator: " | ")
             #expect(
                 !ctx.diagnostics.hasError,
-                "Expected Sequence.minWith surface to resolve cleanly, got: \(diagnosticSummary)"
+                "Expected combined trailing Sequence member sources to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "minWith"]
-                .map { ctx.interner.intern($0) }
-            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            #expect(links.contains("kk_sequence_minWith"))
+            let interner = ctx.interner
+            // === testSequenceRandomResolvesInCallExpressions ===
+            do {
+                let fq = ["kotlin", "sequences", "Sequence", "random"].map { interner.intern($0) }
+                let links = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_random"))
+            }
+            // === testSequenceWithIndexResolvesInCallExpressions ===
+            do {
+                let extensionFQName = ["kotlin", "sequences", "withIndex"]
+                    .map { interner.intern($0) }
+                let withIndexSymbol = try #require(
+                    sema.symbols.lookup(fqName: extensionFQName),
+                    "Expected Sequence.withIndex source extension to be registered"
+                )
+                #expect(sema.symbols.externalLinkName(for: withIndexSymbol) == nil)
 
-            let symbol = try #require(symbols.first)
-            let signature = try #require(sema.symbols.functionSignature(for: symbol))
-            #expect(signature.parameterTypes.count == 1)
+                let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("IndexedValue"),
+                ]))
+                let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
+                guard case let .classType(sequenceType) = sema.types.kind(of: signature.returnType),
+                      let firstArg = sequenceType.args.first
+                else {
+                    Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
+                    return
+                }
+                let elementType: TypeID
+                switch firstArg {
+                case .invariant(let t), .out(let t), .in(let t):
+                    elementType = t
+                case .star:
+                    Issue.record("Expected Sequence.withIndex() element type, got star projection")
+                    return
+                }
+                guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
+                    Issue.record("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
+                    return
+                }
+                #expect(indexedValueType.classSymbol == indexedValueSymbol)
+            }
+            // === testSequenceSumByResolvesInCallExpressions ===
+            do {
+                let memberFQName = ["kotlin", "sequences", "Sequence", "sumBy"]
+                    .map { interner.intern($0) }
+                let sumBySymbols = sema.symbols.lookupAll(fqName: memberFQName)
+                let links = Set(sumBySymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_sumBy"))
+                let sumBySymbol = try #require(sumBySymbols.first)
+                #expect(
+                    sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                    "Sequence.sumBy should carry Deprecated metadata"
+                )
+            }
+            // === testSequenceSumByDoubleResolvesInCallExpressions ===
+            do {
+                let memberFQName = ["kotlin", "sequences", "Sequence", "sumByDouble"]
+                    .map { interner.intern($0) }
+                let sumByDoubleSymbols = sema.symbols.lookupAll(fqName: memberFQName)
+                let links = Set(sumByDoubleSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_sumByDouble"))
+                let sumByDoubleSymbol = try #require(sumByDoubleSymbols.first)
+                #expect(
+                    sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                    "Sequence.sumByDouble should carry Deprecated metadata"
+                )
+            }
+            // === testSequenceMinWithOrNullResolvesInCallExpressions ===
+            do {
+                let memberFQName = ["kotlin", "sequences", "Sequence", "minWithOrNull"]
+                    .map { interner.intern($0) }
+                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_minWithOrNull"))
+
+                let symbol = try #require(symbols.first)
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                #expect(signature.parameterTypes.count == 1)
+            }
+            // === testSequenceFilterIsInstanceToResolvesInCallExpressions ===
+            do {
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "filterIsInstanceTo"
+                })
+                let chosenCallee = try #require(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected Sequence.filterIsInstanceTo to bind to its synthetic runtime callee"
+                )
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_filterIsInstanceTo")
+                #expect(
+                    sema.bindings.isCollectionExpr(callExpr),
+                    "Expected filterIsInstanceTo result to be tracked as a collection expression"
+                )
+            }
+            // === testSequenceMinOrNullResolvesInCallExpressions ===
+            do {
+                let memberFQName = ["kotlin", "sequences", "Sequence", "minOrNull"]
+                    .map { interner.intern($0) }
+                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_minOrNull"))
+
+                let symbol = try #require(symbols.first)
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                #expect(signature.typeParameterUpperBoundsList.count == 1)
+                #expect(!signature.typeParameterUpperBoundsList[0].isEmpty)
+            }
+            // === testSequenceMinWithResolvesInCallExpressions ===
+            do {
+                let memberFQName = ["kotlin", "sequences", "Sequence", "minWith"]
+                    .map { interner.intern($0) }
+                let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+                let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                #expect(links.contains("kk_sequence_minWith"))
+
+                let symbol = try #require(symbols.first)
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                #expect(signature.parameterTypes.count == 1)
+            }
         }
     }
 }
