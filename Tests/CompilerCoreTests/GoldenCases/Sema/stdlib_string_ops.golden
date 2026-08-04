@@ -39,8 +39,6 @@ symbol fq=golden.sema.useUppercase kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
-symbol fq=kotlin.text.contains#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
-symbol fq=kotlin.text.contains.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.equals#0 kind=function vis=public flags=synthetic sig=recv=String params=[String?] ret=Boolean
 symbol fq=kotlin.text.equals#1 kind=function vis=public flags=synthetic sig=recv=String params=[String?,Boolean] ret=Boolean
 symbol fq=kotlin.text.equals.ignoreCase kind=valueParameter vis=private flags=synthetic
@@ -105,7 +103,7 @@ expr e@11:48 string(lin) type=String
 expr e@11:30#1 memberCall recv=e@11:30 callee=endsWith args=[_:e@11:48] type=Boolean call=kotlin.text.endsWith#1
 expr e@13:30 string(Kotlin) type=String
 expr e@13:48 string(otl) type=String
-expr e@13:30#1 memberCall recv=e@13:30 callee=contains args=[_:e@13:48] type=Boolean call=kotlin.text.contains#0
+expr e@13:30#1 memberCall recv=e@13:30 callee=contains args=[_:e@13:48] type=Boolean call=kotlin.text.contains#1
 expr e@15:23 string(42) type=String
 expr e@15:23#1 memberCall recv=e@15:23 callee=toInt args=[] type=Int call=kotlin.text.toInt#1
 expr e@17:29 string(3.14) type=String

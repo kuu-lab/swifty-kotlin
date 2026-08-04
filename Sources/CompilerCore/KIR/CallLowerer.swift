@@ -1423,6 +1423,7 @@ final class CallLowerer {
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
             "kk_synchronized",
+            "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
 
