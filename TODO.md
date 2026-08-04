@@ -1,5 +1,9 @@
 # Kotlin Compiler Remaining Tasks
 
+### Runtime コルーチン
+
+- [x] BUG-181: `withTimeout`/`withTimeoutOrNull`（`kk_with_timeout`/`kk_with_timeout_or_null`）がブロック本体を**呼び出し元と同一の continuation** 上で実行していたため、タイムアウト後に放棄されたブロックの entry loop が呼び出し元の `RuntimeContinuationState` を共有し続け、残っていた `delay()` タイマーが後から呼び出し元に対して spurious な `signalResume()` を発火していた。結果、呼び出し元の**次の**中断点（例: `job.join()`）が二重に resume され、同じ body の並行実行のうち片方が completion gate を先に signal して `runBlocking` が早期 return → 後続の文（`coroutineScope { throw ... }` の catch 内 `println`）が出力されないままプロセスが終了する。CI の `Verification 5/5 (kotlinc Diff)` が `Scripts/diff_cases/coroutine_cancellation_edge_cases.kt` で `boom` 行を落とす flaky 失敗（run 30518813981 / 30687957033 / 30728548711 / 30748246808 / 30844735766）の原因。修正: ブロックを `kk_coroutine_continuation_new` で作った専用の子 continuation（scope はタイムアウト用スコープ、専用 job handle 付き）で実行し、タイムアウト時にはその job を cancel して協調的に巻き取る。回帰: `Tests/RuntimeTests/RuntimeCoroutineAdvancedTests.swift` の `testWithTimeoutOrNullDoesNotResumeCallerContinuationAfterTimeout`（修正前は spurious resume を確実に観測して fail する）
+
 ### KIR / Lowering（残り 3 件）
 - [ ] DEBT-KIR-006: `Iterable<T>.joinToString(separator) { transform }` の transform ラムダが無視され、各要素の生の `toString()` がそのまま結合されるバグを調査・修正する。再現: `"a\r\nbb\r\nccc".split("\r\n").joinToString(",") { it.length.toString() }` は `"a,bb,ccc"`（誤り、正しくは `"1,2,3"`）になる。`split` 自体・`for` ループでの個別アクセスは正しく動作する。KSP-482 (#4625) のレビュー対応中に Base64.Pem の行長検証 diff case で発覚、該当箇所は `for` ループへ書き換えて回避済み。`map`/`filter` 等の他 HOF で同型の transform 無視パターンがないか要確認
 
