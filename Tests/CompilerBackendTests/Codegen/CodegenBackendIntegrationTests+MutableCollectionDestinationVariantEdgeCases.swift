@@ -1,10 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendMutableCollectionDestinationVariantEdgeCasesTests {
 
+    @Test
     func testFilterToAppendsToDestination() throws {
         let source = """
         fun main() {
@@ -18,6 +21,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_01")
     }
 
+    @Test
     func testFilterToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -31,6 +35,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_02")
     }
 
+    @Test
     func testMapToAppendsToDestination() throws {
         let source = """
         fun main() {
@@ -44,6 +49,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_03")
     }
 
+    @Test
     func testMapToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -57,6 +63,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_04")
     }
 
+    @Test
     func testFlatMapToAppendsToDestination() throws {
         let source = """
         fun main() {
@@ -70,6 +77,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_05")
     }
 
+    @Test
     func testFlatMapToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -83,6 +91,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_06")
     }
 
+    @Test
     func testAssociateToPopulatesDestination() throws {
         let source = """
         fun main() {
@@ -98,6 +107,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_07")
     }
 
+    @Test
     func testAssociateToOverwritesDuplicateKey() throws {
         let source = """
         fun main() {
@@ -110,6 +120,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_08")
     }
 
+    @Test
     func testAssociateByToPopulatesDestination() throws {
         let source = """
         fun main() {
@@ -124,6 +135,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_09")
     }
 
+    @Test
     func testAssociateByToWithValueTransform() throws {
         let source = """
         fun main() {
@@ -137,6 +149,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_10")
     }
 
+    @Test
     func testAssociateByToOverwritesDuplicateKey() throws {
         let source = """
         fun main() {
@@ -149,6 +162,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_11")
     }
 
+    @Test
     func testAssociateWithToPopulatesDestination() throws {
         let source = """
         fun main() {
@@ -164,6 +178,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_12")
     }
 
+    @Test
     func testAssociateWithToRetainsExistingEntries() throws {
         let source = """
         fun main() {
@@ -178,6 +193,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_13")
     }
 
+    @Test
     func testGroupByToPopulatesDestination() throws {
         let source = """
         fun main() {
@@ -192,6 +208,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_14")
     }
 
+    @Test
     func testGroupByToAppendsToBuckets() throws {
         let source = """
         fun main() {
@@ -206,6 +223,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_15")
     }
 
+    @Test
     func testGroupByToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -218,6 +236,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_16")
     }
 
+    @Test
     func testGroupByToWithValueTransform() throws {
         let source = """
         fun main() {
@@ -231,6 +250,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_17")
     }
 
+    @Test
     func testPartitionSplitsElements() throws {
         let source = """
         fun main() {
@@ -243,6 +263,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_18")
     }
 
+    @Test
     func testPartitionEmptySource() throws {
         let source = """
         fun main() {
@@ -255,6 +276,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_19")
     }
 
+    @Test
     func testPartitionAllMatch() throws {
         let source = """
         fun main() {
@@ -267,6 +289,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_20")
     }
 
+    @Test
     func testToCollectionAppendsToDestination() throws {
         let source = """
         fun main() {
@@ -280,6 +303,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_21")
     }
 
+    @Test
     func testToCollectionEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -293,6 +317,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_22")
     }
 
+    @Test
     func testToCollectionIntoMutableSet() throws {
         let source = """
         fun main() {
@@ -308,6 +333,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_23")
     }
 
+    @Test
     func testToMutableListReturnsIndependentCopy() throws {
         let source = """
         fun main() {
@@ -321,6 +347,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_24")
     }
 
+    @Test
     func testToMutableListFromEmpty() throws {
         let source = """
         fun main() {
@@ -334,6 +361,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_25")
     }
 
+    @Test
     func testToMutableSetDeduplicates() throws {
         let source = """
         fun main() {
@@ -347,6 +375,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_26")
     }
 
+    @Test
     func testToMutableSetFromEmpty() throws {
         let source = """
         fun main() {
@@ -360,6 +389,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_27")
     }
 
+    @Test
     func testToMutableMapReturnsMutableCopy() throws {
         let source = """
         fun main() {
@@ -374,6 +404,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_28")
     }
 
+    @Test
     func testToMutableMapFromEmpty() throws {
         let source = """
         fun main() {
@@ -387,6 +418,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_29")
     }
 
+    @Test
     func testFilterToPreservesInsertionOrder() throws {
         let source = """
         fun main() {
@@ -399,6 +431,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_30")
     }
 
+    @Test
     func testMapToPreservesInsertionOrder() throws {
         let source = """
         fun main() {
@@ -411,6 +444,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_31")
     }
 
+    @Test
     func testAssociateToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -424,6 +458,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_32")
     }
 
+    @Test
     func testFilterToLinkedHashSetPreservesOrder() throws {
         let source = """
         fun main() {
@@ -436,6 +471,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_33")
     }
 
+    @Test
     func testMapNotNullToFiltersNulls() throws {
         let source = """
         fun main() {
@@ -448,6 +484,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_34")
     }
 
+    @Test
     func testFilterNotNullToAppendsNonNullValues() throws {
         let source = """
         fun main() {
@@ -461,6 +498,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_34_FILTER_NOT_NULL_TO")
     }
 
+    @Test
     func testFilterNotToAppendsNonMatchingElements() throws {
         let source = """
         fun main() {
@@ -474,6 +512,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_35")
     }
 
+    @Test
     func testFilterIsInstanceToCollectsTypedElements() throws {
         let source = """
         fun main() {
@@ -486,6 +525,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_36")
     }
 
+    @Test
     func testMapIndexedToAppendsIndexedElements() throws {
         let source = """
         fun main() {
@@ -498,6 +538,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_37")
     }
 
+    @Test
     func testFlatMapIndexedToAppendsElements() throws {
         let source = """
         fun main() {
@@ -510,6 +551,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_38")
     }
 
+    @Test
     func testGroupingReduceToCompiles() throws {
         let source = """
         fun main() {
@@ -526,3 +568,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_39")
     }
 }
+#endif
