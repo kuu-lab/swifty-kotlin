@@ -1,6 +1,8 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+
+#if canImport(XCTest)
 import XCTest
 
 // STDLIB-033: kotlin.concurrent / kotlin.concurrent.atomics parity edge cases
@@ -56,9 +58,52 @@ class CodegenExtendedEdgeCaseTestCase: XCTestCase {
         }
     }
 }
+#endif
 
-final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase {
+#if canImport(Testing)
+import Testing
 
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+// STDLIB-033: kotlin.concurrent / kotlin.concurrent.atomics parity edge cases
+@Suite
+struct CodegenBackendAtomicExtendedEdgeCasesTests {
+
+    @Test
     func testCodegenAtomicIntCASSuccessReturnsTrueAndUpdatesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -74,6 +119,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntCASSuccess", expected: "true\n20\n")
     }
 
+    @Test
     func testCodegenJavaAtomicIntegerDirectConstruction() throws {
         let source = """
         import java.util.concurrent.atomic.AtomicInteger
@@ -89,6 +135,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "JavaAtomicIntegerDirectConstruction", expected: "5\n")
     }
 
+    @Test
     func testCodegenAtomicIntCASFailureReturnsFalseAndLeavesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -104,6 +151,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntCASFailure", expected: "false\n10\n")
     }
 
+    @Test
     func testCodegenAtomicIntCompareAndExchangeReturnsCurrentValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -122,6 +170,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntCAE", expected: "5\n10\n10\n10\n")
     }
 
+    @Test
     func testCodegenAtomicIntFetchAndIncrementReturnsOldValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -140,6 +189,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntIncrement", expected: "7\n8\n8\n7\n8\n8\n")
     }
 
+    @Test
     func testCodegenAtomicIntLargePositiveValue() throws {
         // Note: In this compiler's current implementation, Kotlin Int is mapped to 64-bit
         // native Int. Int.MAX_VALUE + 1 does not wrap to Int.MIN_VALUE but instead
@@ -159,6 +209,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntLargeValue", expected: "2147483647\ntrue\n")
     }
 
+    @Test
     func testCodegenAtomicIntStoreAndLoad() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -174,6 +225,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntStoreLoad", expected: "0\n42\n")
     }
 
+    @Test
     func testCodegenAtomicLongBasicOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -191,6 +243,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongBasic", expected: "100\n200\n200\n300\n")
     }
 
+    @Test
     func testCodegenAtomicLongCASSuccessAndFailure() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -207,6 +260,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongCAS", expected: "true\n60\nfalse\n60\n")
     }
 
+    @Test
     func testCodegenAtomicLongCompareAndExchangeReturnsCurrentValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -223,6 +277,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongCAE", expected: "10\n20\n20\n20\n")
     }
 
+    @Test
     func testCodegenAtomicLongArithmeticOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -244,6 +299,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArithmetic", expected: "5\n5\n8\n8\n9\n9\n8\n9\n9\n")
     }
 
+    @Test
     func testCodegenAtomicLongNegativeDeltaArithmetic() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -260,6 +316,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongNegativeDelta", expected: "7\n7\n7\n5\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanBasicOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -277,6 +334,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanBasic", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanGetSetGetAndSet() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -294,6 +352,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanGetSet", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanCASSuccessAndFailure() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -310,6 +369,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanCAS", expected: "true\nfalse\nfalse\nfalse\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanCompareAndExchangeReturnsCurrentValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -328,6 +388,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanCAE", expected: "false\ntrue\ntrue\ntrue\n")
     }
 
+    @Test
     func testCodegenAtomicReferenceIdentityVsEqualityCAS() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -348,6 +409,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicRefIdentity", expected: "true\nhello\n")
     }
 
+    @Test
     func testCodegenAtomicReferenceCompareAndExchangeReturnsCurrentValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -371,6 +433,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicRefCAE", expected: "alpha\nbeta\nbeta\nbeta\n")
     }
 
+    @Test
     func testCodegenAtomicReferenceExchangeAndStore() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -390,6 +453,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicRefExchangeStore", expected: "v1\nv2\nv3\n")
     }
 
+    @Test
     func testCodegenAtomicArrayFetchAndUpdateAt() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -406,6 +470,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayFetchAndUpdateAt", expected: "a\nab\n")
     }
 
+    @Test
     func testCodegenAtomicArrayUpdateAt() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -421,6 +486,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayUpdateAt", expected: "ab\n")
     }
 
+    @Test
     func testCodegenAtomicArrayCompareAndSetAt() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -439,6 +505,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayCompareAndSetAt", expected: "true\nb\nfalse\nb\n")
     }
 
+    @Test
     func testCodegenAtomicArrayOfNullsFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -456,6 +523,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayOfNullsFactory", expected: "2\nfirst\nvalue\n")
     }
 
+    @Test
     func testCodegenAtomicArrayOfFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -482,6 +550,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayOfFactory", expected: "2\nfirst\nvalue\nnext\n0\n2\nspread\nvalues\n")
     }
 
+    @Test
     func testCodegenAtomicArrayUpdateAndFetchAt() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -498,6 +567,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicArrayUpdateAndFetchAt", expected: "ab\nab\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayBasicOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -516,6 +586,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayBasic", expected: "3\n0\n42\n42\n99\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayInitFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -532,6 +603,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayInitFactory", expected: "3\n0\n1\n2\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayCASOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -551,6 +623,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayCAS", expected: "true\n20\nfalse\n20\n20\n50\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayArithmeticOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -574,6 +647,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayArithmetic", expected: "5\n5\n8\n8\n9\n10\n10\n10\n9\n8\n8\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayFetchAndUpdateAt() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -593,6 +667,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayFetchAndUpdateAt", expected: "10\n20\n20\n15\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayIndexOperator() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -609,6 +684,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayIndexOp", expected: "7\n13\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayBasicOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -627,6 +703,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayBasic", expected: "3\n0\n100\n100\n200\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayInitFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -645,6 +722,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayInitFactory", expected: "3\n10\n20\n30\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayCASOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -664,6 +742,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayCAS", expected: "true\n20\nfalse\n20\n20\n50\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayArithmeticOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -686,6 +765,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayArithmetic", expected: "5\n5\n8\n8\n9\n10\n10\n9\n8\n8\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayFetchAndUpdateAtThirdScenario() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -705,6 +785,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayFetchAndUpdateAt", expected: "7\n21\n21\n17\n")
     }
 
+    @Test
     func testCodegenAtomicIncrementAndGetOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -736,6 +817,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIncrementAndGet", expected: "2\n2\n4\n4\n6\n6\n8\n8\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayFetchAndUpdateAtSecondScenario() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -755,6 +837,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayFetchAndUpdateAt", expected: "10\n20\n20\n15\n")
     }
 
+    @Test
     func testCodegenAtomicGetAndIncrementOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -786,6 +869,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicGetAndIncrement", expected: "1\n2\n3\n4\n5\n6\n7\n8\n")
     }
 
+    @Test
     func testCodegenAtomicGetAndDecrementOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -817,6 +901,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicGetAndDecrement", expected: "2\n1\n4\n3\n6\n5\n8\n7\n")
     }
 
+    @Test
     func testCodegenAtomicGetAndAddOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -848,6 +933,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicGetAndAdd", expected: "1\n3\n3\n7\n5\n7\n7\n10\n")
     }
 
+    @Test
     func testCodegenAtomicDecrementAndGetOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -879,6 +965,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicDecrementAndGet", expected: "1\n1\n3\n3\n5\n5\n7\n7\n")
     }
 
+    @Test
     func testCodegenAtomicAddAndGetOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -910,6 +997,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicAddAndGet", expected: "3\n3\n7\n7\n7\n7\n10\n10\n")
     }
 
+    @Test
     func testCodegenAtomicIntDefaultInitialValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -923,6 +1011,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntDefaultInit", expected: "0\n")
     }
 
+    @Test
     func testCodegenAtomicIntGetAndUpdate() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -944,6 +1033,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
     }
 
+    @Test
     func testCodegenAtomicLongGetAndUpdate() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -965,6 +1055,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanGetAndUpdate() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -985,6 +1076,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBooleanGetAndUpdate", expected: "false\ntrue\ntrue\nfalse\ntrue\n")
     }
 
+    @Test
     func testCodegenAtomicGetAndSetOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1027,6 +1119,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicGetAndSet", expected: "1\n2\n3\n4\na\nb\nx\ny\n5\n6\n7\n8\n")
     }
 
+    @Test
     func testCodegenKotlinConcurrentAtomicIntLoadStore() throws {
         let source = """
         import kotlin.concurrent.AtomicInt
@@ -1041,6 +1134,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "KConcurrentAtomicInt", expected: "5\n10\n")
     }
 
+    @Test
     func testCodegenKotlinConcurrentAtomicLongOperations() throws {
         let source = """
         import kotlin.concurrent.AtomicLong
@@ -1056,6 +1150,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "KConcurrentAtomicLong", expected: "5\n10\n12\n")
     }
 
+    @Test
     func testCodegenKotlinConcurrentAtomicReferenceOperations() throws {
         let source = """
         import kotlin.concurrent.AtomicReference
@@ -1071,6 +1166,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "KConcurrentAtomicReference", expected: "first\nsecond\nthird\n")
     }
 
+    @Test
     func testCodegenKotlinConcurrentAtomicIntArrayOperations() throws {
         let source = """
         import kotlin.concurrent.AtomicIntArray
@@ -1088,6 +1184,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "KConcurrentAtomicIntArray", expected: "10\n20\n15\n2\n")
     }
 
+    @Test
     func testCodegenKotlinConcurrentAtomicLongArrayOperations() throws {
         let source = """
         import kotlin.concurrent.AtomicLongArray
@@ -1105,6 +1202,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "KConcurrentAtomicLongArray", expected: "10\n20\n15\n2\n")
     }
 
+    @Test
     func testCodegenAtomicBooleanValueSetterWiresBoolStore() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1119,6 +1217,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicBoolSetterABI001", expected: "true\n")
     }
 
+    @Test
     func testCodegenAtomicIntValueSetterWiresIntStore() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1133,6 +1232,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntSetterABI001", expected: "42\n")
     }
 
+    @Test
     func testCodegenAtomicReferenceGetAndUpdate() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1156,6 +1256,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicRefGetAndUpdateBUG01", expected: "hello\nhello!\nhello!\nhello!?\nHELLO!?\nHELLO!?~\nHELLO!?~\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayOOBLoadThrowsIndexOutOfBounds() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1174,6 +1275,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayOOBLoad", expected: "caught\n")
     }
 
+    @Test
     func testCodegenAtomicIntArrayOOBStoreThrowsIndexOutOfBounds() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1192,6 +1294,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayOOBStore", expected: "caught\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayOOBLoadThrowsIndexOutOfBounds() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1210,6 +1313,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBLoad", expected: "caught\n")
     }
 
+    @Test
     func testCodegenAtomicLongArrayOOBStoreThrowsIndexOutOfBounds() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1228,6 +1332,7 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
         try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBStore", expected: "caught\n")
     }
 
+    @Test
     func testCodegenAtomicArrayOfBoxesPrimitiveElementsForIsChecks() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1254,4 +1359,27 @@ final class CodegenAtomicExtendedEdgeCasesTests: CodegenExtendedEdgeCaseTestCase
                 """ + "\n"
         )
     }
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
 }
+#endif
