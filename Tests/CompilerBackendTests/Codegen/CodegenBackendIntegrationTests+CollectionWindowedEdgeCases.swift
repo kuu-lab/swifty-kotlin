@@ -1,20 +1,85 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+#if canImport(Testing)
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenCollectionFirstNotNullOfUsesCanonicalDiffCase() throws {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite(.serialized)
+struct CodegenBackendCollectionWindowedEdgeCasesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    private func diffCaseSource(_ name: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
             .deletingLastPathComponent() // CompilerCoreTests/
             .deletingLastPathComponent() // Tests/
             .deletingLastPathComponent() // repo root
         let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_firstnotnullof.kt",
+            "Scripts/diff_cases/\(name)",
             isDirectory: false
         )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        return try String(contentsOf: caseURL, encoding: .utf8)
+    }
+
+    @Test
+    func testCodegenCollectionFirstNotNullOfUsesCanonicalDiffCase() throws {
+        let source = try diffCaseSource("collection_firstnotnullof.kt")
 
         try assertKotlinOutput(
             source,
@@ -27,17 +92,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_firstnotnullofornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_firstnotnullofornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -50,17 +107,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionMinusElementUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_minuselement.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_minuselement.kt")
 
         try assertKotlinOutput(
             source,
@@ -74,17 +123,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionReduceRightIndexedUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_reducerightindexed.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_reducerightindexed.kt")
 
         try assertKotlinOutput(
             source,
@@ -98,17 +139,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionReduceRightIndexedOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_reducerightindexedornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_reducerightindexedornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -122,17 +155,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionReduceRightOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_reducerightornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_reducerightornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -146,17 +171,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionSumByUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_sumby.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_sumby.kt")
 
         try assertKotlinOutput(
             source,
@@ -170,17 +187,9 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionSumByDoubleUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/collection_sumbydouble.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("collection_sumbydouble.kt")
 
         try assertKotlinOutput(
             source,
@@ -194,6 +203,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCompilesCollectionWindowedTransformEdgeCases() throws {
         let source = """
         fun main() {
@@ -228,6 +238,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    @Test
     func testCodegenCollectionChunkedEdgeCases() throws {
         let source = """
         fun main() {
@@ -252,4 +263,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
+#endif
