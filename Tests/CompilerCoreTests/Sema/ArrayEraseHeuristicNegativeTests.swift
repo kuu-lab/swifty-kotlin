@@ -14,166 +14,220 @@ import Testing
 @Suite
 struct ArrayEraseHeuristicNegativeTests {
 
-    // MARK: - HOF stub existence (symbol table)
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+    }
 
-    /// Verify that all target HOF members are registered as synthetic stubs,
-    /// so they cannot be silently removed without test breakage.
-    @Test func testCollectionHOFSyntheticStubsExist() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    @Test
+    func testArrayEraseHeuristics() throws {
+        let sources: [String] = [
+            // source 0
+            """
+            fun noop() {}
+            """,
+            // source 1
+            """
+            package sample1
+
+                    fun test(values: List<String>) {
+                        values.mapIndexed { index, item -> item.length }
+                    }
+
+            """,
+            // source 2
+            """
+            package sample2
+
+                    fun test(values: List<String>) {
+                        values.flatMap { listOf(it) }
+                    }
+
+            """,
+            // source 3
+            """
+            package sample3
+
+                    fun test(values: List<String>) {
+                        values.associate { it to it.length }
+                    }
+
+            """,
+            // source 4
+            """
+            package sample4
+
+                    fun test(values: List<String>) {
+                        values.associateBy { it.first() }
+                    }
+
+            """,
+            // source 5
+            """
+            package sample5
+
+                    fun test(values: List<String>) {
+                        values.associateWith { it.length }
+                    }
+
+            """,
+            // source 6
+            """
+            package sample6
+
+                    fun test(values: List<String>) {
+                        values.groupBy { it.length }
+                    }
+
+            """,
+            // source 7
+            """
+            package sample7
+
+                    fun test(values: List<String>) {
+                        values.partition { it.length > 3 }
+                    }
+
+            """,
+            // source 8
+            """
+            package sample8
+
+                    fun test() {
+                        val x = listOf(1, 2, 3)
+                        x.contains(2)
+                    }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-
             let sema = try #require(ctx.sema)
-            let listFQ: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-                ctx.interner.intern("List"),
-            ]
+            let interner = ctx.interner
+            _ = (sema, interner)
 
-            // partition is still registered as an explicit synthetic member stub.
-            // mapIndexed is now provided by bundled Kotlin source (top-level extension).
-            let collectionsFQ: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
-            ]
-            let mapIndexedSource = sema.symbols.lookup(
-                fqName: collectionsFQ + [ctx.interner.intern("mapIndexed")]
-            )
-            #expect(
-                mapIndexedSource != nil,
-                "Expected bundled source 'mapIndexed' to be registered"
-            )
-            if let mapIndexedSource {
-                let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
-                #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
+            // testCollectionHOFSyntheticStubsExist
+            do {
+                let sema = try #require(ctx.sema)
+                let listFQ: [InternedString] = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ]
+
+                // partition is still registered as an explicit synthetic member stub.
+                // mapIndexed is now provided by bundled Kotlin source (top-level extension).
+                let collectionsFQ: [InternedString] = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                ]
+                let mapIndexedSource = sema.symbols.lookup(
+                    fqName: collectionsFQ + [interner.intern("mapIndexed")]
+                )
+                #expect(
+                    mapIndexedSource != nil,
+                    "Expected bundled source 'mapIndexed' to be registered"
+                )
+                if let mapIndexedSource {
+                    let symbol = try #require(sema.symbols.symbol(mapIndexedSource))
+                    #expect(!symbol.flags.contains(.synthetic), "mapIndexed must be a real bundled source declaration")
+                }
+
+                let partitionSymbolID = sema.symbols.lookup(
+                    fqName: listFQ + [interner.intern("partition")]
+                )
+                #expect(
+                    partitionSymbolID != nil,
+                    "Expected synthetic List member 'partition' to be registered"
+                )
             }
 
-            let partitionSymbolID = sema.symbols.lookup(
-                fqName: listFQ + [ctx.interner.intern("partition")]
-            )
-            #expect(
-                partitionSymbolID != nil,
-                "Expected synthetic List member 'partition' to be registered"
-            )
-        }
-    }
+            // testMapIndexedCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[1]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    // MARK: - HOF call resolution (no type-mismatch diagnostic)
+            // testFlatMapCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[2]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// mapIndexed call on List<String> must resolve without type error.
-    @Test func testMapIndexedCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.mapIndexed { index, item -> item.length }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
+            // testAssociateCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[3]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// flatMap call on List<String> must resolve without type error.
-    @Test func testFlatMapCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.flatMap { listOf(it) }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
+            // testAssociateByCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[4]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// associate call on List<String> must resolve without type error.
-    @Test func testAssociateCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.associate { it to it.length }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
+            // testAssociateWithCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[5]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// associateBy call on List<String> must resolve without type error.
-    @Test func testAssociateByCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.associateBy { it.first() }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
+            // testGroupByCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[6]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// associateWith call on List<String> must resolve without type error.
-    @Test func testAssociateWithCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.associateWith { it.length }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
+            // testPartitionCallResolvesWithoutTypeError
+            do {
+                let samplePath = paths[7]
+                _ = samplePath
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+            }
 
-    /// groupBy call on List<String> must resolve without type error.
-    @Test func testGroupByCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.groupBy { it.length }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
-
-    /// partition call on List<String> must resolve without type error.
-    @Test func testPartitionCallResolvesWithoutTypeError() throws {
-        let source = """
-        fun test(values: List<String>) {
-            values.partition { it.length > 3 }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        }
-    }
-
-    // MARK: - listOf() type preservation
-
-    /// Verify that listOf(1, 2, 3) is typed as a collection (not erased to Any).
-    @Test func testListOfIntIsNotErasedToAny() throws {
-        let source = """
-        fun test() {
-            val x = listOf(1, 2, 3)
-            x.contains(2)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            // If erased to Any, contains() would fail to resolve.
-            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+            // testListOfIntIsNotErasedToAny
+            do {
+                let samplePath = paths[8]
+                _ = samplePath
+                // If erased to Any, contains() would fail to resolve.
+                #expect(
+                        !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
+                        "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"
+                    )
+                assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+            }
         }
     }
 }
