@@ -37,166 +37,208 @@ struct ComparatorSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testComparatorThenComparatorUsesBundledStdlibFunction() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val comparator = compareBy<Int> { it % 10 }.thenComparator { a, b -> b.compareTo(a) }
-            values.sortedWith(comparator)
-        }
-        """
+    // MARK: - Path-aware expression search helpers
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
+    private func allExprIDs(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var result: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { result.append(exprID) }
+        }
+        return result
+    }
+
+    // MARK: - Consolidated synthetic comparator member link tests
+
+    @Test
+    func testComparatorSyntheticMemberLinks() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+            """
+            fun render1(values: List<Int>) {
+                val comparator = compareBy<Int> { it % 10 }.thenComparator { a, b -> b.compareTo(a) }
+                values.sortedWith(comparator)
+            }
+            """,
+            """
+            fun render2(values: List<Int>) {
+                val comparator = compareByDescending<Int> { it % 10 }.thenBy { it / 10 }
+                values.sortedWith(comparator)
+            }
+            """,
+            """
+            fun render3(values: List<Int>) {
+                val comparator = compareBy<Int> { it % 10 }.thenDescending { a, b -> b.compareTo(a) }
+                values.sortedWith(comparator)
+            }
+            """,
+            """
+            fun render4(values: List<Int>) {
+                val comparator = compareBy<Int> { it % 10 }.thenBy { it / 10 }
+                values.sortedWith(comparator)
+            }
+            """,
+            """
+            fun render5(values: List<Int>) {
+                val comparator = compareBy<Int> { it % 10 }
+                comparator.compare(13, 24)
+                values.sortedWith(comparator)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Expected comparator synthetic member tests to type-check without diagnostics: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            // paths[0] is the noop source; paths[1...] map to the original sample sources.
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenComparator"
-            })
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenComparator to resolve to bundled stdlib source")
-        }
-    }
+            // === testComparatorThenComparatorUsesBundledStdlibFunction ===
 
-    @Test func testCompareByDescendingUsesBundledStdlibFunction() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val comparator = compareByDescending<Int> { it % 10 }.thenBy { it / 10 }
-            values.sortedWith(comparator)
-        }
-        """
+            do {
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                let samplePath = paths[1]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+                let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "thenComparator"
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenComparator to resolve to bundled stdlib source")
 
-            let callExpr = try #require(allExprIDs(in: ast) { _, expr in
-                guard case let .call(callee, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(callee) else {
-                    return false
-                }
-                return ctx.interner.resolve(calleeName) == "compareByDescending"
-            }.first)
+            }
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareByDescending to resolve to bundled stdlib source")
-        }
-    }
+            // === testCompareByDescendingUsesBundledStdlibFunction ===
 
-    @Test func testComparatorThenDescendingUsesBundledStdlibFunction() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val comparator = compareBy<Int> { it % 10 }.thenDescending { a, b -> b.compareTo(a) }
-            values.sortedWith(comparator)
-        }
-        """
+            do {
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                let samplePath = paths[2]
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+                let callExpr = try #require(allExprIDs(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .call(callee, _, _, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(callee) else {
+                        return false
+                    }
+                    return interner.resolve(calleeName) == "compareByDescending"
+                }.first)
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenDescending"
-            })
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenDescending to resolve to bundled stdlib source")
-        }
-    }
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareByDescending to resolve to bundled stdlib source")
 
-    @Test func testComparatorThenByUsesBundledStdlibFunction() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val comparator = compareBy<Int> { it % 10 }.thenBy { it / 10 }
-            values.sortedWith(comparator)
-        }
-        """
+            }
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            // === testComparatorThenDescendingUsesBundledStdlibFunction ===
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+            do {
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "thenBy"
-            })
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to resolve to bundled stdlib source")
-        }
-    }
+                let samplePath = paths[3]
 
-    @Test func testComparatorCompareMemberResolves() throws {
-        let source = """
-        fun render(values: List<Int>) {
-            val comparator = compareBy<Int> { it % 10 }
-            comparator.compare(13, 24)
-            values.sortedWith(comparator)
-        }
-        """
+                let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "thenDescending"
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenDescending to resolve to bundled stdlib source")
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            }
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+            // === testComparatorThenByUsesBundledStdlibFunction ===
 
-            let callExpr = try #require(allExprIDs(in: ast) { id, expr in
-                // Skip bundled stdlib files (FileID 0 = collections, 1 = text, 2 = sequences, 3 = time, 4 = file IO);
-                // maxWith/minWith bodies also call comparator.compare, which would
-                // otherwise shadow the user's call with a lower ExprID.
-                if let range = ast.arena.exprRange(id), range.start.file.rawValue < 5 {
-                    return false
-                }
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "compare"
-            }.last)
+            do {
 
-            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            let symbol = try #require(sema.symbols.symbol(chosenCallee))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator", "compare"], "Expected Comparator.compare to resolve to the synthetic Comparator member")
-        }
-    }
+                let samplePath = paths[4]
 
-    @Test func testComparatorThenComparatorIsRegisteredFromBundledStdlib() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+                let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "thenBy"
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenBy to resolve to bundled stdlib source")
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sourceBackedComparatorExtension(
-                named: "thenComparator",
-                sema: sema,
-                interner: ctx.interner
-            ), "Expected Comparator.thenComparator to be registered from bundled stdlib source")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenComparator to be source-backed")
-        }
-    }
+            }
 
-    @Test func testComparatorThenDescendingIsRegisteredFromBundledStdlib() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+            // === testComparatorCompareMemberResolves ===
 
-            let sema = try #require(ctx.sema)
-            let symbolID = try #require(sourceBackedComparatorExtension(
-                named: "thenDescending",
-                sema: sema,
-                interner: ctx.interner
-            ), "Expected Comparator.thenDescending to be registered from bundled stdlib source")
-            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenDescending to be source-backed")
+            do {
+
+                let samplePath = paths[5]
+
+                let callExpr = try #require(allExprIDs(in: ast, path: samplePath, ctx: ctx) { id, expr in
+                    // Skip bundled stdlib files (FileID 0 = collections, 1 = text, 2 = sequences, 3 = time, 4 = file IO);
+                    // maxWith/minWith bodies also call comparator.compare, which would
+                    // otherwise shadow the user's call with a lower ExprID.
+                    if let range = ast.arena.exprRange(id), range.start.file.rawValue < 5 {
+                        return false
+                    }
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "compare"
+                }.last)
+
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                let symbol = try #require(sema.symbols.symbol(chosenCallee))
+                #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator", "compare"], "Expected Comparator.compare to resolve to the synthetic Comparator member")
+
+            }
+
+            // === testComparatorThenComparatorIsRegisteredFromBundledStdlib ===
+
+            do {
+
+                let samplePath = paths[0]
+
+                let symbolID = try #require(sourceBackedComparatorExtension(
+                    named: "thenComparator",
+                    sema: sema,
+                    interner: interner
+                ), "Expected Comparator.thenComparator to be registered from bundled stdlib source")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenComparator to be source-backed")
+
+            }
+
+            // === testComparatorThenDescendingIsRegisteredFromBundledStdlib ===
+
+            do {
+
+                let samplePath = paths[0]
+
+                let symbolID = try #require(sourceBackedComparatorExtension(
+                    named: "thenDescending",
+                    sema: sema,
+                    interner: interner
+                ), "Expected Comparator.thenDescending to be registered from bundled stdlib source")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected Comparator.thenDescending to be source-backed")
+
+            }
+
         }
     }
 }
