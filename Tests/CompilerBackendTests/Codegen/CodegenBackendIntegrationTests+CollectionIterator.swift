@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenCollectionIteratorUsesListRuntimeHelper() throws {
+@Suite
+struct CodegenBackendCollectionIteratorTests {
+    @Test func testCodegenCollectionIteratorUsesListRuntimeHelper() throws {
         let source = """
         fun firstList(values: List<Int>): Int {
             val iterator = values.iterator()
@@ -26,14 +28,14 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "CollectionIteratorRuntime", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             for functionName in ["firstList", "firstSet", "firstCollection"] {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
-                XCTAssertTrue(callees.contains("kk_list_iterator"), "\(functionName) should call kk_list_iterator")
-                XCTAssertFalse(callees.contains("kk_range_iterator"), "\(functionName) should not call kk_range_iterator")
+                #expect(callees.contains("kk_list_iterator"), "\(functionName) should call kk_list_iterator")
+                #expect(!callees.contains("kk_range_iterator"), "\(functionName) should not call kk_range_iterator")
             }
         }
     }
 }
-
+#endif
