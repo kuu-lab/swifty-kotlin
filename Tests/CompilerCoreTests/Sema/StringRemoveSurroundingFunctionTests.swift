@@ -8,9 +8,7 @@ import Testing
 /// (`Stdlib/kotlin/text/StringPrefixSuffix.kt`) and carry no runtime external link.
 @Suite
 struct StringRemoveSurroundingFunctionTests {
-    // MARK: - Type-check tests
-
-    @Test func testRemoveSurroundingDelimiterResolvesInSource() throws {
+    @Test func testRemoveSurroundingResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripBrackets(s: String): String {
             return s.removeSurrounding("[")
@@ -24,24 +22,14 @@ struct StringRemoveSurroundingFunctionTests {
             return "ab".removeSurrounding("ab")
         }
 
-        fun stripNoMatch(): String {
+        fun stripNoMatchSingle(s: String): String {
             return "abc".removeSurrounding("ab")
         }
 
         fun stripChained(s: String): String {
             return s.removeSurrounding("(").removeSurrounding(")")
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected removeSurrounding(delimiter) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testRemoveSurroundingPairResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun stripDiv(s: String): String {
             return s.removeSurrounding("<div>", "</div>")
         }
@@ -50,7 +38,7 @@ struct StringRemoveSurroundingFunctionTests {
             return "[item]".removeSurrounding("[", "]")
         }
 
-        fun stripNoMatch(): String {
+        fun stripNoMatchPair(): String {
             return "no-match".removeSurrounding("<", ">")
         }
 
@@ -58,56 +46,35 @@ struct StringRemoveSurroundingFunctionTests {
             return value.toString().removeSurrounding("(", ")")
         }
         """)
+
         try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
+        let symbols = sema.symbols.lookupAll(fqName: fq)
+
+        let oneArgSymbol = try #require(symbols.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 1
+                && signature.returnType == sema.types.stringType
+        })
         #expect(
-            errors.isEmpty,
-            "Expected removeSurrounding(prefix, suffix) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            sema.symbols.externalLinkName(for: oneArgSymbol) == nil,
+            "String.removeSurrounding(delimiter) should be source-backed after KSP-404"
         )
-    }
 
-    // MARK: - Source-backed (no runtime link) tests
-
-    @Test func testRemoveSurroundingDelimiterIsSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes.count == 1
-                    && signature.returnType == sema.types.stringType
-            })
-            #expect(
-                sema.symbols.externalLinkName(for: symbol) == nil,
-                "String.removeSurrounding(delimiter) should be source-backed after KSP-404"
-            )
-        }
-    }
-
-    @Test func testRemoveSurroundingPairIsSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "removeSurrounding"].map { ctx.interner.intern($0) }
-            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.stringType
-                    && signature.parameterTypes.count == 2
-                    && signature.returnType == sema.types.stringType
-            })
-            #expect(
-                sema.symbols.externalLinkName(for: symbol) == nil,
-                "String.removeSurrounding(prefix, suffix) should be source-backed after KSP-404"
-            )
-        }
+        let twoArgSymbol = try #require(symbols.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == sema.types.stringType
+                && signature.parameterTypes.count == 2
+                && signature.returnType == sema.types.stringType
+        })
+        #expect(
+            sema.symbols.externalLinkName(for: twoArgSymbol) == nil,
+            "String.removeSurrounding(prefix, suffix) should be source-backed after KSP-404"
+        )
     }
 }
 #endif

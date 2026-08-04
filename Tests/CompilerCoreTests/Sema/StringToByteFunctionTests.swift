@@ -1,3 +1,4 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Testing
 
@@ -8,22 +9,12 @@ import Testing
 /// - The radix overload links to `kk_string_toByte_radix_flat`.
 @Suite
 struct StringToByteFunctionTests {
-    @Test func testToByteNoArgResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
+    @Test func testToByteResolvesInSource() throws {
+        let source = """
         fun parseByte(s: String): Int {
             return s.toByte().toInt()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toByte() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToByteWithRadixResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun parseHexByte(s: String): Int {
             return s.toByte(16).toInt()
         }
@@ -31,17 +22,7 @@ struct StringToByteFunctionTests {
         fun parseBinaryByte(s: String): Int {
             return s.toByte(2).toInt()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toByte(radix) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToByteLiteralReceiverResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun decimal(): Int {
             return "42".toByte().toInt()
         }
@@ -49,12 +30,19 @@ struct StringToByteFunctionTests {
         fun hex(): Int {
             return "7f".toByte(16).toInt()
         }
-        """)
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toByte literal calls to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let fq = ["kotlin", "text", "toByte"].map { interner.intern($0) }
+        let allLinks = Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(allLinks.contains("kk_string_toByte"))
+        #expect(allLinks.contains("kk_string_toByte_radix"))
     }
 }
+#endif

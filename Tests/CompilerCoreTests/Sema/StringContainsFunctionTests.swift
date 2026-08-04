@@ -10,7 +10,7 @@ import Testing
 /// - `contains(regex: Regex)` -> `kk_string_contains_regex_flat`
 @Suite
 struct StringContainsFunctionTests {
-    @Test func testContainsWithStringResolvesInSource() throws {
+    @Test func testContainsResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun hasSubstring(s: String): Boolean {
             return s.contains("hello")
@@ -23,17 +23,7 @@ struct StringContainsFunctionTests {
         fun literalReceiverContains(): Boolean {
             return "hello world".contains("world")
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected contains(String) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testContainsWithIgnoreCaseResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun hasSubstringIgnoreCase(s: String): Boolean {
             return s.contains("HELLO", true)
         }
@@ -45,58 +35,27 @@ struct StringContainsFunctionTests {
         fun namedIgnoreCase(s: String): Boolean {
             return s.contains("foo", ignoreCase = true)
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected contains(String, Boolean) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testContainsInOperatorResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
         fun substringViaInOperator(s: String, needle: String): Boolean {
             return needle in s
         }
         """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected `in` operator on String to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    /// Verifies the chosen callee for the 2-arg overload is wired to the
-    /// case-insensitive runtime entry point. This is the contract that keeps
-    /// `s.contains(x, true)` from silently dropping `ignoreCase` and dispatching
-    /// to `kk_string_contains_str_flat` instead.
-    @Test func testContainsIgnoreCaseLinksToRuntime() throws {
-        let ctx = makeContextFromSource("""
-        fun hasSubstringIgnoreCase(s: String, needle: String): Boolean {
-            return s.contains(needle, true)
-        }
-        """)
         try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "expected contains to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
 
+        let sema = try #require(ctx.sema)
         let containsFQName: [InternedString] = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("text"),
             ctx.interner.intern("contains"),
         ]
-        let sema = try #require(ctx.sema)
+
         let resolvedSymbols = sema.symbols.lookupAll(fqName: containsFQName)
-        let hasIgnoreCaseLink = resolvedSymbols.contains { symbolID in
-            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase_flat"
-        }
+        let externalLinks = Set(resolvedSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+        #expect(externalLinks.contains("kk_string_contains_str_flat"))
         #expect(
-            hasIgnoreCaseLink,
+            externalLinks.contains("kk_string_contains_ignoreCase_flat"),
             "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase_flat"
         )
     }
