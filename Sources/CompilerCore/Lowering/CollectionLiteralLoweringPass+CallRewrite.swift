@@ -107,13 +107,13 @@ extension CollectionLiteralConstructionLoweringPass {
         // nested Iterator itable registration is broken (KSP-441). The lowering
         // pipeline rewrites them to kk_sequence_flatMap/kk_sequence_flatMapIndexed
         // in rewriteSequencePipelineCall instead.
-        if (callee == lookup.takeName || callee == lookup.dropName
-            || callee == lookup.mapName || callee == lookup.filterName),
+        if (callee == lookup.takeName || callee == lookup.dropName),
            let receiverID = arguments.first,
            state.sequenceExprIDs.contains(receiverID.rawValue) {
             return false
         }
-        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName),
+        if (callee == lookup.flatMapName || callee == lookup.flatMapIndexedName
+            || callee == lookup.mapName || callee == lookup.filterName),
            isSequenceReceiverType(symbol: symbol, ctx: ctx) {
             return false
         }
