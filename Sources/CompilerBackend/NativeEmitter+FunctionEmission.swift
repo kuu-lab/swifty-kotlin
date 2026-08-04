@@ -1164,81 +1164,9 @@ extension NativeEmitter {
                 ),
                 // KSP-404: startsWith/endsWith are bundled Kotlin source
                 // (StringPrefixSuffix.kt); no flat emission spec.
-                "kk_string_contains_str_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contains_str_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_contains_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_contains_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_indexOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_indexOf_from_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_from_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_lastIndexOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_indexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_indexOf_char_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOf_char_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_lastIndexOf_char_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOf_char_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_indexOfAny_chars_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfAny_chars_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_indexOfAny_strings_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfAny_strings_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOfAny_chars_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOfAny_chars_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_lastIndexOfAny_strings_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_lastIndexOfAny_strings_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_findAnyOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findAnyOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
-                "kk_string_findLastAnyOf_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_findLastAnyOf_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3
-                ),
+                // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
+                // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
+                // no flat emission spec.
                 "kk_string_compareToIgnoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareToIgnoreCase_flat",
                     stringArgumentCount: 2,
@@ -1353,24 +1281,10 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                // KSP-410: count/any/all/none are bundled Kotlin source
-                // (StringHOF.kt); no flat emission spec.
-                "kk_string_indexOfFirst_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfFirst_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                "kk_string_indexOfLast_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_indexOfLast_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true,
-                    defaultMissingClosureRaw: true
-                ),
-                // KSP-410: find/findLast/partition are bundled Kotlin source
-                // (StringHOF.kt); no flat emission spec.
+                // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
+                // (StringIndexOf.kt); no flat emission spec.
+                // KSP-410: count/any/all/none/find/findLast/partition are bundled
+                // Kotlin source (StringHOF.kt); no flat emission spec.
                 "kk_string_map_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_map_flat",
                     stringArgumentCount: 1,
