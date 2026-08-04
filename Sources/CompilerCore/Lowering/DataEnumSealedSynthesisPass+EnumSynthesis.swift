@@ -137,26 +137,24 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
-        let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
-            // Call the synthesized `<EntryName>$enumName()` helper (already emitted above)
-            // so println(entries) shows "NORTH" not "0".
-            let entryNameStr = interner.resolve(entry.name)
-            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryRef = module.arena.appendTemporary(type: stringType
+            // Reference the entry singleton itself — the same `.symbolRef(fieldSymbol)`
+            // shape a literal `Direction.NORTH` reference lowers to (see
+            // CallLowerer+MemberPropertyReads.swift's `.field`/`isEnumEntryField` case) —
+            // not its name. `kk_enum_make_values_array`/`kk_enum_make_entries_list` are
+            // documented to hold enum singleton objects (RuntimeEnum.swift), and indexed
+            // access (`values()[i]`, `entries[i]`) dispatches through a real `get` member
+            // whose result is treated as an enum instance downstream (equality, member
+            // access, EnumNameAccessLoweringPass's ordinal recovery). A name string there
+            // silently mismatches all of that (BUG-172); only the raw `kk_array_get`
+            // fallback happened to print it verbatim and look correct by coincidence.
+            let entryRef = module.arena.appendTemporary(type: sema.types.anyType
             )
-            body.append(.call(
-                symbol: nil,
-                callee: enumNameCallee,
-                arguments: [],
-                result: entryRef,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
 
             body.append(.call(
                 symbol: nil,

@@ -84,24 +84,21 @@ extension CallLowerer {
             into: &instructions
         )
 
-        let stringType = sema.types.stringType
         for (index, entry) in entries.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            // Call the synthesized `<EntryName>$enumName()` helper so that
-            // enumValues<T>()[i] returns the entry name string ("RED" etc.) rather
-            // than the raw ordinal integer.
-            let entryNameStr = interner.resolve(entry.name)
-            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryExpr = arena.appendTemporary(type: stringType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-            instructions.append(.call(
-                symbol: nil,
-                callee: enumNameCallee,
-                arguments: [],
-                result: entryExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // Reference the entry singleton itself — the same `.symbolRef(fieldSymbol)`
+            // shape a literal `Direction.NORTH` reference lowers to (see
+            // CallLowerer+MemberPropertyReads.swift's `.field`/`isEnumEntryField` case) —
+            // not its name. `kk_enum_make_values_array`/`kk_enum_make_entries_list` are
+            // documented to hold enum singleton objects (RuntimeEnum.swift), and indexed
+            // access dispatches through a real `get` member whose result is treated as an
+            // enum instance downstream (equality, member access, EnumNameAccessLoweringPass's
+            // ordinal recovery). A name string there silently mismatches all of that
+            // (BUG-172); only the raw `kk_array_get` fallback happened to print it verbatim
+            // and look correct by coincidence.
+            let entryExpr = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.constValue(result: entryExpr, value: .symbolRef(entry.id)))
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
