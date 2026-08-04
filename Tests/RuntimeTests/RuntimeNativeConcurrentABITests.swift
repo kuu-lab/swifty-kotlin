@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - kotlin.native.concurrent extended runtime ABI coverage (STDLIB-NATIVE-CONCURRENT-003)
 //
@@ -31,67 +31,68 @@ import XCTest
 // MARK: - AtomicBoolean
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicBooleanTests: XCTestCase {
+@Suite
+struct RuntimeAtomicBooleanTests {
 
-    func testCreateAndLoad() {
+    @Test func createAndLoad() {
         let trueHandle = kk_atomic_bool_create(1)
-        XCTAssertNotEqual(trueHandle, 0)
-        XCTAssertEqual(kk_atomic_bool_load(trueHandle), 1)
+        #expect(trueHandle != 0)
+        #expect(kk_atomic_bool_load(trueHandle) == 1)
 
         let falseHandle = kk_atomic_bool_create(0)
-        XCTAssertNotEqual(falseHandle, 0)
-        XCTAssertEqual(kk_atomic_bool_load(falseHandle), 0)
+        #expect(falseHandle != 0)
+        #expect(kk_atomic_bool_load(falseHandle) == 0)
     }
 
-    func testStore() {
+    @Test func store() {
         let handle = kk_atomic_bool_create(0)
         _ = kk_atomic_bool_store(handle, 1)
-        XCTAssertEqual(kk_atomic_bool_load(handle), 1)
+        #expect(kk_atomic_bool_load(handle) == 1)
         _ = kk_atomic_bool_store(handle, 0)
-        XCTAssertEqual(kk_atomic_bool_load(handle), 0)
+        #expect(kk_atomic_bool_load(handle) == 0)
     }
 
-    func testExchange() {
+    @Test func exchange() {
         let handle = kk_atomic_bool_create(1)
         let old = kk_atomic_bool_exchange(handle, 0)
-        XCTAssertEqual(old, 1, "exchange must return old value")
-        XCTAssertEqual(kk_atomic_bool_load(handle), 0, "exchange must store new value")
+        #expect(old == 1, "exchange must return old value")
+        #expect(kk_atomic_bool_load(handle) == 0, "exchange must store new value")
     }
 
-    func testCompareAndSetSuccess() {
+    @Test func compareAndSetSuccess() {
         let handle = kk_atomic_bool_create(0)
         let result = kk_atomic_bool_compareAndSet(handle, 0, 1)
-        XCTAssertEqual(result, 1, "CAS must succeed (return 1) when expect matches")
-        XCTAssertEqual(kk_atomic_bool_load(handle), 1)
+        #expect(result == 1, "CAS must succeed (return 1) when expect matches")
+        #expect(kk_atomic_bool_load(handle) == 1)
     }
 
-    func testCompareAndSetFailure() {
+    @Test func compareAndSetFailure() {
         let handle = kk_atomic_bool_create(0)
         let result = kk_atomic_bool_compareAndSet(handle, 1, 1)
-        XCTAssertEqual(result, 0, "CAS must fail (return 0) when expect does not match")
-        XCTAssertEqual(kk_atomic_bool_load(handle), 0, "Value must not change on failed CAS")
+        #expect(result == 0, "CAS must fail (return 0) when expect does not match")
+        #expect(kk_atomic_bool_load(handle) == 0, "Value must not change on failed CAS")
     }
 
-    func testCompareAndExchangeSuccess() {
+    @Test func compareAndExchangeSuccess() {
         let handle = kk_atomic_bool_create(1)
         let old = kk_atomic_bool_compareAndExchange(handle, 1, 0)
-        XCTAssertEqual(old, 1, "compareAndExchange must return old value on success")
-        XCTAssertEqual(kk_atomic_bool_load(handle), 0)
+        #expect(old == 1, "compareAndExchange must return old value on success")
+        #expect(kk_atomic_bool_load(handle) == 0)
     }
 
-    func testCompareAndExchangeFailure() {
+    @Test func compareAndExchangeFailure() {
         let handle = kk_atomic_bool_create(0)
         let old = kk_atomic_bool_compareAndExchange(handle, 1, 1)
-        XCTAssertEqual(old, 0, "compareAndExchange must return current value on failure")
-        XCTAssertEqual(kk_atomic_bool_load(handle), 0, "Value must not change on failure")
+        #expect(old == 0, "compareAndExchange must return current value on failure")
+        #expect(kk_atomic_bool_load(handle) == 0, "Value must not change on failure")
     }
 
-    func testInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_atomic_bool_load(0), 0)
-        XCTAssertEqual(kk_atomic_bool_store(0, 1), 0)
-        XCTAssertEqual(kk_atomic_bool_exchange(0, 1), 0)
-        XCTAssertEqual(kk_atomic_bool_compareAndSet(0, 0, 1), 0)
-        XCTAssertEqual(kk_atomic_bool_compareAndExchange(0, 0, 1), 0)
+    @Test func invalidHandleReturnsZero() {
+        #expect(kk_atomic_bool_load(0) == 0)
+        #expect(kk_atomic_bool_store(0, 1) == 0)
+        #expect(kk_atomic_bool_exchange(0, 1) == 0)
+        #expect(kk_atomic_bool_compareAndSet(0, 0, 1) == 0)
+        #expect(kk_atomic_bool_compareAndExchange(0, 0, 1) == 0)
     }
 }
 
@@ -99,12 +100,13 @@ final class RuntimeAtomicBooleanTests: XCTestCase {
 // MARK: - AtomicIntArray
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicIntArrayTests: XCTestCase {
+@Suite
+struct RuntimeAtomicIntArrayTests {
 
-    func testCreateAndSize() {
+    @Test func createAndSize() {
         let handle = kk_atomic_int_array_create(5)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_atomic_int_array_size(handle), 5)
+        #expect(handle != 0)
+        #expect(kk_atomic_int_array_size(handle) == 5)
     }
 
     // KSP-672: the public `*At` boundary layer and bounds checks now live in
@@ -112,66 +114,66 @@ final class RuntimeAtomicIntArrayTests: XCTestCase {
     // tests exercise only the raw synchronized-core `__kk_*` bridges, which
     // assume a pre-validated in-range index.
 
-    func testInitialValuesAreZero() {
+    @Test func initialValuesAreZero() {
         let handle = kk_atomic_int_array_create(3)
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 0), 0)
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 1), 0)
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 2), 0)
+        #expect(__kk_atomic_int_array_load(handle, 0) == 0)
+        #expect(__kk_atomic_int_array_load(handle, 1) == 0)
+        #expect(__kk_atomic_int_array_load(handle, 2) == 0)
     }
 
-    func testStoreAndLoad() {
+    @Test func storeAndLoad() {
         let handle = kk_atomic_int_array_create(4)
         _ = __kk_atomic_int_array_store(handle, 2, 42)
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 2), 42)
+        #expect(__kk_atomic_int_array_load(handle, 2) == 42)
     }
 
-    func testExchange() {
+    @Test func exchange() {
         let handle = kk_atomic_int_array_create(2)
         _ = __kk_atomic_int_array_store(handle, 0, 10)
         let old = __kk_atomic_int_array_exchange(handle, 0, 99)
-        XCTAssertEqual(old, 10, "exchange must return the old value")
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 0), 99)
+        #expect(old == 10, "exchange must return the old value")
+        #expect(__kk_atomic_int_array_load(handle, 0) == 99)
     }
 
-    func testCompareAndExchangeSuccess() {
+    @Test func compareAndExchangeSuccess() {
         let handle = kk_atomic_int_array_create(2)
         _ = __kk_atomic_int_array_store(handle, 1, 7)
         let old = __kk_atomic_int_array_compareAndExchange(handle, 1, 7, 77)
-        XCTAssertEqual(old, 7, "compareAndExchange returns the observed value")
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 1), 77)
+        #expect(old == 7, "compareAndExchange returns the observed value")
+        #expect(__kk_atomic_int_array_load(handle, 1) == 77)
     }
 
-    func testCompareAndExchangeFailure() {
+    @Test func compareAndExchangeFailure() {
         let handle = kk_atomic_int_array_create(2)
         _ = __kk_atomic_int_array_store(handle, 0, 5)
         let old = __kk_atomic_int_array_compareAndExchange(handle, 0, 999, 50)
-        XCTAssertEqual(old, 5, "compareAndExchange returns the current value on mismatch")
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 0), 5, "Value must not change on failed CAS")
+        #expect(old == 5, "compareAndExchange returns the current value on mismatch")
+        #expect(__kk_atomic_int_array_load(handle, 0) == 5, "Value must not change on failed CAS")
     }
 
-    func testFetchAndAdd() {
+    @Test func fetchAndAdd() {
         let handle = kk_atomic_int_array_create(1)
         _ = __kk_atomic_int_array_store(handle, 0, 100)
         let old = __kk_atomic_int_array_fetchAndAdd(handle, 0, 5)
-        XCTAssertEqual(old, 100)
-        XCTAssertEqual(__kk_atomic_int_array_load(handle, 0), 105)
+        #expect(old == 100)
+        #expect(__kk_atomic_int_array_load(handle, 0) == 105)
     }
 
-    func testAddAndFetch() {
+    @Test func addAndFetch() {
         let handle = kk_atomic_int_array_create(1)
         _ = __kk_atomic_int_array_store(handle, 0, 50)
         let new = __kk_atomic_int_array_addAndFetch(handle, 0, 10)
-        XCTAssertEqual(new, 60)
+        #expect(new == 60)
     }
 
-    func testZeroSizeArrayHasZeroSize() {
+    @Test func zeroSizeArrayHasZeroSize() {
         let handle = kk_atomic_int_array_create(0)
-        XCTAssertEqual(kk_atomic_int_array_size(handle), 0)
+        #expect(kk_atomic_int_array_size(handle) == 0)
     }
 
-    func testInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_atomic_int_array_size(0), 0)
-        XCTAssertEqual(__kk_atomic_int_array_load(0, 0), 0)
+    @Test func invalidHandleReturnsZero() {
+        #expect(kk_atomic_int_array_size(0) == 0)
+        #expect(__kk_atomic_int_array_load(0, 0) == 0)
     }
 }
 
@@ -179,58 +181,59 @@ final class RuntimeAtomicIntArrayTests: XCTestCase {
 // MARK: - AtomicLongArray
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicLongArrayTests: XCTestCase {
+@Suite
+struct RuntimeAtomicLongArrayTests {
 
-    func testCreateAndSize() {
+    @Test func createAndSize() {
         let handle = kk_atomic_long_array_create(4)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_atomic_long_array_size(handle), 4)
+        #expect(handle != 0)
+        #expect(kk_atomic_long_array_size(handle) == 4)
     }
 
     // KSP-672: bounds checks and the public `*At` layer live in Kotlin; these
     // tests cover only the raw synchronized-core `__kk_*` bridges.
 
-    func testStoreAndLoad() {
+    @Test func storeAndLoad() {
         let handle = kk_atomic_long_array_create(2)
         _ = __kk_atomic_long_array_store(handle, 0, 1000)
-        XCTAssertEqual(__kk_atomic_long_array_load(handle, 0), 1000)
+        #expect(__kk_atomic_long_array_load(handle, 0) == 1000)
     }
 
-    func testExchange() {
+    @Test func exchange() {
         let handle = kk_atomic_long_array_create(1)
         _ = __kk_atomic_long_array_store(handle, 0, 42)
         let old = __kk_atomic_long_array_exchange(handle, 0, 84)
-        XCTAssertEqual(old, 42)
-        XCTAssertEqual(__kk_atomic_long_array_load(handle, 0), 84)
+        #expect(old == 42)
+        #expect(__kk_atomic_long_array_load(handle, 0) == 84)
     }
 
-    func testCompareAndExchangeSuccess() {
+    @Test func compareAndExchangeSuccess() {
         let handle = kk_atomic_long_array_create(1)
         _ = __kk_atomic_long_array_store(handle, 0, 99)
-        XCTAssertEqual(__kk_atomic_long_array_compareAndExchange(handle, 0, 99, 199), 99)
-        XCTAssertEqual(__kk_atomic_long_array_load(handle, 0), 199)
+        #expect(__kk_atomic_long_array_compareAndExchange(handle, 0, 99, 199) == 99)
+        #expect(__kk_atomic_long_array_load(handle, 0) == 199)
     }
 
-    func testCompareAndExchangeFailure() {
+    @Test func compareAndExchangeFailure() {
         let handle = kk_atomic_long_array_create(1)
         _ = __kk_atomic_long_array_store(handle, 0, 10)
-        XCTAssertEqual(__kk_atomic_long_array_compareAndExchange(handle, 0, 999, 20), 10)
-        XCTAssertEqual(__kk_atomic_long_array_load(handle, 0), 10)
+        #expect(__kk_atomic_long_array_compareAndExchange(handle, 0, 999, 20) == 10)
+        #expect(__kk_atomic_long_array_load(handle, 0) == 10)
     }
 
-    func testFetchAndAdd() {
+    @Test func fetchAndAdd() {
         let handle = kk_atomic_long_array_create(1)
         _ = __kk_atomic_long_array_store(handle, 0, 500)
         let old = __kk_atomic_long_array_fetchAndAdd(handle, 0, 100)
-        XCTAssertEqual(old, 500)
-        XCTAssertEqual(__kk_atomic_long_array_load(handle, 0), 600)
+        #expect(old == 500)
+        #expect(__kk_atomic_long_array_load(handle, 0) == 600)
     }
 
-    func testAddAndFetch() {
+    @Test func addAndFetch() {
         let handle = kk_atomic_long_array_create(1)
         _ = __kk_atomic_long_array_store(handle, 0, 50)
         let new = __kk_atomic_long_array_addAndFetch(handle, 0, 10)
-        XCTAssertEqual(new, 60)
+        #expect(new == 60)
     }
 }
 
@@ -238,44 +241,45 @@ final class RuntimeAtomicLongArrayTests: XCTestCase {
 // MARK: - CPointer / COpaquePointer
 // ---------------------------------------------------------------------------
 
-final class RuntimeCPointerTests: XCTestCase {
+@Suite
+struct RuntimeCPointerTests {
 
-    func testCPointerRoundTrip() {
+    @Test func cPointerRoundTrip() {
         let address = 0xDEAD_BEEF
         let handle = kk_cpointer_new(address)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
         let recovered = kk_cpointer_address(handle)
-        XCTAssertEqual(recovered, address)
+        #expect(recovered == address)
     }
 
-    func testCPointerZeroAddress() {
+    @Test func cPointerZeroAddress() {
         let handle = kk_cpointer_new(0)
-        XCTAssertNotEqual(handle, 0)
-        XCTAssertEqual(kk_cpointer_address(handle), 0)
+        #expect(handle != 0)
+        #expect(kk_cpointer_address(handle) == 0)
     }
 
-    func testCPointerInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_cpointer_address(0), 0)
+    @Test func cPointerInvalidHandleReturnsZero() {
+        #expect(kk_cpointer_address(0) == 0)
     }
 
-    func testCOpaquePointerRoundTrip() {
+    @Test func cOpaquePointerRoundTrip() {
         let address = 0x1234_5678
         let handle = kk_copaque_pointer_new(address)
-        XCTAssertNotEqual(handle, 0)
+        #expect(handle != 0)
         let recovered = kk_copaque_pointer_address(handle)
-        XCTAssertEqual(recovered, address)
+        #expect(recovered == address)
     }
 
-    func testCOpaquePointerInvalidHandleReturnsZero() {
-        XCTAssertEqual(kk_copaque_pointer_address(0), 0)
+    @Test func cOpaquePointerInvalidHandleReturnsZero() {
+        #expect(kk_copaque_pointer_address(0) == 0)
     }
 
-    func testCPointerAndCOpaquePointerAreDistinct() {
+    @Test func cPointerAndCOpaquePointerAreDistinct() {
         let address = 0xABCD
         let cptrHandle = kk_cpointer_new(address)
         let copaqueHandle = kk_copaque_pointer_new(address)
         // Each allocation produces a distinct handle.
-        XCTAssertNotEqual(cptrHandle, copaqueHandle)
+        #expect(cptrHandle != copaqueHandle)
     }
 }
 
@@ -283,46 +287,47 @@ final class RuntimeCPointerTests: XCTestCase {
 // MARK: - Pinned<T>
 // ---------------------------------------------------------------------------
 
-final class RuntimePinnedTests: XCTestCase {
+@Suite
+struct RuntimePinnedTests {
 
-    func testPinObjectReturnsNonZeroHandle() {
+    @Test func pinObjectReturnsNonZeroHandle() {
         let obj = kk_atomic_int_create(1)
         let pinHandle = kk_pin_object(obj)
-        XCTAssertNotEqual(pinHandle, 0)
+        #expect(pinHandle != 0)
     }
 
-    func testPinnedGetReturnsOriginalObject() {
+    @Test func pinnedGetReturnsOriginalObject() {
         let obj = kk_atomic_int_create(2)
         let pinHandle = kk_pin_object(obj)
-        XCTAssertEqual(kk_pinned_get(pinHandle), obj)
+        #expect(kk_pinned_get(pinHandle) == obj)
     }
 
-    func testUnpinReturnsOriginalObject() {
+    @Test func unpinReturnsOriginalObject() {
         let obj = kk_atomic_int_create(3)
         let pinHandle = kk_pin_object(obj)
         let recovered = kk_unpin_object(pinHandle)
-        XCTAssertEqual(recovered, obj)
+        #expect(recovered == obj)
     }
 
-    func testPinZeroHandleReturnsZero() {
-        XCTAssertEqual(kk_pin_object(0), 0)
+    @Test func pinZeroHandleReturnsZero() {
+        #expect(kk_pin_object(0) == 0)
     }
 
-    func testPinnedGetOnZeroHandleReturnsZero() {
-        XCTAssertEqual(kk_pinned_get(0), 0)
+    @Test func pinnedGetOnZeroHandleReturnsZero() {
+        #expect(kk_pinned_get(0) == 0)
     }
 
-    func testUnpinZeroHandleReturnsZero() {
-        XCTAssertEqual(kk_unpin_object(0), 0)
+    @Test func unpinZeroHandleReturnsZero() {
+        #expect(kk_unpin_object(0) == 0)
     }
 
-    func testPinDoesNotAlterOriginalAtomicValue() {
+    @Test func pinDoesNotAlterOriginalAtomicValue() {
         let handle = kk_atomic_int_create(42)
         let pinHandle = kk_pin_object(handle)
         // The AtomicInt backing value must be unaffected by pinning.
-        XCTAssertEqual(kk_atomic_int_load(handle), 42)
+        #expect(kk_atomic_int_load(handle) == 42)
         _ = kk_unpin_object(pinHandle)
-        XCTAssertEqual(kk_atomic_int_load(handle), 42)
+        #expect(kk_atomic_int_load(handle) == 42)
     }
 }
 
@@ -330,26 +335,25 @@ final class RuntimePinnedTests: XCTestCase {
 // MARK: - @CName registry
 // ---------------------------------------------------------------------------
 
-final class RuntimeCNameRegistryTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeCNameRegistryTests {
 
-    func testRegisterAndLookupRoundTrip() {
+    @Test func registerAndLookupRoundTrip() {
         let nameHandle = registerRuntimeObject(RuntimeStringBox("myExportedFn"))
         let fakePtr = 0x1_0000
         _ = kk_cname_register(nameHandle, fakePtr)
 
         let lookupNameHandle = registerRuntimeObject(RuntimeStringBox("myExportedFn"))
         let found = kk_cname_lookup(lookupNameHandle)
-        XCTAssertEqual(found, fakePtr)
+        #expect(found == fakePtr)
     }
 
-    func testLookupMissingNameReturnsZero() {
+    @Test func lookupMissingNameReturnsZero() {
         let nameHandle = registerRuntimeObject(RuntimeStringBox("doesNotExist"))
-        XCTAssertEqual(kk_cname_lookup(nameHandle), 0)
+        #expect(kk_cname_lookup(nameHandle) == 0)
     }
 
-    func testRegisterOverwritesExistingEntry() {
+    @Test func registerOverwritesExistingEntry() {
         let nameHandle1 = registerRuntimeObject(RuntimeStringBox("duplicateName"))
         _ = kk_cname_register(nameHandle1, 0xAAAA)
 
@@ -357,13 +361,13 @@ final class RuntimeCNameRegistryTests: IsolatedRuntimeXCTestCase {
         _ = kk_cname_register(nameHandle2, 0xBBBB)
 
         let lookupHandle = registerRuntimeObject(RuntimeStringBox("duplicateName"))
-        XCTAssertEqual(kk_cname_lookup(lookupHandle), 0xBBBB)
+        #expect(kk_cname_lookup(lookupHandle) == 0xBBBB)
     }
 
-    func testRegisterWithInvalidNameHandleIsNoOp() {
+    @Test func registerWithInvalidNameHandleIsNoOp() {
         // Passing 0 as name handle must not crash and must not register anything.
         _ = kk_cname_register(0, 0x1234)
-        XCTAssertEqual(kk_cname_lookup(0), 0)
+        #expect(kk_cname_lookup(0) == 0)
     }
 }
 
@@ -371,9 +375,10 @@ final class RuntimeCNameRegistryTests: IsolatedRuntimeXCTestCase {
 // MARK: - AtomicInt thread-safety smoke test
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicIntConcurrencyTests: XCTestCase {
+@Suite
+struct RuntimeAtomicIntConcurrencyTests {
 
-    func testConcurrentIncrementWithFetchAndAdd() {
+    @Test func concurrentIncrementWithFetchAndAdd() {
         let handle = kk_atomic_int_create(0)
         let iterations = 1000
         let queueCount = 4
@@ -390,12 +395,12 @@ final class RuntimeAtomicIntConcurrencyTests: XCTestCase {
         }
 
         let waitResult = group.wait(timeout: .now() + .seconds(10))
-        XCTAssertEqual(waitResult, .success, "Concurrent increment timed out")
-        XCTAssertEqual(kk_atomic_int_load(handle), queueCount * iterations,
-                       "Each increment must be atomic — no lost updates")
+        #expect(waitResult == .success, "Concurrent increment timed out")
+        #expect(kk_atomic_int_load(handle) == queueCount * iterations,
+                "Each increment must be atomic — no lost updates")
     }
 
-    func testConcurrentCompareAndSetExactlyOneSucceeds() {
+    @Test func concurrentCompareAndSetExactlyOneSucceeds() {
         // Many threads race to CAS from 0 -> 1; exactly one should win.
         // Use a separate AtomicInt runtime handle as win counter so we
         // avoid Sendable issues with AtomicIntBox directly.
@@ -415,9 +420,9 @@ final class RuntimeAtomicIntConcurrencyTests: XCTestCase {
         }
 
         let waitResult = group.wait(timeout: .now() + .seconds(10))
-        XCTAssertEqual(waitResult, .success)
-        XCTAssertEqual(kk_atomic_int_load(winCountHandle), 1,
-                       "Exactly one CAS must win when racing from 0 -> 1")
+        #expect(waitResult == .success)
+        #expect(kk_atomic_int_load(winCountHandle) == 1,
+                "Exactly one CAS must win when racing from 0 -> 1")
     }
 }
 
@@ -425,9 +430,10 @@ final class RuntimeAtomicIntConcurrencyTests: XCTestCase {
 // MARK: - AtomicBoolean concurrency smoke test
 // ---------------------------------------------------------------------------
 
-final class RuntimeAtomicBoolConcurrencyTests: XCTestCase {
+@Suite
+struct RuntimeAtomicBoolConcurrencyTests {
 
-    func testConcurrentStoreAndLoadNeverCrashes() {
+    @Test func concurrentStoreAndLoadNeverCrashes() {
         let handle = kk_atomic_bool_create(0)
         let group = DispatchGroup()
         for i in 0..<4 {
@@ -442,6 +448,6 @@ final class RuntimeAtomicBoolConcurrencyTests: XCTestCase {
             }
         }
         let waitResult = group.wait(timeout: .now() + .seconds(10))
-        XCTAssertEqual(waitResult, .success, "Concurrent bool store/load timed out or crashed")
+        #expect(waitResult == .success, "Concurrent bool store/load timed out or crashed")
     }
 }

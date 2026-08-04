@@ -49,24 +49,30 @@ final class CallLowerer {
         return nil
     }
 
-    private func isStringBuilderConstructor(
+    /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
+    /// constructors, so callers can both gate on "is this a StringBuilder
+    /// construction" and reuse the owner symbol for itable registration
+    /// without a second lookup.
+    private func stringBuilderConstructorOwner(
         _ symbolID: SymbolID?,
         sema: SemaModule,
         knownNames: KnownCompilerNames
-    ) -> Bool {
+    ) -> SymbolID? {
         guard let symbolID,
               sema.symbols.symbol(symbolID)?.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              knownNames.isStringBuilderSymbol(ownerInfo)
         else {
-            return false
+            return nil
         }
-        return knownNames.isStringBuilderSymbol(ownerInfo)
+        return ownerSymbol
     }
 
     private func lowerStringBuilderConstructorCall(
         finalArgIDs: [KIRExprID],
         resultType: TypeID,
+        nominalSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -75,24 +81,57 @@ final class CallLowerer {
         let result = arena.appendTemporary(type: resultType)
         let runtimeCallee: InternedString
         let runtimeArgs: [KIRExprID]
+        let canThrow: Bool
+        let firstArgType = finalArgIDs.first.flatMap { arena.exprType($0) }
         if let firstArg = finalArgIDs.first,
-           let firstArgType = arena.exprType(firstArg),
+           let firstArgType,
            sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.stringType)
         {
             runtimeCallee = interner.intern("__kk_string_builder_new_from_string_flat")
             runtimeArgs = [firstArg]
+            canThrow = false
+        } else if let firstArg = finalArgIDs.first,
+                  let firstArgType,
+                  sema.types.isSubtype(sema.types.makeNonNullable(firstArgType), sema.types.intType)
+        {
+            // BUG-165: StringBuilder(capacity: Int) has no Kotlin-level body
+            // to validate the argument itself (see StringBuilder.kt), so a
+            // negative capacity must be rejected here — matching
+            // kk_array_new_checked's precedent for the same
+            // ignored-negative-size failure mode.
+            runtimeCallee = interner.intern("__kk_string_builder_new_capacity_checked")
+            runtimeArgs = [firstArg]
+            canThrow = true
         } else {
             runtimeCallee = interner.intern("__kk_string_builder_new")
             runtimeArgs = []
+            canThrow = false
         }
         instructions.append(.call(
             symbol: nil,
             callee: runtimeCallee,
             arguments: runtimeArgs,
             result: result,
-            canThrow: false,
+            canThrow: canThrow,
             thrownResult: nil
         ))
+        // BUG-166: StringBuilder instances bypass the normal kk_object_new
+        // construction path (see the BUG-044 comment in RuntimeStringBuilder.swift),
+        // so they never receive the itable registrations a regular class
+        // constructor gets from KIRLoweringDriver+ObjectInitializer.swift.
+        // Without this, dispatching a call through an Appendable/CharSequence-typed
+        // reference to a StringBuilder finds no itable entry and panics with
+        // KSWIFTK-RUNTIME-0001 ("method not found in vtable/itable") even though
+        // `is`/`as` checks (registered separately in runtimeRegisterStringBuilderType)
+        // succeed.
+        appendObjectItableMethodRegistrations(
+            objectValue: result,
+            nominalSymbol: nominalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         return result
     }
 
@@ -926,11 +965,12 @@ final class CallLowerer {
         }
         if callableInvokeCallee == nil,
            loweredCallable == nil,
-           isStringBuilderConstructor(chosen, sema: sema, knownNames: knownNames)
+           let stringBuilderOwnerSymbol = stringBuilderConstructorOwner(chosen, sema: sema, knownNames: knownNames)
         {
             return lowerStringBuilderConstructorCall(
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,
+                nominalSymbol: stringBuilderOwnerSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1387,6 +1427,7 @@ final class CallLowerer {
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
             "kk_synchronized",
+            "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
 

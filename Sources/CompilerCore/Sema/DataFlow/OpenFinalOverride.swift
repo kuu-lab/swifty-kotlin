@@ -1197,6 +1197,21 @@ extension DataFlowSemaPhase {
 
         guard !overridableParents.isEmpty else { return }
 
+        // BUG-166: kotlin.text.StringBuilder's Appendable/CharSequence
+        // conformance is added retroactively by patchSourceBackedStringBuilderSupertypes
+        // (Phase.swift) — the bundled StringBuilder.kt source itself declares no
+        // supertypes, so its `append` overloads can never be written with an
+        // `override` modifier that would satisfy this check. Requiring one here
+        // would make the bundled source permanently uncompilable once its
+        // synthetic interface conformance is otherwise correctly wired up.
+        if let ownerSym = ctx.symbols.symbol(ownerSymbol),
+           ownerSym.fqName == [
+               ctx.interner.intern("kotlin"), ctx.interner.intern("text"), ctx.interner.intern("StringBuilder"),
+           ]
+        {
+            return
+        }
+
         // Special handling for interface implementations
         if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
             // Check if this is implementing an interface method

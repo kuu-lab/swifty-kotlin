@@ -555,7 +555,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return stringBox.value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
-        return "\(intBox.value)"
+        return intBox.enumEntryName ?? "\(intBox.value)"
     }
     if let boolBox = tryCast(ptr, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"
@@ -682,6 +682,50 @@ func runtimeInvokeCollectionLambda1(
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
     return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
+}
+
+/// Like `runtimeInvokeCollectionLambda1`, but tolerates `fnPtr` arriving as a
+/// `kk_function_create_1`-wrapped function-value handle instead of a raw,
+/// directly-callable function pointer.
+///
+/// `Sequence<T>.chunked(size, transform)` / `.windowed(..., transform)` have
+/// real Kotlin-source declarations (SequenceWindowChunk.kt) so their
+/// `require()`-style validation runs; because they take a function-typed
+/// parameter, KIRLoweringDriver's auto-inline heuristic
+/// (`hasLambdaParam && !isSuspend`) always inlines their body at the call
+/// site. `materializeSourceBackedFunctionValueArguments` wraps the caller's
+/// lambda via `kk_function_create_1` before that inlining substitutes it in,
+/// since from the *caller's* perspective this looks like an ordinary
+/// function-value parameter. The inlined body then forwards that already-
+/// wrapped handle straight to this native bridge via
+/// `splitCallableLambdaArgument`, whose fallback (no compile-time
+/// `callableValueInfo` exists for a plain forwarded parameter) assumes an
+/// unrecognized value is already a raw callable and pairs it with a literal
+/// `0` closureRaw. Unwrapping here — the same `RuntimeFunctionValueBox`
+/// detection `kk_function_invoke` already relies on — makes the lazy/eager
+/// invocation robust to either calling convention without having to teach
+/// every KIR argument-adaptation path about this one forwarding pattern.
+@inline(__always)
+func runtimeInvokeCollectionLambda1MaybeWrapped(
+    fnPtr: Int,
+    closureRaw: Int,
+    value: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let box = runtimeFunctionValueBox(from: fnPtr) {
+        return runtimeInvokeCollectionLambda1(
+            fnPtr: box.fnPtr,
+            closureRaw: box.closureRaw,
+            value: value,
+            outThrown: outThrown
+        )
+    }
+    return runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        value: value,
+        outThrown: outThrown
+    )
 }
 
 /// Like `runtimeInvokeCollectionLambda1`, but leaves `value` boxed for statically-`Any` lambda parameters (LambdaLowerer unboxes concrete-primitive ones itself).
@@ -890,7 +934,7 @@ func runtimeBinarySearch(
 }
 
 @inline(__always)
-private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
+func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
           lhsTypeID == rhsTypeID,

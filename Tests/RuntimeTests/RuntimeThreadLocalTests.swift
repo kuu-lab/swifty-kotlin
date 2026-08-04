@@ -1,7 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private func withThreadLocalTestTypeInfo(
     fieldOffsets: [UInt32],
@@ -104,14 +104,13 @@ private final class ThreadLocalBackgroundValueBox: @unchecked Sendable {
     }
 }
 
-final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
-    override func resetIsolatedRuntimeTestState() {
-        threadLocalThunkState.reset()
-    }
+private func resetRuntimeThreadLocalTestState() {
+    threadLocalThunkState.reset()
+}
 
-    func testGetOrSetCachesWithinSameThread() {
+@Suite(.runtimeIsolation(.gcAndThreadLocal, resetAdditionalState: resetRuntimeThreadLocalTestState))
+struct RuntimeThreadLocalTests {
+    @Test func getOrSetCachesWithinSameThread() {
         let receiver = kk_thread_local_new()
 
         let first = kk_thread_local_getOrSet(
@@ -127,12 +126,12 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
 
-        XCTAssertEqual(first, 1)
-        XCTAssertEqual(second, 1)
-        XCTAssertEqual(threadLocalThunkState.callCountSnapshot(), 1)
+        #expect(first == 1)
+        #expect(second == 1)
+        #expect(threadLocalThunkState.callCountSnapshot() == 1)
     }
 
-    func testGetOrSetIsThreadLocalAcrossThreads() {
+    @Test func getOrSetIsThreadLocalAcrossThreads() {
         let receiver = kk_thread_local_new()
 
         let mainValue = kk_thread_local_getOrSet(
@@ -154,7 +153,7 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
             )
             group.leave()
         }
-        XCTAssertEqual(group.wait(timeout: .now() + .seconds(5)), .success)
+        #expect(group.wait(timeout: .now() + .seconds(5)) == .success)
 
         let secondMainValue = kk_thread_local_getOrSet(
             receiver,
@@ -163,13 +162,13 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
 
-        XCTAssertEqual(mainValue, 1)
-        XCTAssertEqual(backgroundValue.pointer.pointee, 2)
-        XCTAssertEqual(secondMainValue, 1)
-        XCTAssertEqual(threadLocalThunkState.callCountSnapshot(), 2)
+        #expect(mainValue == 1)
+        #expect(backgroundValue.pointer.pointee == 2)
+        #expect(secondMainValue == 1)
+        #expect(threadLocalThunkState.callCountSnapshot() == 2)
     }
 
-    func testGetOrSetDoesNotCacheRuntimeNullSentinel() {
+    @Test func getOrSetDoesNotCacheRuntimeNullSentinel() {
         threadLocalThunkState.setConfiguredReturnValue(runtimeNullSentinelInt)
         let receiver = kk_thread_local_new()
 
@@ -186,12 +185,12 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
 
-        XCTAssertEqual(first, runtimeNullSentinelInt)
-        XCTAssertEqual(second, runtimeNullSentinelInt)
-        XCTAssertEqual(threadLocalThunkState.callCountSnapshot(), 2)
+        #expect(first == runtimeNullSentinelInt)
+        #expect(second == runtimeNullSentinelInt)
+        #expect(threadLocalThunkState.callCountSnapshot() == 2)
     }
 
-    func testGetOrSetCachesZero() {
+    @Test func getOrSetCachesZero() {
         threadLocalThunkState.setConfiguredReturnValue(0)
         let receiver = kk_thread_local_new()
 
@@ -208,12 +207,12 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
 
-        XCTAssertEqual(first, 0)
-        XCTAssertEqual(second, 0)
-        XCTAssertEqual(threadLocalThunkState.callCountSnapshot(), 1)
+        #expect(first == 0)
+        #expect(second == 0)
+        #expect(threadLocalThunkState.callCountSnapshot() == 1)
     }
 
-    func testGetOrSetKeepsAllocatedObjectAliveAcrossGC() {
+    @Test func getOrSetKeepsAllocatedObjectAliveAcrossGC() {
         withThreadLocalDummyTypeInfo { ti in
             let object = kk_alloc(16, ti)
             let objectHandle = Int(bitPattern: object)
@@ -227,12 +226,12 @@ final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
                 nil as UnsafeMutablePointer<Int>?
             )
 
-            XCTAssertEqual(stored, objectHandle)
-            XCTAssertEqual(threadLocalThunkState.callCountSnapshot(), 1)
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(stored == objectHandle)
+            #expect(threadLocalThunkState.callCountSnapshot() == 1)
+            #expect(kk_runtime_heap_object_count() == 1)
 
             kk_gc_collect()
-            XCTAssertEqual(kk_runtime_heap_object_count(), 1)
+            #expect(kk_runtime_heap_object_count() == 1)
         }
     }
 }

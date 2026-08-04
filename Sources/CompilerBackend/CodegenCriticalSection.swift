@@ -9,6 +9,26 @@ import Glibc
 import CompilerCore
 
 enum CodegenCriticalSection {
+    /// Process-local lock used during codegen on Linux. Object emission touches
+    /// LLVM global target state, so concurrent codegen calls within one process
+    /// are serialized here. Cross-process serialization is unnecessary because
+    /// each `kswiftc` invocation has its own LLVM context and output path.
+    static func withLinuxExecutableCodegenProcessLock<T>(
+        target: TargetTriple,
+        body: () throws -> T
+    ) rethrows -> T {
+        guard target.os.hasPrefix("linux") else {
+            return try body()
+        }
+
+        linuxCodegenProcessLock.lock()
+        defer { linuxCodegenProcessLock.unlock() }
+        return try body()
+    }
+
+    /// Cross-process file lock used during the link step on Linux. Multiple
+    /// `kswiftc` processes share per-target Swift autolink stub files, so a file
+    /// lock is required to prevent torn or empty stubs.
     static func withLinuxExecutableToolchainLock<T>(
         target: TargetTriple,
         body: () throws -> T
@@ -56,6 +76,8 @@ enum CodegenCriticalSection {
 
         return try body()
     }
+
+    private static let linuxCodegenProcessLock = NSLock()
 
     /// Verifies the given path is a real directory (not a symlink) owned by the
     /// current effective user with no group/other permission bits.

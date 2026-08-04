@@ -46,16 +46,48 @@ extension DataEnumSealedSynthesisPass {
 
         body.append(.returnValue(listExpr))
 
-        appendSyntheticFunctionIfNeeded(
-            name: name,
-            owner: owner,
-            module: module,
-            sema: sema,
-            signature: signature,
-            params: [],
-            body: body,
-            existingFunctionSymbols: existingFunctionSymbols
-        )
+        // Use the existing stub symbol when Sema already registered `values`
+        // directly on the enum class (collectSyntheticEnumValuesMember). Sema
+        // resolves `Direction.values()` call sites to that symbol's ID during
+        // type-checking, before this Lowering pass ever runs; calling
+        // `appendSyntheticFunctionIfNeeded` unconditionally would re-invoke
+        // `SymbolTable.define`, which mints a *second*, disconnected SymbolID
+        // for the same (fqName, .function) pair (functions are allowed to
+        // coexist as overloads), silently orphaning the already-resolved call
+        // sites from the KIR body generated here. Mirrors how
+        // `appendSyntheticEnumValueOfIfNeeded` reuses the companion's
+        // Sema-registered `valueOf` stub below.
+        let fqName = owner.fqName + [name]
+        let existingValues = sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let sym = sema.symbols.symbol(candidate),
+                  sym.kind == .function,
+                  sym.flags.contains(.synthetic),
+                  sema.symbols.parentSymbol(for: candidate) == owner.id
+            else { return false }
+            return true
+        }
+        if let existingSymbol = existingValues, !existingFunctionSymbols.contains(existingSymbol) {
+            appendSyntheticFunctionWithSymbol(
+                functionSymbol: existingSymbol,
+                name: name,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body
+            )
+        } else {
+            appendSyntheticFunctionIfNeeded(
+                name: name,
+                owner: owner,
+                module: module,
+                sema: sema,
+                signature: signature,
+                params: [],
+                body: body,
+                existingFunctionSymbols: existingFunctionSymbols
+            )
+        }
     }
 
     /// Synthesizes the `entries` getter on the companion object.
@@ -137,29 +169,38 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
+        let stringType = sema.types.stringType
+        let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
-            // Reference the entry singleton itself — the same `.symbolRef(fieldSymbol)`
-            // shape a literal `Direction.NORTH` reference lowers to (see
-            // CallLowerer+MemberPropertyReads.swift's `.field`/`isEnumEntryField` case) —
-            // not its name. `kk_enum_make_values_array`/`kk_enum_make_entries_list` are
-            // documented to hold enum singleton objects (RuntimeEnum.swift), and indexed
-            // access (`values()[i]`, `entries[i]`) dispatches through a real `get` member
-            // whose result is treated as an enum instance downstream (equality, member
-            // access, EnumNameAccessLoweringPass's ordinal recovery). A name string there
-            // silently mismatches all of that (BUG-172); only the raw `kk_array_get`
-            // fallback happened to print it verbatim and look correct by coincidence.
-            let entryRef = module.arena.appendTemporary(type: sema.types.anyType
-            )
-            body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
+            let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
+            body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+
+            // Box the ordinal (tagged with its declared name, see
+            // kk_enum_box_ordinal) instead of storing a pre-baked name
+            // string. Every other enum value is a raw ordinal Int, so an
+            // element read back out of values()/entries must round-trip
+            // through the same boxing/unboxing pair to behave correctly for
+            // println, equality, and `when` -- storing the name string
+            // outright broke all three (it only happened to look right when
+            // the whole collection was printed generically).
+            let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: boxOrdinalCallee,
+                arguments: [indexExpr, nameExpr],
+                result: boxedEntry,
+                canThrow: false,
+                thrownResult: nil
+            ))
 
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
-                arguments: [arrayExpr, indexExpr, entryRef],
+                arguments: [arrayExpr, indexExpr, boxedEntry],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil

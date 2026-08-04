@@ -26,23 +26,13 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        // BUG-172 fix made `entries`/`enumValues<T>()` hold the real enum
-        // singletons (matching what a literal `Direction.NORTH` reference
-        // produces) instead of pre-formatted name strings, so identity/equality
-        // and indexed access (`entries[0]`) are correct. Tradeoff: printing a
-        // *collection* of raw enum values now shows the ordinal, not the name,
-        // because enum values carry no runtime type tag outside the specific
-        // call shapes EnumNameAccessLoweringPass rewrites at compile time — this
-        // reproduces identically for `listOf(Direction.NORTH, Direction.SOUTH)`
-        // with no entries/values involved. Tracked separately as BUG-173 (see
-        // TODO.md); out of scope for BUG-172.
         try assertKotlinOutput(
             source,
             moduleName: "EnumEdgeCoverage",
             expected:
                 """
-                [0, 1]
-                [0, 1]
+                [NORTH, SOUTH]
+                [NORTH, SOUTH]
                 NORTH
                 SOUTH
                 1
@@ -52,31 +42,24 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    // BUG-172: `EnumEntries<T>` was registered as a completely empty synthetic
-    // interface (`HeaderHelpers+SyntheticEnumStubs.swift`'s
-    // `ensureEnumEntriesInterface`) with no `get` operator, so `entries[i]` /
-    // `enumEntries<T>()[i]` found no member candidate in Sema and the KIR
-    // indexed-access lowering (`CallLowerer+Operators.swift`) fell through to
-    // its generic built-in array-access path, which unconditionally emits
-    // `kk_array_get` — a `RuntimeArrayBox`-only intrinsic. `entries`'s actual
-    // runtime representation is a `RuntimeListBox` (`kk_enum_make_entries_list`
-    // in RuntimeEnum.swift), so this panicked with KSWIFTK-LINK-0003 at
-    // runtime. `values()`/`enumValues<T>()` (`Array<T>`/`RuntimeArrayBox`) and
-    // `for (d in entries)` (iterator-based, not indexed) were unaffected,
-    // which is what made this a narrower bug than "EnumEntries is broken".
-    //
-    // Fixed by registering a `get(index: Int): T` operator on `EnumEntries<T>`
-    // that reuses the same `__kk_list_get` bridge `List<E>.get` already uses.
-    // That alone surfaced a second, previously-masked bug: `entries$get()` /
-    // `enumValues<T>()` / `enumEntries<T>()` populated their backing array with
-    // each entry's *name string* (so a crash-free `println(entries[0])` would
-    // have "looked right" by coincidence) instead of the entry singleton
-    // itself, so indexed access actually returned a `String` standing in for
-    // the enum value — wrong identity/equality, and it would misbehave the
-    // moment anything past printing touched it. Fixed by referencing the entry
-    // singleton directly (`DataEnumSealedSynthesisPass+EnumSynthesis.swift`,
-    // `CallLowerer+EnumStdlib.swift`), matching what a literal
-    // `Direction.NORTH` reference already lowers to.
+    /// BUG-178: `EnumEntries<T>` was registered as a completely empty
+    /// synthetic interface (`HeaderHelpers+SyntheticEnumStubs.swift`'s
+    /// `ensureEnumEntriesInterface`) with no `get` operator, so `entries[i]` /
+    /// `enumEntries<T>()[i]` found no member candidate in Sema and the KIR
+    /// indexed-access lowering (`CallLowerer+Operators.swift`) fell through to
+    /// its generic built-in array-access path, which unconditionally emits
+    /// `kk_array_get` — a `RuntimeArrayBox`-only intrinsic. `entries`'s actual
+    /// runtime representation is a `RuntimeListBox` (`kk_enum_make_entries_list`
+    /// in RuntimeEnum.swift), so this panicked with KSWIFTK-LINK-0003 at
+    /// runtime. `values()`/`enumValues<T>()` (`Array<T>`/`RuntimeArrayBox`) and
+    /// `for (d in entries)` (iterator-based, not indexed) were unaffected,
+    /// which is what made this a narrower bug than "EnumEntries is broken".
+    /// Fixed by registering a `get(index: Int): T` operator on `EnumEntries<T>`
+    /// that reuses the same `__kk_list_get` bridge `List<E>.get` already uses
+    /// (on top of `EnumEntries<T> : List<T>` from DEADCODE-014, which alone
+    /// was not enough to make `[]` itself resolve). Complements
+    /// `testCodegenEnumValuesEntriesElementAccessEqualityAndWhen` (BUG-177,
+    /// which covers `Array.get`/forEach/for-in but not `EnumEntries.get`).
     func testCodegenEnumEntriesIndexedAccessReturnsRealSingleton() throws {
         let source = """
         enum class Direction { NORTH, SOUTH, EAST, WEST }
@@ -104,6 +87,65 @@ extension CodegenBackendIntegrationTests {
                 true
                 false
                 true
+                """
+                + "\n"
+        )
+    }
+
+    /// BUG-177: `values()`/`entries` stored each element as a pre-baked name
+    /// string instead of a genuinely boxed ordinal (see
+    /// `appendEnumOrdinalArrayCreation` /
+    /// `CallLowerer+EnumStdlib.lowerEnumEntryCollectionCallExpr`). Printing an
+    /// *individual* element read out of the collection unboxed that string as
+    /// an Int (garbage, matching no ordinal) and printed a blank line;
+    /// comparing it against a real enum constant compared an unrelated boxed
+    /// handle against a raw ordinal and was always false. Printing the whole
+    /// collection happened to look right regardless, since the elements were
+    /// already name strings -- this test pins that this remains true now
+    /// that elements are real boxed ordinals tagged with their name (see
+    /// `kk_enum_box_ordinal` / `RuntimeIntBox.enumEntryName`).
+    func testCodegenEnumValuesEntriesElementAccessEqualityAndWhen() throws {
+        let source = """
+        enum class Direction {
+            NORTH,
+            SOUTH,
+        }
+
+        fun main() {
+            enumValues<Direction>().forEach { d -> println(d) }
+            for (d in Direction.entries) {
+                println(d)
+            }
+            println(enumValues<Direction>().toList())
+            println(Direction.entries)
+
+            val first = enumValues<Direction>()[0]
+            val second = enumValues<Direction>()[1]
+            println(first == Direction.NORTH)
+            println(first == Direction.SOUTH)
+            println(second == Direction.SOUTH)
+            when (first) {
+                Direction.NORTH -> println("first-is-north")
+                Direction.SOUTH -> println("first-is-south")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumValuesEntriesElementAccess",
+            expected:
+                """
+                NORTH
+                SOUTH
+                NORTH
+                SOUTH
+                [NORTH, SOUTH]
+                [NORTH, SOUTH]
+                true
+                false
+                true
+                first-is-north
                 """
                 + "\n"
         )

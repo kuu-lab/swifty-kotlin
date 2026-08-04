@@ -534,6 +534,15 @@ extension DataFlowSemaPhase {
                     scope: classScope,
                     interner: interner
                 )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    enumType: classType,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
             }
             if declaration.flags.contains(.dataType) {
                 collectSyntheticDataClassMethods(
@@ -1155,6 +1164,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
 

@@ -1,13 +1,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-012: Validates that `CharSequence.contains` resolves through
-/// Sema for `String` receivers across all of its stdlib overloads. The synthetic
-/// stubs register:
-/// - `contains(other: String)` → `kk_string_contains_str_flat` (also acts as the
-///   `in` operator on strings).
-/// - `contains(other: String, ignoreCase: Boolean)` → `kk_string_contains_ignoreCase_flat`
-/// - `contains(regex: Regex)` -> `kk_string_contains_regex_flat`
+/// KSP-408: Validates that `CharSequence.contains` resolves through Sema for
+/// `String` receivers across all of its stdlib overloads (bundled Kotlin source,
+/// `StringIndexOf.kt`), including the `in` operator and the case-insensitive
+/// overload. `contains(regex: Regex)` remains a separate synthetic stub.
 @Suite
 struct StringContainsFunctionTests {
     @Test func testContainsWithStringResolvesInSource() throws {
@@ -68,36 +65,4 @@ struct StringContainsFunctionTests {
         )
     }
 
-    /// Verifies the chosen callee for the 2-arg overload is wired to the
-    /// case-insensitive runtime entry point. This is the contract that keeps
-    /// `s.contains(x, true)` from silently dropping `ignoreCase` and dispatching
-    /// to `kk_string_contains_str_flat` instead.
-    @Test func testContainsIgnoreCaseLinksToRuntime() throws {
-        let ctx = makeContextFromSource("""
-        fun hasSubstringIgnoreCase(s: String, needle: String): Boolean {
-            return s.contains(needle, true)
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "expected contains to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-
-        let containsFQName: [InternedString] = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("text"),
-            ctx.interner.intern("contains"),
-        ]
-        let sema = try #require(ctx.sema)
-        let resolvedSymbols = sema.symbols.lookupAll(fqName: containsFQName)
-        let hasIgnoreCaseLink = resolvedSymbols.contains { symbolID in
-            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase_flat"
-        }
-        #expect(
-            hasIgnoreCaseLink,
-            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase_flat"
-        )
-    }
 }

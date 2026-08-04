@@ -1,10 +1,9 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
-final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimeNetworkTests {
     private final class HTTPTestServer {
         private static let serverStartupTimeout: TimeInterval = 5
         private static let serverShutdownTimeout: TimeInterval = 5
@@ -174,7 +173,7 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         return result
     }
 
-    func testHTTPClientSupportsGetAndPost() throws {
+    @Test func httpClientSupportsGetAndPost() throws {
         let server = try HTTPTestServer()
         defer { server.stop() }
 
@@ -183,78 +182,78 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         let responseHandlerRaw = kk_http_body_handlers_ofString(0)
 
         let getURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/get"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let getBuilderRaw = kk_http_request_newBuilder_uri(getURI)
         _ = kk_http_request_builder_header(getBuilderRaw, runtimeString("X-Test"), runtimeString("alpha"))
         _ = kk_http_request_builder_GET(getBuilderRaw)
         let getRequestRaw = kk_http_request_builder_build(getBuilderRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let getResponseRaw = kk_http_client_send(clientRaw, getRequestRaw, responseHandlerRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_http_response_statusCode(getResponseRaw), 200)
-        XCTAssertEqual(stringValue(kk_http_response_body(getResponseRaw)), "GET:alpha")
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(getResponseRaw) == 200)
+        #expect(stringValue(kk_http_response_body(getResponseRaw)) == "GET:alpha")
 
         let getHeadersRaw = kk_http_response_headers(getResponseRaw)
-        XCTAssertEqual(stringValue(kk_http_headers_firstValue(getHeadersRaw, runtimeString("X-Echo"))), "alpha")
+        #expect(stringValue(kk_http_headers_firstValue(getHeadersRaw, runtimeString("X-Echo"))) == "alpha")
         let getHeaderMap = mapStringsToLists(kk_http_headers_map(getHeadersRaw))
-        XCTAssertEqual(getHeaderMap["X-Echo"]?.first, "alpha")
+        #expect(getHeaderMap["X-Echo"]?.first == "alpha")
 
         let postURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/post"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         let postBuilderRaw = kk_http_request_newBuilder()
         _ = kk_http_request_builder_uri(postBuilderRaw, postURI)
         _ = kk_http_request_builder_header(postBuilderRaw, runtimeString("Content-Type"), runtimeString("text/plain"))
         let publisherRaw = kk_http_body_publishers_ofString(0, runtimeString("payload"))
         _ = kk_http_request_builder_POST(postBuilderRaw, publisherRaw)
         let postRequestRaw = kk_http_request_builder_build(postBuilderRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let postResponseRaw = kk_http_client_send(clientRaw, postRequestRaw, responseHandlerRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_http_response_statusCode(postResponseRaw), 201)
-        XCTAssertEqual(stringValue(kk_http_response_body(postResponseRaw)), "POST:payload")
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(postResponseRaw) == 201)
+        #expect(stringValue(kk_http_response_body(postResponseRaw)) == "POST:payload")
         let postHeadersRaw = kk_http_response_headers(postResponseRaw)
-        XCTAssertEqual(stringValue(kk_http_headers_firstValue(postHeadersRaw, runtimeString("X-Method"))), "POST")
+        #expect(stringValue(kk_http_headers_firstValue(postHeadersRaw, runtimeString("X-Method"))) == "POST")
     }
 
-    func testHTTPClientHonorsFollowRedirectsDisabled() throws {
+    @Test func httpClientHonorsFollowRedirectsDisabled() throws {
         let server = try HTTPTestServer()
         defer { server.stop() }
 
         var thrown = 0
         let responseHandlerRaw = kk_http_body_handlers_ofString(0)
         let redirectURI = kk_uri_new(runtimeString("http://127.0.0.1:\(server.port)/redirect"), &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let disabledClientRaw = kk_http_client_newHttpClient()
         _ = kk_http_client_setFollowRedirects(disabledClientRaw, 0)
         let disabledBuilderRaw = kk_http_request_newBuilder_uri(redirectURI)
         _ = kk_http_request_builder_GET(disabledBuilderRaw)
         let disabledRequestRaw = kk_http_request_builder_build(disabledBuilderRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let disabledResponseRaw = kk_http_client_send(disabledClientRaw, disabledRequestRaw, responseHandlerRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_http_response_statusCode(disabledResponseRaw), 302)
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(disabledResponseRaw) == 302)
 
         let defaultClientRaw = kk_http_client_newHttpClient()
         let defaultBuilderRaw = kk_http_request_newBuilder_uri(redirectURI)
         _ = kk_http_request_builder_GET(defaultBuilderRaw)
         let defaultRequestRaw = kk_http_request_builder_build(defaultBuilderRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
 
         let defaultResponseRaw = kk_http_client_send(defaultClientRaw, defaultRequestRaw, responseHandlerRaw, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_http_response_statusCode(defaultResponseRaw), 200)
-        XCTAssertEqual(stringValue(kk_http_response_body(defaultResponseRaw)), "GET:")
+        #expect(thrown == 0)
+        #expect(kk_http_response_statusCode(defaultResponseRaw) == 200)
+        #expect(stringValue(kk_http_response_body(defaultResponseRaw)) == "GET:")
     }
 
-    func testHTTPRequestBuildThrowsWithoutURI() {
+    @Test func httpRequestBuildThrowsWithoutURI() {
         var thrown = 0
         let builderRaw = kk_http_request_newBuilder()
         let requestRaw = kk_http_request_builder_build(builderRaw, &thrown)
-        XCTAssertEqual(requestRaw, 0)
-        XCTAssertNotEqual(thrown, 0)
+        #expect(requestRaw == 0)
+        #expect(thrown != 0)
     }
 }
