@@ -1,13 +1,10 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-012: Validates that `CharSequence.contains` resolves through
-/// Sema for `String` receivers across all of its stdlib overloads. The synthetic
-/// stubs register:
-/// - `contains(other: String)` → `kk_string_contains_str_flat` (also acts as the
-///   `in` operator on strings).
-/// - `contains(other: String, ignoreCase: Boolean)` → `kk_string_contains_ignoreCase_flat`
-/// - `contains(regex: Regex)` -> `kk_string_contains_regex_flat`
+/// KSP-408: Validates that `CharSequence.contains` resolves through Sema for
+/// `String` receivers across all of its stdlib overloads (bundled Kotlin source,
+/// `StringIndexOf.kt`), including the `in` operator and the case-insensitive
+/// overload. `contains(regex: Regex)` remains a separate synthetic stub.
 @Suite
 struct StringContainsFunctionTests {
     @Test func testContainsResolvesInSource() throws {
@@ -43,20 +40,5 @@ struct StringContainsFunctionTests {
 
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
-
-        let sema = try #require(ctx.sema)
-        let containsFQName: [InternedString] = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("text"),
-            ctx.interner.intern("contains"),
-        ]
-
-        let resolvedSymbols = sema.symbols.lookupAll(fqName: containsFQName)
-        let externalLinks = Set(resolvedSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(externalLinks.contains("kk_string_contains_str_flat"))
-        #expect(
-            externalLinks.contains("kk_string_contains_ignoreCase_flat"),
-            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase_flat"
-        )
     }
 }

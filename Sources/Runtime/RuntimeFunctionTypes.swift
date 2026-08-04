@@ -1,33 +1,6 @@
 
 // MARK: - ランタイム関数型操作
 
-@_silgen_name("kk_function_andThen")
-public func kk_function_andThen<T, R, NewR>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (R) -> NewR
-) -> (T) -> NewR {
-    return { g(f($0)) }
-}
-
-@_silgen_name("kk_function_compose")
-public func kk_function_compose<NewT, T, R>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (NewT) -> T
-) -> (NewT) -> R {
-    return { f(g($0)) }
-}
-
-@_silgen_name("kk_function_curried")
-public func kk_function_curried<P1, P2, R>(
-    _ f: @escaping (P1, P2) -> R
-) -> (P1) -> (P2) -> R {
-    return { p1 in
-        return { p2 in
-            f(p1, p2)
-        }
-    }
-}
-
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil

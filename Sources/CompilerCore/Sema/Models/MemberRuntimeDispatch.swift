@@ -403,8 +403,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toInt_radix_flat", canThrow: true)
         case ("windowed", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_windowed_default_flat")
-        case ("lastIndexOf", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastIndexOf_flat")
         case ("get", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
         case ("compareTo", 1):
@@ -415,18 +413,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapIndexed_flat", argumentMode: .normalized)
         case ("mapNotNull", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapNotNull_flat", argumentMode: .normalized)
-        case ("indexOfFirst", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_indexOfFirst_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
-        case ("indexOfLast", 1):
-            return MemberRuntimeCallSpec(
-                runtimeLinkName: "kk_string_indexOfLast_flat",
-                canThrow: true,
-                argumentMode: .normalized
-            )
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
         case ("chunkedSequence", 1):
