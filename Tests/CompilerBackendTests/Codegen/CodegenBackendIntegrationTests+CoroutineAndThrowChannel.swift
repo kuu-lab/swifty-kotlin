@@ -7,12 +7,14 @@ class CodegenBackendTestSupport: XCTestCase {
     #if !canImport(ObjectiveC)
     // swift-corelibs-xctest (Linux) declares no parameterless XCTestCase
     // initializer -- init(name:testClosure:) is its only public one, and
-    // it's required here. Apple's XCTest instead resolves a bare
-    // `CodegenBackendTestSupport()` to the NSObject-inherited zero-arg
-    // init, so this extra initializer is Linux-only; declaring it
-    // unconditionally would collide with that inherited init on Darwin.
-    init() {
-        super.init(name: "CodegenBackendTestSupport", testClosure: { _ in })
+    // it's `required` there. A plain (designated) `init()` would opt this
+    // subclass out of Swift's automatic inheritance of that required
+    // initializer, which then demands `required init() { }` be re-declared
+    // to satisfy it -- `convenience init` sidesteps that entirely by
+    // delegating to the still-inherited `self.init(name:testClosure:)`
+    // rather than introducing a new designated initializer.
+    convenience init() {
+        self.init(name: "CodegenBackendTestSupport", testClosure: { _ in })
     }
     #endif
 }
