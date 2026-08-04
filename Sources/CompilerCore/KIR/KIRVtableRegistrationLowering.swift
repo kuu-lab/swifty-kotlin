@@ -208,7 +208,8 @@ func kirFindOverrideMethod(
         return nil
     }
 
-    let interfaceParamCount = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes.count
+    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceParamCount = interfaceParameterTypes?.count
 
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
@@ -216,6 +217,7 @@ func kirFindOverrideMethod(
         if let ownerSym = sema.symbols.symbol(nominal) {
             let children = sema.symbols.children(ofFQName: ownerSym.fqName)
             var firstCandidate: SymbolID?
+            var arityMatch: SymbolID?
             for candidate in children {
                 guard let candidateSym = sema.symbols.symbol(candidate),
                       candidateSym.kind == .function,
@@ -227,21 +229,30 @@ func kirFindOverrideMethod(
                 if firstCandidate == nil {
                     firstCandidate = candidate
                 }
-                // BUG-166: a nominal can have several same-named overloads
-                // (e.g. StringBuilder's many `append` variants), only one of
-                // which matches a given interface method's arity. Returning
-                // the first name match regardless of parameter count wires
-                // the wrong implementation into that interface method's
-                // itable slot, corrupting the call's argument list at
-                // runtime. Prefer an arity-matching candidate; keep the old
-                // first-match behavior as a fallback for interface methods
-                // whose signature isn't tracked.
-                if let interfaceParamCount,
-                   let candidateSig = sema.symbols.functionSignature(for: candidate),
-                   candidateSig.parameterTypes.count == interfaceParamCount
+                let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+                // Prefer a full parameter-type match so same-arity overloads
+                // (e.g. StringBuilder.append(Char) vs append(String)) land in
+                // the correct itable slot. Type parameters are wildcards.
+                if let interfaceParameterTypes,
+                   kirOverrideParameterTypesMatch(
+                       candidateParameterTypes: candidateParams,
+                       interfaceParameterTypes: interfaceParameterTypes,
+                       types: sema.types
+                   )
                 {
                     return candidate
                 }
+                // BUG-166: fall back to arity matching when type IDs don't
+                // line up (e.g. untracked signatures), then to first name match.
+                if arityMatch == nil,
+                   let interfaceParamCount,
+                   candidateParams.count == interfaceParamCount
+                {
+                    arityMatch = candidate
+                }
+            }
+            if let arityMatch {
+                return arityMatch
             }
             if let firstCandidate {
                 return firstCandidate
@@ -250,6 +261,28 @@ func kirFindOverrideMethod(
         current = kirSuperclass(of: nominal, sema: sema)
     }
     return nil
+}
+
+/// A class implementing an interface can declare several overloads sharing
+/// the interface method's name (StringBuilder has multiple `append`
+/// overloads for one `Appendable.append` per arity) — `lookupAll(fqName:)`
+/// returns all of them, so `kirFindOverrideMethod` must pick the one whose
+/// signature actually matches `interfaceMethod`, not just the first
+/// same-named function on the class. Type parameters are treated as
+/// wildcards on either side since a generic interface method's parameter
+/// type may not be reified the same way on the implementing side.
+private func kirOverrideParameterTypesMatch(
+    candidateParameterTypes: [TypeID],
+    interfaceParameterTypes: [TypeID],
+    types: TypeSystem
+) -> Bool {
+    guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
+    for (candidateType, interfaceType) in zip(candidateParameterTypes, interfaceParameterTypes) {
+        if case .typeParam = types.kind(of: candidateType) { continue }
+        if case .typeParam = types.kind(of: interfaceType) { continue }
+        if candidateType != interfaceType { return false }
+    }
+    return true
 }
 
 private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
