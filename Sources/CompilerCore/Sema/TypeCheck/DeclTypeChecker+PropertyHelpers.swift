@@ -263,14 +263,24 @@ extension DeclTypeChecker {
         if isKnownStdlibDelegate, let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
-                let paramSymbol = SyntheticSymbolScheme.delegateLambdaParamSymbol(
-                    for: symbol, index: index
+                let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                    for: symbol, at: index
                 )
                 let paramType = index == 0 ? sema.types.anyType : (result ?? sema.types.anyType)
                 bodyLocals[name] = (paramType, paramSymbol, false, true)
             }
+            // `.observable`'s callback always returns Unit and `.vetoable`'s
+            // always returns Boolean (the write proceeds only if true) --
+            // BUG-151. Feeding this back as the expected type lets a body
+            // returning the wrong type surface as an ordinary diagnostic
+            // instead of silently mismatching at the runtime dispatch boundary.
+            let expectedBodyType: TypeID? = switch stdlibDelegateKind {
+            case .observable: sema.types.unitType
+            case .vetoable: sema.types.booleanType
+            default: result
+            }
             _ = inferFunctionBodyType(
-                delegateBody, ctx: ctx, locals: &bodyLocals, expectedType: nil
+                delegateBody, ctx: ctx, locals: &bodyLocals, expectedType: expectedBodyType
             )
         }
 

@@ -197,7 +197,7 @@ final class DeclTypeChecker {
             // known stdlib delegate kind, not just `.lazy`: BUG-151 made
             // `.observable`/`.vetoable`'s three synthetic callback parameters
             // resolvable by name via `SyntheticSymbolScheme
-            // .delegateLambdaParamSymbol`, so binding them as locals here no
+            // .delegateLambdaParameterSymbol`, so binding them as locals here no
             // longer risks a spurious "unresolved reference" diagnostic).
             inferredPropertyType = typeCheckDelegate(
                 delegateExpr, isVar: property.isVar,

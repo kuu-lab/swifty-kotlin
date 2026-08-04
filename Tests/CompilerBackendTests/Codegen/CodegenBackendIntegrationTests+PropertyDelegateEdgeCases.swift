@@ -549,6 +549,61 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // BUG-169: member observable/vetoable callbacks need a boxed Function3
+    // value so the enclosing instance can travel with the three callback
+    // arguments. A raw top-level thunk has no way to resolve implicit member
+    // reads or writes in the callback body.
+    func testCodegenMemberDelegateCallbacksCaptureEnclosingInstance() throws {
+        let source = """
+        import kotlin.properties.Delegates
+
+        class Counter(val label: String, val minimum: Int) {
+            var callbackCount: Int = 0
+            var observed: Int by Delegates.observable(1) { _, old, new ->
+                callbackCount += 1
+                println("$label:$old->$new:$callbackCount")
+            }
+            var guarded: Int by Delegates.vetoable(0) { _, _, new ->
+                println("$label:check:$new")
+                new >= minimum
+            }
+        }
+
+        fun main() {
+            val a = Counter("a", 2)
+            val b = Counter("b", 5)
+            a.observed = 3
+            b.observed = 4
+            println(a.callbackCount)
+            println(b.callbackCount)
+            a.guarded = 1
+            a.guarded = 2
+            println(a.guarded)
+            b.guarded = 4
+            b.guarded = 5
+            println(b.guarded)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberDelegateCallbackCapture",
+            expected:
+                """
+                a:1->3:1
+                b:1->4:1
+                1
+                1
+                a:check:1
+                a:check:2
+                2
+                b:check:4
+                b:check:5
+                5
+                """ + "\n"
+        )
+    }
+
     // BUG-151: `Delegates.notNull()` reads crashed with
     // "Property delegate must be assigned before being accessed" even after a
     // write, because the write never reached `kk_notNull_set_value`.

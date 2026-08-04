@@ -375,8 +375,8 @@ extension KIRLoweringDriver {
     /// `RuntimeObservableBox`/`RuntimeVetoableBox`'s `callbackFnPtr` for the
     /// other two), which cannot simply gain an extra KIR parameter — the
     /// runtime side always invokes it through a fixed dispatch entry point
-    /// (`kk_function_invoke_0`, or `kk_invoke_delegate_observer_callback` in
-    /// `RuntimeDelegates.swift`) that already distinguishes a raw thunk
+    /// (`kk_function_invoke_0` for `.lazy`, `kk_function_invoke_3` for
+    /// `.observable`/`.vetoable`) that already distinguishes a raw thunk
     /// pointer from a boxed `Function0`/`Function3` closure value (BUG-151
     /// made the latter dispatch safe for `.observable`/`.vetoable` too, by
     /// unboxing through the same arity-tagged `RuntimeFunctionValueBox` the
@@ -409,8 +409,8 @@ extension KIRLoweringDriver {
 
         var numberedParams: [KIRParameter] = []
         for i in 0 ..< paramCount {
-            let paramSymbol = SyntheticSymbolScheme.delegateLambdaParamSymbol(
-                for: propertySymbol, index: i
+            let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                for: propertySymbol, at: i
             )
             // `(property, oldValue, newValue)`: only the two value parameters
             // carry the property's type; typing them keeps operations on them
@@ -500,14 +500,14 @@ extension KIRLoweringDriver {
     /// Wraps `innerLambdaSymbol` (a `(receiver, [property, old, new]) -> T`
     /// function) into a boxed `Function0`/`Function3` closure value carrying
     /// `receiverExpr` as captured state, so it can be invoked through
-    /// `kk_function_invoke_0`'s (arity 0, `.lazy`) or
-    /// `kk_invoke_delegate_observer_callback`'s (arity 3, `.observable`/
-    /// `.vetoable`) boxed-closure path with only the numbered arguments (if
-    /// any) at the call site — the receiver arrives via the closure object,
-    /// not as a visible argument. See `lowerDelegateLambdaBody` for why this
-    /// indirection (rather than a plain extra KIR parameter on the inner
-    /// lambda) is needed: the runtime dispatch entry points invoke a fixed,
-    /// arity-tagged function-pointer shape that has no room for one.
+    /// `kk_function_invoke_0`'s (arity 0, `.lazy`) or `kk_function_invoke_3`'s
+    /// (arity 3, `.observable`/`.vetoable`) boxed-closure path with only the
+    /// numbered arguments (if any) at the call site — the receiver arrives via
+    /// the closure object, not as a visible argument. See
+    /// `lowerDelegateLambdaBody` for why this indirection (rather than a
+    /// plain extra KIR parameter on the inner lambda) is needed: the runtime
+    /// dispatch entry points invoke a fixed, arity-tagged function-pointer
+    /// shape that has no room for one.
     private func materializeCapturingDelegateLambda(
         innerLambdaSymbol: SymbolID,
         innerLambdaName: InternedString,
@@ -602,7 +602,13 @@ extension KIRLoweringDriver {
         let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
-        let createCallee = interner.intern(adapterNumberedParams.isEmpty ? "kk_function_create_0" : "kk_function_create_3")
+        let createCallee: InternedString = switch adapterNumberedParams.count {
+        case 0: interner.intern("kk_function_create_0")
+        case 1: interner.intern("kk_function_create_1")
+        case 2: interner.intern("kk_function_create_2")
+        case 3: interner.intern("kk_function_create_3")
+        default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
+        }
         instructions.append(.call(
             symbol: nil,
             callee: createCallee,

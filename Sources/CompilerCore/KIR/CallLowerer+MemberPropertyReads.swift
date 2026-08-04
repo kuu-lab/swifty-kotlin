@@ -450,6 +450,12 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
+        if sema.symbols.propertyHasCustomGetter(for: propertySymbol) {
+            return true
+        }
+        if sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil {
+            return true
+        }
         for rawDecl in ast.arena.decls.indices {
             let declID = DeclID(rawValue: Int32(rawDecl))
             guard sema.bindings.declSymbols[declID] == propertySymbol,

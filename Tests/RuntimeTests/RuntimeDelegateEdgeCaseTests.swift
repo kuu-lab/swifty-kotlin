@@ -63,7 +63,7 @@ private func resetRuntimeDelegateEdgeCaseTestState() {
 }
 
 // Observable: records (prop, old, new) and the live value *inside* the callback.
-private let observableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new, _ in
+private let observableEdgeCapture: KKFunctionEntryPoint3 = { prop, old, new, _ in
     gEdgeState.withLock { s in
         s.observableCallCount += 1
         s.observableCapturedOld = old
@@ -75,7 +75,7 @@ private let observableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, n
 }
 
 // Vetoable: records (prop, old, new) and the live value *inside* the callback.
-private let vetoableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new, _ in
+private let vetoableEdgeCapture: KKFunctionEntryPoint3 = { prop, old, new, _ in
     gEdgeState.withLock { s in
         s.vetoableCallCount += 1
         s.vetoableCapturedOld = old
@@ -87,10 +87,10 @@ private let vetoableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new
 }
 
 // Vetoable: always rejects (returns 0).
-private let vetoableEdgeReject: KKDelegateObserverEntryPoint = { _, _, _, _ in 0 }
+private let vetoableEdgeReject: KKFunctionEntryPoint3 = { _, _, _, _ in 0 }
 
 // Vetoable: accepts only when new value > old value.
-private let vetoableEdgeAcceptIfGreater: KKDelegateObserverEntryPoint = { _, old, new, _ in
+private let vetoableEdgeAcceptIfGreater: KKFunctionEntryPoint3 = { _, old, new, _ in
     new > old ? 1 : 0
 }
 

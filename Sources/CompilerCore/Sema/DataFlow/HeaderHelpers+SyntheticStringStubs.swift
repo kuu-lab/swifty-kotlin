@@ -243,6 +243,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticLocaleConstructor(
+            ownerSymbol: localeSymbol,
+            ownerType: localeType,
+            parameters: [("language", stringType), ("country", stringType)],
+            externalLinkName: "kk_locale_new_language_country_flat",
+            symbols: symbols,
+            interner: interner
+        )
+
         // MIGRATION-TEXT-005: private primitives called from bundled Kotlin wrappers.
         registerSyntheticStringExtensionFunction(
             named: "__kk_lowercase_locale",

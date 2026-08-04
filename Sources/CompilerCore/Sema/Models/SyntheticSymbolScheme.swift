@@ -16,7 +16,7 @@ enum SyntheticSymbolScheme {
     /// particular a property's setter accessor collided with another property's
     /// getter accessor once symbol IDs exceeded the getter/setter offset gap.
     private static let bandBase: Int32 = 10000
-    private static let kindCount: Int32 = 6
+    private static let kindCount: Int32 = 9
 
     private enum Kind: Int32 {
         case receiver = 0
@@ -25,7 +25,17 @@ enum SyntheticSymbolScheme {
         case typeToken = 3
         case mask = 4
         case stub = 5
+        case delegateLambdaParameter0 = 6
+        case delegateLambdaParameter1 = 7
+        case delegateLambdaParameter2 = 8
     }
+
+    /// Delegate callback lambdas take at most three parameters
+    /// (`property`, `oldValue`, `newValue`), so each position owns its own band
+    /// kind.
+    private static let delegateLambdaParameterKinds: [Kind] = [
+        .delegateLambdaParameter0, .delegateLambdaParameter1, .delegateLambdaParameter2
+    ]
 
     private static func makeSymbol(kind: Kind, original: SymbolID) -> SymbolID {
         SymbolID(rawValue: -(bandBase + kindCount * original.rawValue + kind.rawValue))
@@ -65,6 +75,26 @@ enum SyntheticSymbolScheme {
 
     static func receiverParameterSymbol(for functionSymbol: SymbolID) -> SymbolID {
         makeSymbol(kind: .receiver, original: functionSymbol)
+    }
+
+    /// Symbol for the `index`-th synthetic parameter of a stdlib delegate
+    /// factory's trailing lambda (`property`/`old`/`new` for
+    /// `Delegates.observable`/`vetoable`; unused for `lazy`, which has none).
+    /// Shared between Sema (`typeCheckDelegate`, which binds these names as
+    /// locals so bare references elsewhere in the body -- including to other
+    /// outer instance fields, BUG-170 -- get resolved at all) and KIR lowering
+    /// (`lowerDelegateLambdaBody`, which allocates the actual KIR parameters):
+    /// both sides must compute the identical symbol for a binding made by one
+    /// to be visible to the other.
+    static func delegateLambdaParameterSymbol(
+        for propertySymbol: SymbolID,
+        at index: Int
+    ) -> SymbolID {
+        precondition(
+            delegateLambdaParameterKinds.indices.contains(index),
+            "delegate callback lambdas take at most \(delegateLambdaParameterKinds.count) parameters, got index \(index)"
+        )
+        return makeSymbol(kind: delegateLambdaParameterKinds[index], original: propertySymbol)
     }
 
     static func propertyGetterAccessorSymbol(for propertySymbol: SymbolID) -> SymbolID {
@@ -109,16 +139,4 @@ enum SyntheticSymbolScheme {
         decode(setterAccessor)?.original ?? .invalid
     }
 
-    /// Symbol for the `index`-th synthetic parameter of a stdlib delegate
-    /// factory's trailing lambda (`property`/`old`/`new` for
-    /// `Delegates.observable`/`vetoable`; unused for `lazy`, which has none).
-    /// Shared between Sema (`typeCheckDelegate`, which binds these names as
-    /// locals so bare references elsewhere in the body -- including to other
-    /// outer instance fields, BUG-170 -- get resolved at all) and KIR lowering
-    /// (`lowerDelegateLambdaBody`, which allocates the actual KIR parameters):
-    /// both sides must compute the identical symbol for a binding made by one
-    /// to be visible to the other.
-    static func delegateLambdaParamSymbol(for propertySymbol: SymbolID, index: Int) -> SymbolID {
-        SymbolID(rawValue: -(propertySymbol.rawValue + Int32(index + 1) * 1000 + 50000))
-    }
 }
