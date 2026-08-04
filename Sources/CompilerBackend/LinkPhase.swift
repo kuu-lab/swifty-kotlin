@@ -71,7 +71,7 @@ final class LinkPhase: CompilerPhase {
     }
 
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
-        let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.searchPaths)
+        let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
         do {
             let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: ctx.options.target)
             let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
@@ -265,7 +265,8 @@ final class LinkPhase: CompilerPhase {
 
     private func discoverLibraryObjects(searchPaths: [String]) -> [String] {
         let fileManager = FileManager.default
-        var libraryDirs: Set<String> = []
+        var libraryDirs: [String] = []
+        var libraryDirSeen: Set<String> = []
         for rawPath in searchPaths {
             let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
             var isDirectory: ObjCBool = false
@@ -273,20 +274,25 @@ final class LinkPhase: CompilerPhase {
                 continue
             }
             if path.hasSuffix(".kklib") {
-                libraryDirs.insert(path)
+                if libraryDirSeen.insert(path).inserted {
+                    libraryDirs.append(path)
+                }
                 continue
             }
             guard let entries = try? fileManager.contentsOfDirectory(atPath: path) else {
                 continue
             }
             for entry in entries where entry.hasSuffix(".kklib") {
-                libraryDirs.insert(URL(fileURLWithPath: path).appendingPathComponent(entry).standardizedFileURL.path)
+                let fullPath = URL(fileURLWithPath: path).appendingPathComponent(entry).standardizedFileURL.path
+                if libraryDirSeen.insert(fullPath).inserted {
+                    libraryDirs.append(fullPath)
+                }
             }
         }
 
         var collected: [String] = []
         var seen: Set<String> = []
-        for libraryDir in libraryDirs.sorted() {
+        for libraryDir in libraryDirs {
             for objectPath in objectPaths(from: libraryDir) {
                 let absolutePath = URL(fileURLWithPath: objectPath).standardizedFileURL.path
                 guard fileManager.fileExists(atPath: absolutePath) else {
