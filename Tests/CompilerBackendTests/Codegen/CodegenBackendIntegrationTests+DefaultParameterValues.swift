@@ -1,11 +1,70 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
-    func testTopLevelFunctionDefaultValueConstructsClassInstance() throws {
+@Suite
+struct CodegenBackendDefaultParameterValuesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testTopLevelFunctionDefaultValueConstructsClassInstance() throws {
         let source = """
         class Simple(val n: Int = 9)
         fun foo(x: Simple = Simple()): Int = x.n
@@ -16,7 +75,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DefaultValueConstructorCall", expected: "9\n")
     }
 
-    func testTopLevelFunctionDefaultValueReadsCompanionProperty() throws {
+    @Test func testTopLevelFunctionDefaultValueReadsCompanionProperty() throws {
         let source = """
         class Bar(val tag: String) {
             companion object {
@@ -31,7 +90,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DefaultValueCompanionPropertyRead", expected: "default\n")
     }
 
-    func testMemberFunctionDefaultValueConstructsClassInstance() throws {
+    @Test func testMemberFunctionDefaultValueConstructsClassInstance() throws {
         let source = """
         class Simple(val n: Int = 9)
         class Holder {
@@ -44,7 +103,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MemberDefaultValueConstructorCall", expected: "9\n")
     }
 
-    func testPrimaryConstructorDefaultValueConstructsClassInstance() throws {
+    @Test func testPrimaryConstructorDefaultValueConstructsClassInstance() throws {
         let source = """
         class Simple(val n: Int = 9)
         class Holder(val payload: Simple = Simple())
@@ -55,7 +114,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrimaryCtorDefaultValueConstructorCall", expected: "9\n")
     }
 
-    func testSecondaryConstructorDefaultValueConstructsClassInstance() throws {
+    @Test func testSecondaryConstructorDefaultValueConstructsClassInstance() throws {
         let source = """
         class Simple(val n: Int = 9)
         class Holder {
@@ -71,7 +130,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SecondaryCtorDefaultValueConstructorCall", expected: "9\n")
     }
 
-    func testDefaultValueExpressionMayReferenceEarlierParameter() throws {
+    @Test func testDefaultValueExpressionMayReferenceEarlierParameter() throws {
         let source = """
         fun foo(a: Int, b: Int = a + 1): Int = a + b
         fun main() {
@@ -81,3 +140,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "DefaultValueReferencesEarlierParameter", expected: "21\n")
     }
 }
+#endif
