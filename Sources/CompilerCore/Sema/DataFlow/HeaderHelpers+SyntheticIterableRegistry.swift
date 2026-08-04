@@ -110,21 +110,31 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
+        // BUG-172: same itable-dispatch gap as contains() below — wire the same
+        // kk_collection_isEmpty bridge already used for the implicit-receiver case
+        // (ExprLowerer+ControlFlowAndBlocks.swift) so an explicit-receiver call
+        // through the bare `Collection` interface type doesn't panic either.
         defineCollectionFunctionMember(
             name: "isEmpty",
             parameterTypes: [],
             returnType: types.booleanType,
-            flags: [.synthetic]
+            flags: [.synthetic],
+            externalLinkName: "kk_collection_isEmpty"
         )
 
         // Variance note: Collection declares `out E`, but contains() uses E in
         // parameter (contravariant) position. This matches Kotlin's own declaration
         // where `contains` has `@UnsafeVariance E` — the mismatch is intentional.
+        // BUG-172: needs externalLinkName like Set.contains (kk_set_contains) —
+        // RuntimeListBox/RuntimeSetBox never register itable entries, so a bare
+        // `Collection`-typed receiver falling through to virtual dispatch always
+        // panics with "method not found in vtable/itable".
         defineCollectionFunctionMember(
             name: "contains",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
-            flags: [.synthetic, .operatorFunction]
+            flags: [.synthetic, .operatorFunction],
+            externalLinkName: "kk_collection_contains"
         )
 
         // last(): E — modeled directly here because Collection member lookup does

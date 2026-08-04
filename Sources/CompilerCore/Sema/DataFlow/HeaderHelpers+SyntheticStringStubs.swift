@@ -78,9 +78,15 @@ extension DataFlowSemaPhase {
         let nullableCharSequenceType = types.makeNullable(charSequenceType)
 
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
+        // BUG-172: all three overloads need an externalLinkName. StringBuilder is
+        // the sole implementer and bypasses kk_object_new construction (see the
+        // BUG-044 note in RuntimeStringBuilder.swift), so it never registers itable
+        // entries — a call through the bare `Appendable` interface type for an
+        // overload with no externalLinkName falls through to itable dispatch and
+        // panics with "method not found in vtable/itable".
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_char",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -100,7 +106,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "",
+            externalLinkName: "__kk_string_builder_append_range",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -110,7 +116,8 @@ extension DataFlowSemaPhase {
             ],
             returnType: appendableType,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // --- STDLIB-TEXT-TYPE-003: kotlin.text.Typography object surface ---
