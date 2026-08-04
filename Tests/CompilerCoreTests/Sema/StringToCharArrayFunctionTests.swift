@@ -19,19 +19,7 @@ struct StringToCharArrayFunctionTests {
         fun explodeLiteral(): CharArray {
             return "hello".toCharArray()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected toCharArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testToCharArrayChainedAsCharArrayReceiverResolves() throws {
-        // Validates that the returned CharArray supports CharArray-level members
-        // — i.e. the inferred return type really is CharArray, not e.g. List<Char>.
-        let ctx = makeContextFromSource("""
         fun countChars(s: String): Int {
             return s.toCharArray().size
         }
@@ -44,7 +32,7 @@ struct StringToCharArrayFunctionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected toCharArray chained access to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected toCharArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
