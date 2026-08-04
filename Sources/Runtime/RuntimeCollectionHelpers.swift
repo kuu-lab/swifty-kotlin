@@ -555,7 +555,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return stringBox.value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
-        return "\(intBox.value)"
+        return intBox.enumEntryName ?? "\(intBox.value)"
     }
     if let boolBox = tryCast(ptr, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"
@@ -934,7 +934,7 @@ func runtimeBinarySearch(
 }
 
 @inline(__always)
-private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
+func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
           lhsTypeID == rhsTypeID,
