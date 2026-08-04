@@ -202,56 +202,15 @@ struct InputStreamReadBytesFunctionTests {
 
     // MARK: - Consolidated runSema clean tests
 
+    // MARK: - Consolidated runSema clean tests
+
     @Test
     func testRunSemaClean() throws {
 
         let sources: [String] = [
-            // testInputStreamReadBytesResolves
+            // testRunSemaClean
             """
             package sample0
-
-                    import java.io.File
-
-                    fun loadAll(file: File) {
-                        val stream = file.inputStream()
-                        val result = stream.readBytes()
-                    }
-
-            """,
-            // testBufferedInputStreamReadBytesResolves
-            """
-            package sample1
-
-                    import java.io.BufferedInputStream
-                    import java.io.File
-
-                    fun loadAll(file: File) {
-                        val buffered: BufferedInputStream = file.inputStream().buffered()
-                        val result = buffered.readBytes()
-                    }
-
-            """,
-            // testInputStreamReadBytesInsideUseBlock
-            """
-            package sample2
-
-                    import java.io.File
-
-                    fun loadAll(file: File) {
-                        val result = file.inputStream().use { stream ->
-                            stream.readBytes()
-                        }
-                    }
-
-            """,
-            // testInputStreamReadBytesSignatureAndRuntimeLink
-            """
-            package sample3
-            fun noop() {}
-            """,
-            // testRuntimeABISpecRegistersReadAllBytes
-            """
-            package sample4
             fun noop() {}
             """,
         ]
@@ -268,7 +227,7 @@ struct InputStreamReadBytesFunctionTests {
 
             let interner = ctx.interner
 
-            // === testInputStreamReadBytesResolves ===
+            // === testRunSemaClean ===
 
             do {
 
@@ -276,115 +235,180 @@ struct InputStreamReadBytesFunctionTests {
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                let errors = sample0Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    "Expected InputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-                )
+                let sources: [String] = [
+                    // testInputStreamReadBytesResolves
+                    """
+                    package sample0
 
-            }
+                            import java.io.File
 
-            // === testBufferedInputStreamReadBytesResolves ===
+                            fun loadAll(file: File) {
+                                val stream = file.inputStream()
+                                val result = stream.readBytes()
+                            }
 
-            do {
+                    """,
+                    // testBufferedInputStreamReadBytesResolves
+                    """
+                    package sample1
 
-                let sample1Path = paths[1]
+                            import java.io.BufferedInputStream
+                            import java.io.File
 
-                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+                            fun loadAll(file: File) {
+                                val buffered: BufferedInputStream = file.inputStream().buffered()
+                                val result = buffered.readBytes()
+                            }
 
-                let errors = sample1Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    "Expected BufferedInputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-                )
+                    """,
+                    // testInputStreamReadBytesInsideUseBlock
+                    """
+                    package sample2
 
-            }
+                            import java.io.File
 
-            // === testInputStreamReadBytesInsideUseBlock ===
+                            fun loadAll(file: File) {
+                                val result = file.inputStream().use { stream ->
+                                    stream.readBytes()
+                                }
+                            }
 
-            do {
+                    """,
+                    // testInputStreamReadBytesSignatureAndRuntimeLink
+                    """
+                    package sample3
+                    fun noop() {}
+                    """,
+                    // testRuntimeABISpecRegistersReadAllBytes
+                    """
+                    package sample4
+                    fun noop() {}
+                    """,
+                ]
 
-                let sample2Path = paths[2]
+                try withTemporaryFiles(contents: sources) { paths in
 
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+                    // === testInputStreamReadBytesResolves ===
 
-                let errors = sample2Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    "Expected InputStream.use { it.readBytes() } to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-                )
+                    do {
 
-            }
+                        let sample0Path = paths[0]
 
-            // === testInputStreamReadBytesSignatureAndRuntimeLink ===
+                        let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-            do {
+                        let errors = sample0Diagnostics.filter { $0.severity == .error }
+                        #expect(
+                            errors.isEmpty,
+                            "Expected InputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                        )
 
-                let sample3Path = paths[3]
+                    }
 
-                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+                    // === testBufferedInputStreamReadBytesResolves ===
 
-                let symbols = sema.symbols
-                let types = sema.types
+                    do {
 
-                let inputStreamSymbol = try #require(
-                    symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern))
-                )
-                let inputStreamType = types.make(
-                    .classType(ClassType(classSymbol: inputStreamSymbol, args: [], nullability: .nonNull))
-                )
-                let listSymbol = try #require(
-                    symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern))
-                )
-                let listOfIntType = types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.out(types.intType)],
-                    nullability: .nonNull
-                )))
+                        let sample1Path = paths[1]
 
-                let candidates = symbols.lookupAll(
-                    fqName: ["java", "io", "InputStream", "readBytes"].map(interner.intern)
-                )
-                let readBytes = try #require(candidates.first { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                    return signature.receiverType == inputStreamType
-                        && signature.parameterTypes.isEmpty
-                })
+                        let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
-                #expect(
-                    symbols.externalLinkName(for: readBytes) == "kk_input_stream_readAllBytes",
-                    "InputStream.readBytes should bind to runtime helper kk_input_stream_readAllBytes"
-                )
+                        let errors = sample1Diagnostics.filter { $0.severity == .error }
+                        #expect(
+                            errors.isEmpty,
+                            "Expected BufferedInputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                        )
 
-                let signature = try #require(symbols.functionSignature(for: readBytes))
-                #expect(signature.returnType == listOfIntType,
-                               "InputStream.readBytes() must return ByteArray (List<Int>)")
-                #expect(signature.receiverType == inputStreamType)
-                #expect(signature.valueParameterIsVararg.allSatisfy { !$0 })
-                #expect(signature.valueParameterHasDefaultValues.allSatisfy { !$0 })
+                    }
 
-            }
+                    // === testInputStreamReadBytesInsideUseBlock ===
 
-            // === testRuntimeABISpecRegistersReadAllBytes ===
+                    do {
 
-            do {
+                        let sample2Path = paths[2]
 
-                let sample4Path = paths[4]
+                        let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
-                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+                        let errors = sample2Diagnostics.filter { $0.severity == .error }
+                        #expect(
+                            errors.isEmpty,
+                            "Expected InputStream.use { it.readBytes() } to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                        )
 
-                let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "kk_input_stream_readAllBytes" }
-                let unwrapped = try #require(
-                    spec,
-                    "kk_input_stream_readAllBytes must be registered in RuntimeABISpec+FileIO.swift"
-                )
-                #expect(unwrapped.parameters.count == 2)
-                #expect(unwrapped.parameters[0].name == "streamRaw")
-                #expect(unwrapped.parameters[0].type == .intptr)
-                #expect(unwrapped.parameters[1].name == "outThrown")
-                #expect(unwrapped.parameters[1].type == .nullableIntptrPointer)
-                #expect(unwrapped.returnType == .intptr)
-                #expect(unwrapped.section == "FileIO")
+                    }
+
+                    // === testInputStreamReadBytesSignatureAndRuntimeLink ===
+
+                    do {
+
+                        let sample3Path = paths[3]
+
+                        let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+
+                        let symbols = sema.symbols
+                        let types = sema.types
+
+                        let inputStreamSymbol = try #require(
+                            symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern))
+                        )
+                        let inputStreamType = types.make(
+                            .classType(ClassType(classSymbol: inputStreamSymbol, args: [], nullability: .nonNull))
+                        )
+                        let listSymbol = try #require(
+                            symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern))
+                        )
+                        let listOfIntType = types.make(.classType(ClassType(
+                            classSymbol: listSymbol,
+                            args: [.out(types.intType)],
+                            nullability: .nonNull
+                        )))
+
+                        let candidates = symbols.lookupAll(
+                            fqName: ["java", "io", "InputStream", "readBytes"].map(interner.intern)
+                        )
+                        let readBytes = try #require(candidates.first { symbolID in
+                            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+                            return signature.receiverType == inputStreamType
+                                && signature.parameterTypes.isEmpty
+                        })
+
+                        #expect(
+                            symbols.externalLinkName(for: readBytes) == "kk_input_stream_readAllBytes",
+                            "InputStream.readBytes should bind to runtime helper kk_input_stream_readAllBytes"
+                        )
+
+                        let signature = try #require(symbols.functionSignature(for: readBytes))
+                        #expect(signature.returnType == listOfIntType,
+                                       "InputStream.readBytes() must return ByteArray (List<Int>)")
+                        #expect(signature.receiverType == inputStreamType)
+                        #expect(signature.valueParameterIsVararg.allSatisfy { !$0 })
+                        #expect(signature.valueParameterHasDefaultValues.allSatisfy { !$0 })
+
+                    }
+
+                    // === testRuntimeABISpecRegistersReadAllBytes ===
+
+                    do {
+
+                        let sample4Path = paths[4]
+
+                        let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+
+                        let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "kk_input_stream_readAllBytes" }
+                        let unwrapped = try #require(
+                            spec,
+                            "kk_input_stream_readAllBytes must be registered in RuntimeABISpec+FileIO.swift"
+                        )
+                        #expect(unwrapped.parameters.count == 2)
+                        #expect(unwrapped.parameters[0].name == "streamRaw")
+                        #expect(unwrapped.parameters[0].type == .intptr)
+                        #expect(unwrapped.parameters[1].name == "outThrown")
+                        #expect(unwrapped.parameters[1].type == .nullableIntptrPointer)
+                        #expect(unwrapped.returnType == .intptr)
+                        #expect(unwrapped.section == "FileIO")
+
+                    }
+
+                }
 
             }
 
