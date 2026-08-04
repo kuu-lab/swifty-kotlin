@@ -49,19 +49,24 @@ final class CallLowerer {
         return nil
     }
 
-    private func isStringBuilderConstructor(
+    /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
+    /// constructors, so callers can both gate on "is this a StringBuilder
+    /// construction" and reuse the owner symbol for itable registration
+    /// without a second lookup.
+    private func stringBuilderConstructorOwner(
         _ symbolID: SymbolID?,
         sema: SemaModule,
         knownNames: KnownCompilerNames
-    ) -> Bool {
+    ) -> SymbolID? {
         guard let symbolID,
               sema.symbols.symbol(symbolID)?.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: symbolID),
-              let ownerInfo = sema.symbols.symbol(ownerSymbol)
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              knownNames.isStringBuilderSymbol(ownerInfo)
         else {
-            return false
+            return nil
         }
-        return knownNames.isStringBuilderSymbol(ownerInfo)
+        return ownerSymbol
     }
 
     private func lowerStringBuilderConstructorCall(
@@ -960,13 +965,12 @@ final class CallLowerer {
         }
         if callableInvokeCallee == nil,
            loweredCallable == nil,
-           isStringBuilderConstructor(chosen, sema: sema, knownNames: knownNames),
-           let chosen, let stringBuilderSymbol = sema.symbols.parentSymbol(for: chosen)
+           let stringBuilderOwnerSymbol = stringBuilderConstructorOwner(chosen, sema: sema, knownNames: knownNames)
         {
             return lowerStringBuilderConstructorCall(
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,
-                nominalSymbol: stringBuilderSymbol,
+                nominalSymbol: stringBuilderOwnerSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1423,6 +1427,7 @@ final class CallLowerer {
             "kk_runtime_result_recover_catching",
             "kk_runtime_result_run_catching",
             "kk_synchronized",
+            "__kk_string_builder_new_capacity_checked",
         ].contains(name)
     }
 
