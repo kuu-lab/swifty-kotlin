@@ -48,6 +48,15 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             var updated = function
             var newBody: [KIRInstruction] = []
             newBody.reserveCapacity(function.body.count)
+            // Labels only need to be unique within this function body. Start
+            // past the highest label already used so branches synthesized
+            // below (nullable println rewrite) never collide with existing
+            // control flow.
+            var nextLabel = Self.maxLabelNumber(in: function.body) + 1
+            func allocateLabel() -> Int32 {
+                defer { nextLabel += 1 }
+                return nextLabel
+            }
             for instruction in function.body {
                 switch instruction {
                 case let .binary(op, lhs, rhs, result):
@@ -74,7 +83,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                            isSuperCall: isSuperCall, arena: module.arena,
                            ctx: ctx, newBody: &newBody,
                            precedingInstructions: newBody,
-                           conversionCallees: printlnConversionCallees
+                           conversionCallees: printlnConversionCallees,
+                           allocateLabel: allocateLabel
                        )
                     {
                         continue
@@ -88,6 +98,16 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return updated
         }
         module.recordLowering(Self.name)
+    }
+
+    private static func maxLabelNumber(in body: [KIRInstruction]) -> Int32 {
+        var maxLabel: Int32 = -1
+        for instruction in body {
+            if case let .label(n) = instruction {
+                maxLabel = max(maxLabel, n)
+            }
+        }
+        return maxLabel
     }
 
     private func lowerBinaryInstruction(
@@ -173,7 +193,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         ctx: KIRContext,
         newBody: inout [KIRInstruction],
         precedingInstructions: [KIRInstruction],
-        conversionCallees: PrintlnConversionCallees
+        conversionCallees: PrintlnConversionCallees,
+        allocateLabel: () -> Int32
     ) -> Bool {
         guard let types = ctx.sema?.types else { return false }
         var argType = arena.exprType(arguments[0])
@@ -216,8 +237,69 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             )
             return true
         }
+
+        // Only classType receivers are handled by the direct-call rewrites below
+        // (toString()/data class/data object). Everything else (Any, type params,
+        // collections, ...) falls through to kk_println_any unchanged.
+        guard case .classType = types.kind(of: argType) else {
+            return false
+        }
+
+        if types.nullability(of: argType) == .nonNull {
+            return applyClassPrintlnRewrite(
+                symbol: symbol, callee: callee, argument: arguments[0],
+                result: result, canThrow: canThrow, thrownResult: thrownResult,
+                isSuperCall: isSuperCall, arena: arena, ctx: ctx, newBody: &newBody
+            )
+        }
+
+        // Nullable class receiver: none of the direct-call rewrites are
+        // null-safe (they call toString()/read properties unconditionally,
+        // which crashes on the null sentinel), so branch on null-ness first.
+        // Probe on a scratch body so we only commit to the branch if some
+        // rewrite actually applies; otherwise fall through unchanged.
+        var nonNullBody: [KIRInstruction] = []
+        guard applyClassPrintlnRewrite(
+            symbol: symbol, callee: callee, argument: arguments[0],
+            result: result, canThrow: canThrow, thrownResult: thrownResult,
+            isSuperCall: isSuperCall, arena: arena, ctx: ctx, newBody: &nonNullBody
+        ) else {
+            return false
+        }
+
+        let nonNullLabel = allocateLabel()
+        let endLabel = allocateLabel()
+        newBody.append(.jumpIfNotNull(value: arguments[0], target: nonNullLabel))
+        // Null path: reuse the original call — kk_println_any already special-cases
+        // the null sentinel and prints "null".
+        newBody.append(.call(
+            symbol: symbol, callee: callee, arguments: arguments,
+            result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
+        ))
+        newBody.append(.jump(endLabel))
+        newBody.append(.label(nonNullLabel))
+        newBody.append(contentsOf: nonNullBody)
+        newBody.append(.label(endLabel))
+        return true
+    }
+
+    /// Applies the first matching direct-call rewrite (data object name / data
+    /// class toString / class toString()) unconditionally. Callers must ensure
+    /// the argument is known non-null — none of these rewrites check for null.
+    private func applyClassPrintlnRewrite(
+        symbol: SymbolID?,
+        callee: InternedString,
+        argument: KIRExprID,
+        result: KIRExprID?,
+        canThrow: Bool,
+        thrownResult: KIRExprID?,
+        isSuperCall: Bool,
+        arena: KIRArena,
+        ctx: KIRContext,
+        newBody: inout [KIRInstruction]
+    ) -> Bool {
         if let dataObjectString = rewriteDataObjectPrintlnArgument(
-            argument: arguments[0], arena: arena, sema: ctx.sema,
+            argument: argument, arena: arena, sema: ctx.sema,
             interner: ctx.interner, body: &newBody
         ) {
             newBody.append(.call(
@@ -227,7 +309,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return true
         }
         if let dataClassString = rewriteDataClassPrintlnArgument(
-            argument: arguments[0], arena: arena, sema: ctx.sema,
+            argument: argument, arena: arena, sema: ctx.sema,
             interner: ctx.interner, body: &newBody
         ) {
             newBody.append(.call(
@@ -237,7 +319,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return true
         }
         if let classToStringResult = rewriteClassToStringPrintlnArgument(
-            argument: arguments[0], arena: arena, sema: ctx.sema,
+            argument: argument, arena: arena, sema: ctx.sema,
             interner: ctx.interner, body: &newBody
         ) {
             newBody.append(.call(

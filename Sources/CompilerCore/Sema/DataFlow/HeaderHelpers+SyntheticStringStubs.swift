@@ -243,6 +243,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticLocaleConstructor(
+            ownerSymbol: localeSymbol,
+            ownerType: localeType,
+            parameters: [("language", stringType), ("country", stringType)],
+            externalLinkName: "kk_locale_new_language_country_flat",
+            symbols: symbols,
+            interner: interner
+        )
+
         // MIGRATION-TEXT-005: private primitives called from bundled Kotlin wrappers.
         registerSyntheticStringExtensionFunction(
             named: "__kk_lowercase_locale",
@@ -345,34 +354,8 @@ extension DataFlowSemaPhase {
 
         // KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt).
 
-        registerSyntheticStringExtensionFunction(
-            named: "contains",
-            externalLinkName: "kk_string_contains_str_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: boolType,
-            flags: [.synthetic, .operatorFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-012
-        registerSyntheticStringExtensionFunction(
-            named: "contains",
-            externalLinkName: "kk_string_contains_ignoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: boolType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-408: contains(String)/contains(String, ignoreCase) are bundled Kotlin
+        // source (StringIndexOf.kt). The Regex overload below is unaffected.
 
         registerSyntheticStringExtensionFunction(
             named: "toInt",
@@ -574,213 +557,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "indexOf",
-            externalLinkName: "kk_string_indexOf",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "indexOf",
-            externalLinkName: "kk_string_indexOf_from",
-            receiverType: stringType,
-            parameters: [
-                ("string", stringType, false, false),
-                ("startIndex", intType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "indexOf",
-            externalLinkName: "kk_string_indexOf_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("string", stringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "indexOf",
-            externalLinkName: "kk_string_indexOf_char",
-            receiverType: charSequenceType,
-            parameters: [
-                ("char", charType, false, false),
-                ("startIndex", intType, true, false),
-                ("ignoreCase", boolType, true, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_chars",
-            receiverType: charSequenceType,
-            parameters: [
-                ("chars", charArrayType, false, false),
-                ("startIndex", intType, true, false),
-                ("ignoreCase", boolType, true, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_strings",
-            receiverType: charSequenceType,
-            parameters: [
-                ("strings", collectionStringType, false, false),
-                ("startIndex", intType, true, false),
-                ("ignoreCase", boolType, true, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-SEARCH-003: CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_chars",
-            receiverType: charSequenceType,
-            parameters: [
-                ("chars", charArrayType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-SEARCH-004: CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_strings",
-            receiverType: charSequenceType,
-            parameters: [
-                ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-SEARCH-005: CharSequence.findAnyOf(strings, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "findAnyOf",
-            externalLinkName: "kk_string_findAnyOf",
-            receiverType: charSequenceType,
-            parameters: [
-                ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: nullablePairIntStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-SEARCH-006: CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "findLastAnyOf",
-            externalLinkName: "kk_string_findLastAnyOf",
-            receiverType: charSequenceType,
-            parameters: [
-                ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: nullablePairIntStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("string", stringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf_char",
-            receiverType: charSequenceType,
-            parameters: [
-                ("char", charType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf
+        // (String, Char, CharArray and Collection<String> overloads, with startIndex /
+        // ignoreCase variants) are bundled Kotlin source (StringIndexOf.kt).
 
         registerSyntheticStringExtensionFunction(
             named: "toList",
@@ -1015,6 +794,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BUG-173: real Kotlin declares this as `public operator fun CharSequence.contains(regex:
+        // Regex): Boolean`. This stub previously omitted the operator flag (defaulting to plain
+        // `[.synthetic]`); corrected here to match. Note `regex in "text"` still does not resolve
+        // correctly via the `in` operator even with this flag set — see BUG-173 in TODO.md for the
+        // deeper (still open) candidate-discovery gap in `inferContainsCallBinding`. Direct calls
+        // (`"text".contains(regex)`) are unaffected and work correctly either way.
         registerSyntheticStringExtensionFunction(
             named: "contains",
             externalLinkName: "kk_string_contains_regex_flat",
@@ -1023,6 +808,7 @@ extension DataFlowSemaPhase {
                 ("regex", regexType, false, false),
             ],
             returnType: boolType,
+            flags: [.synthetic, .operatorFunction],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1056,7 +842,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "get",
-            externalLinkName: "kk_string_get_flat",
+            externalLinkName: "kk_char_sequence_get",
             receiverType: charSequenceType,
             parameters: [
                 ("index", intType, false, false),
@@ -1521,48 +1307,10 @@ extension DataFlowSemaPhase {
 
         // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
         // (StringTakeDrop.kt).
-        // --- String.indexOfFirst / indexOfLast ---
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // CharSequence.indexOfFirst / indexOfLast — delegate to the same runtime functions.
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-408: String/CharSequence.indexOfFirst / indexOfLast are bundled Kotlin
+        // source (StringIndexOf.kt).
+        // KSP-410: onEach/onEachIndexed/find/findLast are bundled Kotlin source
+        // (StringHOF.kt).
 
         // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
 
