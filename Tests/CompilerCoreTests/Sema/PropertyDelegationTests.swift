@@ -7,94 +7,319 @@ import Testing
 
 @Suite
 struct DelegateStorageSymbolTableTests {
-    @Test func testSetAndGetDelegateStorageSymbol() {
-        let interner = StringInterner()
-        let symbols = SymbolTable()
-        let property = symbols.define(
-            kind: .property,
-            name: interner.intern("x"),
-            fqName: [interner.intern("x")],
-            declSite: nil,
-            visibility: .public
-        )
-        let storage = symbols.define(
-            kind: .field,
-            name: interner.intern("$delegate_x"),
-            fqName: [interner.intern("$delegate_x")],
-            declSite: nil,
-            visibility: .private
-        )
-        symbols.setDelegateStorageSymbol(storage, for: property)
-        #expect(symbols.delegateStorageSymbol(for: property) == storage)
+
+    // MARK: - Per-source diagnostic helpers
+
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
     }
 
-    @Test func testDelegateStorageSymbolReturnsNilForUnset() {
-        let symbols = SymbolTable()
-        #expect(symbols.delegateStorageSymbol(for: SymbolID(rawValue: 0)) == nil)
+    private func diagnosticsForPath(
+        _ path: String,
+        withCode code: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
     }
 
-    @Test func testDelegateStorageSymbolIsIndependentOfPropertyType() {
-        let interner = StringInterner()
-        let symbols = SymbolTable()
-        let types = TypeSystem()
-        let property = symbols.define(
-            kind: .property,
-            name: interner.intern("y"),
-            fqName: [interner.intern("y")],
-            declSite: nil,
-            visibility: .public
-        )
-        let storage = symbols.define(
-            kind: .field,
-            name: interner.intern("$delegate_y"),
-            fqName: [interner.intern("$delegate_y")],
-            declSite: nil,
-            visibility: .private
-        )
-        let intType = types.make(.primitive(.int, .nonNull))
-        symbols.setPropertyType(intType, for: property)
-        symbols.setDelegateStorageSymbol(storage, for: property)
-        #expect(symbols.delegateStorageSymbol(for: property) == storage)
-        #expect(symbols.propertyType(for: property) == intType)
+    private func assertHasDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = diagnostics.contains { $0.code == code }
+        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
     }
 
-    @Test func testMultipleDelegateStorageSymbolsAreIndependent() {
-        let interner = StringInterner()
-        let symbols = SymbolTable()
-        let propA = symbols.define(
-            kind: .property,
-            name: interner.intern("a"),
-            fqName: [interner.intern("a")],
-            declSite: nil,
-            visibility: .public
-        )
-        let propB = symbols.define(
-            kind: .property,
-            name: interner.intern("b"),
-            fqName: [interner.intern("b")],
-            declSite: nil,
-            visibility: .public
-        )
-        let storageA = symbols.define(
-            kind: .field,
-            name: interner.intern("$delegate_a"),
-            fqName: [interner.intern("$delegate_a")],
-            declSite: nil,
-            visibility: .private
-        )
-        let storageB = symbols.define(
-            kind: .field,
-            name: interner.intern("$delegate_b"),
-            fqName: [interner.intern("$delegate_b")],
-            declSite: nil,
-            visibility: .private
-        )
-        symbols.setDelegateStorageSymbol(storageA, for: propA)
-        symbols.setDelegateStorageSymbol(storageB, for: propB)
-        #expect(symbols.delegateStorageSymbol(for: propA) == storageA)
-        #expect(symbols.delegateStorageSymbol(for: propB) == storageB)
-        #expect(symbols.delegateStorageSymbol(for: propA) != storageB)
+    private func assertNoDiagnostic(
+        _ code: String,
+        in diagnostics: [Diagnostic]
+    ) {
+        let found = !diagnostics.contains { $0.code == code }
+        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
     }
+
+    // MARK: - Path-aware expression search helpers
+
+    private func firstExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
+    private func lastExprIDInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        var result: ExprID?
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { result = exprID }
+        }
+        return result
+    }
+
+    private func allExprIDsInPath(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        var results: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { continue }
+            if predicate(exprID, expr) { results.append(exprID) }
+        }
+        return results
+    }
+
+    private func memberCallExprIDsInPath(
+        named name: String,
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        interner: StringInterner
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, callee, _, _, range) = expr,
+                  interner.resolve(callee) == name,
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else {
+                return nil
+            }
+            return exprID
+        }
+    }
+
+    private func firstUserObjectLiteralDeclIDInPath(
+        in ast: ASTModule,
+        path: String,
+        sourceManager: SourceManager
+    ) -> DeclID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .objectLiteral(_, declID, _) = expr,
+                  let declID,
+                  let range = ast.arena.exprRange(exprID),
+                  sourceManager.path(of: range.start.file) == path
+            else { continue }
+            return declID
+        }
+        return nil
+    }
+
+    private func findMainBodyStatementsInPath(
+        in ast: ASTModule,
+        path: String,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> [ExprID]? {
+        guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
+        for file in ast.files {
+            guard file.fileID == fileID else { continue }
+            for declID in file.topLevelDecls {
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(function) = decl,
+                      interner.resolve(function.name) == "main",
+                      case let .block(statements, _) = function.body
+                else { continue }
+                return statements
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Consolidated runSema clean tests
+
+    @Test
+    func testRunSemaClean() throws {
+
+        let sources: [String] = [
+            // testSetAndGetDelegateStorageSymbol
+            """
+            package sample0
+            fun noop() {}
+            """,
+            // testDelegateStorageSymbolReturnsNilForUnset
+            """
+            package sample1
+            fun noop() {}
+            """,
+            // testDelegateStorageSymbolIsIndependentOfPropertyType
+            """
+            package sample2
+            fun noop() {}
+            """,
+            // testMultipleDelegateStorageSymbolsAreIndependent
+            """
+            package sample3
+            fun noop() {}
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+
+            let ctx = makeCompilationContext(inputs: paths)
+
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+
+            let sema = try #require(ctx.sema)
+
+            let interner = ctx.interner
+
+            // === testSetAndGetDelegateStorageSymbol ===
+
+            do {
+
+                let sample0Path = paths[0]
+
+                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
+
+                let interner = StringInterner()
+                let symbols = SymbolTable()
+                let property = symbols.define(
+                    kind: .property,
+                    name: interner.intern("x"),
+                    fqName: [interner.intern("x")],
+                    declSite: nil,
+                    visibility: .public
+                )
+                let storage = symbols.define(
+                    kind: .field,
+                    name: interner.intern("$delegate_x"),
+                    fqName: [interner.intern("$delegate_x")],
+                    declSite: nil,
+                    visibility: .private
+                )
+                symbols.setDelegateStorageSymbol(storage, for: property)
+                #expect(symbols.delegateStorageSymbol(for: property) == storage)
+
+            }
+
+            // === testDelegateStorageSymbolReturnsNilForUnset ===
+
+            do {
+
+                let sample1Path = paths[1]
+
+                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
+
+                let symbols = SymbolTable()
+                #expect(symbols.delegateStorageSymbol(for: SymbolID(rawValue: 0)) == nil)
+
+            }
+
+            // === testDelegateStorageSymbolIsIndependentOfPropertyType ===
+
+            do {
+
+                let sample2Path = paths[2]
+
+                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
+
+                let interner = StringInterner()
+                let symbols = SymbolTable()
+                let types = TypeSystem()
+                let property = symbols.define(
+                    kind: .property,
+                    name: interner.intern("y"),
+                    fqName: [interner.intern("y")],
+                    declSite: nil,
+                    visibility: .public
+                )
+                let storage = symbols.define(
+                    kind: .field,
+                    name: interner.intern("$delegate_y"),
+                    fqName: [interner.intern("$delegate_y")],
+                    declSite: nil,
+                    visibility: .private
+                )
+                let intType = types.make(.primitive(.int, .nonNull))
+                symbols.setPropertyType(intType, for: property)
+                symbols.setDelegateStorageSymbol(storage, for: property)
+                #expect(symbols.delegateStorageSymbol(for: property) == storage)
+                #expect(symbols.propertyType(for: property) == intType)
+
+            }
+
+            // === testMultipleDelegateStorageSymbolsAreIndependent ===
+
+            do {
+
+                let sample3Path = paths[3]
+
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
+
+                let interner = StringInterner()
+                let symbols = SymbolTable()
+                let propA = symbols.define(
+                    kind: .property,
+                    name: interner.intern("a"),
+                    fqName: [interner.intern("a")],
+                    declSite: nil,
+                    visibility: .public
+                )
+                let propB = symbols.define(
+                    kind: .property,
+                    name: interner.intern("b"),
+                    fqName: [interner.intern("b")],
+                    declSite: nil,
+                    visibility: .public
+                )
+                let storageA = symbols.define(
+                    kind: .field,
+                    name: interner.intern("$delegate_a"),
+                    fqName: [interner.intern("$delegate_a")],
+                    declSite: nil,
+                    visibility: .private
+                )
+                let storageB = symbols.define(
+                    kind: .field,
+                    name: interner.intern("$delegate_b"),
+                    fqName: [interner.intern("$delegate_b")],
+                    declSite: nil,
+                    visibility: .private
+                )
+                symbols.setDelegateStorageSymbol(storageA, for: propA)
+                symbols.setDelegateStorageSymbol(storageB, for: propB)
+                #expect(symbols.delegateStorageSymbol(for: propA) == storageA)
+                #expect(symbols.delegateStorageSymbol(for: propB) == storageB)
+                #expect(symbols.delegateStorageSymbol(for: propA) != storageB)
+
+            }
+
+        }
+    }
+
 }
 
 // MARK: - Sema Delegate Type Checking Tests
