@@ -496,11 +496,11 @@ public func kk_list_groupByTransform(_ listRaw: Int, _ keyFnPtr: Int, _ keyClosu
 
 @_cdecl("kk_list_sortedBy")
 public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
+    guard let elements = runtimeCollectionElements(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
     guard let sorted = runtimeSortByElements(
-        list.elements,
+        elements,
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         descending: false,

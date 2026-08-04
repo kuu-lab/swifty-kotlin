@@ -1,33 +1,6 @@
 
 // MARK: - ランタイム関数型操作
 
-@_silgen_name("kk_function_andThen")
-public func kk_function_andThen<T, R, NewR>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (R) -> NewR
-) -> (T) -> NewR {
-    return { g(f($0)) }
-}
-
-@_silgen_name("kk_function_compose")
-public func kk_function_compose<NewT, T, R>(
-    _ f: @escaping (T) -> R,
-    _ g: @escaping (NewT) -> T
-) -> (NewT) -> R {
-    return { f(g($0)) }
-}
-
-@_silgen_name("kk_function_curried")
-public func kk_function_curried<P1, P2, R>(
-    _ f: @escaping (P1, P2) -> R
-) -> (P1) -> (P2) -> R {
-    return { p1 in
-        return { p2 in
-            f(p1, p2)
-        }
-    }
-}
-
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
@@ -145,6 +118,26 @@ public func kk_function_create_1(
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 1))
 }
 
+// A callable value forwarded as an ordinary argument (e.g. a bundled
+// Kotlin-source HOF like `Sequence.chunked(size, transform)` receiving its
+// trailing lambda) arrives boxed via kk_function_create_1/2/... rather than
+// as a raw (fnPtr, closureRaw) pair, because the lowering that produced it
+// didn't know the callee would eventually need the raw C-ABI closure
+// convention (see CallLowerer+MemberCallEmission.splitCallableLambdaArgument,
+// whose compile-time-only fallback can't inspect closure shape). These two
+// accessors let call sites recover the pair at runtime regardless of which
+// shape the value turns out to have — mirrors kk_function_invoke's existing
+// box-or-raw branch, minus the actual invocation.
+@_cdecl("kk_function_value_fn_ptr")
+public func kk_function_value_fn_ptr(_ functionRaw: Int) -> Int {
+    runtimeFunctionValueBox(from: functionRaw)?.fnPtr ?? functionRaw
+}
+
+@_cdecl("kk_function_value_closure_raw")
+public func kk_function_value_closure_raw(_ functionRaw: Int) -> Int {
+    runtimeFunctionValueBox(from: functionRaw)?.closureRaw ?? 0
+}
+
 @_cdecl("kk_function_create_2")
 public func kk_function_create_2(
     _ bodyRaw: Int,
@@ -156,4 +149,17 @@ public func kk_function_create_2(
         return 0
     }
     return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 2))
+}
+
+@_cdecl("kk_function_create_3")
+public func kk_function_create_3(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard bodyRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function body")
+        return 0
+    }
+    return registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: bodyRaw, closureRaw: closureRaw, arity: 3))
 }

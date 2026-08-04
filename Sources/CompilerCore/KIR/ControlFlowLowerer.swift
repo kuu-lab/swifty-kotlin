@@ -583,7 +583,7 @@ final class ControlFlowLowerer {
             guard let candidateSymbol = sema.symbols.symbol(candidate),
                   candidateSymbol.kind == .function,
                   candidateSymbol.flags.contains(.operatorFunction),
-                  !candidateSymbol.flags.contains(.synthetic),
+                  (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty,
                   let candidateReceiverType = signature.receiverType
@@ -614,6 +614,7 @@ final class ControlFlowLowerer {
                 || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
                 || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
+                || sema.symbols.isSourceBackedSymbol(classSymbol.id)
         else {
             return nil
         }
@@ -631,7 +632,7 @@ final class ControlFlowLowerer {
         ).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.flags.contains(.operatorFunction),
-                  !symbol.flags.contains(.synthetic),
+                  (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {

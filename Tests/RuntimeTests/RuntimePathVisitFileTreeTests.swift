@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-074: Path.visitFileTree / fileVisitor runtime tests
 //
@@ -56,10 +56,10 @@ private func visitorBox(from raw: Int) -> RuntimeFileVisitorBox? {
 }
 
 /// Tests for STDLIB-IO-PATH-FN-074: Path.visitFileTree and fileVisitor
-final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-
+///
+/// `.serialized` because tests share file-scope callback counters.
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
+struct RuntimePathVisitFileTreeTests {
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -68,17 +68,17 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_path_fileVisitor
 
-    func testFileVisitorWithNilBuilderReturnsNonZeroHandle() {
+    @Test func fileVisitorWithNilBuilderReturnsNonZeroHandle() {
         let visitorRaw = kk_path_fileVisitor(0)
-        XCTAssertNotEqual(visitorRaw, 0)
+        #expect(visitorRaw != 0)
     }
 
-    func testFileVisitorReturnsCastableToRuntimeFileVisitorBox() {
+    @Test func fileVisitorReturnsCastableToRuntimeFileVisitorBox() {
         let visitorRaw = kk_path_fileVisitor(0)
-        XCTAssertNotNil(visitorBox(from: visitorRaw))
+        #expect(visitorBox(from: visitorRaw) != nil)
     }
 
-    func testFileVisitorCallsBuilderActionWhenProvided() {
+    @Test func fileVisitorCallsBuilderActionWhenProvided() {
         let action: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
             outThrown?.pointee = 0
             _builderActionCallCount += 1
@@ -87,12 +87,12 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         let actionRaw = Int(bitPattern: unsafeBitCast(action, to: UnsafeRawPointer.self))
         _builderActionCallCount = 0
         _ = kk_path_fileVisitor(actionRaw)
-        XCTAssertEqual(_builderActionCallCount, 1)
+        #expect(_builderActionCallCount == 1)
     }
 
     // MARK: - kk_path_visitFileTree
 
-    func testVisitFileTreeDoesNotThrowForValidDirectory() throws {
+    @Test func visitFileTreeDoesNotThrowForValidDirectory() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try "hello".write(to: dir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
@@ -101,43 +101,43 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         let visitor = kk_path_fileVisitor(0)
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, Int.max, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
     }
 
-    func testVisitFileTreeInvokesOnVisitFileCallback() throws {
+    @Test func visitFileTreeInvokesOnVisitFileCallback() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try "content".write(to: dir.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
 
         let visitor = kk_path_fileVisitor(0)
-        let box = try XCTUnwrap(visitorBox(from: visitor))
+        let box = try #require(visitorBox(from: visitor))
         box.onVisitFileRaw = fnPtr2(onVisitFileRecord)
 
         let pathRaw = runtimePathRaw(dir.path)
         _visitFileCallCount = 0
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, Int.max, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_visitFileCallCount, 1)
+        #expect(thrown == 0)
+        #expect(_visitFileCallCount == 1)
     }
 
-    func testVisitFileTreeInvokesOnPreVisitDirectoryCallback() throws {
+    @Test func visitFileTreeInvokesOnPreVisitDirectoryCallback() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let visitor = kk_path_fileVisitor(0)
-        let box = try XCTUnwrap(visitorBox(from: visitor))
+        let box = try #require(visitorBox(from: visitor))
         box.onPreVisitDirectoryRaw = fnPtr2(onPreVisitDirRecord)
 
         let pathRaw = runtimePathRaw(dir.path)
         _preVisitDirCallCount = 0
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, Int.max, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertGreaterThanOrEqual(_preVisitDirCallCount, 1)
+        #expect(thrown == 0)
+        #expect(_preVisitDirCallCount >= 1)
     }
 
-    func testVisitFileTreeTerminatesEarlyWhenCallbackReturnsTerminate() throws {
+    @Test func visitFileTreeTerminatesEarlyWhenCallbackReturnsTerminate() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         for i in 0..<5 {
@@ -145,19 +145,19 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         }
 
         let visitor = kk_path_fileVisitor(0)
-        let box = try XCTUnwrap(visitorBox(from: visitor))
+        let box = try #require(visitorBox(from: visitor))
         box.onVisitFileRaw = fnPtr2(onVisitFileTerminate)
 
         let pathRaw = runtimePathRaw(dir.path)
         _visitFileCallCount = 0
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, Int.max, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
         // TERMINATE stops at the first file
-        XCTAssertLessThan(_visitFileCallCount, 5)
+        #expect(_visitFileCallCount < 5)
     }
 
-    func testVisitFileTreeMaxDepthZeroSkipsChildren() throws {
+    @Test func visitFileTreeMaxDepthZeroSkipsChildren() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let sub = dir.appendingPathComponent("sub")
@@ -165,18 +165,18 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         try "deep".write(to: sub.appendingPathComponent("deep.txt"), atomically: true, encoding: .utf8)
 
         let visitor = kk_path_fileVisitor(0)
-        let box = try XCTUnwrap(visitorBox(from: visitor))
+        let box = try #require(visitorBox(from: visitor))
         box.onVisitFileRaw = fnPtr2(onVisitFileRecord)
 
         let pathRaw = runtimePathRaw(dir.path)
         _visitFileCallCount = 0
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, 0, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_visitFileCallCount, 0, "maxDepth=0 must not descend into children")
+        #expect(thrown == 0)
+        #expect(_visitFileCallCount == 0, "maxDepth=0 must not descend into children")
     }
 
-    func testVisitFileTreeMultipleFilesInDirectory() throws {
+    @Test func visitFileTreeMultipleFilesInDirectory() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         for name in ["a.txt", "b.txt", "c.txt"] {
@@ -184,20 +184,20 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         }
 
         let visitor = kk_path_fileVisitor(0)
-        let box = try XCTUnwrap(visitorBox(from: visitor))
+        let box = try #require(visitorBox(from: visitor))
         box.onVisitFileRaw = fnPtr2(onVisitFileRecord)
 
         let pathRaw = runtimePathRaw(dir.path)
         _visitFileCallCount = 0
         var thrown = 0
         _ = kk_path_visitFileTree(pathRaw, visitor, Int.max, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_visitFileCallCount, 3)
+        #expect(thrown == 0)
+        #expect(_visitFileCallCount == 3)
     }
 
     // MARK: - kk_path_visitFileTree_builder
 
-    func testVisitFileTreeBuilderWithNoOpBuilderDoesNotThrow() throws {
+    @Test func visitFileTreeBuilderWithNoOpBuilderDoesNotThrow() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try "alpha".write(to: dir.appendingPathComponent("f.txt"), atomically: true, encoding: .utf8)
@@ -205,21 +205,21 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimePathRaw(dir.path)
         var thrown = 0
         _ = kk_path_visitFileTree_builder(pathRaw, Int.max, 0, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
     }
 
-    func testVisitFileTreeBuilderReturnsZero() throws {
+    @Test func visitFileTreeBuilderReturnsZero() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let pathRaw = runtimePathRaw(dir.path)
         var thrown = 0
         let result = kk_path_visitFileTree_builder(pathRaw, Int.max, 0, 0, &thrown)
-        XCTAssertEqual(result, 0)
-        XCTAssertEqual(thrown, 0)
+        #expect(result == 0)
+        #expect(thrown == 0)
     }
 
-    func testVisitFileTreeBuilderRespectsMaxDepthZero() throws {
+    @Test func visitFileTreeBuilderRespectsMaxDepthZero() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let sub = dir.appendingPathComponent("nested")
@@ -229,6 +229,6 @@ final class RuntimePathVisitFileTreeTests: IsolatedRuntimeXCTestCase {
         let pathRaw = runtimePathRaw(dir.path)
         var thrown = 0
         _ = kk_path_visitFileTree_builder(pathRaw, 0, 0, 0, &thrown)
-        XCTAssertEqual(thrown, 0)
+        #expect(thrown == 0)
     }
 }

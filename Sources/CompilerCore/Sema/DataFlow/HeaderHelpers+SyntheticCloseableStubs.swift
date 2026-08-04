@@ -181,6 +181,20 @@ extension DataFlowSemaPhase {
             // so that isNominalSubtypeSymbol traversal finds kotlin.io.Closeable.
             symbols.setDirectSupertypes([closeableSymbol], for: javaCloseableSymbol)
             types.setNominalDirectSupertypes([closeableSymbol], for: javaCloseableSymbol)
+        } else if let javaCloseableSymbol = symbols.lookup(fqName: javaCloseableFQName) {
+            // STDLIB-SHARED-008: When java.io.Closeable is imported as a synthetic
+            // nominal anchor from a prebuilt stdlib artifact, its direct supertype
+            // is not serialized in metadata. Patch the supertype chain here so that
+            // user classes implementing java.io.Closeable are also subtypes of
+            // kotlin.io.Closeable, which lets `isCloseableReceiver` recognise them
+            // and resolve `.use {}`.
+            var supertypes = symbols.directSupertypes(for: javaCloseableSymbol)
+            if !supertypes.contains(closeableSymbol) {
+                supertypes.append(closeableSymbol)
+                supertypes.sort(by: { $0.rawValue < $1.rawValue })
+                symbols.setDirectSupertypes(supertypes, for: javaCloseableSymbol)
+                types.setNominalDirectSupertypes(supertypes, for: javaCloseableSymbol)
+            }
         }
 
         // --- T.use(block: (T) -> R): R ---

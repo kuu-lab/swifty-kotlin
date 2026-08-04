@@ -100,7 +100,7 @@ extension CallSupportLowerer {
                 if let firstArgumentType = argumentTypes.first,
                    !types.isSubtype(types.makeNonNullable(firstArgumentType), types.stringType)
                 {
-                    return interner.intern("__kk_string_builder_new")
+                    return interner.intern("__kk_string_builder_new_capacity_checked")
                 }
                 return interner.intern("__kk_string_builder_new_from_string_flat")
             default:

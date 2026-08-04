@@ -534,6 +534,15 @@ extension DataFlowSemaPhase {
                     scope: classScope,
                     interner: interner
                 )
+                collectSyntheticEnumValuesMember(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    enumType: classType,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
             }
             if declaration.flags.contains(.dataType) {
                 collectSyntheticDataClassMethods(
@@ -893,6 +902,10 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
+
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: symbol)
+            }
 
             if let receiverType = resolveTypeRef(
                 propertyDecl.receiverType,

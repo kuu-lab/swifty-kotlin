@@ -178,6 +178,26 @@ final class InlineLoweringPass: LoweringPass {
         var result: [KIRInstruction] = []
         result.reserveCapacity(instructions.count)
         var finallyGuardDepth = 0
+        // A call's own `canThrow` flag is not a reliable "can the callee ever
+        // throw" predicate for ordinary (non-synthetic) functions -- it
+        // defaults to `false` and is only ever explicitly set to `true` for
+        // synthetic native-bridge stub registrations. A regular Kotlin
+        // function that throws conditionally (e.g. `checkWindowSizeStep`
+        // inside `Sequence.chunked`/`windowed`'s bundled Kotlin-source body,
+        // whose `throw` sits inside a nested `if`) still compiles its call
+        // sites with `canThrow: false, thrownResult: nil`, since that
+        // function has no local try/catch of its own: codegen unconditionally
+        // checks every call's outThrown slot regardless of the KIR-level
+        // `canThrow` flag, and `thrownResult == nil` means "propagate
+        // implicitly via my own outThrown parameter" -- correct as long as
+        // the function compiles standalone. Once auto-inlining
+        // (KIRLoweringDriver's `hasLambdaParam` heuristic) splices this body
+        // into a caller with its own enclosing try/catch, "my own outThrown"
+        // becomes the *caller's* outThrown, silently skipping the caller's
+        // catch block. Rerouting on `thrownResult == nil` alone (regardless
+        // of `canThrow`) catches this; for a call that genuinely cannot
+        // throw, the added check is simply dead code (it never observes a
+        // thrown value), not a correctness risk.
         for instruction in instructions {
             if case .beginFinallyGuard = instruction {
                 finallyGuardDepth += 1
@@ -194,8 +214,8 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
             switch instruction {
-            case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType)
-                where canThrow && thrownResult == nil:
+            case let .call(symbol, callee, arguments, callResult, _, thrownResult, isSuperCall, qualifiedSuperType)
+                where thrownResult == nil:
                 result.append(.call(
                     symbol: symbol,
                     callee: callee,
@@ -207,8 +227,8 @@ final class InlineLoweringPass: LoweringPass {
                     qualifiedSuperType: qualifiedSuperType
                 ))
                 result.append(.jumpIfNotNull(value: callerThrownResult, target: throwLabel))
-            case let .virtualCall(symbol, callee, receiver, arguments, callResult, canThrow, thrownResult, dispatch)
-                where canThrow && thrownResult == nil:
+            case let .virtualCall(symbol, callee, receiver, arguments, callResult, _, thrownResult, dispatch)
+                where thrownResult == nil:
                 result.append(.virtualCall(
                     symbol: symbol,
                     callee: callee,
@@ -649,13 +669,11 @@ final class InlineLoweringPass: LoweringPass {
                     let resolvedCaptureArgs = captureArgs.map { resolveAlias(of: $0, aliases: localExprMap) }
                     module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
                 }
-                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
-                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 lowered.append(
                     .binary(
                         op: op,
@@ -756,9 +774,7 @@ final class InlineLoweringPass: LoweringPass {
                 }
 
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
@@ -777,9 +793,7 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
@@ -825,19 +839,28 @@ final class InlineLoweringPass: LoweringPass {
                        ctx: ctx
                    )
                 {
-                    let replacement = module.arena.appendExpr(
-                        module.arena.expr(resolvedTo) ?? .temporary(Int32(module.arena.expressions.count)),
-                        type: fromType
-                    )
-                    let aliasKeysToUpdate = localExprMap.compactMap { key, value in
-                        value == resolvedTo ? key : nil
+                    if module.arena.exprType(resolvedTo) == nil {
+                        // The copy target is a freshly-cloned imported expression
+                        // whose type was not serialized. Promote it to the inferred
+                        // inline return type so the accumulator variable stays a
+                        // single expression instead of being split into an initial
+                        // value and a separately-typed replacement.
+                        module.arena.setExprType(fromType, for: resolvedTo)
+                    } else {
+                        let replacement = module.arena.appendExpr(
+                            module.arena.expr(resolvedTo) ?? .temporary(Int32(module.arena.expressions.count)),
+                            type: fromType
+                        )
+                        let aliasKeysToUpdate = localExprMap.compactMap { key, value in
+                            value == resolvedTo ? key : nil
+                        }
+                        for key in aliasKeysToUpdate {
+                            localExprMap[key] = replacement
+                        }
+                        localExprMap[to] = replacement
+                        unitResultAliasExprs.remove(resolvedTo)
+                        resolvedTo = replacement
                     }
-                    for key in aliasKeysToUpdate {
-                        localExprMap[key] = replacement
-                    }
-                    localExprMap[to] = replacement
-                    unitResultAliasExprs.remove(resolvedTo)
-                    resolvedTo = replacement
                 }
                 lowered.append(
                     .copy(
@@ -855,8 +878,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .loadGlobal(result, symbol):
-                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
 
             case let .rethrow(value):
@@ -865,8 +887,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .unary(op, operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 lowered.append(
                     .unary(
                         op: op,
@@ -876,8 +897,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .nullAssert(operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 lowered.append(
                     .nullAssert(
                         operand: resolveAlias(of: operand, aliases: localExprMap),
@@ -1082,13 +1102,11 @@ final class InlineLoweringPass: LoweringPass {
                     localExprMap[result] = mapped
                     continue
                 }
-                let loweredResult = cloneExpr(result, in: module.arena)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
                 lowered.append(
                     .binary(
                         op: op,
@@ -1133,9 +1151,7 @@ final class InlineLoweringPass: LoweringPass {
                     }
                 }
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
@@ -1154,9 +1170,7 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
-                    localExprMap[expr] = cloned
-                    return cloned
+                    cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
                     cloneOrReuseExpr(expr, localExprMap: &localExprMap, module: module)
@@ -1207,8 +1221,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .loadGlobal(result, symbol):
-                let loweredResult = cloneExpr(result, in: module.arena)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
                 lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
 
             case let .rethrow(value):
@@ -1217,8 +1230,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .unary(op, operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
                 lowered.append(
                     .unary(
                         op: op,
@@ -1228,8 +1240,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .nullAssert(operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
-                localExprMap[result] = loweredResult
+                let loweredResult = cloneOrReuseExpr(result, localExprMap: &localExprMap, module: module)
                 lowered.append(
                     .nullAssert(
                         operand: resolveAlias(of: operand, aliases: localExprMap),
@@ -1420,8 +1431,11 @@ final class InlineLoweringPass: LoweringPass {
 
     /// Clones `source` into a fresh caller-scoped expression the first time it is
     /// encountered within a single inline expansion, and returns that same clone
-    /// for every later occurrence of `source`. Used only for a call's
-    /// `thrownResult`, because that is the sole field where the callee's own KIR
+    /// for every later occurrence of `source`. It is also used for `result` so
+    /// that imported inline-KIR bodies (which are serialized after lowerings such
+    /// as `IntegerNarrowingPass` and may reuse a single `KIRExprID` as a mutable
+    /// loop variable) preserve writes across back-edges. `thrownResult` is
+    /// routed this way because it is the field where the callee's own KIR
     /// intentionally reuses one physical expression -- a try/catch's shared
     /// exception slot -- as the `thrownResult` of every protected call inside the
     /// same try body (see ControlFlowLowerer.appendThrowAwareInstructions, which
@@ -1430,19 +1444,6 @@ final class InlineLoweringPass: LoweringPass {
     /// independently on each occurrence would fragment one physical register into
     /// several disconnected ones, losing track of writes made through earlier
     /// clones.
-    ///
-    /// `result` is deliberately NOT routed through this helper: it is always
-    /// cloned unconditionally (matching pre-existing behavior), because a call's
-    /// `result` is a freshly allocated, unique KIRExprID under the standard
-    /// ExprLowerer/CallLowerer/ControlFlowLowerer pipeline that produces every
-    /// inline-function and lambda body this pass expands -- the only other KIR
-    /// producers that intentionally share a `result` id across multiple calls
-    /// (e.g. the synthesized data-class `toString()` StringBuilder accumulator,
-    /// interface-delegation forwarding methods) always mark their function
-    /// `isInline: false` and are never lambda closures, so they are unreachable
-    /// from both `expandInlineCall` (gated on `isInline`) and `expandLambdaBody`
-    /// (reachable only through `resolveLambdaFunction`, which only resolves
-    /// genuine lambda closures).
     private func cloneOrReuseExpr(
         _ source: KIRExprID,
         localExprMap: inout [KIRExprID: KIRExprID],

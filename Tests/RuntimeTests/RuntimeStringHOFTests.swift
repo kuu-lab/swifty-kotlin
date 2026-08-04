@@ -27,36 +27,6 @@ private let firstNotNullOfAlwaysZeroNull: @convention(c) (Int, Int, UnsafeMutabl
     0
 }
 
-private let reduceRightIndexedPickIndexOne: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
-    index == 1 ? charRaw : acc
-}
-
-private let reduceRightIndexedIndexChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
-    acc + charRaw + index
-}
-
-private let reduceRightPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
-}
-
-private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
-    acc + charRaw
-}
-
-// MARK: - STDLIB-TEXT-FN-049: reduceOrNull helpers (acc first, char second)
-
-private let reduceOrNullPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
-}
-
-private let reduceOrNullChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
-    acc + charRaw
-}
-
-private let sumByWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("a").value) ? 10 : 1
-}
-
 // STDLIB-TEXT-FN-116: zip transform — combines two chars into their sum codepoint
 private let zipTransformSumCodepoints: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, aRaw, bRaw, _ in
     kk_box_char(kk_unbox_char(aRaw) + kk_unbox_char(bRaw))
@@ -77,13 +47,8 @@ private let zipTransformRejectBoxedCharArgs: @convention(c) (Int, Int, Int, Unsa
     return kk_box_char(aRaw + bRaw)
 }
 
-private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
-}
-
-private let isEvenIndexPredicate: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, index, _, _ in
-    index.isMultiple(of: 2) ? 1 : 0
+private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    charRaw == Int(Unicode.Scalar("b").value) ? kk_box_char(charRaw) : runtimeNullSentinelInt
 }
 
 private let mapBoxCharValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
@@ -104,14 +69,6 @@ private let mapIndexedStringName: @convention(c) (Int, Int, Int, UnsafeMutablePo
     _, index, charRaw, _ in
     let scalarText = UnicodeScalar(charRaw).map { String(Character($0)) } ?? "?"
     return registerRuntimeObject(RuntimeStringBox("\(index):\(scalarText)"))
-}
-
-private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? kk_box_char(charRaw) : runtimeNullSentinelInt
-}
-
-private let partitionMatchesB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
-    charRaw == Int(Unicode.Scalar("b").value) ? 1 : 0
 }
 
 private typealias RuntimeFlatStringHOFEntry = (
@@ -221,6 +178,11 @@ private func assertAggregateStringList(
 
 @Suite(.serialized)
 struct RuntimeStringHOFTests {
+    // BUG-171: map/mapIndexed stay Swift-backed — a bundled Kotlin
+    // `fun <R> X.f(transform: (Char) -> R): List<R>` silently returns raw
+    // unboxed scalars instead of boxed elements whenever `R` resolves to
+    // `Char`/`Boolean`. See TODO.md BUG-171 and the
+    // Scripts/diff_cases/string_indexed_hof.kt regression guard.
     @Test
     func testStringMapFlatReturnsMappedList() {
         withFlatStringForHOF("ab") { data, length, byteCount, hash in
@@ -337,50 +299,10 @@ struct RuntimeStringHOFTests {
         }
     }
 
-    @Test
-    func testStringPartitionFlatSplitsIntoPair() {
-        withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            var thrown = -1
-            let result = kk_string_partition_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(partitionMatchesB, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            guard let pairPtr = UnsafeMutableRawPointer(bitPattern: result),
-                  let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
-            else {
-                Issue.record("Expected Pair from kk_string_partition_flat")
-                return
-            }
-            #expect(pairBox.firstValue.tag == RuntimeValue.stringTag)
-            #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
-            #expect(runtimeRenderAnyForPrint(pairBox.firstValue) == "b")
-            #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == "ac")
-            #expect(runtimeElementToString(result) == "(b, ac)")
-            #expect(runtimeStringValueForHOF(kk_pair_first(result)) == "b")
-            #expect(runtimeStringValueForHOF(kk_pair_second(result)) == "ac")
-        }
-    }
-
-    @Test
-    func testStringFilterFlatReturnsFlattenedStringFields() {
-        var thrown = -1
-        let result = flatStringHOFValue(
-            "a1b2",
-            entry: kk_string_filter_flat,
-            fnPtr: unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            thrown: &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == "12")
-    }
+    // KSP-410: partition and filter are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_partition.kt / string_hof.kt via
+    // diff_kotlinc.sh.
 
     @Test
     func testStringTrimPredicateFlatReturnsFlattenedStringFields() {
@@ -409,133 +331,19 @@ struct RuntimeStringHOFTests {
         #expect(trimEndThrown == 0)
     }
 
-    @Test
-    func testStringFilterIndexedFlatReturnsFlattenedStringFields() {
-        var thrown = -1
-        let result = flatStringHOFValue(
-            "abcd",
-            entry: kk_string_filterIndexed_flat,
-            fnPtr: unsafeBitCast(isEvenIndexPredicate, to: Int.self),
-            thrown: &thrown
-        )
+    // KSP-410: filterIndexed is bundled Kotlin source (StringHOF.kt); its
+    // flat runtime bridge and direct tests were removed. Coverage now lives
+    // in Scripts/diff_cases/string_indexed_hof.kt via diff_kotlinc.sh.
 
-        #expect(thrown == 0)
-        #expect(result == "ac")
-    }
-
-    @Test
-    func testStringFilterNotFlatReturnsFlattenedStringFields() {
-        var thrown = -1
-        let result = flatStringHOFValue(
-            "a1b2",
-            entry: kk_string_filterNot_flat,
-            fnPtr: unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            thrown: &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(result == "ab")
-    }
+    // KSP-410: filterNot is bundled Kotlin source (StringHOF.kt); its flat
+    // runtime bridge and direct tests were removed. Coverage now lives in
+    // Scripts/diff_cases/string_hof.kt via diff_kotlinc.sh.
 
     // KSP-405: takeWhile/dropWhile are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
 
-    // MARK: - kk_string_indexOfFirst_flat (STDLIB-TEXT-FN-022)
-
-    @Test
-    func testIndexOfFirstReturnsIndexOfFirstMatchingChar() {
-        withFlatStringForHOF("hello3world") { data, length, byteCount, hash in
-            var thrown = 0
-            let result = kk_string_indexOfFirst_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            #expect(result == 5)
-        }
-    }
-
-    @Test
-    func testIndexOfFirstReturnsMinusOneWhenNoCharMatches() {
-        withFlatStringForHOF("hello") { data, length, byteCount, hash in
-            var thrown = 0
-            let result = kk_string_indexOfFirst_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            #expect(result == -1)
-        }
-    }
-
-    @Test
-    func testIndexOfFirstOnEmptyStringReturnsMinusOne() {
-        withFlatStringForHOF("") { data, length, byteCount, hash in
-            var thrown = 0
-            let result = kk_string_indexOfFirst_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            #expect(result == -1)
-        }
-    }
-
-    @Test
-    func testIndexOfFirstReturnsZeroWhenFirstCharMatches() {
-        withFlatStringForHOF("xabc") { data, length, byteCount, hash in
-            var thrown = 0
-            let result = kk_string_indexOfFirst_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            #expect(result == 0)
-        }
-    }
-
-    @Test
-    func testIndexOfFirstStopsAtFirstMatchNotLast() {
-        withFlatStringForHOF("axbxc") { data, length, byteCount, hash in
-            var thrown = 0
-            let result = kk_string_indexOfFirst_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-                0,
-                &thrown
-            )
-
-            #expect(thrown == 0)
-            #expect(result == 1)
-        }
-    }
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt);
+    // their runtime bridges and direct tests were removed.
 
     @Test
     func testFirstNotNullOfReturnsFirstNonNullResult() {
@@ -740,487 +548,15 @@ struct RuntimeStringHOFTests {
         #expect(result == runtimeNullSentinelInt)
     }
 
-    @Test
-    func testReduceRightIndexedWalksRightToLeftWithIndexes() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexed_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceRightIndexedFlatWalksRightToLeftWithIndexes() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexed_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceRightIndexedUsesLastCharacterAsInitialAccumulator() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexed_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 295)
-    }
-
-    @Test
-    func testReduceRightIndexedSetsThrownForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexed_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(result == runtimeExceptionCaughtSentinel)
-        #expect(thrown != 0)
-    }
-
-    @Test
-    func testReduceRightIndexedOrNullWalksRightToLeftWithIndexes() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexedOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceRightIndexedOrNullReturnsNullSentinelForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexedOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testReduceRightIndexedOrNullFlatReturnsNullSentinelForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexedOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightIndexedOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 295)
-    }
-
-    @Test
-    func testReduceRightOrNullWalksRightToLeft() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightPickB, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceRightOrNullFlatWalksRightToLeft() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightPickB, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceRightOrNullReturnsNullSentinelForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_reduceRightOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightPickB, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testReduceRightOrNullUsesLastCharacterAsInitialAccumulator() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceRightOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceRightChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 294)
-    }
-
-    // MARK: - STDLIB-TEXT-FN-049: kk_string_reduceOrNull_flat
-
-    @Test
-    func testReduceOrNullWalksLeftToRight() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullPickB, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("b").value))
-    }
-
-    @Test
-    func testReduceOrNullReturnsNullSentinelForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullPickB, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == runtimeNullSentinelInt)
-    }
-
-    @Test
-    func testReduceOrNullUsesFirstCharacterAsInitialAccumulator() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 294)
-    }
-
-    @Test
-    func testReduceOrNullFlatUsesFirstCharacterAsInitialAccumulator() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 294)
-    }
-
-    @Test
-    func testReduceOrNullReturnsSingleCharForOneCharString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("x") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == Int(Unicode.Scalar("x").value))
-    }
-
-    @Test
-    func testReduceOrNullUsesUTF16CodeUnits() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("a🐻") { data, length, byteCount, hash in
-            kk_string_reduceOrNull_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 97 + 0xD83D + 0xDC3B)
-    }
-
-    @Test
-    func testSumByAppliesSelectorToEveryCharacter() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
-            kk_string_sumBy_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 21)
-    }
-
-    @Test
-    func testSumByFlatAppliesSelectorToEveryCharacter() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
-            kk_string_sumBy_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 21)
-    }
-
-    @Test
-    func testSumByReturnsZeroForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_sumBy_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(result == 0)
-    }
-
-    @Test
-    func testSumByDoubleAppliesSelectorToEveryCharacter() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
-            kk_string_sumByDouble_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(result)) - (3.25)) <= 0.000001)
-    }
-
-    @Test
-    func testSumByDoubleFlatAppliesSelectorToEveryCharacter() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
-            kk_string_sumByDouble_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(result)) - (3.25)) <= 0.000001)
-    }
-
-    @Test
-    func testSumByDoubleReturnsZeroForEmptyString() {
-        var thrown = 0
-
-        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
-            kk_string_sumByDouble_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
-                0,
-                &thrown
-            )
-        }
-
-        #expect(thrown == 0)
-        #expect(abs((kk_bits_to_double(result)) - (0.0)) <= 0.000001)
-    }
+    // KSP-410: sumBy/sumByDouble are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_sumby.kt via diff_kotlinc.sh.
+
+    // KSP-410: reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull/
+    // reduceRight/reduceRightOrNull/reduceRightIndexed/
+    // reduceRightIndexedOrNull are bundled Kotlin source (StringHOF.kt);
+    // their flat runtime bridges and direct tests were removed. Coverage now
+    // lives in Scripts/diff_cases/string_reduce.kt via diff_kotlinc.sh.
 
     // STDLIB-316: String.zipWithNext()
     @Test
