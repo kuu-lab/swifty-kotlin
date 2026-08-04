@@ -2,21 +2,39 @@
 @testable import CompilerBackend
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 private enum TestStdlibCacheError: Error, CustomStringConvertible {
     case artifactMissing(String)
+    case lockFileCreateFailed(String, Int32)
+    case lockFailed(String, Int32)
 
     var description: String {
         switch self {
         case .artifactMissing(let path):
             return "Shared stdlib artifact was not produced at \(path)"
+        case .lockFileCreateFailed(let path, let errnoCode):
+            return "Could not create lock file '\(path)': errno \(errnoCode)"
+        case .lockFailed(let path, let errnoCode):
+            return "Could not acquire lock file '\(path)': errno \(errnoCode)"
         }
     }
 }
 
-/// Builds a single shared bundled-stdlib `.kklib` once per test process and
-/// publishes it through ``CompilerOptions/defaultStdlibLibraryPath`` so that
-/// every test that asks for bundled stdlib can reuse the precompiled artifact
-/// instead of recompiling the frontend-to-KIR pipeline.
+/// Builds a single shared bundled-stdlib `.kklib` and publishes it through
+/// ``CompilerOptions/defaultStdlibLibraryPath`` so that every test that asks for
+/// bundled stdlib can reuse the precompiled artifact instead of recompiling the
+/// frontend-to-KIR pipeline.
+///
+/// The artifact is written to a deterministic path under `.build` and guarded by
+/// an advisory file lock so that parallel test workers (whether threads in one
+/// process or separate `swift test` child processes) coordinate on a single
+/// build. The published `.kklib` is immutable after creation, so concurrent tests
+/// only read object files and `inline-kir`.
 final class TestStdlibCache: @unchecked Sendable {
     static let shared = TestStdlibCache()
 
@@ -42,15 +60,48 @@ final class TestStdlibCache: @unchecked Sendable {
     }
 
     private func build() throws -> String {
-        let artifactBase = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kswiftk-test-stdlib-cache-\(UUID().uuidString)")
-            .path
+        let fm = FileManager.default
+
+        let buildURL = URL(fileURLWithPath: fm.currentDirectoryPath)
+            .appendingPathComponent(".build", isDirectory: true)
+        try fm.createDirectory(at: buildURL, withIntermediateDirectories: true, attributes: nil)
+
+        let artifactURL = buildURL.appendingPathComponent("kswiftk-test-stdlib-cache.kklib")
+        let artifactPath = artifactURL.path
+        let lockPath = artifactPath + ".lock"
+
+        // Coordinate across parallel `swift test` workers using an advisory lock.
+        let lockFd = lockPath.withCString { path in
+            open(path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+        }
+        guard lockFd >= 0 else {
+            throw TestStdlibCacheError.lockFileCreateFailed(lockPath, errno)
+        }
+        defer {
+            _ = flock(lockFd, LOCK_UN)
+            close(lockFd)
+        }
+        guard flock(lockFd, LOCK_EX) == 0 else {
+            throw TestStdlibCacheError.lockFailed(lockPath, errno)
+        }
+
+        // Another worker may have built the artifact while we waited.
+        if fm.fileExists(atPath: artifactPath) {
+            return artifactPath
+        }
+
+        let buildingBase = artifactPath + ".building"
+        let buildingArtifactPath = buildingBase + ".kklib"
+
+        // Remove any stale partial build from a previous run.
+        try? fm.removeItem(atPath: buildingBase)
+        try? fm.removeItem(atPath: buildingArtifactPath)
 
         let ctx = makeCompilationContext(
             inputs: [],
             moduleName: "KSwiftKStdlib",
             emit: .library,
-            outputPath: artifactBase,
+            outputPath: buildingBase,
             includeStdlib: true,
             stdlibOnly: true
         )
@@ -59,13 +110,13 @@ final class TestStdlibCache: @unchecked Sendable {
         try LoweringPhase().run(ctx)
         try CodegenPhase().run(ctx)
 
-        let artifactPath = artifactBase + ".kklib"
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: artifactPath) else {
-            throw TestStdlibCacheError.artifactMissing(artifactPath)
+        guard fm.fileExists(atPath: buildingArtifactPath) else {
+            throw TestStdlibCacheError.artifactMissing(buildingArtifactPath)
         }
+
+        try? fm.removeItem(at: artifactURL)
+        try fm.moveItem(atPath: buildingArtifactPath, toPath: artifactPath)
 
         return artifactPath
     }
 }
-
