@@ -26,8 +26,11 @@ extension CollectionLiteralConstructionLoweringPass {
     if isSourceBacked(symbol: symbol, ctx: ctx),
        let receiverID = arguments.first,
        !state.sequenceExprIDs.contains(receiverID.rawValue),
+       !state.arrayExprIDs.contains(receiverID.rawValue),
+       !state.listExprIDs.contains(receiverID.rawValue),
        callee != lookup.flatMapName,
-       callee != lookup.flatMapIndexedName {
+       callee != lookup.flatMapIndexedName,
+       callee != lookup.asSequenceName {
         return false
     }
 
@@ -59,13 +62,6 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
-        // KSP-441〜447: asSequence は source 化済み。runtime rewrite せず元の仮想呼び出しを残す。
-        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
-        if isSourceBacked {
-            loweredBody.append(instruction)
-            return true
-        }
-
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
@@ -89,10 +85,18 @@ extension CollectionLiteralConstructionLoweringPass {
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
-        } else {
+        }
+
+        // KSP-441〜447: asSequence is source-backed; preserve the original
+        // virtual call when the concrete collection kind cannot be determined.
+        let isSourceBacked = (ctx.sema?.symbols.externalLinkName(for: symbol ?? .invalid) ?? "").isEmpty
+        if isSourceBacked {
             loweredBody.append(instruction)
             return true
         }
+
+        loweredBody.append(instruction)
+        return true
     }
 
     // constrainOnce() on sequence -> kk_sequence_constrainOnce

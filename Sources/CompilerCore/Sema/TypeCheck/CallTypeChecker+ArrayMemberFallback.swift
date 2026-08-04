@@ -108,13 +108,16 @@ extension CallTypeChecker {
             // established mechanism for Array member resolution.
             "mapIndexed", "filterIndexed", "mapNotNull", "filterNot", "filterNotNull",
             "first", "firstOrNull", "last", "lastOrNull",
+            // KSP-659: Array.asSequence routes to kk_array_asSequence.
+            "asSequence",
         ]
         return arrayMembers.contains(memberName)
     }
 
     private func isValidArrayMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "toList", "toMutableList", "size", "isEmpty", "concatToString", "filterNotNull":
+        case "toList", "toMutableList", "size", "isEmpty", "concatToString", "filterNotNull",
+             "asSequence":
             argCount == 0
         case "copyOf":
             (0...2).contains(argCount)
@@ -195,6 +198,13 @@ extension CallTypeChecker {
                 )))
             }
             return sema.types.anyType
+        case "asSequence":
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: elementType
+            )
         default:
             return sema.types.anyType
         }
