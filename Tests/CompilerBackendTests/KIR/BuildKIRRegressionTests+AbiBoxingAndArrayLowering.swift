@@ -268,6 +268,13 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
+    // KSP-410: sumBy/sumByDouble/partition/reduceOrNull/reduceRightIndexed/
+    // reduceRightIndexedOrNull/reduceRightOrNull are bundled Kotlin source
+    // (StringHOF.kt). Neither lowers to a `kk_string_*_flat` call site anymore;
+    // dropped from this table. See StringSyntheticMemberLinkTests for their
+    // "carries no C external link" coverage. mapIndexed stays here
+    // (BUG-176: Swift-backed).
     @Test
     func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
         let source = """
@@ -275,17 +282,8 @@ struct BuildKIRCodegenRegressionTests {
             value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
             value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
             value.toCollection(mutableListOf<Char>())
-            value.reduceOrNull { acc, _ -> acc }
-            value.reduceRightIndexed { _, ch, _ -> ch }
-            value.reduceRightIndexedOrNull { _, ch, _ -> ch }
-            value.reduceRightOrNull { ch, _ -> ch }
-            value.sumBy { 1 }
-            value.sumByDouble { 1.0 }
-            value.indexOfFirst { it == 'a' }
-            value.indexOfLast { it == 'b' }
             value.mapIndexed { index, _ -> index }
             value.mapNotNull { ch -> if (ch == 'a') 1 else null }
-            value.partition { ch -> ch == 'b' }
         }
         """
 
@@ -301,17 +299,8 @@ struct BuildKIRCodegenRegressionTests {
                 "kk_string_firstNotNullOf_flat",
                 "kk_string_firstNotNullOfOrNull_flat",
                 "kk_string_toCollection_flat",
-                "kk_string_reduceOrNull_flat",
-                "kk_string_reduceRightIndexed_flat",
-                "kk_string_reduceRightIndexedOrNull_flat",
-                "kk_string_reduceRightOrNull_flat",
-                "kk_string_sumBy_flat",
-                "kk_string_sumByDouble_flat",
-                "kk_string_indexOfFirst_flat",
-                "kk_string_indexOfLast_flat",
                 "kk_string_mapIndexed_flat",
                 "kk_string_mapNotNull_flat",
-                "kk_string_partition_flat",
             ]
             for flatName in flatNames {
                 #expect(callNames.contains(flatName), "Missing \(flatName)")

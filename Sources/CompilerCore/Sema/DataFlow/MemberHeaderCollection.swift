@@ -406,6 +406,10 @@ extension DataFlowSemaPhase {
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: memberSymbol)
 
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: memberSymbol)
+            }
+
             validateConstPropertyDeclaration(
                 propertyDecl,
                 propertySymbol: memberSymbol,

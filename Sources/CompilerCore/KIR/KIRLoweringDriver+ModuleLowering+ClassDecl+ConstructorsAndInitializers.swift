@@ -534,7 +534,8 @@ extension KIRLoweringDriver {
         switch delegateKind {
         case .lazy:
             let lambdaFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
             let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
@@ -551,7 +552,9 @@ extension KIRLoweringDriver {
                 delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &body
             )
             let callbackFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams,
+                valueType: sema.symbols.propertyType(for: propSymbol), propertySymbol: propSymbol,
                 paramCount: 3, shared: shared, emit: &body
             )
             let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
@@ -589,6 +592,11 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        guard let provideDelegateSymbol = sema.symbols.delegateProvideDelegateSymbol(
+            for: propSymbol
+        ) else {
+            return delegateValue
+        }
         let delegateType = sema.types.anyType
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
@@ -614,8 +622,8 @@ extension KIRLoweringDriver {
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
-            symbol: storageSym, callee: provideDelegateName,
-            arguments: [thisRefExprID, kPropertyExprID],
+            symbol: provideDelegateSymbol, callee: provideDelegateName,
+            arguments: [delegateValue, thisRefExprID, kPropertyExprID],
             result: provideDelegateResult,
             canThrow: false, thrownResult: nil
         ))

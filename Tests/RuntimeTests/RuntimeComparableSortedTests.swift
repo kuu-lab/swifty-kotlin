@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 // BUG-161: sorting a list of user-defined `Comparable` implementations used to
 // dispatch `compareTo` through a two-argument function pointer, so the callee
@@ -60,27 +60,20 @@ private func sortedUserValues(_ handles: [Int]) -> [Int] {
     return box.elements.map(userValue)
 }
 
-final class RuntimeComparableSortedTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
-        kk_runtime_force_reset()
-    }
-
-    override func tearDown() {
-        kk_runtime_force_reset()
-        super.tearDown()
-    }
-
-    func testListSortedUsesUserCompareToWithThrownChannel() {
+@Suite(.runtimeIsolation(.all))
+struct RuntimeComparableSortedTests {
+    @Test
+    func listSortedUsesUserCompareToWithThrownChannel() {
         let handles = [makeUserComparable(2), makeUserComparable(1), makeUserComparable(3)]
-        XCTAssertEqual(sortedUserValues(handles), [1, 2, 3])
+        #expect(sortedUserValues(handles) == [1, 2, 3])
     }
 
-    func testCompareValuesUnboxesUserCompareToResult() {
+    @Test
+    func compareValuesUnboxesUserCompareToResult() {
         let smaller = makeUserComparable(1)
         let larger = makeUserComparable(2)
-        XCTAssertEqual(runtimeCompareValues(smaller, larger), -1)
-        XCTAssertEqual(runtimeCompareValues(larger, smaller), 1)
-        XCTAssertEqual(runtimeCompareValues(larger, makeUserComparable(2)), 0)
+        #expect(runtimeCompareValues(smaller, larger) == -1)
+        #expect(runtimeCompareValues(larger, smaller) == 1)
+        #expect(runtimeCompareValues(larger, makeUserComparable(2)) == 0)
     }
 }

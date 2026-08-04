@@ -184,14 +184,9 @@ struct TypeCheckScopeBuilder {
             else {
                 continue
             }
-            // Skip extension functions (those with a receiverType) -- they are
-            // resolved via member-call inference, not top-level scope lookup.
-            if symbol.kind == .function,
-               let sig = sema.symbols.functionSignature(for: symbol.id),
-               sig.receiverType != nil
-            {
-                continue
-            }
+            // Library extension functions are intentionally included in the package
+            // mapping so default/wildcard imports make them visible for member-style
+            // call resolution. Direct calls still filter them by requiring no receiver.
             let candidatePackage: [InternedString] = if symbol.kind == .property,
                 sema.symbols.extensionPropertyReceiverType(for: symbol.id) != nil,
                 let companionSymbol = sema.symbols.parentSymbol(for: symbol.id),
@@ -211,6 +206,25 @@ struct TypeCheckScopeBuilder {
             if !candidatePackage.isEmpty,
                !knownPackages.contains(candidatePackage),
                !symbol.flags.contains(.synthetic)
+            {
+                continue
+            }
+            // STDLIB-SHARED-009: Pure synthetic operator extension functions
+            // (e.g. CharSequence.get, String.get) must not be injected into the
+            // default-import scope. When a lambda has an implicit receiver that
+            // also inherits/conforms to the extension's receiver type, the
+            // simple-call resolver can choose the synthetic extension instead of
+            // the source-backed member (StringBuilder.get) and then invoke the
+            // wrong runtime helper. Member-style calls and operator syntax
+            // (a[1]) still recover these through CallTypeChecker's synthetic
+            // fallback paths. Source-backed operator extensions (Duration.compareTo)
+            // and non-operator extension properties (List.indices) remain visible.
+            let isExtensionFunction = symbol.kind == .function &&
+                sema.symbols.functionSignature(for: symbol.id)?.receiverType != nil
+            if isExtensionFunction,
+               symbol.flags.contains(.synthetic),
+               symbol.flags.contains(.operatorFunction),
+               !sema.symbols.isSourceBackedSymbol(symbol.id)
             {
                 continue
             }

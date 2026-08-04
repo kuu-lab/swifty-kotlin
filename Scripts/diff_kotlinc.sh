@@ -15,6 +15,17 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
+# Reference jars are cached across runs by default. Set to empty
+# (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
+# explicitly empty value as "disabled" instead of re-applying the default.
+KOTLINC_REF_CACHE_DIR="${KOTLINC_REF_CACHE_DIR-$ROOT_DIR/.runtime-build/kotlinc-ref-cache}"
+KOTLINC_REF_CACHE_FINGERPRINT=""
+# JVM options prepended to JAVA_OPTS for kotlinc invocations (the kotlinc
+# launcher script honors JAVA_OPTS; the plain `java` reference runs do not).
+# C1-only JIT (-XX:TieredStopAtLevel=1) cuts ~15-20% off each short-lived
+# kotlinc process. Set to empty to disable. Prepended so caller-provided
+# JAVA_OPTS flags win on conflict (the JVM uses the last occurrence).
+DIFF_KOTLINC_JAVA_OPTS="${DIFF_KOTLINC_JAVA_OPTS--XX:TieredStopAtLevel=1}"
 KEEP_TEMP=0
 REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
@@ -27,6 +38,7 @@ DIFF_SHARD_COUNT="${DIFF_SHARD_COUNT:-1}"
 DIFF_LOG_PASS="${DIFF_LOG_PASS:-1}"
 LAST_ARTIFACT_DIR=""
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_kotlinc}"
+DIFF_STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
 FORCE_RUN_SKIPPED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
@@ -72,6 +84,8 @@ Options:
   --artifact-root <path>
                      Persist failing case artifacts under this directory
                      (default: \$DIFF_ARTIFACT_ROOT or .artifacts/diff_kotlinc)
+  --stdlib-library <path>
+                     Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
   --clean-runtime-cache
@@ -97,6 +111,17 @@ Environment:
   KOTLINC_TEST_JAR   Same idea as KOTLINC_STDLIB_JAR but for kotlin-test.jar,
                      needed by cases that use kotlin.test (default:
                      auto-discovered next to \$KOTLINC)
+  KOTLINC_REF_CACHE_DIR
+                     Reuse successful non-script reference jars from this
+                     directory (default: .runtime-build/kotlinc-ref-cache;
+                     set to empty to disable the cache)
+  DIFF_KOTLINC_JAVA_OPTS
+                     JVM options prepended to JAVA_OPTS for kotlinc
+                     invocations (default: -XX:TieredStopAtLevel=1;
+                     set to empty to disable)
+  DIFF_STDLIB_LIBRARY
+                     Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
+                     the runner builds one under DIFF_ARTIFACT_ROOT
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -218,6 +243,17 @@ while [[ $# -gt 0 ]]; do
       fi
       ARTIFACT_ROOT="$1"
       ;;
+    --stdlib-library)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--stdlib-library requires an argument" >&2
+        exit 1
+      fi
+      DIFF_STDLIB_LIBRARY="$1"
+      ;;
+    --stdlib-library=*)
+      DIFF_STDLIB_LIBRARY="${1#*=}"
+      ;;
     --force-run-skipped)
       FORCE_RUN_SKIPPED=1
       ;;
@@ -265,6 +301,27 @@ known_coroutines_sha256() {
     1.10.2) printf '5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd' ;;
     *) printf '' ;;
   esac
+}
+
+sha256_stream() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+sha256_file() {
+  local path="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  else
+    return 1
+  fi
 }
 
 # Resolves a jar next to $KOTLINC (../lib/<name> relative to .../bin/kotlinc,
@@ -332,11 +389,7 @@ ensure_kotlinc_classpath() {
     curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
 
     local actual_sha256
-    if command -v shasum >/dev/null 2>&1; then
-      actual_sha256="$(shasum -a 256 "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
-    elif command -v sha256sum >/dev/null 2>&1; then
-      actual_sha256="$(sha256sum "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
-    else
+    if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
       echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
       actual_sha256="$expected_sha256"
     fi
@@ -358,6 +411,13 @@ fi
 
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
+fi
+
+# Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
+# warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
+# output, so this is deliberately absent from the reference-cache fingerprint.
+if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
+  export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
 fi
 
 ensure_kotlinc_classpath
@@ -500,6 +560,115 @@ jar_main_class() {
     | awk -F': ' '/^Main-Class:/ { print $2; exit }'
 }
 
+fingerprint_kotlinc_classpath() {
+  local -a classpath_entries=()
+  local entry entry_index=0 classpath_file relative_path file_hash
+
+  IFS=':' read -r -a classpath_entries <<<"$KOTLINC_CLASSPATH"
+  {
+    for entry in "${classpath_entries[@]}"; do
+      printf 'entry:%s\n' "$entry_index"
+      entry_index=$((entry_index + 1))
+      if [[ -f "$entry" ]]; then
+        file_hash="$(sha256_file "$entry")" || return 1
+        printf 'file:%s:%s\n' "$(basename "$entry")" "$file_hash"
+      elif [[ -d "$entry" ]]; then
+        while IFS= read -r classpath_file; do
+          relative_path="${classpath_file#"$entry"/}"
+          file_hash="$(sha256_file "$classpath_file")" || return 1
+          printf 'directory-file:%s:%s\n' "$relative_path" "$file_hash"
+        done < <(find "$entry" -type f | LC_ALL=C sort)
+      else
+        printf 'missing:%s\n' "$entry"
+      fi
+    done
+  } | sha256_stream
+}
+
+configure_kotlinc_ref_cache() {
+  if [[ -z "$KOTLINC_REF_CACHE_DIR" ]]; then
+    return 0
+  fi
+
+  # Without an external runtime classpath, kotlinc embeds the multi-megabyte
+  # runtime in every jar. Do not accidentally turn that fallback into a large
+  # persistent cache.
+  if [[ -z "$KOTLINC_CLASSPATH" ]]; then
+    echo "Warning: disabling kotlinc reference cache because no runtime classpath was resolved." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
+    echo "Warning: disabling kotlinc reference cache because SHA-256 is unavailable." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! mkdir -p "$KOTLINC_REF_CACHE_DIR"; then
+    echo "Warning: disabling kotlinc reference cache because the directory cannot be created: $KOTLINC_REF_CACHE_DIR" >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+  KOTLINC_REF_CACHE_DIR="$(cd "$KOTLINC_REF_CACHE_DIR" && pwd)"
+
+  local compiler_version java_version classpath_fingerprint
+  if ! compiler_version="$("$KOTLINC" -version 2>&1)"; then
+    echo "Warning: disabling kotlinc reference cache because the compiler version could not be read." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+  java_version="$("$JAVA_BIN" -version 2>&1)"
+  if ! classpath_fingerprint="$(fingerprint_kotlinc_classpath)"; then
+    echo "Warning: disabling kotlinc reference cache because the classpath could not be fingerprinted." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+
+  if ! KOTLINC_REF_CACHE_FINGERPRINT="$({
+    printf 'format:v1\n'
+    printf 'compiler:%s\n' "$compiler_version"
+    printf 'classpath:%s\n' "$classpath_fingerprint"
+    printf 'java:%s\n' "$java_version"
+    printf 'compiler-flags:-Xcontext-parameters\n'
+  } | sha256_stream)"; then
+    echo "Warning: disabling kotlinc reference cache because its fingerprint could not be computed." >&2
+    KOTLINC_REF_CACHE_DIR=""
+    return 0
+  fi
+}
+
+kotlinc_ref_cache_path() {
+  local kt_file="$1"
+  local kotlinc_extra_flags="$2"
+  local source_bytes cache_key
+  source_bytes="$(wc -c <"$kt_file" | tr -d '[:space:]')"
+  cache_key="$({
+    printf 'toolchain:%s\n' "$KOTLINC_REF_CACHE_FINGERPRINT"
+    printf 'source-name:%s\n' "$(basename "$kt_file")"
+    printf 'extra-flags:%s\n' "$kotlinc_extra_flags"
+    printf 'source-bytes:%s\n' "$source_bytes"
+    cat "$kt_file"
+  } | sha256_stream)" || return 1
+  printf '%s/%s.jar\n' "$KOTLINC_REF_CACHE_DIR" "$cache_key"
+}
+
+store_kotlinc_ref_cache() {
+  local source="$1"
+  local destination="$2"
+  local temporary
+
+  temporary="$(mktemp "${destination}.tmp.XXXXXX")" || return 0
+
+  if cp "$source" "$temporary"; then
+    mv -f "$temporary" "$destination" || rm -f "$temporary"
+  else
+    rm -f "$temporary"
+  fi
+}
+
+configure_kotlinc_ref_cache
+
 # Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
 # else auto-detected CPU count (fallback 4).
 if [[ "$DIFF_PARALLEL" -eq 0 ]]; then
@@ -524,6 +693,50 @@ if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) ))
   WORKER_COUNT=1
 fi
 
+stdlib_manifest_hash() {
+  local artifact_dir="$1"
+  local manifest_path="$artifact_dir/manifest.json"
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "unknown"
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("stdlibManifestHash",""))' "$manifest_path" 2>/dev/null || echo "unknown"
+  else
+    echo "unknown"
+  fi
+}
+
+build_stdlib_artifact() {
+  if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+    if [[ ! -d "$DIFF_STDLIB_LIBRARY" || ! -f "$DIFF_STDLIB_LIBRARY/manifest.json" ]]; then
+      echo "Stdlib library does not exist or is missing manifest.json: $DIFF_STDLIB_LIBRARY" >&2
+      return 1
+    fi
+    STDLIB_ARTIFACT="$DIFF_STDLIB_LIBRARY"
+    return 0
+  fi
+
+  mkdir -p "$ARTIFACT_ROOT"
+  STDLIB_ARTIFACT="$ARTIFACT_ROOT/KSwiftKStdlib.kklib"
+  local stdlib_build_stdout="$ARTIFACT_ROOT/stdlib_build.stdout"
+  local stdlib_build_stderr="$ARTIFACT_ROOT/stdlib_build.stderr"
+
+  echo "Building stdlib artifact: $STDLIB_ARTIFACT"
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
+    >"$stdlib_build_stdout" 2>"$stdlib_build_stderr" || {
+      echo "Failed to build stdlib artifact" >&2
+      if [[ -s "$stdlib_build_stderr" ]]; then
+        cat "$stdlib_build_stderr" >&2
+      fi
+      return 1
+    }
+
+  local stdlib_manifest_hash
+  stdlib_manifest_hash="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
+  echo "Stdlib artifact manifest hash: $stdlib_manifest_hash"
+}
+
 echo "=== diff_kotlinc Configuration ==="
 echo "Workers: $WORKER_COUNT"
 if (( DIFF_SHARD_COUNT > 1 )); then
@@ -534,12 +747,24 @@ echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
+if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+  echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
+else
+  echo "Kotlinc reference cache: disabled"
+fi
+echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
+echo "Stdlib artifact: ${STDLIB_ARTIFACT:-}"
 echo "Target: $TARGET"
 echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
 # not the first kotlinc startup cost.
 warm_kotlinc
+
+# Build or resolve the precompiled stdlib artifact once per shard. Each candidate
+# compile below will reference it with --stdlib-library instead of recompiling
+# bundled stdlib sources.
+build_stdlib_artifact || exit 1
 
 # Emits this shard's cases (interleaved sharding via lib/common.sh;
 # DIFF_SHARD_COUNT == 1 emits everything).
@@ -636,7 +861,7 @@ persist_artifacts() {
   cp "$case_path" "$destination/input.kt"
 
   if [[ $cand_compile_exit -eq 0 ]]; then
-    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir "$case_path" -o "$destination/candidate.kir" \
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
       2>"$destination/candidate_kir.stderr" || true
   fi
@@ -655,6 +880,8 @@ ref_compile_exit: $ref_compile_exit
 candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
 candidate_run_exit: $cand_run_exit
+stdlib_artifact: $STDLIB_ARTIFACT
+stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
 kswiftc: $KSWIFTC
 kotlinc: $KOTLINC
 java: $JAVA_BIN
@@ -666,7 +893,7 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
-bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped "$case_path"
+DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
   chmod +x "$destination/repro.sh"
 
@@ -794,16 +1021,30 @@ run_case() {
       ref_run_exit=$script_exit
     fi
   else
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
-      # jars (see resolve_kotlinc_lib_jar above) whenever they could be
-      # resolved, so the runtime classes needed by ref_run below are
-      # already on the classpath without repackaging them into ref_jar.
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
-    else
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+    local cached_ref_jar=""
+    local ref_cache_hit=0
+    if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+      cached_ref_jar="$(kotlinc_ref_cache_path "$kt_file" "$kotlinc_extra_flags")"
+      if [[ -s "$cached_ref_jar" ]] && cp "$cached_ref_jar" "$ref_jar"; then
+        ref_cache_hit=1
+      fi
+    fi
+
+    if [[ $ref_cache_hit -eq 0 ]]; then
+      if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+        # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
+        # jars (see resolve_kotlinc_lib_jar above) whenever they could be
+        # resolved, so the runtime classes needed by ref_run below are
+        # already on the classpath without repackaging them into ref_jar.
+        # shellcheck disable=SC2086
+        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+      else
+        # shellcheck disable=SC2086
+        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+      fi
+      if [[ $ref_compile_exit -eq 0 && -n "$cached_ref_jar" && -s "$ref_jar" ]]; then
+        store_kotlinc_ref_cache "$ref_jar" "$cached_ref_jar"
+      fi
     fi
     if [[ $ref_compile_exit -eq 0 ]]; then
       if [[ -n "$KOTLINC_CLASSPATH" ]]; then
@@ -833,7 +1074,7 @@ run_case() {
     fi
   fi
 
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
   if [[ $cand_compile_exit -eq 0 ]]; then
     if needs_stdin_eof "$kt_file"; then
       "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?

@@ -516,23 +516,27 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let listIteratorName = interner.intern("ListIterator")
         let listIteratorFQName = kotlinCollectionsPkg + [listIteratorName]
+        // STDLIB-SHARED-014: ListIterator may have been imported as a synthetic
+        // nominal anchor. In that case the interface exists but its members do
+        // not, so continue with the existing symbol and (re)define members.
+        var listIteratorSymbol: SymbolID
         if let existing = symbols.lookup(fqName: listIteratorFQName) {
-            return existing
+            listIteratorSymbol = existing
+        } else {
+            listIteratorSymbol = symbols.define(
+                kind: .interface,
+                name: listIteratorName,
+                fqName: listIteratorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
         }
 
         // Look up the parent Iterator<T> symbol.
         let iteratorName = interner.intern("Iterator")
         let iteratorFQName = kotlinCollectionsPkg + [iteratorName]
         let iteratorSymbol = symbols.lookup(fqName: iteratorFQName)
-
-        let listIteratorSymbol = symbols.define(
-            kind: .interface,
-            name: listIteratorName,
-            fqName: listIteratorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
 
         // Type parameter T
         let tpName = interner.intern("T")
@@ -616,6 +620,7 @@ extension DataFlowSemaPhase {
         // hasPrevious(): Boolean
         let hasPreviousName = interner.intern("hasPrevious")
         let hasPreviousFQName = listIteratorFQName + [hasPreviousName]
+        if symbols.lookup(fqName: hasPreviousFQName) == nil {
         let hasPreviousSym = symbols.define(
             kind: .function, name: hasPreviousName, fqName: hasPreviousFQName,
             declSite: nil, visibility: .public, flags: [.synthetic]
@@ -634,11 +639,13 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 1
             ),
             for: hasPreviousSym
-        )
+            )
+        }
 
         // previous(): T
         let previousName = interner.intern("previous")
         let previousFQName = listIteratorFQName + [previousName]
+        if symbols.lookup(fqName: previousFQName) == nil {
         let previousSym = symbols.define(
             kind: .function, name: previousName, fqName: previousFQName,
             declSite: nil, visibility: .public, flags: [.synthetic]
@@ -657,7 +664,8 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 1
             ),
             for: previousSym
-        )
+            )
+        }
 
         return listIteratorSymbol
     }
@@ -671,8 +679,20 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let mutableListIteratorName = interner.intern("MutableListIterator")
         let mutableListIteratorFQName = kotlinCollectionsPkg + [mutableListIteratorName]
+        // STDLIB-SHARED-014: MutableListIterator may have been imported as a
+        // synthetic nominal anchor with missing members.
+        var mutableListIteratorSymbol: SymbolID
         if let existing = symbols.lookup(fqName: mutableListIteratorFQName) {
-            return existing
+            mutableListIteratorSymbol = existing
+        } else {
+            mutableListIteratorSymbol = symbols.define(
+                kind: .interface,
+                name: mutableListIteratorName,
+                fqName: mutableListIteratorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
         }
 
         let listIteratorSymbol = ensureSyntheticListIteratorStub(
@@ -681,15 +701,6 @@ extension DataFlowSemaPhase {
         )
         let mutableIteratorSymbol = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("MutableIterator")]
-        )
-
-        let mutableListIteratorSymbol = symbols.define(
-            kind: .interface,
-            name: mutableListIteratorName,
-            fqName: mutableListIteratorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
         )
 
         let typeParamName = interner.intern("T")

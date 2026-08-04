@@ -1219,11 +1219,28 @@ extension ListSyntheticMemberLinkTests {
             #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
             #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
 
-            let stringContains = try #require(sema.symbols.lookup(fqName: [
+            // KSP-408: `kotlin.text.contains` now has multiple overloads under the same
+            // fqName: CharSequence.contains(other: CharSequence) (1-arg `operator fun`
+            // used for `in` resolution), CharSequence.contains(other, ignoreCase) (2-arg,
+            // not an operator function), and the pre-existing String.contains(regex:
+            // Regex) synthetic stub (1-arg, but a different receiver type and not marked
+            // as an operator function). Disambiguate by receiver type rather than relying
+            // on `lookup`/arity alone, mirroring the List/Set `containsSymbol` helper above.
+            let charSequenceSymbol = try #require(sema.types.charSequenceInterfaceSymbol)
+            let stringContainsCandidates = sema.symbols.lookupAll(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("text"),
                 ctx.interner.intern("contains"),
-            ]))
+            ])
+            let stringContains = try #require(stringContainsCandidates.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID),
+                      let receiverType = signature.receiverType,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == charSequenceSymbol && signature.parameterTypes.count == 1
+            })
             #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
         }
     }

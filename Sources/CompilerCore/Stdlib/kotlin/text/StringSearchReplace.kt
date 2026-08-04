@@ -135,6 +135,144 @@ public fun String.replaceFirst(regex: Regex, replacement: String): String =
 public fun String.split(regex: Regex): List<String> =
     this.__kk_split_regex(regex)
 
+// KSP-407: substringBefore/After/BeforeLast/AfterLast and replaceBefore/After/
+// BeforeLast/AfterLast, migrated from Swift Runtime (RuntimeStringSubstring.swift).
+// Pure logic built on top of indexOf/lastIndexOf/substring — no runtime bridge
+// needed. Member calls below are written with an explicit `this.` receiver
+// because bare (implicit-receiver) calls to some String members do not
+// type-check inside extension function bodies in this compiler (BUG-171).
+
+/**
+ * Returns the substring before the first occurrence of [delimiter], or
+ * [missingDelimiterValue] if this string does not contain [delimiter].
+ */
+public fun String.substringBefore(delimiter: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index)
+}
+
+/** @see substringBefore */
+public fun String.substringBefore(delimiter: Char, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index)
+}
+
+/**
+ * Returns the substring after the first occurrence of [delimiter], or
+ * [missingDelimiterValue] if this string does not contain [delimiter].
+ */
+public fun String.substringAfter(delimiter: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(index + delimiter.length)
+}
+
+/** @see substringAfter */
+public fun String.substringAfter(delimiter: Char, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(index + 1)
+}
+
+/**
+ * Returns the substring before the last occurrence of [delimiter], or
+ * [missingDelimiterValue] if this string does not contain [delimiter].
+ */
+public fun String.substringBeforeLast(delimiter: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index)
+}
+
+/**
+ * @see substringBeforeLast
+ *
+ * BUG-172 workaround: the 1-arg CharSequence.lastIndexOf(Char) fast path crashes
+ * (SIGBUS) because it is misrouted through the String-typed flat ABI dispatch.
+ * Calling the fully-explicit 3-arg overload sidesteps it and matches the real
+ * Kotlin default expansion (`startIndex = lastIndex`, `ignoreCase = false`).
+ */
+public fun String.substringBeforeLast(delimiter: Char, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index)
+}
+
+/**
+ * Returns the substring after the last occurrence of [delimiter], or
+ * [missingDelimiterValue] if this string does not contain [delimiter].
+ */
+public fun String.substringAfterLast(delimiter: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(index + delimiter.length)
+}
+
+/** @see substringAfterLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+public fun String.substringAfterLast(delimiter: Char, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    return if (index == -1) missingDelimiterValue else this.substring(index + 1)
+}
+
+/**
+ * Replaces everything before the first occurrence of [delimiter] with
+ * [replacement], or returns [missingDelimiterValue] if this string does not
+ * contain [delimiter].
+ */
+public fun String.replaceBefore(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
+}
+
+/** @see replaceBefore */
+public fun String.replaceBefore(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
+}
+
+/**
+ * Replaces everything after the first occurrence of [delimiter] (including
+ * the delimiter itself) with [replacement], or returns [missingDelimiterValue]
+ * if this string does not contain [delimiter].
+ */
+public fun String.replaceAfter(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index + delimiter.length) + replacement
+}
+
+/** @see replaceAfter */
+public fun String.replaceAfter(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index + 1) + replacement
+}
+
+/**
+ * Replaces everything after the last occurrence of [delimiter] (including
+ * the delimiter itself) with [replacement], or returns [missingDelimiterValue]
+ * if this string does not contain [delimiter].
+ */
+public fun String.replaceAfterLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index + delimiter.length) + replacement
+}
+
+/** @see replaceAfterLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+public fun String.replaceAfterLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    return if (index == -1) missingDelimiterValue else this.substring(0, index + 1) + replacement
+}
+
+/**
+ * Replaces everything before the last occurrence of [delimiter] with
+ * [replacement], or returns [missingDelimiterValue] if this string does not
+ * contain [delimiter].
+ */
+public fun String.replaceBeforeLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
+}
+
+/** @see replaceBeforeLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
+}
+
 @KsSymbolName("kk_string_replace_regex")
 private external fun String.__kk_replace_regex(regex: Regex, replacement: String): String
 

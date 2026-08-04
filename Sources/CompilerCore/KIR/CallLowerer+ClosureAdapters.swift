@@ -420,26 +420,52 @@ extension CallLowerer {
         arguments: inout [KIRExprID]
     ) {
         guard let chosenCallee,
-              sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
         else {
             return
         }
 
-        // Inline calls consume lambda arguments directly during inline
-        // expansion. Wrapping those arguments in a runtime function object
-        // disconnects their thrown-result slot from the caller's try/catch.
-        // Materialization is only needed for non-inline source-backed bodies
-        // that invoke a function-valued parameter at runtime.
-        if sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) == true {
+        let symbol = sema.symbols.symbol(chosenCallee)
+        let isImported = symbol?.flags.contains(.importedLibrary) == true
+        let isInline = symbol?.flags.contains(.inlineFunction) == true
+        let hasExternalLink = !(sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true)
+
+        // Source-backed callees with no external link get function-value
+        // arguments materialized so the compiled body can invoke them.
+        // Imported inline callees also need materialization: their expansion
+        // may store or pass function-typed parameters to non-inline code
+        // (e.g. a Comparator SAM wrapper method) that expects runtime
+        // function objects, not raw lambda function pointers.
+        guard !hasExternalLink || (isImported && isInline) else {
+            return
+        }
+
+        // Source-backed inline functions are fully expanded in the same
+        // module, so lambda arguments can be consumed directly there.
+        if isInline, !isImported {
             return
         }
 
         let valueArgOffset = signature.receiverType == nil ? 0 : 1
+        // A trailing lambda binds to the callee's LAST parameter regardless of
+        // how many defaulted parameters sit before it (e.g. `windowed(3) { ...
+        // }` skips `step`/`partialWindows` via their defaults) -- so
+        // `sourceArgExprs` (the arguments as the user actually wrote them) can
+        // be shorter than `signature.parameterTypes` by exactly that gap.
+        // Naively indexing `sourceArgExprs[parameterIndex]` then misses the
+        // trailing lambda argument entirely for the real last parameter,
+        // silently skipping its materialization (dropping the wrapped
+        // function-value handle and, with it, any captured closure state).
+        let lastParameterIndex = signature.parameterTypes.count - 1
+        let hasTrailingLambdaGap = sourceArgExprs.count < signature.parameterTypes.count
+            && !sourceArgExprs.isEmpty
         for parameterIndex in signature.parameterTypes.indices {
             let finalArgIndex = valueArgOffset + parameterIndex
+            let sourceArgExprIndex = (hasTrailingLambdaGap && parameterIndex == lastParameterIndex)
+                ? sourceArgExprs.count - 1
+                : parameterIndex
             guard finalArgIndex < arguments.count,
-                  parameterIndex < sourceArgExprs.count,
+                  sourceArgExprs.indices.contains(sourceArgExprIndex),
                   !signature.valueParameterIsVararg.indices.contains(parameterIndex)
                     || !signature.valueParameterIsVararg[parameterIndex]
             else {
@@ -451,7 +477,7 @@ extension CallLowerer {
             }
             arguments[finalArgIndex] = materializeFunctionValueArgument(
                 loweredArgID: arguments[finalArgIndex],
-                argExprID: sourceArgExprs[parameterIndex],
+                argExprID: sourceArgExprs[sourceArgExprIndex],
                 functionType: functionType,
                 sema: sema,
                 arena: arena,
@@ -908,6 +934,8 @@ extension CallLowerer {
         let fixedComparatorSelectorCount: Int? = switch externalLinkName {
         case "kk_comparator_from_multi_selectors": 2
         case "kk_comparator_from_multi_selectors3": 3
+        case "kk_comparator_from_selector",
+             "kk_comparator_from_selector_descending": 1
         case "kk_compareValuesBy1": 1
         case "kk_compareValuesBy": 2
         case "kk_compareValuesBy3": 3

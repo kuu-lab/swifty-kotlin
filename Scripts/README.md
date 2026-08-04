@@ -137,6 +137,30 @@ the script, also set:
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
 ```
 
+Successful non-script reference compilations are reused across runs via
+`KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a
+second full run skips the per-case kotlinc compile entirely). Set it to
+another directory to relocate the cache, or to empty to disable:
+
+```bash
+KOTLINC_REF_CACHE_DIR=/tmp/kswiftk-kotlinc-refs \
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # relocate
+KOTLINC_REF_CACHE_DIR= \
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # disable
+```
+
+Each cached jar is keyed by the source name and contents, extra compiler
+flags, Kotlin compiler version, JDK version, and classpath contents.
+Script-style cases still execute through `kotlinc -script` on every run.
+Note that `--clean-runtime-cache` removes `.runtime-build` and therefore
+also the default reference cache.
+
+kotlinc invocations run with `-XX:TieredStopAtLevel=1` (C1-only JIT,
+~15-20% faster for these short-lived compiles) prepended to `JAVA_OPTS`;
+caller-provided `JAVA_OPTS` flags still win on conflict. Override or
+disable with `DIFF_KOTLINC_JAVA_OPTS` (empty disables). The plain `java`
+runs of reference jars are unaffected (`java` does not read `JAVA_OPTS`).
+
 Emit a machine-readable report (TSV) for CI tooling:
 
 ```bash
@@ -190,6 +214,29 @@ Render a markdown summary from that report:
 ```bash
 bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary /tmp/step_summary.md
 ```
+
+## Precompiled stdlib artifact for diff runs
+
+`diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
+each candidate compile. The artifact is created under `DIFF_ARTIFACT_ROOT` (default
+`.artifacts/diff_kotlinc/KSwiftKStdlib.kklib`) at runtime and is never committed.
+
+```bash
+# Default: build artifact automatically and use it for all cases
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+
+# Reuse an existing artifact (useful for local debugging or repro scripts)
+DIFF_STDLIB_LIBRARY=/path/to/KSwiftKStdlib.kklib bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+bash Scripts/diff_kotlinc.sh --stdlib-library /path/to/KSwiftKStdlib.kklib Scripts/diff_cases
+
+# Build a stdlib artifact manually
+.build/debug/kswiftc --stdlib-only --emit library -o /tmp/KSwiftKStdlib.kklib
+# Then compile a user file against it
+.build/debug/kswiftc --no-stdlib --stdlib-library /tmp/KSwiftKStdlib.kklib Scripts/diff_cases/hello.kt -o /tmp/hello
+```
+
+The artifact manifest records `libraryKind: stdlib` and `stdlibManifestHash` so
+mismatched compiler/stdlib versions are rejected with `KSWIFTK-LIB-0021` / `KSWIFTK-LIB-0022`.
 
 ## CI test sharding
 

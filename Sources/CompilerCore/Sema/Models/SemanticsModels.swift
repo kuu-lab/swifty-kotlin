@@ -406,11 +406,15 @@ public final class SymbolTable {
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
+    private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
+    /// Backend ABI return type for functions whose compiled calling convention
+    /// differs from their source-level return type (e.g. raw `Int` string handles).
+    private var functionABIReturnTypes: [SymbolID: TypeID] = [:]
     private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
@@ -425,10 +429,14 @@ public final class SymbolTable {
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
+    private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
+    private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -702,6 +710,14 @@ public final class SymbolTable {
         propertyTypes[symbol]
     }
 
+    public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
+        propertyHasCustomGetter[symbol] = value
+    }
+
+    public func propertyHasCustomGetter(for symbol: SymbolID) -> Bool {
+        propertyHasCustomGetter[symbol] ?? false
+    }
+
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
         directSupertypes[symbol] = supertypes
     }
@@ -817,6 +833,14 @@ public final class SymbolTable {
 
     public func externalLinkName(for symbol: SymbolID) -> String? {
         externalLinkNames[symbol]
+    }
+
+    public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
+        functionABIReturnTypes[symbol] = type
+    }
+
+    public func functionABIReturnType(for symbol: SymbolID) -> TypeID? {
+        functionABIReturnTypes[symbol]
     }
 
     public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
@@ -948,6 +972,20 @@ public final class SymbolTable {
         typeParameterUpperBoundsMap[symbol] ?? []
     }
 
+    /// DEBT-SEMA-002: header collection resolves a type parameter's bounds (and can see
+    /// there is more than one) long before class inheritance edges are bound (see
+    /// `bindInheritanceEdges`, which runs afterwards in `runValidationPasses`). Recording the
+    /// symbol here defers the actual mutual-exclusivity check until inheritance edges exist,
+    /// so `TypeSystem.isSubtype` sees a fully-populated class hierarchy instead of treating
+    /// every not-yet-linked class pair as unrelated.
+    public func recordTypeParameterForBoundConflictCheck(_ symbol: SymbolID, declSite: SourceRange?) {
+        pendingTypeParameterBoundConflictChecks.append((symbol, declSite))
+    }
+
+    public func typeParametersPendingBoundConflictCheck() -> [(symbol: SymbolID, declSite: SourceRange?)] {
+        pendingTypeParameterBoundConflictChecks
+    }
+
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID
     }
@@ -978,6 +1016,30 @@ public final class SymbolTable {
 
     public func companionObjectSymbol(for owner: SymbolID) -> SymbolID? {
         companionObjectSymbols[owner]
+    }
+
+    public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectInitializerSymbols[object] = initializer
+    }
+
+    public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectInitializerSymbols[object]
+    }
+
+    public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        companionObjectInitializerSymbols[owner] = initializer
+    }
+
+    public func companionObjectInitializerSymbol(for owner: SymbolID) -> SymbolID? {
+        companionObjectInitializerSymbols[owner]
+    }
+
+    public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
+        enumStaticInitSymbols[owner] = initializer
+    }
+
+    public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
+        enumStaticInitSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
@@ -1108,6 +1170,19 @@ public final class SymbolTable {
     /// Returns all symbol IDs declared at the given source range.
     public func symbols(atDeclSite site: SourceRange) -> [SymbolID] {
         byDeclSite[site] ?? []
+    }
+
+    /// Returns true when the symbol represents a real Kotlin declaration
+    /// (either bundled/user source or an imported library symbol), as opposed
+    /// to a synthetic runtime stub. Imported library symbols are treated as
+    /// source-backed because they carry the ABI name of the originally
+    /// compiled declaration. Symbols with a `declSite` are source-backed even
+    /// when they carry an explicit `externalLinkName` (e.g. `@KsSymbolName`
+    /// bundled stdlib functions); synthetic stubs have no `declSite`.
+    public func isSourceBackedSymbol(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = self.symbol(symbolID) else { return false }
+        if symbol.flags.contains(.importedLibrary) { return true }
+        return symbol.declSite != nil
     }
 }
 

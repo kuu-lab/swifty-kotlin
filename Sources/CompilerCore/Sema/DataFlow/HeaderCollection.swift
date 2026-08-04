@@ -903,6 +903,10 @@ extension DataFlowSemaPhase {
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
 
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                symbols.setPropertyHasCustomGetter(true, for: symbol)
+            }
+
             if let receiverType = resolveTypeRef(
                 propertyDecl.receiverType,
                 ast: ast,
@@ -1164,6 +1168,7 @@ extension DataFlowSemaPhase {
             }
             if !resolvedBounds.isEmpty {
                 symbols.setTypeParameterUpperBounds(resolvedBounds, for: typeParamSym)
+                symbols.recordTypeParameterForBoundConflictCheck(typeParamSym, declSite: declSite)
             }
         }
 

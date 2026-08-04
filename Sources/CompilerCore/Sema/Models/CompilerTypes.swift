@@ -89,6 +89,25 @@ public struct CompilerOptions: Equatable {
     /// available, exact no-op builds restore the previous output artifact.
     public var incrementalCachePath: String?
 
+    /// When true, compile only the bundled/residual stdlib into a .kklib.
+    public var stdlibOnly: Bool
+    /// Path to a prebuilt stdlib .kklib. Disables bundled source injection.
+    public var stdlibLibraryPath: String?
+
+    /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
+    public var effectiveLibrarySearchPaths: [String] {
+        var result: [String] = []
+        var seen: Set<String> = []
+        let all = (stdlibLibraryPath.map { [$0] } ?? []) + searchPaths
+        for path in all {
+            let normalized = URL(fileURLWithPath: path).standardizedFileURL.path
+            if seen.insert(normalized).inserted {
+                result.append(normalized)
+            }
+        }
+        return result
+    }
+
     public init(
         moduleName: String,
         inputs: [String],
@@ -106,7 +125,9 @@ public struct CompilerOptions: Equatable {
         stdlibSearchPaths: [String] = [],
         includeStdlib: Bool = true,
         incrementalCachePath: String? = nil,
-        diagnosticsFormat: DiagnosticsFormat = .text
+        diagnosticsFormat: DiagnosticsFormat = .text,
+        stdlibOnly: Bool = false,
+        stdlibLibraryPath: String? = nil
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -125,6 +146,8 @@ public struct CompilerOptions: Equatable {
         self.includeStdlib = includeStdlib
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
+        self.stdlibOnly = stdlibOnly
+        self.stdlibLibraryPath = stdlibLibraryPath
     }
 
     /// Default search paths for locating Kotlin stdlib sources.

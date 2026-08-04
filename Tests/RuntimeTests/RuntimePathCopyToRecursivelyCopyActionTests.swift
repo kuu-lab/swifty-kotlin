@@ -1,6 +1,6 @@
 import Foundation
 @testable import Runtime
-import XCTest
+import Testing
 
 private typealias RuntimePathCopyAction = @convention(c) (
     Int,
@@ -28,10 +28,9 @@ private let pathCopyActionSkipNamedDirectory: RuntimePathCopyAction = { _, sourc
     return runtimePathCopyActionCopyEntry(sourceRaw: sourceRaw, targetRaw: targetRaw, outThrown: outThrown)
 }
 
-final class RuntimePathCopyToRecursivelyCopyActionTests: IsolatedRuntimeXCTestCase {
-    // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
-    func testPathCopyToRecursivelyCopyActionCopiesDirectoryTree() throws {
+@Suite(.runtimeIsolation(.gcOnly))
+struct RuntimePathCopyToRecursivelyCopyActionTests {
+    @Test func pathCopyToRecursivelyCopyActionCopiesDirectoryTree() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let nestedURL = sourceURL.appendingPathComponent("nested")
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -54,19 +53,17 @@ final class RuntimePathCopyToRecursivelyCopyActionTests: IsolatedRuntimeXCTestCa
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("root.txt"), encoding: .utf8),
-            "root"
+        #expect(thrown == 0)
+        #expect(resultRaw == targetRaw)
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("root.txt"), encoding: .utf8) == "root"
         )
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("nested").appendingPathComponent("child.txt"), encoding: .utf8),
-            "child"
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("nested").appendingPathComponent("child.txt"), encoding: .utf8) == "child"
         )
     }
 
-    func testPathCopyToRecursivelyCopyActionSkipsSubtree() throws {
+    @Test func pathCopyToRecursivelyCopyActionSkipsSubtree() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let keepURL = sourceURL.appendingPathComponent("keep")
         let skipURL = sourceURL.appendingPathComponent("skip")
@@ -91,14 +88,13 @@ final class RuntimePathCopyToRecursivelyCopyActionTests: IsolatedRuntimeXCTestCa
             &thrown
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(resultRaw, targetRaw)
-        XCTAssertEqual(
-            try String(contentsOf: targetURL.appendingPathComponent("keep").appendingPathComponent("visible.txt"), encoding: .utf8),
-            "visible"
+        #expect(thrown == 0)
+        #expect(resultRaw == targetRaw)
+        #expect(
+            try String(contentsOf: targetURL.appendingPathComponent("keep").appendingPathComponent("visible.txt"), encoding: .utf8) == "visible"
         )
-        XCTAssertTrue(FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("skip").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("skip").appendingPathComponent("hidden.txt").path))
+        #expect(FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("skip").path))
+        #expect(!FileManager.default.fileExists(atPath: targetURL.appendingPathComponent("skip").appendingPathComponent("hidden.txt").path))
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {

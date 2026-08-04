@@ -101,6 +101,64 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "PrintlnNoArgRuntime", expected: "\nafter\n")
     }
 
+    /// KSP-415 follow-up: println's class-typed argument rewrite used to call
+    /// toString() unconditionally regardless of nullability, crashing on a
+    /// null receiver instead of printing "null".
+    func testCodegenPrintlnNullableClassNullReceiverPrintsNull() throws {
+        let source = """
+        class Foo(val x: Int) {
+            override fun toString(): String = "Foo(" + x + ")"
+        }
+        fun main() {
+            val f: Foo? = null
+            println(f)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "PrintlnNullableClassNullRuntime", expected: "null\n")
+    }
+
+    /// Companion to the null case above: a non-null nullable-typed receiver
+    /// must still resolve the custom toString() (not fall back to the
+    /// generic "<object 0x...>" representation).
+    func testCodegenPrintlnNullableClassNonNullReceiverCallsToString() throws {
+        let source = """
+        class Foo(val x: Int) {
+            override fun toString(): String = "Foo(" + x + ")"
+        }
+        fun main() {
+            val f: Foo? = Foo(42)
+            println(f)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "PrintlnNullableClassNonNullRuntime", expected: "Foo(42)\n")
+    }
+
+    func testCodegenPrintlnNullableDataClassNullReceiverPrintsNull() throws {
+        let source = """
+        data class Point(val x: Int, val y: Int)
+        fun main() {
+            val p: Point? = null
+            println(p)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "PrintlnNullableDataClassNullRuntime", expected: "null\n")
+    }
+
+    func testCodegenPrintlnNullableDataClassNonNullReceiverUsesGeneratedToString() throws {
+        let source = """
+        data class Point(val x: Int, val y: Int)
+        fun main() {
+            val p: Point? = Point(1, 2)
+            println(p)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "PrintlnNullableDataClassNonNullRuntime", expected: "Point(x=1, y=2)\n")
+    }
+
     func testCodegenRequireLazyMessageUsesCapturedValue() throws {
         let source = """
         fun main() {
