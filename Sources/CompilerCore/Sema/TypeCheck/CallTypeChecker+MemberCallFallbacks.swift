@@ -331,16 +331,6 @@ extension CallTypeChecker {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             }
         }
-        if memberName == "contains" || memberName == "matches" {
-            tryBindStringContainsOrMatches(
-                id,
-                calleeName: calleeName,
-                args: args,
-                regexType: regexType,
-                sema: sema,
-                interner: interner
-            )
-        }
         if memberName == "indexOfFirst" || memberName == "indexOfLast"
             || memberName == "trim" || memberName == "trimStart" || memberName == "trimEnd"
         {
@@ -390,62 +380,6 @@ extension CallTypeChecker {
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
-    }
-
-    /// Binds a `CallBinding` for synthetic `String.contains` / `String.matches`.
-    /// Normal resolution misses these because pure synthetic operator extensions
-    /// are excluded from the default-import scope (STDLIB-SHARED-009); the
-    /// string fallback still needs a concrete symbol so KIR lowering emits the
-    /// correct runtime helper instead of a generic `kk_op_contains` dispatch.
-    private func tryBindStringContainsOrMatches(
-        _ id: ExprID,
-        calleeName: InternedString,
-        args: [CallArgument],
-        regexType: TypeID?,
-        sema: SemaModule,
-        interner: StringInterner
-    ) {
-        guard args.count == 1 else { return }
-        let argExpr = args[0].expr
-        let argType = sema.bindings.exprTypes[argExpr] ?? sema.types.anyType
-        let nonNullArgType = sema.types.makeNonNullable(argType)
-        let stringType = sema.types.stringType
-        let charType = sema.types.charType
-
-        let expectedParamType: TypeID
-        if let regexType, sema.types.isSubtype(nonNullArgType, regexType) {
-            expectedParamType = regexType
-        } else if sema.types.isSubtype(nonNullArgType, stringType)
-                    || sema.types.isSubtype(nonNullArgType, charType)
-        {
-            expectedParamType = stringType
-        } else {
-            expectedParamType = stringType
-        }
-
-        let fqName = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-            calleeName,
-        ]
-        if let chosen = sema.symbols.lookupAll(fqName: fqName).first(where: { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
-            }
-            return signature.receiverType == stringType
-                && signature.parameterTypes.count == 1
-                && signature.parameterTypes[0] == expectedParamType
-        }) {
-            sema.bindings.bindCall(
-                id,
-                binding: CallBinding(
-                    chosenCallee: chosen,
-                    substitutedTypeArguments: [],
-                    parameterMapping: [0: 0]
-                )
-            )
-            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-        }
     }
 
     func tryFileMemberFallback(
