@@ -2169,19 +2169,22 @@ extension CallLowerer {
         if args.count <= 4, interner.resolve(calleeName) == "joinToString" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            // BUG-167: a `Collection<T>`- or `Iterable<T>`-typed receiver (as
-            // opposed to a concretely-typed List/Set/etc., or a receiver only
-            // inferred to be collection-like via isCollectionExpr) was
-            // wrongly excluded here — isConcreteCollectionLikeType's
-            // isCollectionLikeSymbol classifies the bare "Collection"/"Set"
-            // interface names as "concrete" for other, unrelated dispatch
-            // purposes, so !isConcreteCollectionLikeType was always false for
-            // them and this whole name-based fallback (the only place that
-            // resolves joinToString when Sema left chosenCallee unbound) was
-            // skipped, producing an unresolved `_joinToString` link error.
-            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-                || isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            // Bare Iterable/Collection/Set interface receivers always qualify for this
+            // joinToString fallback: isConcreteCollectionLikeType (despite its name) also
+            // matches those bare interface symbols, so the isCollectionExpr && !concrete
+            // disjunct alone would exclude them and leave `_joinToString` unresolved.
+            // Set-like receivers (including concrete HashSet/etc.) are admitted here too
+            // when Sema left the callee unbound, but must use the iterable runtime —
+            // kk_sequence_* expects a Sequence handle and fails on set handles.
+            let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
+            let isSequenceReceiver = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            let isSetReceiver = isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            let useIterableJoinRuntime = !isSequenceReceiver
+                && (isBareIterableCollectionOrSetInterfaceType || isSetReceiver)
+            if isSequenceReceiver
+                || isBareIterableCollectionOrSetInterfaceType
+                || isSetReceiver
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 let lastArgIsLambda: Bool = if let lastArgExpr = args.last?.expr,
@@ -2226,7 +2229,8 @@ extension CallLowerer {
                     )
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_sequence_joinToString_transform"),
+                        callee: interner.intern(useIterableJoinRuntime
+                            ? "kk_iterable_joinToString_transform" : "kk_sequence_joinToString_transform"),
                         arguments: [loweredReceiverID] + joinArgs + [fnPtrExpr, envPtrExpr],
                         result: result,
                         canThrow: true,
@@ -2262,9 +2266,13 @@ extension CallLowerer {
                             joinArgs.append(exprID)
                         }
                     }
-                    let joinToStringCallee = isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
-                        ? arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
-                        : interner.intern("kk_sequence_joinToString")
+                    let joinToStringCallee = if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                        arrayJoinToStringRuntimeCallee(for: nonNullReceiverType, sema: sema, interner: interner)
+                    } else if useIterableJoinRuntime {
+                        interner.intern("kk_iterable_joinToString")
+                    } else {
+                        interner.intern("kk_sequence_joinToString")
+                    }
                     instructions.append(.call(
                         symbol: nil,
                         callee: joinToStringCallee,
