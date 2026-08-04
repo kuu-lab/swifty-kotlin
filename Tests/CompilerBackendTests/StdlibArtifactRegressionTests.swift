@@ -864,4 +864,89 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "[hello, world]\n[1, 2, 3]\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-020: variance generics with `String` crossing interface
+    /// dispatch boundaries (covariant `Producer`, contravariant `Consumer`,
+    /// invariant `Container`) require the `virtualCall` emission to bridge
+    /// `String` aggregate values to/from the erased raw-pointer ABI used by the
+    /// itable function pointer. A user-defined method named `produce` must not
+    /// be mistaken for the coroutine builder `produce` during lowering.
+    func testVarianceGenericsStringItableBridgeSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        interface Producer<out T> {
+            fun produce(): T
+        }
+
+        interface Consumer<in T> {
+            fun consume(value: T)
+        }
+
+        interface Container<T> {
+            fun fetch(): T
+            fun store(value: T)
+        }
+
+        class StringProducer(val value: String) : Producer<String> {
+            override fun produce(): String = value
+        }
+
+        class AnyPrinter : Consumer<Any> {
+            override fun consume(value: Any) {
+                println("consumed: $value")
+            }
+        }
+
+        class StringContainer(val initial: String) : Container<String> {
+            override fun fetch(): String = initial
+            override fun store(value: String) = println("stored: $value")
+        }
+
+        fun printAnyProduced(producer: Producer<Any>) {
+            println(producer.produce())
+        }
+
+        fun feedStringConsumer(consumer: Consumer<String>) {
+            consumer.consume("hello from feeder")
+        }
+
+        fun main() {
+            val stringProducer: Producer<String> = StringProducer("variance test")
+            val anyProducer: Producer<Any> = stringProducer
+            printAnyProduced(anyProducer)
+
+            val anyConsumer: Consumer<Any> = AnyPrinter()
+            val stringConsumer: Consumer<String> = anyConsumer
+            feedStringConsumer(stringConsumer)
+
+            val container: Container<String> = StringContainer("invariant value")
+            container.store("new value")
+            println(container.fetch())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "variance test\nconsumed: hello from feeder\nstored: new value\ninvariant value\n")
+        }
+    }
 }

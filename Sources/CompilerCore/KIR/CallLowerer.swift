@@ -118,6 +118,7 @@ final class CallLowerer {
         appendObjectItableMethodRegistrations(
             objectValue: result,
             nominalSymbol: nominalSymbol,
+            driver: driver,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -1193,6 +1194,7 @@ final class CallLowerer {
                 appendObjectItableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
+                    driver: driver,
                     sema: sema,
                     arena: arena,
                     interner: interner,

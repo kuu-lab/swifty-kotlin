@@ -78,9 +78,140 @@ func appendObjectVtableMethodRegistrations(
     }
 }
 
+/// Returns a bridge symbol for `implementation` when its ABI (String aggregate
+/// vs raw pointer) does not match the erased interface method signature used by
+/// itable dispatch. The bridge has the interface ABI, forwards to the
+/// implementation, and relies on the backend's String bridging in `.call` and
+/// `returnValue` to convert across the boundary.
+func itableBridgeSymbolForMethod(
+    interfaceMethod: SymbolID,
+    implementation: SymbolID,
+    nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
+    arena: KIRArena,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID {
+    guard implementation != interfaceMethod,
+          implementation.rawValue >= 0,
+          let implementationFn = arena.function(for: implementation),
+          let interfaceSig = sema.symbols.functionSignature(for: interfaceMethod),
+          let implSig = sema.symbols.functionSignature(for: implementation)
+    else {
+        return implementation
+    }
+
+    func isStringAggregate(_ type: TypeID?) -> Bool {
+        guard let type else { return false }
+        if case .stringStruct = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
+    let interfaceReceiver = interfaceSig.receiverType
+    let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceSig.parameterTypes
+    let implementationParamTypes = implementationFn.params.map(\.type)
+
+    guard implementationParamTypes.count == interfaceParamTypes.count else {
+        return implementation
+    }
+
+    var needsBridge = false
+    if isStringAggregate(implementationFn.returnType) != isStringAggregate(interfaceSig.returnType) {
+        needsBridge = true
+    }
+    if !needsBridge {
+        for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
+            if isStringAggregate(implType) != isStringAggregate(ifaceType) {
+                needsBridge = true
+                break
+            }
+        }
+    }
+    guard needsBridge else {
+        return implementation
+    }
+
+    let cacheKey = "\(interfaceMethod.rawValue)|\(implementation.rawValue)"
+    if let cached = driver.ctx.itableBridgeSymbolsByKey[cacheKey] {
+        return cached
+    }
+
+    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+    driver.ctx.itableBridgeSymbolsByKey[cacheKey] = bridgeSymbol
+
+    let bridgeName = interner.intern("kk_itable_bridge_\(interfaceMethod.rawValue)_\(implementation.rawValue)_\(bridgeSymbol.rawValue)")
+
+    var bridgeParams: [KIRParameter] = []
+    if let receiverType = interfaceSig.receiverType {
+        let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        bridgeParams.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+    }
+    for paramType in interfaceSig.parameterTypes {
+        let paramSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        bridgeParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
+    }
+
+    var body: [KIRInstruction] = [.beginBlock]
+    var bridgeParamExprs: [KIRExprID] = []
+    for param in bridgeParams {
+        let expr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+        body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
+        bridgeParamExprs.append(expr)
+    }
+
+    let callResult = arena.appendTemporary(type: implementationFn.returnType)
+    let thrownResult: KIRExprID? = implSig.canThrow
+        ? arena.appendTemporary(type: sema.types.nullableAnyType)
+        : nil
+
+    let implName = interner.intern("__itable_impl_\(implementation.rawValue)")
+
+    body.append(.call(
+        symbol: implementation,
+        callee: implName,
+        arguments: bridgeParamExprs,
+        result: callResult,
+        canThrow: implSig.canThrow,
+        thrownResult: thrownResult
+    ))
+
+    if let thrownResult {
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrownResult))
+        body.append(.label(continueLabel))
+    }
+
+    body.append(.returnValue(callResult))
+    body.append(.endBlock)
+
+    let bridgeDecl = arena.appendDecl(
+        .function(
+            KIRFunction(
+                symbol: bridgeSymbol,
+                name: bridgeName,
+                params: bridgeParams,
+                returnType: interfaceSig.returnType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            )
+        )
+    )
+    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+
+    return bridgeSymbol
+}
+
 func appendObjectItableMethodRegistrations(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -138,12 +269,21 @@ func appendObjectItableMethodRegistrations(
                 sema: sema,
                 interner: interner
             ) ?? methodSymbol
+            let bridgeSymbol = itableBridgeSymbolForMethod(
+                interfaceMethod: methodSymbol,
+                implementation: implementationSymbol,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
             let methodSlot = Int64(methodSlotInt)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
 
-            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
 
             let registerMethodResult = arena.appendTemporary(type: intType)
             instructions.append(.call(

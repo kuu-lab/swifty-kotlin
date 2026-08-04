@@ -3042,6 +3042,7 @@ extension NativeEmitter {
                     continue
                 }
 
+                let calleeKIRFunction = effectiveSymbol.flatMap { module.arena.function(for: $0) }
                 let isRuntimeCallbackRawABIVirtualCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall && typeLowering != nil
@@ -3067,6 +3068,26 @@ extension NativeEmitter {
                             argumentValue,
                             suffix: "\(instructionIndex)_virtual_arg\(index)"
                         ) ?? argumentValue
+                    }
+                } else if isInternalCall,
+                          let calleeKIRFunction
+                {
+                    // Interface dispatch through a KIR-declared function may see a
+                    // String aggregate at the call site while the erased interface
+                    // parameter is a raw pointer (or vice-versa). Convert across the
+                    // boundary so the looked-up function pointer receives/returns the
+                    // ABI expected by its KIR signature.
+                    virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
+                        let (argumentValue, argumentType) = pair
+                        let paramType = index < calleeKIRFunction.params.count
+                            ? calleeKIRFunction.params[index].type
+                            : nil
+                        return coerceStringValueForType(
+                            argumentValue,
+                            from: argumentType,
+                            to: paramType,
+                            suffix: "\(instructionIndex)_virtual_internal_arg\(index)"
+                        )
                     }
                 }
 
@@ -3210,6 +3231,18 @@ extension NativeEmitter {
                         vCallValue,
                         suffix: "\(instructionIndex)_virtual_result"
                     ) ?? vCallValue
+                } else if isInternalCall,
+                          let result,
+                          let resultExprType = module.arena.exprType(result),
+                          let vCallValue,
+                          let calleeKIRFunction
+                {
+                    mergedValue = coerceStringValueForType(
+                        vCallValue,
+                        from: calleeKIRFunction.returnType,
+                        to: resultExprType,
+                        suffix: "\(instructionIndex)_virtual_internal_result"
+                    )
                 } else {
                     mergedValue = vCallValue ?? zeroValue
                 }
