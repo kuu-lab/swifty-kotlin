@@ -53,5 +53,42 @@ struct SyntheticSymbolSchemeTests {
             #expect(!SyntheticSymbolScheme.isLikelySyntheticSetterAccessor(getter))
         }
     }
+
+    /// Symbols derived from the largest encodable original must still decode as
+    /// accessors: leaving the band aliases the synthetic type-parameter and
+    /// lambda-parameter families, which reintroduces the wrong-callee
+    /// miscompile the interleaved layout was introduced to remove.
+    @Test
+    func bandStaysCollisionFreeAtItsCapacityLimit() {
+        let last = SymbolID(rawValue: SyntheticSymbolScheme.maxOriginalRawValue)
+        let setter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: last)
+        let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: last)
+
+        #expect(SyntheticSymbolScheme.isLikelySyntheticSetterAccessor(setter))
+        #expect(SyntheticSymbolScheme.originalPropertySymbolFromSetterAccessor(setter) == last)
+        #expect(SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(getter))
+        #expect(!SyntheticSymbolScheme.isLikelySyntheticSetterAccessor(getter))
+    }
+
+    /// A reified type token is derived from a metadata type-parameter symbol,
+    /// which is itself negative. Such originals must stay in the negative
+    /// symbol space instead of wrapping into the positive range, where they
+    /// would alias a real symbol.
+    @Test
+    func syntheticOriginalsStayInTheNegativeSymbolSpace() {
+        var seen: Set<SymbolID> = []
+        for index in Int32(0)...2000 {
+            // Mirrors HeaderHelpers.syntheticTypeParameterBase - index.
+            let typeParameter = SymbolID(rawValue: -1_000_000 - index)
+            let token = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter)
+
+            #expect(token.rawValue < 0)
+            #expect(!SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(token))
+            #expect(seen.insert(token).inserted, "token(\(typeParameter.rawValue)) aliases another token")
+
+            // Real-symbol tokens must not land on synthetic-symbol tokens.
+            #expect(SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: SymbolID(rawValue: index)) != token)
+        }
+    }
 }
 #endif
