@@ -12,97 +12,48 @@ import Testing
 ///   diagnostics for a call returning `Float?`.
 @Suite
 struct StringToFloatOrNullFunctionTests {
-    private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
-        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
-        return sema.symbols.externalLinkName(for: sym)
-    }
-
-    private func externalLinks(for member: String, sema: SemaModule, interner: StringInterner) -> Set<String> {
-        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: fq)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-    }
-
     @Test
-    func testToFloatOrNullStubLinksToRuntimeSymbol() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-
-            let directLink = externalLink(for: "toFloatOrNull", sema: sema, interner: ctx.interner)
-            #expect(
-                directLink == nil || directLink?.isEmpty == true,
-                "String.toFloatOrNull should be source-backed and not have a direct external link"
-            )
-
-            #expect(
-                externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: ctx.interner) == "__kk_string_toFloatOrNull",
-                "__kk_string_toFloatOrNull should link to __kk_string_toFloatOrNull"
-            )
-        }
-    }
-
-    @Test
-    func testToFloatOrNullResolvesOnStringReceiver() throws {
-        let source = """
+    func testToFloatOrNullResolvesAndLinksToRuntimeSymbol() throws {
+        let ctx = makeContextFromSource("""
         fun parse(raw: String): Float? {
             return raw.toFloatOrNull()
         }
-        """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected String.toFloatOrNull to resolve cleanly, got: \(diagnosticSummary)"
-            )
-        }
-    }
-
-    @Test
-    func testToFloatOrNullReturnsNullableFloat() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            let fq = ["kotlin", "text", "toFloatOrNull"].map { ctx.interner.intern($0) }
-            let symbol = try #require(
-                sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                    guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-                    return sig.receiverType == sema.types.stringType && sig.parameterTypes.isEmpty
-                }
-            )
-            let returnType = try #require(sema.symbols.functionSignature(for: symbol)?.returnType)
-            #expect(
-                returnType == sema.types.make(.primitive(.float, .nullable)),
-                "String.toFloatOrNull() should return Float?"
-            )
-        }
-    }
-
-    @Test
-    func testToFloatOrNullInBranchContext() throws {
-        let source = """
         fun safeParse(raw: String): Float {
             return raw.toFloatOrNull() ?: 0.0f
         }
-        """
+        """)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Elvis operator over toFloatOrNull should type-check without errors"
-            )
-        }
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected String.toFloatOrNull to resolve")
+
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let directFq = ["kotlin", "text", "toFloatOrNull"].map { interner.intern($0) }
+        let directSymbol = try #require(
+            sema.symbols.lookupAll(fqName: directFq).first { symbolID in
+                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return sig.receiverType == sema.types.stringType && sig.parameterTypes.isEmpty
+            }
+        )
+        let directLink = sema.symbols.externalLinkName(for: directSymbol)
+        #expect(
+            directLink == nil || directLink?.isEmpty == true,
+            "String.toFloatOrNull should be source-backed and not have a direct external link"
+        )
+
+        let returnType = try #require(sema.symbols.functionSignature(for: directSymbol)?.returnType)
+        #expect(
+            returnType == sema.types.make(.primitive(.float, .nullable)),
+            "String.toFloatOrNull() should return Float?"
+        )
+
+        let privateFq = ["kotlin", "text", "__kk_string_toFloatOrNull"].map { interner.intern($0) }
+        let privateSymbol = sema.symbols.lookup(fqName: privateFq)
+        #expect(
+            sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toFloatOrNull",
+            "__kk_string_toFloatOrNull should link to __kk_string_toFloatOrNull"
+        )
     }
 }

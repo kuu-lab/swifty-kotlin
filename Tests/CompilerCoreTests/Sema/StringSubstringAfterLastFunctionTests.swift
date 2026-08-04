@@ -8,64 +8,32 @@ import Testing
 ///   String.substringAfterLast(delimiter: Char,   missingDelimiterValue: String = this): String
 ///   String.substringAfterLast(delimiter: String, missingDelimiterValue: String = this): String
 ///
-/// The Sema layer registers both `Char` and `String` delimiter signatures. These tests pin down
-/// each shape — including literal receivers and named arguments — so future refactors of the
-/// synthetic stub registry don't accidentally regress overload resolution.
+/// The Sema layer registers both `Char` and `String` delimiter signatures.
 @Suite
 struct StringSubstringAfterLastFunctionTests {
-    @Test func testSubstringAfterLastStringDelimiterResolves() throws {
+    @Test func testSubstringAfterLastResolvesInSource() throws {
         let ctx = makeContextFromSource("""
-        fun lastSegment(path: String): String {
+        fun lastSegmentString(path: String): String {
             return path.substringAfterLast(".")
         }
 
-        fun explicitFallback(path: String): String {
+        fun explicitFallbackString(path: String): String {
             return path.substringAfterLast(".", "<none>")
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected substringAfterLast(String[, String]) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testSubstringAfterLastCharDelimiterResolves() throws {
-        let ctx = makeContextFromSource("""
-        fun lastSegment(path: String): String {
+        fun lastSegmentChar(path: String): String {
             return path.substringAfterLast('.')
         }
 
-        fun explicitFallback(path: String): String {
+        fun explicitFallbackChar(path: String): String {
             return path.substringAfterLast('.', "<none>")
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected substringAfterLast(Char[, String]) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testSubstringAfterLastOnLiteralReceiverResolves() throws {
-        let ctx = makeContextFromSource("""
         fun useLiteral(): String = "hello.world.kt".substringAfterLast(".")
         fun useLiteralChar(): String = "hello.world.kt".substringAfterLast('.')
         fun useLiteralWithFallback(): String = "no-delimiter".substringAfterLast(":", "<absent>")
         fun useLiteralCharWithFallback(): String = "no-delimiter".substringAfterLast(':', "<absent>")
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected substringAfterLast on literal receivers to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-    }
 
-    @Test func testSubstringAfterLastNamedArgumentResolves() throws {
-        let ctx = makeContextFromSource("""
         fun useNamedString(path: String): String {
             return path.substringAfterLast(delimiter = ".", missingDelimiterValue = "<none>")
         }
@@ -74,11 +42,12 @@ struct StringSubstringAfterLastFunctionTests {
             return path.substringAfterLast(delimiter = '.', missingDelimiterValue = "<none>")
         }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected named-argument substringAfterLast to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            "Expected substringAfterLast overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
