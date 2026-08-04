@@ -683,8 +683,7 @@ extension CallTypeChecker {
                             // Include bundled/user Kotlin source extensions, not only
                             // synthetic stubs, so source-backed Sequence transforms
                             // (map, filter, etc.) are visible as member-call candidates.
-                            let isSourceBackedExtension = symbol.declSite != nil
-                                && (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty
+                            let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                             guard symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                                 return false
                             }
@@ -968,10 +967,7 @@ extension CallTypeChecker {
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
-                guard let symbol = sema.symbols.symbol(candidateID), symbol.declSite != nil else {
-                    return false
-                }
-                return (sema.symbols.externalLinkName(for: candidateID) ?? "").isEmpty
+                sema.symbols.isSourceBackedSymbol(candidateID)
             }
         // Synthetic collection members need to short-circuit before the generic
         // overload resolver so their trailing-lambda expectations stay concrete.
@@ -1539,10 +1535,15 @@ extension CallTypeChecker {
         return sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
-                  !symbol.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   let declaredReceiver = signature.receiverType
             else {
+                return false
+            }
+            // Source-backed bundled stdlib extensions are not synthetic; imported
+            // stdlib artifact symbols are synthetic + importedLibrary and should
+            // still be considered here so shared-path code can resolve them.
+            if symbol.flags.contains(.synthetic), !symbol.flags.contains(.importedLibrary) {
                 return false
             }
             if requireOperator, !symbol.flags.contains(.operatorFunction) {

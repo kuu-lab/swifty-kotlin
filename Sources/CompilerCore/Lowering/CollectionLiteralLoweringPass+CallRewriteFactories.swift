@@ -736,9 +736,9 @@ extension CollectionLiteralConstructionLoweringPass {
     }
 
     private func isSourceBackedBundledFunction(symbol: SymbolID?, ctx: KIRContext) -> Bool {
-        guard let symbol, let sema = ctx.sema, let semanticSymbol = sema.symbols.symbol(symbol) else {
+        guard let symbol, let sema = ctx.sema, sema.symbols.symbol(symbol) != nil else {
             return false
         }
-        return semanticSymbol.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 }
