@@ -17,33 +17,31 @@ struct SequenceSingleFunctionTests {
         fun onlyString(): String {
             return sequenceOf("only").single()
         }
+
+        fun fromSequence(values: Sequence<String>): String {
+            return values.single()
+        }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected Sequence.single to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testSequenceSingleLinksToRuntimeEntryPoint() throws {
-        let source = """
-        fun probe(): Int {
-            return sequenceOf(7).single()
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        let diagnosticSummary = ctx.diagnostics.diagnostics
-            .map { "\($0.code): \($0.message)" }
-            .joined(separator: " | ")
-        #expect(
-            !ctx.diagnostics.hasError,
-            "Expected Sequence.single surface to resolve cleanly, got: \(diagnosticSummary)"
-        )
-
+        let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+
+        let callExpr = try #require(
+            lastExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "single"
+            },
+            "Expected single member call"
+        )
+        #expect(sema.bindings.exprType(for: callExpr) == sema.types.stringType)
+
         let memberFQName = ["kotlin", "sequences", "Sequence", "single"]
             .map { ctx.interner.intern($0) }
         let links = Set(
@@ -54,29 +52,5 @@ struct SequenceSingleFunctionTests {
             links.contains("kk_sequence_single"),
             "Expected Sequence.single to link to kk_sequence_single, got: \(links)"
         )
-    }
-
-    @Test func testSequenceSingleReturnsElementType() throws {
-        let source = """
-        fun probe(values: Sequence<String>): String {
-            return values.single()
-        }
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(
-            errors.isEmpty,
-            "Expected Sequence<String>.single to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(callee) == "single"
-        }, "Expected single member call")
-        #expect(sema.bindings.exprType(for: callExpr) == sema.types.stringType)
     }
 }

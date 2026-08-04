@@ -12,98 +12,70 @@ import Testing
 /// source code that explicitly imports the function.
 @Suite
 struct ComparisonsCompareByDescendingSelectorFunctionTests {
-
-    // MARK: - Symbol registration
-
-    @Test func testCompareByDescendingSelectorIsRegisteredInComparisonsPackage() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let fqName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("comparisons"),
-                ctx.interner.intern("compareByDescending"),
-            ]
-            let candidates = sema.symbols.lookupAll(fqName: fqName)
-            let sourceBackedSelectorOverloads = candidates.filter { symbolID in
-                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return sig.parameterTypes.count == 1
-                    && sig.valueParameterIsVararg == [false]
-                    && sema.symbols.externalLinkName(for: symbolID) == nil
-            }
-            #expect(!(sourceBackedSelectorOverloads.isEmpty), "Expected kotlin.comparisons.compareByDescending selector overload to be registered from bundled stdlib source")
-        }
-    }
-
-    @Test func testCompareByDescendingSelectorOverloadHasSingleSelectorParameter() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let fqName: [InternedString] = [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("comparisons"),
-                ctx.interner.intern("compareByDescending"),
-            ]
-            let selectorOverloads = sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
-                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-                return sig.parameterTypes.count == 1
-                    && sig.typeParameterSymbols.count == 1
-                    && sig.valueParameterIsVararg == [false]
-            }
-            #expect(!(selectorOverloads.isEmpty), "Expected at least one single-selector compareByDescending overload")
-        }
-    }
-
-    // MARK: - Source resolution
-
-    @Test func testCompareByDescendingSelectorFunctionResolvesInSource() throws {
+    @Test func testCompareByDescendingSelectorResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.compareByDescending
 
         data class Person(val age: Int)
 
+        data class Item(val priority: Int)
+
         fun makeComparator(): Comparator<Person> {
             return compareByDescending<Person> { it.age }
         }
-        """)
-        try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "Expected compareByDescending(selector) to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func testCompareByDescendingSelectorReturnsComparator() throws {
-        let source = """
-        import kotlin.comparisons.compareByDescending
-
-        data class Item(val priority: Int)
 
         fun cmpItems(): Comparator<Item> = compareByDescending<Item> { it.priority }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        """)
 
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
+        try runSema(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected compareByDescending(selector) to resolve cleanly, got: \(ctx.diagnostics.diagnostics)"
+        )
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+
+        let callExpr = try #require(
+            firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else { return false }
                 return ctx.interner.resolve(calleeName) == "compareByDescending"
-            }, "Expected a call to compareByDescending")
+            },
+            "Expected a call to compareByDescending"
+        )
 
-            let exprType = try #require(sema.bindings.exprTypes[callExpr])
-            guard case let .classType(ct) = sema.types.kind(of: exprType) else {
-                Issue.record("Expected compareByDescending result to be a class type (Comparator<T>)")
-                return
-            }
-            let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"], "Expected compareByDescending(selector) to return kotlin.Comparator<T>")
+        let exprType = try #require(sema.bindings.exprTypes[callExpr])
+        guard case let .classType(ct) = sema.types.kind(of: exprType) else {
+            Issue.record("Expected compareByDescending result to be a class type (Comparator<T>)")
+            return
         }
+        let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
+        #expect(
+            symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"],
+            "Expected compareByDescending(selector) to return kotlin.Comparator<T>"
+        )
+
+        let fqName: [InternedString] = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("comparisons"),
+            ctx.interner.intern("compareByDescending"),
+        ]
+        let selectorOverloads = sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
+            guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return sig.parameterTypes.count == 1
+                && sig.typeParameterSymbols.count == 1
+                && sig.valueParameterIsVararg == [false]
+        }
+        #expect(
+            !selectorOverloads.isEmpty,
+            "Expected at least one single-selector compareByDescending overload"
+        )
+        #expect(
+            selectorOverloads.contains { sema.symbols.externalLinkName(for: $0) == nil },
+            "Expected a source-backed compareByDescending(selector) overload"
+        )
     }
 }
 #endif

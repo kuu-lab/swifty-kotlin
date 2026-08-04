@@ -29,26 +29,16 @@ struct CharIsLetterOrDigitFunctionTests {
             return if (ch.isLetterOrDigit()) 1 else 0
         }
         """)
+
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected Char.isLetterOrDigit() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
-    }
 
-    @Test func testCharIsLetterOrDigitStubHasCorrectExternalLink() throws {
-        var capturedSema: SemaModule?
-        var capturedInterner: StringInterner?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            capturedSema = try #require(ctx.sema)
-            capturedInterner = ctx.interner
-        }
-        let sema = try #require(capturedSema)
-        let interner = try #require(capturedInterner)
-
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
         let fq = ["kotlin", "text", "isLetterOrDigit"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookupAll(fqName: fq).first { symbolID in
@@ -60,34 +50,11 @@ struct CharIsLetterOrDigitFunctionTests {
             },
             "Expected synthetic kotlin.text.isLetterOrDigit extension on Char"
         )
-        // KSP-661: bundled Kotlin 実装へ移行済みのため合成スタブの外部リンクを持たない。
         #expect(sema.symbols.externalLinkName(for: sym) == nil)
-    }
-
-    @Test func testCharIsLetterOrDigitReturnsBoolean() throws {
-        var capturedSema: SemaModule?
-        var capturedInterner: StringInterner?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            capturedSema = try #require(ctx.sema)
-            capturedInterner = ctx.interner
-        }
-        let sema = try #require(capturedSema)
-        let interner = try #require(capturedInterner)
-
-        let fq = ["kotlin", "text", "isLetterOrDigit"].map { interner.intern($0) }
-        let sym = try #require(
-            sema.symbols.lookupAll(fqName: fq).first { symbolID in
-                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                    return false
-                }
-                return signature.receiverType == sema.types.charType
-                    && signature.parameterTypes.isEmpty
-            },
-            "Expected synthetic kotlin.text.isLetterOrDigit extension on Char"
+        #expect(
+            sema.symbols.functionSignature(for: sym)?.returnType == sema.types.booleanType,
+            "Char.isLetterOrDigit() should return Boolean"
         )
-        #expect(sema.symbols.functionSignature(for: sym)?.returnType == sema.types.booleanType, "Char.isLetterOrDigit() should return Boolean")
     }
 }
 #endif
