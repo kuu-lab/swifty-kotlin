@@ -20,7 +20,7 @@ private enum TestStdlibCacheError: Error, CustomStringConvertible {
 final class TestStdlibCache: @unchecked Sendable {
     static let shared = TestStdlibCache()
 
-    private let lock = NSLock()
+    private let lock = NSRecursiveLock()
     private var didPrepare = false
 
     func prepare() {
@@ -69,4 +69,3 @@ final class TestStdlibCache: @unchecked Sendable {
     }
 }
 
-private let _testStdlibCachePrepared: Void = TestStdlibCache.shared.prepare()
