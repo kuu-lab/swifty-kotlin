@@ -3,7 +3,19 @@
 import Foundation
 import XCTest
 
-class CodegenBackendTestSupport: XCTestCase {}
+class CodegenBackendTestSupport: XCTestCase {
+    #if !canImport(ObjectiveC)
+    // swift-corelibs-xctest (Linux) declares no parameterless XCTestCase
+    // initializer -- init(name:testClosure:) is its only public one, and
+    // it's required here. Apple's XCTest instead resolves a bare
+    // `CodegenBackendTestSupport()` to the NSObject-inherited zero-arg
+    // init, so this extra initializer is Linux-only; declaring it
+    // unconditionally would collide with that inherited init on Darwin.
+    init() {
+        super.init(name: "CodegenBackendTestSupport", testClosure: { _ in })
+    }
+    #endif
+}
 
 extension CodegenBackendTestSupport {
 
