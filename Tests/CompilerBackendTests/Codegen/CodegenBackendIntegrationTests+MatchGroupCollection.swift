@@ -1,11 +1,71 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendMatchGroupCollectionTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
     // STDLIB-TEXT-TYPE-008: MatchGroupCollection interface — index access, named access, size
-    func testMatchGroupCollectionIndexAccess() throws {
+    @Test func testMatchGroupCollectionIndexAccess() throws {
         let source = """
         fun main() {
             val r = Regex("(\\\\w+)-(\\\\w+)")
@@ -28,7 +88,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testMatchGroupCollectionNamedAccess() throws {
+    @Test func testMatchGroupCollectionNamedAccess() throws {
         let source = """
         fun main() {
             val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})-(?<day>\\\\d{2})")
@@ -53,7 +113,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testMatchGroupCollectionSize() throws {
+    @Test func testMatchGroupCollectionSize() throws {
         let source = """
         fun main() {
             val r = Regex("(\\\\w+)-(\\\\w+)-(\\\\w+)")
@@ -76,7 +136,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testMatchGroupCollectionOutOfBoundsReturnsNull() throws {
+    @Test func testMatchGroupCollectionOutOfBoundsReturnsNull() throws {
         let source = """
         fun main() {
             val r = Regex("(\\\\d+)")
@@ -97,4 +157,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
+#endif
