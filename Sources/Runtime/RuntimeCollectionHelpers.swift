@@ -934,7 +934,7 @@ func runtimeBinarySearch(
 }
 
 @inline(__always)
-private func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
+func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
           lhsTypeID == rhsTypeID,

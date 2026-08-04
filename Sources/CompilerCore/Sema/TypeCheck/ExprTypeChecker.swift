@@ -530,8 +530,18 @@ final class ExprTypeChecker {
         let containsName = interner.intern("contains")
 
         // Skip primitive and range types — they are handled by kk_op_contains at runtime.
+        // String is `.stringStruct`, not `.classType` (KSWIFTK-INTERNAL-0001), but it does
+        // have a bundled-Kotlin-source `contains` to dispatch to (KSP-408), so it must not
+        // be skipped here — unlike genuine primitives/ranges, kk_op_contains has no String
+        // case at all, and falling through to it would silently return false for every
+        // `x in someString` regardless of the actual contents.
         let nonNullContainerType = sema.types.makeNonNullable(containerType)
-        guard case .classType = sema.types.kind(of: nonNullContainerType) else { return }
+        switch sema.types.kind(of: nonNullContainerType) {
+        case .classType, .stringStruct:
+            break
+        default:
+            return
+        }
 
         let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: containsName,
