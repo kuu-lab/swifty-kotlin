@@ -6,7 +6,7 @@ import Testing
 
 @Suite
 struct CodegenBackendSequenceTakeTests {
-    private let pipelineHelper = CodegenBackendTestSupport(name: "pipeline", testClosure: { _ in })
+    private let pipelineHelper = CodegenBackendTestSupport()
 
     private func assertKotlinOutput(
         _ source: String,

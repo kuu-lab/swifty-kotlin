@@ -6,7 +6,7 @@ import Testing
 
 @Suite
 struct CodegenBackendCollectionReduceRightIndexedOrNullEdgeCasesTests {
-    private let pipelineHelper = CodegenBackendTestSupport(name: "", testClosure: { _ in })
+    private let pipelineHelper = CodegenBackendTestSupport()
 
     private func assertKotlinOutput(
         _ source: String,

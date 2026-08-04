@@ -7,7 +7,7 @@ import Testing
 
 @Suite
 struct CodegenBackendCollectionZipWithNextEdgeCasesTests {
-    private let pipelineHelper = CodegenBackendTestSupport(name: "pipelineHelper", testClosure: { _ in })
+    private let pipelineHelper = CodegenBackendTestSupport()
 
     private func assertKotlinOutput(
         _ source: String,
