@@ -1,9 +1,39 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+#if canImport(Testing)
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendSequenceToSetTests {
+    #if canImport(ObjectiveC)
+    private let pipelineHelper = CodegenBackendTestSupport()
+    #else
+    private let pipelineHelper = CodegenBackendTestSupport(name: "SequenceToSet", testClosure: { _ in })
+    #endif
+
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try pipelineHelper.runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: EmitMode.executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test
     func testCodegenSequenceToSetUsesCanonicalDiffCase() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -19,4 +49,4 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceToSetRuntime", expected: "[3, 1, 2]\ntrue\nfalse\n[]\n")
     }
 }
-
+#endif
