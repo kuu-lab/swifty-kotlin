@@ -15,8 +15,17 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
-KOTLINC_REF_CACHE_DIR="${KOTLINC_REF_CACHE_DIR:-}"
+# Reference jars are cached across runs by default. Set to empty
+# (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
+# explicitly empty value as "disabled" instead of re-applying the default.
+KOTLINC_REF_CACHE_DIR="${KOTLINC_REF_CACHE_DIR-$ROOT_DIR/.runtime-build/kotlinc-ref-cache}"
 KOTLINC_REF_CACHE_FINGERPRINT=""
+# JVM options prepended to JAVA_OPTS for kotlinc invocations (the kotlinc
+# launcher script honors JAVA_OPTS; the plain `java` reference runs do not).
+# C1-only JIT (-XX:TieredStopAtLevel=1) cuts ~15-20% off each short-lived
+# kotlinc process. Set to empty to disable. Prepended so caller-provided
+# JAVA_OPTS flags win on conflict (the JVM uses the last occurrence).
+DIFF_KOTLINC_JAVA_OPTS="${DIFF_KOTLINC_JAVA_OPTS--XX:TieredStopAtLevel=1}"
 KEEP_TEMP=0
 REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
@@ -101,7 +110,12 @@ Environment:
                      auto-discovered next to \$KOTLINC)
   KOTLINC_REF_CACHE_DIR
                      Reuse successful non-script reference jars from this
-                     directory (default: empty, which disables the cache)
+                     directory (default: .runtime-build/kotlinc-ref-cache;
+                     set to empty to disable the cache)
+  DIFF_KOTLINC_JAVA_OPTS
+                     JVM options prepended to JAVA_OPTS for kotlinc
+                     invocations (default: -XX:TieredStopAtLevel=1;
+                     set to empty to disable)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -380,6 +394,13 @@ fi
 
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
+fi
+
+# Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
+# warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
+# output, so this is deliberately absent from the reference-cache fingerprint.
+if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
+  export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
 fi
 
 ensure_kotlinc_classpath
@@ -670,6 +691,7 @@ if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
 else
   echo "Kotlinc reference cache: disabled"
 fi
+echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
 echo "Target: $TARGET"
 echo "=================================="
 
