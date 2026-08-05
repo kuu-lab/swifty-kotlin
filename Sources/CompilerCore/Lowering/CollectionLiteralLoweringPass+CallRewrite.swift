@@ -88,12 +88,11 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.copyOfRangeName,
             let symbol,
             let sema = ctx.sema,
-            let semanticSymbol = sema.symbols.symbol(symbol),
-            semanticSymbol.declSite != nil
+            sema.symbols.symbol(symbol) != nil
         else {
             return false
         }
-        guard (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty else {
+        guard sema.symbols.isSourceBackedSymbol(symbol) else {
             return false
         }
         // STDLIB-pipeline §5 / KSP-441: take/drop have real require() validation

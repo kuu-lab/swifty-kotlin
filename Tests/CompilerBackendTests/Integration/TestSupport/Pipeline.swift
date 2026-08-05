@@ -31,7 +31,9 @@ func makeCompilationContext(
     frontendFlags: [String] = [],
     includeStdlib: Bool = true,
     interner: StringInterner? = nil,
-    diagnostics: DiagnosticEngine? = nil
+    diagnostics: DiagnosticEngine? = nil,
+    stdlibOnly: Bool = false,
+    stdlibLibraryPath: String? = nil
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -45,7 +47,9 @@ func makeCompilationContext(
         target: defaultTargetTriple(),
         frontendFlags: frontendFlags,
         irFlags: irFlags,
-        includeStdlib: includeStdlib
+        includeStdlib: includeStdlib,
+        stdlibOnly: stdlibOnly,
+        stdlibLibraryPath: stdlibLibraryPath
     )
     return CompilationContext(
         options: options,

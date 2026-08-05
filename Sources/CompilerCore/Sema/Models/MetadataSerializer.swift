@@ -11,22 +11,48 @@ package struct MetadataRecord {
     package let arity: Int
     package let isSuspend: Bool
     package let isInline: Bool
+    package let isOperator: Bool
     let typeSignature: String?
+    /// Per-parameter vararg flags for function/constructor signatures.
+    package let valueParameterIsVararg: [Bool]
+    /// Per-parameter default-value flags for function/constructor signatures.
+    package let valueParameterHasDefaultValues: [Bool]
+    /// Whether the function/constructor is declared `throws`.
+    package let canThrow: Bool
+    /// Resolved names of value parameters, in declaration order, used for
+    /// named-argument resolution on imported functions.
+    package let valueParameterNames: [String]
+    /// Indices of reified type parameters, in declaration order, so that
+    /// call sites append the correct runtime type-token arguments for inline
+    /// functions imported from a precompiled stdlib artifact.
+    package let reifiedTypeParameterIndices: Set<Int>
+    /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
+    let defaultStubExternalLinkName: String?
     let externalLinkName: String?
     package let declaredFieldCount: Int?
     package let declaredInstanceSizeWords: Int?
     let declaredVtableSize: Int?
     let declaredItableSize: Int?
     package let superFQName: String?
+    package let companionObjectFQName: String?
     let fieldOffsets: String?
     let vtableSlots: String?
     let itableSlots: String?
+    /// Link name of the precompiled top-level object initializer (e.g. `__object_init_*`).
+    let objectInitializerLinkName: String?
+    /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
+    let companionInitializerLinkName: String?
+    /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
+    package let enumStaticInitLinkName: String?
 
     // P5-74: data class flag
     package let isDataClass: Bool
 
     // P5-74: sealed class flag
     package let isSealedClass: Bool
+
+    // STDLIB-SHARED-003: fun interface flag for SAM-constructor resolution
+    package let isFunInterface: Bool
 
     // P5-86: annotation metadata
     let annotations: [MetadataAnnotationRecord]
@@ -44,6 +70,19 @@ package struct MetadataRecord {
     let isExpect: Bool
     let isActual: Bool
 
+    /// Receiver type signature for extension properties; nil for non-extension properties.
+    let propertyReceiverTypeSignature: String?
+    /// Link name of the precompiled getter accessor for extension properties.
+    let propertyGetterExternalLinkName: String?
+    /// ABI return type signature for functions whose compiled return type differs
+    /// from the source-level signature (e.g. raw `Int` string handles).
+    let abiReturnTypeSignature: String?
+    /// ABI return type signature for extension property getters when it differs
+    /// from the property's source type.
+    let propertyGetterAbiReturnTypeSignature: String?
+    /// True for `var` properties/fields.
+    package let isMutable: Bool
+
     init(
         kind: SymbolKind,
         mangledName: String = "",
@@ -51,24 +90,41 @@ package struct MetadataRecord {
         arity: Int = 0,
         isSuspend: Bool = false,
         isInline: Bool = false,
+        isOperator: Bool = false,
         typeSignature: String? = nil,
+        valueParameterIsVararg: [Bool] = [],
+        valueParameterHasDefaultValues: [Bool] = [],
+        canThrow: Bool = false,
+        valueParameterNames: [String] = [],
+        reifiedTypeParameterIndices: Set<Int> = [],
+        defaultStubExternalLinkName: String? = nil,
         externalLinkName: String? = nil,
         declaredFieldCount: Int? = nil,
         declaredInstanceSizeWords: Int? = nil,
         declaredVtableSize: Int? = nil,
         declaredItableSize: Int? = nil,
         superFQName: String? = nil,
+        companionObjectFQName: String? = nil,
         fieldOffsets: String? = nil,
         vtableSlots: String? = nil,
         itableSlots: String? = nil,
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
         isValueClass: Bool = false,
         valueClassUnderlyingTypeSig: String? = nil,
         sealedSubclassFQNames: [String] = [],
         isExpect: Bool = false,
-        isActual: Bool = false
+        isActual: Bool = false,
+        propertyReceiverTypeSignature: String? = nil,
+        propertyGetterExternalLinkName: String? = nil,
+        abiReturnTypeSignature: String? = nil,
+        propertyGetterAbiReturnTypeSignature: String? = nil,
+        isMutable: Bool = false
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -76,24 +132,41 @@ package struct MetadataRecord {
         self.arity = arity
         self.isSuspend = isSuspend
         self.isInline = isInline
+        self.isOperator = isOperator
         self.typeSignature = typeSignature
+        self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
+        self.canThrow = canThrow
+        self.valueParameterNames = valueParameterNames
+        self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
+        self.defaultStubExternalLinkName = defaultStubExternalLinkName
         self.externalLinkName = externalLinkName
         self.declaredFieldCount = declaredFieldCount
         self.declaredInstanceSizeWords = declaredInstanceSizeWords
         self.declaredVtableSize = declaredVtableSize
         self.declaredItableSize = declaredItableSize
         self.superFQName = superFQName
+        self.companionObjectFQName = companionObjectFQName
         self.fieldOffsets = fieldOffsets
         self.vtableSlots = vtableSlots
         self.itableSlots = itableSlots
+        self.objectInitializerLinkName = objectInitializerLinkName
+        self.companionInitializerLinkName = companionInitializerLinkName
+        self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isSealedClass = isSealedClass
+        self.isFunInterface = isFunInterface
         self.annotations = annotations
         self.isValueClass = isValueClass
         self.valueClassUnderlyingTypeSig = valueClassUnderlyingTypeSig
         self.sealedSubclassFQNames = sealedSubclassFQNames
         self.isExpect = isExpect
         self.isActual = isActual
+        self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
+        self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
+        self.abiReturnTypeSignature = abiReturnTypeSignature
+        self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
+        self.isMutable = isMutable
     }
 }
 
@@ -135,7 +208,11 @@ package final class MetadataEncoder {
         includeNonPublic: Bool = false,
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
-        excludedFileIDs: Set<Int32> = []
+        excludeSourceFileIDs: Set<Int32> = [],
+        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
+        objectInitializerLinkNames: [SymbolID: String] = [:],
+        companionInitializerLinkNames: [SymbolID: String] = [:],
+        enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -143,22 +220,50 @@ package final class MetadataEncoder {
                     return false
                 }
                 if !includeSynthetic && symbol.flags.contains(.synthetic) {
-                    if !(includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)) {
+                    let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
+                    let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
+                    if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
                         return false
+                    }
+                    // STDLIB-SHARED-012: Top-level synthetic classes generated during
+                    // lowering (e.g. SAM wrappers like `kk_sam_wrapper_*`) are not part
+                    // of the stdlib surface and must not survive into the artifact.
+                    if keepAsSyntheticNominalAnchor, symbol.fqName.count <= 1 {
+                        return false
+                    }
+                }
+                // STDLIB-SHARED-011: When synthetic functions are excluded, their child
+                // type/value parameters must also be excluded. Otherwise metadata leaks
+                // orphaned records like `List.toMap.K` that become spurious package
+                // symbols on the consumer side and block synthetic member re-registration.
+                // Source-backed declarations (e.g. bundled stdlib functions under a
+                // synthetic package stub) are still exported; only synthesized helpers
+                // without a source declSite are pruned by parent synthetics.
+                if !includeSynthetic, symbol.declSite == nil {
+                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    while let p = parentID, let parent = symbols.symbol(p) {
+                        if parent.flags.contains(.synthetic) {
+                            let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(parent.kind)
+                            let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && parent.kind == .typeAlias
+                            if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
+                                return false
+                            }
+                        }
+                        parentID = symbols.parentSymbol(for: p)
                     }
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
-                // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
-                // These are compiler internals and are always re-injected on every compilation.
-                if let declSite = symbol.declSite, excludedFileIDs.contains(declSite.start.file.rawValue) {
+                // STDLIB-SHARED-016: Compiler-generated enum static helpers
+                // (values/valueOf/entries) for non-public enum classes are not part
+                // of the stdlib surface and cannot be resolved on the consumer side.
+                if isNonPublicEnumStaticHelper(symbolID: symbol.id, symbols: symbols, interner: interner) {
                     return false
                 }
-                // Library metadata exports user module symbols only. Stdlib synthetic stubs
-                // (also/apply/charArrayOf/…) are re-registered on every compilation and must
-                // not be serialized into .kklib metadata.
-                if !excludedFileIDs.isEmpty, symbol.flags.contains(.synthetic) {
+                // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
+                // These are compiler internals and are always re-injected on every compilation.
+                if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
                     return false
                 }
                 return true
@@ -175,13 +280,14 @@ package final class MetadataEncoder {
                 return lhs.id.rawValue < rhs.id.rawValue
             }
 
+        let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
             let isSyntheticNominalAnchor = !includeSynthetic
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
                 && Self.nominalKinds.contains(symbol.kind)
-            records.append(buildRecord(
+            let built = buildRecord(
                 for: symbol,
                 symbols: symbols,
                 types: types,
@@ -189,8 +295,14 @@ package final class MetadataEncoder {
                 interner: interner,
                 functionLinkNames: functionLinkNames,
                 inlineFunctionSymbols: inlineFunctionSymbols,
-                metadataAnchorOnly: isSyntheticNominalAnchor
-            ))
+                metadataAnchorOnly: isSyntheticNominalAnchor,
+                runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
+                includedSymbolIDs: exportedSymbolIDs,
+                objectInitializerLinkNames: objectInitializerLinkNames,
+                companionInitializerLinkNames: companionInitializerLinkNames,
+                enumStaticInitLinkNames: enumStaticInitLinkNames
+            )
+            records.append(built)
         }
         return records
     }
@@ -379,7 +491,12 @@ package final class MetadataEncoder {
         interner: StringInterner,
         functionLinkNames: [SymbolID: String] = [:],
         inlineFunctionSymbols: Set<SymbolID> = [],
-        metadataAnchorOnly: Bool = false
+        metadataAnchorOnly: Bool = false,
+        runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
+        includedSymbolIDs: Set<SymbolID>? = nil,
+        objectInitializerLinkNames: [SymbolID: String] = [:],
+        companionInitializerLinkNames: [SymbolID: String] = [:],
+        enumStaticInitLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -391,29 +508,102 @@ package final class MetadataEncoder {
         )
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
 
+        // STDLIB-SHARED-014: Direct supertype FQ names are needed even for
+        // synthetic nominal anchors (e.g. List, Iterable) so that consumers
+        // can walk the type hierarchy during member-call fallback resolution.
+        let computedSuperFQName: String? = {
+            guard Self.nominalKinds.contains(symbol.kind) else { return nil }
+            let directSupertypeSymbols = symbols.directSupertypes(for: symbol.id)
+            let superFQNames = directSupertypeSymbols.compactMap { superSymbolID in
+                symbols.symbol(superSymbolID)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            }
+            return superFQNames.isEmpty ? nil : superFQNames.joined(separator: ",")
+        }()
+
         if metadataAnchorOnly {
-            return MetadataRecord(kind: symbol.kind, mangledName: mangled, fqName: fqName)
+            // Synthetic nominal anchors need kind/mangledName/fqName/flags plus
+            // supertype edges to round-trip. Layout is omitted because the
+            // consumer already reconstructs the nominal layout for these anchors.
+            return MetadataRecord(
+                kind: symbol.kind,
+                mangledName: mangled,
+                fqName: fqName,
+                superFQName: computedSuperFQName,
+                isDataClass: symbol.flags.contains(.dataType),
+                isSealedClass: symbol.flags.contains(.sealedType),
+                isFunInterface: symbol.flags.contains(.funInterface),
+                isValueClass: symbol.flags.contains(.valueType),
+                isExpect: symbol.flags.contains(.expectDeclaration),
+                isActual: symbol.flags.contains(.actualDeclaration)
+            )
         }
 
         var arity = 0
         var isSuspend = false
         var isInline = false
+        var isOperator = false
         var typeSignature: String?
+        var valueParameterIsVararg: [Bool] = []
+        var valueParameterHasDefaultValues: [Bool] = []
+        var canThrow = false
+        var valueParameterNames: [String] = []
+        var reifiedTypeParameterIndices: Set<Int> = []
+        var defaultStubExternalLinkName: String?
         var externalLinkName: String?
+        var abiReturnTypeSignature: String?
 
         if symbol.kind == .function || symbol.kind == .constructor, let signature = symbols.functionSignature(for: symbol.id) {
             arity = signature.parameterTypes.count
             isSuspend = signature.isSuspend
-            isInline = symbol.flags.contains(.inlineFunction) || inlineFunctionSymbols.contains(symbol.id)
+            // Only mark a record as inline when an actual inline KIR body was emitted.
+            // Source flags may be set for runtime-backed synthetic functions that have
+            // no KIR body, and those must not try to load a missing inline-kir file.
+            isInline = inlineFunctionSymbols.contains(symbol.id)
+            isOperator = symbol.flags.contains(.operatorFunction)
+            valueParameterIsVararg = signature.valueParameterIsVararg
+            valueParameterHasDefaultValues = signature.valueParameterHasDefaultValues
+            canThrow = signature.canThrow
+            valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
+                symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
+            }
+            reifiedTypeParameterIndices = signature.reifiedTypeParameterIndices
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
                 types: types,
                 nameResolver: { interner.resolve($0) }
             )
-            externalLinkName = functionLinkNames[symbol.id]
+            externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
+            if signature.valueParameterHasDefaultValues.contains(true) {
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
+                defaultStubExternalLinkName = functionLinkNames[stubSymbol] ?? symbols.externalLinkName(for: stubSymbol)
+            }
+            if runtimeCallbackRawReturnSymbolIDs.contains(symbol.id),
+               symbols.functionABIReturnType(for: symbol.id) == nil
+            {
+                abiReturnTypeSignature = metadataTypeSignature(
+                    types.intType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
+            if let abiReturnType = symbols.functionABIReturnType(for: symbol.id) {
+                abiReturnTypeSignature = metadataTypeSignature(
+                    abiReturnType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
         }
 
+        var propertyReceiverTypeSignature: String?
+        var propertyGetterExternalLinkName: String?
+        var propertyGetterAbiReturnTypeSignature: String?
+        var isMutable = false
         if symbol.kind == .property || symbol.kind == .field,
            symbols.propertyType(for: symbol.id) != nil
         {
@@ -426,6 +616,37 @@ package final class MetadataEncoder {
                     nameResolver: { interner.resolve($0) }
                 )
             }
+            propertyReceiverTypeSignature = symbols.extensionPropertyReceiverType(for: symbol.id).map { receiverType in
+                metadataTypeSignature(
+                    receiverType,
+                    symbols: symbols,
+                    types: types,
+                    mangler: mangler,
+                    nameResolver: { interner.resolve($0) }
+                )
+            }
+            // Properties with custom getters are lowered as accessor functions in
+            // the artifact objects. Record that function's link name so consumers
+            // can call the precompiled getter directly.
+            let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol.id)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id)
+            let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
+                || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
+            if hasCustomGetter,
+               let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
+               !linkName.isEmpty {
+                propertyGetterExternalLinkName = linkName
+                if runtimeCallbackRawReturnSymbolIDs.contains(getterSymbol) {
+                    propertyGetterAbiReturnTypeSignature = metadataTypeSignature(
+                        types.intType,
+                        symbols: symbols,
+                        types: types,
+                        mangler: mangler,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                }
+            }
+            isMutable = symbol.flags.contains(.mutable)
         }
 
         if symbol.kind == .typeAlias,
@@ -447,37 +668,54 @@ package final class MetadataEncoder {
         var declaredVtableSize: Int?
         var declaredItableSize: Int?
         var superFQName: String?
+        var companionObjectFQName: String?
         var fieldOffsetsStr: String?
         var vtableSlotsStr: String?
         var itableSlotsStr: String?
+        var objectInitializerLinkName: String?
+        var companionInitializerLinkName: String?
+        var enumStaticInitLinkName: String?
 
-        if Self.nominalKinds.contains(symbol.kind), let layout = symbols.nominalLayout(for: symbol.id) {
-            declaredInstanceSizeWords = layout.instanceSizeWords
-            declaredFieldCount = layout.instanceFieldCount
-            declaredVtableSize = layout.vtableSize
-            declaredItableSize = layout.itableSize
+        if Self.nominalKinds.contains(symbol.kind) {
+            superFQName = computedSuperFQName
+            if let layout = symbols.nominalLayout(for: symbol.id) {
+                declaredInstanceSizeWords = layout.instanceSizeWords
+                declaredFieldCount = layout.instanceFieldCount
+                declaredVtableSize = layout.vtableSize
+                declaredItableSize = layout.itableSize
 
-            let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner)
-            if !serializedFieldOffsets.isEmpty {
-                fieldOffsetsStr = serializedFieldOffsets
+                let serializedFieldOffsets = serializeFieldOffsets(layout.fieldOffsets, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                if !serializedFieldOffsets.isEmpty {
+                    fieldOffsetsStr = serializedFieldOffsets
+                }
+                let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs, mangler: mangler, types: types)
+                if !serializedVTableSlots.isEmpty {
+                    vtableSlotsStr = serializedVTableSlots
+                }
+                let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner, includedSymbolIDs: includedSymbolIDs)
+                if !serializedITableSlots.isEmpty {
+                    itableSlotsStr = serializedITableSlots
+                }
             }
-            let serializedVTableSlots = serializeVTableSlots(layout.vtableSlots, symbols: symbols, interner: interner)
-            if !serializedVTableSlots.isEmpty {
-                vtableSlotsStr = serializedVTableSlots
-            }
-            let serializedITableSlots = serializeITableSlots(layout.itableSlots, symbols: symbols, interner: interner)
-            if !serializedITableSlots.isEmpty {
-                itableSlotsStr = serializedITableSlots
-            }
-            if let superClass = layout.superClass,
-               let superSymbol = symbols.symbol(superClass)
+            if let companionSymbolID = symbols.companionObjectSymbol(for: symbol.id),
+               let includedSymbolIDs = includedSymbolIDs,
+               includedSymbolIDs.contains(companionSymbolID),
+               let companionSymbol = symbols.symbol(companionSymbolID)
             {
-                superFQName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                companionObjectFQName = companionSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            }
+            if symbol.kind == .object {
+                objectInitializerLinkName = objectInitializerLinkNames[symbol.id]
+            }
+            companionInitializerLinkName = companionInitializerLinkNames[symbol.id]
+            if symbol.kind == .enumClass {
+                enumStaticInitLinkName = enumStaticInitLinkNames[symbol.id]
             }
         }
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isSealedClass = symbol.flags.contains(.sealedType)
+        let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
         let rawIsValueClass = symbol.flags.contains(.valueType)
@@ -519,24 +757,41 @@ package final class MetadataEncoder {
             arity: arity,
             isSuspend: isSuspend,
             isInline: isInline,
+            isOperator: isOperator,
             typeSignature: typeSignature,
+            valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            canThrow: canThrow,
+            valueParameterNames: valueParameterNames,
+            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+            defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
             declaredFieldCount: declaredFieldCount,
             declaredInstanceSizeWords: declaredInstanceSizeWords,
             declaredVtableSize: declaredVtableSize,
             declaredItableSize: declaredItableSize,
             superFQName: superFQName,
+            companionObjectFQName: companionObjectFQName,
             fieldOffsets: fieldOffsetsStr,
             vtableSlots: vtableSlotsStr,
             itableSlots: itableSlotsStr,
+            objectInitializerLinkName: objectInitializerLinkName,
+            companionInitializerLinkName: companionInitializerLinkName,
+            enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isSealedClass: isSealedClass,
+            isFunInterface: isFunInterface,
             annotations: annotationEntries,
             isValueClass: isValueClass,
             valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
             sealedSubclassFQNames: sealedSubclassFQNames,
             isExpect: isExpect,
-            isActual: isActual
+            isActual: isActual,
+            propertyReceiverTypeSignature: propertyReceiverTypeSignature,
+            propertyGetterExternalLinkName: propertyGetterExternalLinkName,
+            abiReturnTypeSignature: abiReturnTypeSignature,
+            propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
+            isMutable: isMutable
         )
     }
 
@@ -564,16 +819,53 @@ package final class MetadataEncoder {
                 fields.append("arity=\(record.arity)")
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
+                fields.append("operator=\(record.isOperator ? 1 : 0)")
+                if !record.valueParameterIsVararg.isEmpty {
+                    let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
+                    fields.append("vararg=\(mask)")
+                }
+                if !record.valueParameterHasDefaultValues.isEmpty {
+                    let mask = record.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined()
+                    fields.append("default=\(mask)")
+                }
+                if record.canThrow {
+                    fields.append("canThrow=1")
+                }
+                if !record.valueParameterNames.isEmpty {
+                    fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
+                }
+                if !record.reifiedTypeParameterIndices.isEmpty {
+                    let indices = record.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ",")
+                    fields.append("reified=\(indices)")
+                }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
                 }
+                if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
+                    fields.append("defaultLink=\(linkName)")
+                }
                 if let linkName = record.externalLinkName, !linkName.isEmpty {
                     fields.append("link=\(linkName)")
+                }
+                if let abiSig = record.abiReturnTypeSignature {
+                    fields.append("abiSig=\(abiSig)")
                 }
             }
             if record.kind == .property || record.kind == .field {
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
+                }
+                if let recv = record.propertyReceiverTypeSignature {
+                    fields.append("recv=\(recv)")
+                }
+                if let getterLink = record.propertyGetterExternalLinkName, !getterLink.isEmpty {
+                    fields.append("getterLink=\(getterLink)")
+                }
+                if let getterAbiSig = record.propertyGetterAbiReturnTypeSignature {
+                    fields.append("getterAbiSig=\(getterAbiSig)")
+                }
+                if record.isMutable {
+                    fields.append("mutable=1")
                 }
             }
             if record.kind == .typeAlias {
@@ -606,12 +898,27 @@ package final class MetadataEncoder {
                 if let superFq = record.superFQName {
                     fields.append("superFq=\(superFq)")
                 }
+                if let companionFq = record.companionObjectFQName {
+                    fields.append("companionFq=\(companionFq)")
+                }
+                if let objectInitLink = record.objectInitializerLinkName, !objectInitLink.isEmpty {
+                    fields.append("objectInitLink=\(objectInitLink)")
+                }
+                if let companionInitLink = record.companionInitializerLinkName, !companionInitLink.isEmpty {
+                    fields.append("companionInitLink=\(companionInitLink)")
+                }
+                if let enumStaticInitLink = record.enumStaticInitLinkName, !enumStaticInitLink.isEmpty {
+                    fields.append("enumStaticInitLink=\(enumStaticInitLink)")
+                }
             }
             if record.isDataClass {
                 fields.append("dataClass=1")
             }
             if record.isSealedClass {
                 fields.append("sealedClass=1")
+            }
+            if record.isFunInterface {
+                fields.append("funInterface=1")
             }
             if record.isValueClass {
                 fields.append("valueClass=1")
@@ -639,10 +946,14 @@ package final class MetadataEncoder {
     func serializeFieldOffsets(
         _ offsets: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
         let pairs: [(String, Int)] = offsets.compactMap { symbolID, offset in
             guard let symbol = symbols.symbol(symbolID) else {
+                return nil
+            }
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -658,13 +969,52 @@ package final class MetadataEncoder {
         return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
     }
 
+    /// True for compiler-generated enum static helpers (`values`, `valueOf`,
+    /// `entries`) that belong to a non-public enum class.  These slots are not
+    /// reachable from consumer code and cannot be resolved on import, so they
+    /// should be omitted from serialized vtable/itable layouts.
+    private func isNonPublicEnumStaticHelper(
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = symbols.symbol(symbolID),
+              symbol.kind == .function
+        else {
+            return false
+        }
+        let name = interner.resolve(symbol.name)
+        guard name == "values" || name == "valueOf" || name == "entries" else {
+            return false
+        }
+        var ancestorID = symbols.parentSymbol(for: symbol.id)
+        while let ancestor = ancestorID, let ancestorSymbol = symbols.symbol(ancestor) {
+            if ancestorSymbol.kind == .enumClass {
+                return ancestorSymbol.visibility != .public
+            }
+            ancestorID = symbols.parentSymbol(for: ancestor)
+        }
+        return false
+    }
+
     func serializeVTableSlots(
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil,
+        mangler: NameMangler? = nil,
+        types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
+                return nil
+            }
+            // Vtable layout must survive the round-trip even for methods that are
+            // private or synthetic (e.g. Any.toString/hashCode/equals, internal
+            // helpers like Random.stepXorWow).  The consumer resolves each entry
+            // by FQ name/arity/type-signature so that overloaded methods with the
+            // same arity map to the correct slot.
+            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -674,25 +1024,51 @@ package final class MetadataEncoder {
             let signature = symbols.functionSignature(for: symbolID)
             let arity = signature?.parameterTypes.count ?? 0
             let isSuspend = signature?.isSuspend ?? false
-            let key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+            let typeSignature: String? = if let mangler, let types {
+                mangler.mangledSignature(
+                    for: symbol,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: { interner.resolve($0) }
+                )
+            } else {
+                nil
+            }
+            let key: String
+            if let typeSignature, !typeSignature.isEmpty {
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
+            } else {
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+            }
             return (key, slot)
         }
         let sorted = pairs.sorted { lhs, rhs in
             if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
             return lhs.0 < rhs.0
         }
-        return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
+        // Use `|` as the entry separator because the type-signature component
+        // of each key may contain commas (e.g. function parameter lists).
+        // Prefix with `v2:` so single-entry tokens are distinguishable from the
+        // legacy comma-separated format.
+        let body = sorted.map { "\($0.0)@\($0.1)" }.joined(separator: "|")
+        return "v2:\(body)"
     }
 
     func serializeITableSlots(
         _ slots: [SymbolID: Int],
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
             guard let symbol = symbols.symbol(symbolID) else {
                 return nil
             }
+            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
+                return nil
+            }
+            // ITable slot layout is part of the nominal type shape and must round-trip
+            // completely, even for synthetic or non-public interface supertypes.
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
@@ -776,24 +1152,41 @@ final class MetadataDecoder {
                 arity: rec.arity,
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
+                isOperator: rec.isOperator,
                 typeSignature: rec.typeSignature,
+                valueParameterIsVararg: rec.valueParameterIsVararg,
+                valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+                canThrow: rec.canThrow,
+                valueParameterNames: rec.valueParameterNames,
+                reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
+                defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
                 externalLinkName: rec.externalLinkName,
                 declaredFieldCount: rec.declaredFieldCount,
                 declaredInstanceSizeWords: rec.declaredInstanceSizeWords,
                 declaredVtableSize: rec.declaredVtableSize,
                 declaredItableSize: rec.declaredItableSize,
                 superFQName: rec.superFQName,
+                companionObjectFQName: rec.companionObjectFQName,
                 fieldOffsets: rec.fieldOffsets,
                 vtableSlots: rec.vtableSlots,
                 itableSlots: rec.itableSlots,
+                objectInitializerLinkName: rec.objectInitializerLinkName,
+                companionInitializerLinkName: rec.companionInitializerLinkName,
+                enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isSealedClass: rec.isSealedClass,
+                isFunInterface: rec.isFunInterface,
                 annotations: rec.annotations,
                 isValueClass: rec.isValueClass,
                 valueClassUnderlyingTypeSig: rec.valueClassUnderlyingTypeSig,
                 sealedSubclassFQNames: rec.sealedSubclassFQNames,
                 isExpect: rec.isExpect,
-                isActual: rec.isActual
+                isActual: rec.isActual,
+                propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
+                propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
+                abiReturnTypeSignature: rec.abiReturnTypeSignature,
+                propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
+                isMutable: rec.isMutable
             ))
         }
         return records
@@ -807,24 +1200,41 @@ final class MetadataDecoder {
         var arity: Int = 0
         var isSuspend: Bool = false
         var isInline: Bool = false
+        var isOperator: Bool = false
         var typeSignature: String?
+        var valueParameterIsVararg: [Bool] = []
+        var valueParameterHasDefaultValues: [Bool] = []
+        var canThrow: Bool = false
+        var valueParameterNames: [String] = []
+        var reifiedTypeParameterIndices: Set<Int> = []
+        var defaultStubExternalLinkName: String?
         var externalLinkName: String?
         var declaredFieldCount: Int?
         var declaredInstanceSizeWords: Int?
         var declaredVtableSize: Int?
         var declaredItableSize: Int?
         var superFQName: String?
+        var companionObjectFQName: String?
         var fieldOffsets: String?
         var vtableSlots: String?
         var itableSlots: String?
+        var objectInitializerLinkName: String?
+        var companionInitializerLinkName: String?
+        var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isSealedClass: Bool = false
+        var isFunInterface: Bool = false
         var isValueClass: Bool = false
         var valueClassUnderlyingTypeSig: String?
         var annotations: [MetadataAnnotationRecord] = []
         var sealedSubclassFQNames: [String] = []
         var isExpect: Bool = false
         var isActual: Bool = false
+        var propertyReceiverTypeSignature: String?
+        var propertyGetterExternalLinkName: String?
+        var abiReturnTypeSignature: String?
+        var propertyGetterAbiReturnTypeSignature: String?
+        var isMutable: Bool = false
         var schemaVersion: String?
     }
 
@@ -838,6 +1248,22 @@ final class MetadataDecoder {
             record.isSuspend = value == "1" || value == "true"
         case "inline":
             record.isInline = value == "1" || value == "true"
+        case "operator":
+            record.isOperator = value == "1" || value == "true"
+        case "vararg":
+            record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "default":
+            record.valueParameterHasDefaultValues = value.map { $0 == "1" }
+        case "canThrow":
+            record.canThrow = value == "1" || value == "true"
+        case "paramNames":
+            record.valueParameterNames = value.split(separator: ",").map(String.init)
+        case "reified":
+            record.reifiedTypeParameterIndices = Set(
+                value.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            )
+        case "defaultLink":
+            record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":
             record.typeSignature = value.isEmpty ? nil : value
         case "link":
@@ -852,16 +1278,26 @@ final class MetadataDecoder {
             record.declaredItableSize = Int(value)
         case "superFq":
             record.superFQName = value.isEmpty ? nil : value
+        case "companionFq":
+            record.companionObjectFQName = value.isEmpty ? nil : value
         case "fieldOffsets":
             record.fieldOffsets = value.isEmpty ? nil : value
         case "vtableSlots":
             record.vtableSlots = value.isEmpty ? nil : value
         case "itableSlots":
             record.itableSlots = value.isEmpty ? nil : value
+        case "objectInitLink":
+            record.objectInitializerLinkName = value.isEmpty ? nil : value
+        case "companionInitLink":
+            record.companionInitializerLinkName = value.isEmpty ? nil : value
+        case "enumStaticInitLink":
+            record.enumStaticInitLinkName = value.isEmpty ? nil : value
         case "dataClass":
             record.isDataClass = value == "1" || value == "true"
         case "sealedClass":
             record.isSealedClass = value == "1" || value == "true"
+        case "funInterface":
+            record.isFunInterface = value == "1" || value == "true"
         case "valueClass":
             record.isValueClass = value == "1" || value == "true"
         case "valueUnderlying":
@@ -874,6 +1310,16 @@ final class MetadataDecoder {
             record.isExpect = value == "1" || value == "true"
         case "actual":
             record.isActual = value == "1" || value == "true"
+        case "recv":
+            record.propertyReceiverTypeSignature = value.isEmpty ? nil : value
+        case "getterLink":
+            record.propertyGetterExternalLinkName = value.isEmpty ? nil : value
+        case "getterAbiSig":
+            record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
+        case "mutable":
+            record.isMutable = value == "1" || value == "true"
+        case "abiSig":
+            record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":
             record.schemaVersion = value
         default:
@@ -923,5 +1369,36 @@ final class MetadataDecoder {
 
     func symbolKindFromMetadata(_ token: String) -> SymbolKind? {
         symbolKindFromMetadataToken(token)
+    }
+}
+
+// MARK: - Inline KIR Filename Helpers
+
+extension String {
+    /// FNV-1a 64-bit hash used to derive a stable, filesystem-safe filename
+    /// from an arbitrary mangled name.
+    package var fnv1a64Hash: UInt64 {
+        let offset: UInt64 = 14695981039346656037
+        let prime: UInt64 = 1099511628211
+        var hash = offset
+        for byte in self.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* prime
+        }
+        return hash
+    }
+}
+
+extension MetadataEncoder {
+    /// Returns the inline-KIR filename for a mangled symbol name.
+    /// Short, filesystem-safe names are preserved; long or non-alphanumeric
+    /// mangled names are hashed to avoid exceeding filesystem path limits.
+    package static func inlineKIRFileName(for mangledName: String) -> String {
+        let safePattern = "^[A-Za-z0-9_-]+$"
+        let isSafe = mangledName.range(of: safePattern, options: .regularExpression) != nil
+        if isSafe && mangledName.count <= 64 {
+            return "\(mangledName).kirbin"
+        }
+        return "\(mangledName.fnv1a64Hash).kirbin"
     }
 }
