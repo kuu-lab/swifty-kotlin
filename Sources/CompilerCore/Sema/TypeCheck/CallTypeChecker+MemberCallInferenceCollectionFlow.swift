@@ -145,8 +145,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -184,8 +183,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -222,7 +220,9 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
-            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver) && args.isEmpty else {
+            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver),
+                  !isArrayReceiver,
+                  args.isEmpty else {
                 return false
             }
             guard interner.resolve(calleeName) == "asSequence" else {
@@ -236,8 +236,7 @@ extension CallTypeChecker {
                 if let chosenCallee = sema.symbols.lookupAll(fqName: packageFQName + [calleeName]).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -348,8 +347,7 @@ extension CallTypeChecker {
             guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      symbol.declSite != nil,
-                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
@@ -457,7 +455,7 @@ extension CallTypeChecker {
                let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
-                         !symbol.flags.contains(.synthetic),
+                         sema.symbols.isSourceBackedSymbol(candidate),
                          let signature = sema.symbols.functionSignature(for: candidate),
                          signature.parameterTypes.isEmpty,
                          signature.receiverType != nil
@@ -607,7 +605,7 @@ extension CallTypeChecker {
                        // non-List collection fallbacks (Map.filter, etc.) aren't
                        // incorrectly bound to the List-only bundled function.
                        if let signatureReceiver = signature.receiverType,
-                          (sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(symbolID),
                           receiverClassifier.isConcreteListLikeType(signatureReceiver),
                           !receiverClassifier.isConcreteListLikeType(receiverType) {
                            return false
@@ -729,8 +727,7 @@ extension CallTypeChecker {
                 if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -1010,8 +1007,7 @@ extension CallTypeChecker {
                 guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
                     guard let symbol = sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          sema.symbols.isSourceBackedSymbol(candidate),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == args.count,
                           let signatureReceiver = signature.receiverType
@@ -1062,8 +1058,7 @@ extension CallTypeChecker {
                     if let candidate = candidates.first(where: { candidate in
                         guard let symbol = sema.symbols.symbol(candidate),
                               symbol.kind == .function,
-                              symbol.declSite != nil,
-                              (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                              sema.symbols.isSourceBackedSymbol(candidate),
                               let signature = sema.symbols.functionSignature(for: candidate),
                               signature.parameterTypes.count == args.count,
                               let signatureReceiver = signature.receiverType

@@ -64,6 +64,13 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: &allTopLevelInitInstructions
         )
 
+        appendImportedLibraryInitializerCalls(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &allTopLevelInitInstructions
+        )
+
         postProcessTopLevelInitializersAndDelegates(
             ast: ast,
             sema: sema,
@@ -82,6 +89,12 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> Bool {
         guard compilationCtx.sourceManager.origin(of: file.fileID)?.isBundledStdlib == true else {
+            return false
+        }
+
+        // When emitting a dedicated stdlib .kklib, the bundled/residual source
+        // bodies must be lowered into objects and inline-KIR artifacts.
+        if compilationCtx.options.stdlibOnly {
             return false
         }
 
@@ -305,6 +318,47 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions.append(
                 .copy(from: result, to: storage)
             )
+        }
+    }
+
+    private func appendImportedLibraryInitializerCalls(
+        arena: KIRArena,
+        sema: SemaModule,
+        interner: StringInterner,
+        allTopLevelInitInstructions: inout KIRLoweringEmitContext
+    ) {
+        func appendInitializer(_ initializerSymbol: SymbolID?) {
+            guard let initializerSymbol else { return }
+            guard let externalLinkName = sema.symbols.externalLinkName(for: initializerSymbol),
+                  !externalLinkName.isEmpty
+            else {
+                return
+            }
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            allTopLevelInitInstructions.append(
+                .call(
+                    symbol: initializerSymbol,
+                    callee: interner.intern(externalLinkName),
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+        }
+
+        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            switch symbol.kind {
+            case .object:
+                appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))
+            case .class, .interface, .annotationClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+            case .enumClass:
+                appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
+                appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
+            default:
+                break
+            }
         }
     }
 
