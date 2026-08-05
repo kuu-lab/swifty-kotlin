@@ -1,9 +1,12 @@
-import XCTest
 @testable import CompilerCore
 @testable import CompilerBackend
+#if canImport(Testing)
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenListIntersectUsesRuntimeHelper() throws {
+@Suite
+struct CodegenBackendCollectionIntersectTests {
+    @Test
+    func codegenListIntersectUsesRuntimeHelper() throws {
         let source = """
         fun main() {
             val result = listOf(1, 2, 2, 3, 4).intersect(listOf(2, 4, 5))
@@ -15,11 +18,11 @@ extension CodegenBackendIntegrationTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ListIntersectRuntime", emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_list_intersect"))
+            #expect(callees.contains("kk_list_intersect"))
         }
     }
 }
-
+#endif

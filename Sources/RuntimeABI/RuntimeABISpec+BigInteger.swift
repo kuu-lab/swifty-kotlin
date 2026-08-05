@@ -118,7 +118,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_biginteger_toString",
+            name: "__kk_biginteger_toString",
             parameters: [
                 RuntimeABIParameter(name: "self", type: .intptr),
             ],

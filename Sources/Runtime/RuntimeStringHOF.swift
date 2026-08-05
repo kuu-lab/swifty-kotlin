@@ -67,12 +67,7 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { Int($0) }
-    let box = RuntimeStringIteratorBox(charRaws: charRaws)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(RuntimeStringIteratorBox(charRaws: charRaws))
 }
 
 @_cdecl("kk_string_iterator_hasNext")

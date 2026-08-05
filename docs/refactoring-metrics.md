@@ -112,6 +112,10 @@ Median bundled stdlib injection cost: **36.05 ms**.
 
 Cache work trigger: start bundled stdlib caching when the same local/debug measurement regresses by **+100 ms** or more from this baseline, i.e. median total `>= 136.05 ms`. RF-STDLIB-006 did not add the `IncrementalCompilationCache` pre-parse path because the measured overhead is below the trigger.
 
+The same measurement script also reports the stdlib-only `.kklib` build time and the
+shared candidate compile time for `hello.kt` with `--no-stdlib --stdlib-library <artifact>`.
+These are used to verify the diff runner speed-up before switching CI to the shared path.
+
 ## Migration API Runtime Benchmark
 
 KSP-INF-007 baseline captured on 2026-07-23 with a debug `kswiftc` build on Linux (x86_64).

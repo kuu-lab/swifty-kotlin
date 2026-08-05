@@ -55,6 +55,9 @@ struct MetadataSerializerTests {
         #expect(record.valueClassUnderlyingTypeSig == nil)
         #expect(record.sealedSubclassFQNames.isEmpty)
         #expect(record.annotations.isEmpty)
+        #expect(record.propertyReceiverTypeSignature == nil)
+        #expect(record.propertyGetterExternalLinkName == nil)
+        #expect(!record.isMutable)
     }
 
     @Test func testMetadataRecordWithAllFields() {
@@ -80,7 +83,10 @@ struct MetadataSerializerTests {
             annotations: [MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated")],
             isValueClass: true,
             valueClassUnderlyingTypeSig: "I",
-            sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"]
+            sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"],
+            propertyReceiverTypeSignature: "Lkotlin/reflect/KClass<*>;",
+            propertyGetterExternalLinkName: "kk_fn_get_abc",
+            isMutable: true
         )
         #expect(record.kind == .class)
         #expect(record.mangledName == "_KK_mod__Foo__C__abc")
@@ -101,6 +107,9 @@ struct MetadataSerializerTests {
         #expect(record.valueClassUnderlyingTypeSig == "I")
         #expect(record.sealedSubclassFQNames == ["com.example.SubA", "com.example.SubB"])
         #expect(record.annotations.count == 1)
+        #expect(record.propertyReceiverTypeSignature == "Lkotlin/reflect/KClass<*>;")
+        #expect(record.propertyGetterExternalLinkName == "kk_fn_get_abc")
+        #expect(record.isMutable)
     }
 
     // MARK: - MetadataAnnotationRecord
