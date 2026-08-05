@@ -33,6 +33,8 @@ extension CoroutineLoweringPass {
         let sequenceBuilderBuildCallee: InternedString
         let sequenceBuilderBuildCoroCallee: InternedString
         let sequenceBuilderYieldAllCallee: InternedString
+        let sequenceBuilderYieldCallee: InternedString
+        let sequenceClassSymbol: SymbolID?
         let iteratorBuilderBuildCallee: InternedString
         let iteratorBuilderBuildCoroCallee: InternedString
         let sequenceBuilderThunkByOriginalSymbol: [SymbolID: LoweredSuspendFunction]
@@ -1057,15 +1059,6 @@ extension CoroutineLoweringPass {
         let producerLoweredTarget = producer?.lowered ?? loweredTarget
 
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
-           loweredFunctionContainsCallee(
-               symbol: producerLoweredTarget.symbol,
-               callee: rewrite.sequenceBuilderYieldAllCallee,
-               module: rewrite.module
-           )
-        {
-            return nil
-        }
-        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
            loweredFunctionContainsAnyCallee(
                symbol: producerLoweredTarget.symbol,
                callees: [
@@ -1093,15 +1086,52 @@ extension CoroutineLoweringPass {
         {
             return nil
         }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldCallee,
+               module: rewrite.module
+           ),
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: producerLoweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
+           ),
+           !loweredFunctionContainsYieldAllOfSequence(
+               symbol: producerLoweredTarget.symbol,
+               module: rewrite.module,
+               using: rewrite
+           )
+        {
+            return nil
+        }
 
-        let entryPointSymbol = producer?.entryPoint ?? entryPointSymbol(
-            for: producerOriginalSymbol,
-            loweredTarget: producerLoweredTarget,
-            hasLauncherArg: true,
-            using: rewrite
-        )
+        let chosenEntryPoint: SymbolID
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           let producerEntryPoint = producer?.entryPoint {
+            chosenEntryPoint = producerEntryPoint
+        } else if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+                  let builderThunk = rewrite.sequenceBuilderThunkByOriginalSymbol[producerOriginalSymbol] {
+            chosenEntryPoint = builderThunk.symbol
+        } else {
+            chosenEntryPoint = entryPointSymbol(
+                for: producerOriginalSymbol,
+                loweredTarget: producerLoweredTarget,
+                hasLauncherArg: true,
+                using: rewrite
+            )
+        }
         let entryPointExpr = rewrite.module.arena.appendExpr(
-            .symbolRef(entryPointSymbol),
+            .symbolRef(chosenEntryPoint),
             type: rewrite.intType
         )
         let functionIDExpr = rewrite.module.arena.appendExpr(
@@ -1215,6 +1245,53 @@ extension CoroutineLoweringPass {
             return nil
         }
         return candidates[0]
+    }
+
+    private func loweredFunctionContainsYieldAllOfSequence(
+        symbol: SymbolID,
+        module: KIRModule,
+        using rewrite: SuspendRewriteContext
+    ) -> Bool {
+        guard let sequenceClassSymbol = rewrite.sequenceClassSymbol,
+              let types = rewrite.ctx.sema?.types
+        else {
+            return false
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == symbol
+            else {
+                continue
+            }
+            for instruction in function.body {
+                let callSymbol: SymbolID?
+                let instructionCallee: InternedString
+                switch instruction {
+                case let .call(sym, callee, _, _, _, _, _, _):
+                    callSymbol = sym
+                    instructionCallee = callee
+                case let .virtualCall(sym, callee, _, _, _, _, _, _):
+                    callSymbol = sym
+                    instructionCallee = callee
+                default:
+                    continue
+                }
+                guard instructionCallee == rewrite.sequenceBuilderYieldAllCallee,
+                      let callSymbol,
+                      let calleeFunction = module.arena.function(for: callSymbol),
+                      let firstParamType = calleeFunction.params.first?.type
+                else {
+                    continue
+                }
+                let normalizedType = types.makeNonNullable(firstParamType)
+                if case let .classType(classType) = types.kind(of: normalizedType),
+                   classType.classSymbol == sequenceClassSymbol {
+                    return true
+                }
+            }
+            return false
+        }
+        return false
     }
 
     private func loweredFunctionContainsCallee(
