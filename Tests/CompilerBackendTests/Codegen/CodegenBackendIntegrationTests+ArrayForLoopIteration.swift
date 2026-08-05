@@ -67,24 +67,27 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ArrayForLoopContinueAndBreak", expected: "1\n3\n")
     }
 
-    func testSizedInitializerArrayForLoopIteration() throws {
+    func testSizedInitializerPrimitiveFlavorAndNestedArrayForLoopIteration() throws {
         let source = """
+        fun sumInts(values: IntArray): Int {
+            var total = 0
+            for (v in values) {
+                total += v
+            }
+            return total
+        }
+
+        fun <T> firstOrNullOf(items: Array<T>): T? {
+            for (item in items) {
+                return item
+            }
+            return null
+        }
+
         fun main() {
             for (x in IntArray(4) { it * it }) {
                 println(x)
             }
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "SizedInitializerArrayForLoopIteration",
-            expected: "0\n1\n4\n9\n"
-        )
-    }
-
-    func testPrimitiveArrayFlavorsForLoopIteration() throws {
-        let source = """
-        fun main() {
             for (x in longArrayOf(100L, 200L)) {
                 println(x)
             }
@@ -103,33 +106,6 @@ extension CodegenBackendIntegrationTests {
             for (x in shortArrayOf(7, 8)) {
                 println(x)
             }
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "PrimitiveArrayFlavorsForLoopIteration",
-            expected: "100\n200\n1.5\n2.5\n1.5\n2.5\ntrue\nfalse\nx\ny\n7\n8\n"
-        )
-    }
-
-    func testArrayParameterAndNestedArrayForLoopIteration() throws {
-        let source = """
-        fun sumInts(values: IntArray): Int {
-            var total = 0
-            for (v in values) {
-                total += v
-            }
-            return total
-        }
-
-        fun <T> firstOrNullOf(items: Array<T>): T? {
-            for (item in items) {
-                return item
-            }
-            return null
-        }
-
-        fun main() {
             for (inner in arrayOf(intArrayOf(1, 2), intArrayOf(3))) {
                 for (v in inner) {
                     println(v)
@@ -141,8 +117,8 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinOutput(
             source,
-            moduleName: "ArrayParameterAndNestedArrayForLoopIteration",
-            expected: "1\n2\n3\n10\np\n"
+            moduleName: "SizedInitializerPrimitiveFlavorAndNestedArrayForLoopIteration",
+            expected: "0\n1\n4\n9\n100\n200\n1.5\n2.5\n1.5\n2.5\ntrue\nfalse\nx\ny\n7\n8\n1\n2\n3\n10\np\n"
         )
     }
 
