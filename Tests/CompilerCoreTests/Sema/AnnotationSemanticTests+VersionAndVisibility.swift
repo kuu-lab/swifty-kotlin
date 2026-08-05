@@ -7,64 +7,416 @@ import Testing
 /// version- and visibility-related annotation tests, split out from
 /// `AnnotationSemanticTests` to keep each test source under ~1500 lines.
 extension AnnotationSemanticTests {
-    @Test func testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets() throws {
-        let source = """
-        class Host
-        """
 
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
 
-        let sema = try #require(ctx.sema)
-        let sinceKotlinFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("SinceKotlin"),
+
+    @Test func testAnnotationSemanticVersionAndVisibilitySurfaceRegistrations() throws {
+        let sources: [String] = [
+            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
+            """
+            package sample0
+            class Host
+            """,
+            // testDslMarkerSurfaceHasDocumentedMetadata
+            """
+            package sample1
+            fun noop() {}
+            """,
+            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
+            """
+            package sample2
+            class Host
+            """,
+            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
+            """
+            package sample3
+            class Host
+            """,
+            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
+            """
+            package sample4
+            class Host
+            """,
+            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
+            """
+            package sample5
+            annotation class ExperimentalApi
+            """,
+            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
+            """
+            package sample6
+            annotation class ExperimentalApi
+            """,
+            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
+            """
+            package sample7
+            fun noop() {}
+            """
         ]
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: sinceKotlinFQName),
-            "kotlin.SinceKotlin must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v0 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.FIELD",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
+            let sema = try #require(ctx.sema)
+
+            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
+            do {
+            let sinceKotlinFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("SinceKotlin"),
+            ]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: sinceKotlinFQName),
+                "kotlin.SinceKotlin must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v0 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.FIELD",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            }
+            #expect(
+                v0,
+                "SinceKotlin should carry declaration target metadata, got: \(annotations)"
+            )
+
+            let versionSymbol = try #require(
+                sema.symbols.lookup(fqName: sinceKotlinFQName + [ctx.interner.intern("version")]),
+                "SinceKotlin.version property must be registered"
+            )
+            #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
+
+            let constructors = sema.symbols.lookupAll(fqName: sinceKotlinFQName + [ctx.interner.intern("<init>")])
+            let constructorSignature = try #require(
+                constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
+                    signature.parameterTypes == [sema.types.stringType]
+                },
+                "SinceKotlin(version: String) constructor must be registered"
+            )
+            #expect(constructorSignature.valueParameterSymbols.count == 1)
+            let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+            #expect(ctx.interner.resolve(parameter.name) == "version")
+
+            }
+            // testDslMarkerSurfaceHasDocumentedMetadata
+            do {
+            let dslMarkerFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("DslMarker"),
+            ]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: dslMarkerFQName),
+                "kotlin.DslMarker must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v2 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+            }
+            #expect(
+                v2,
+                "DslMarker should target annotation classes, got: \(annotations)"
+            )
+            let v3 = annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+            #expect(
+                v3,
+                "DslMarker should carry binary retention, got: \(annotations)"
+            )
+            let v4 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
+            #expect(
+                v4,
+                "DslMarker should carry MustBeDocumented, got: \(annotations)"
+            )
+            let v5 = annotations.contains {
+                KnownCompilerAnnotation.sinceKotlin.matches($0.annotationFQName)
+                    && $0.arguments == ["1.1"]
+            }
+            #expect(
+                v5,
+                "DslMarker should carry SinceKotlin(1.1), got: \(annotations)"
+            )
+
+            }
+            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
+            do {
+            let introducedAtFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("IntroducedAt"),
+            ]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: introducedAtFQName),
+                "kotlin.IntroducedAt must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v7 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.VALUE_PARAMETER"]
+            }
+            #expect(
+                v7,
+                "IntroducedAt should target value parameters, got: \(annotations)"
+            )
+            let v8 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
+            #expect(
+                v8,
+                "IntroducedAt should be documented in the public API, got: \(annotations)"
+            )
+            let v9 = annotations.contains {
+                KnownCompilerAnnotation.experimentalVersionOverloading.matches($0.annotationFQName)
+            }
+            #expect(
+                v9,
+                "IntroducedAt should require ExperimentalVersionOverloading opt-in, got: \(annotations)"
+            )
+
+            let versionSymbol = try #require(
+                sema.symbols.lookup(fqName: introducedAtFQName + [ctx.interner.intern("version")]),
+                "IntroducedAt.version property must be registered"
+            )
+            #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
+
+            let constructors = sema.symbols.lookupAll(fqName: introducedAtFQName + [ctx.interner.intern("<init>")])
+            let constructorSignature = try #require(
+                constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
+                    signature.parameterTypes == [sema.types.stringType]
+                },
+                "IntroducedAt(version: String) constructor must be registered"
+            )
+            #expect(constructorSignature.valueParameterSymbols.count == 1)
+            let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+            #expect(ctx.interner.resolve(parameter.name) == "version")
+
+            }
+            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
+            do {
+            let optionalExpectationFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("OptionalExpectation"),
+            ]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: optionalExpectationFQName),
+                "kotlin.OptionalExpectation must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v11 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+            }
+            #expect(
+                v11,
+                "OptionalExpectation should target annotation classes, got: \(annotations)"
+            )
+            let v12 = annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" }
+            #expect(
+                v12,
+                "OptionalExpectation should require ExperimentalMultiplatform opt-in, got: \(annotations)"
+            )
+
+            }
+            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
+            do {
+            let throwsFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("Throws"),
+            ]
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: throwsFQName),
+                "kotlin.Throws must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v14 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.CONSTRUCTOR",
+                    ]
+            }
+            #expect(
+                v14,
+                "Throws should carry function/getter/setter/constructor target metadata, got: \(annotations)"
+            )
+
+            let exceptionClassesSymbol = try #require(
+                sema.symbols.lookup(fqName: throwsFQName + [ctx.interner.intern("exceptionClasses")]),
+                "Throws.exceptionClasses property must be registered"
+            )
+            let exceptionClassesType = try #require(sema.symbols.propertyType(for: exceptionClassesSymbol))
+            try assertArrayOfOutThrowableKClass(exceptionClassesType, in: sema, interner: ctx.interner)
+
+            let constructors = sema.symbols.lookupAll(fqName: throwsFQName + [ctx.interner.intern("<init>")])
+            let constructorSignature = try #require(
+                constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
+                    signature.valueParameterIsVararg == [true]
+                        && signature.valueParameterSymbols.count == 1
+                },
+                "Throws(vararg exceptionClasses: KClass<out Throwable>) constructor must be registered"
+            )
+            try assertThrowableKClass(constructorSignature.parameterTypes[0], in: sema, interner: ctx.interner)
+            let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+            #expect(ctx.interner.resolve(parameter.name) == "exceptionClasses")
+
+            }
+            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
+            do {
+            let mustBeDocumentedFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("annotation"),
+                ctx.interner.intern("MustBeDocumented"),
+            ]
+            let symbolID = try #require(sema.symbols.lookup(fqName: mustBeDocumentedFQName))
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbol.id)
+            let v18 = annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Target"
+                        && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+                }
+            )
+            #expect(
+                v18,
+                "Expected MustBeDocumented to carry @Target(AnnotationTarget.ANNOTATION_CLASS), got: \(annotations)"
+            )
+
+            }
+            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
+            do {
+            let fqName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("contracts"),
+                ctx.interner.intern("ExperimentalContracts"),
+            ]
+            let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbol.id)
+            let v20 = annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Target"
+                        && $0.arguments == [
+                            "AnnotationTarget.CLASS",
+                            "AnnotationTarget.FUNCTION",
+                            "AnnotationTarget.PROPERTY",
+                            "AnnotationTarget.TYPEALIAS",
+                        ]
+                }
+            )
+            #expect(
+                v20,
+                "Expected ExperimentalContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
+            )
+            let v21 = annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Retention"
+                        && $0.arguments == ["AnnotationRetention.BINARY"]
+                }
+            )
+            #expect(
+                v21,
+                "Expected ExperimentalContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
+            )
+
+            }
+            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
+            do {
+            let fqName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("contracts"),
+                ctx.interner.intern("ExperimentalExtendedContracts"),
+            ]
+            let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: symbol.id)
+            let v22 = annotations.contains { $0.annotationFQName == "kotlin.RequiresOptIn" }
+            #expect(
+                v22,
+                "Expected ExperimentalExtendedContracts to carry @RequiresOptIn, got: \(annotations)"
+            )
+            let v23 = annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Target"
+                        && $0.arguments == [
+                            "AnnotationTarget.CLASS",
+                            "AnnotationTarget.FUNCTION",
+                            "AnnotationTarget.PROPERTY",
+                            "AnnotationTarget.TYPEALIAS",
+                        ]
+                }
+            )
+            #expect(
+                v23,
+                "Expected ExperimentalExtendedContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
+            )
+            let v24 = annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Retention"
+                        && $0.arguments == ["AnnotationRetention.BINARY"]
+                }
+            )
+            #expect(
+                v24,
+                "Expected ExperimentalExtendedContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
+            )
+
+            }
         }
-        #expect(
-            v0,
-            "SinceKotlin should carry declaration target metadata, got: \(annotations)"
-        )
-
-        let versionSymbol = try #require(
-            sema.symbols.lookup(fqName: sinceKotlinFQName + [ctx.interner.intern("version")]),
-            "SinceKotlin.version property must be registered"
-        )
-        #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
-
-        let constructors = sema.symbols.lookupAll(fqName: sinceKotlinFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try #require(
-            constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
-                signature.parameterTypes == [sema.types.stringType]
-            },
-            "SinceKotlin(version: String) constructor must be registered"
-        )
-        #expect(constructorSignature.valueParameterSymbols.count == 1)
-        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        #expect(ctx.interner.resolve(parameter.name) == "version")
     }
 
     @Test func testSinceKotlinAcceptsDocumentedDeclarationTargets() {
@@ -103,55 +455,6 @@ extension AnnotationSemanticTests {
         #expect(v1, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testDslMarkerSurfaceHasDocumentedMetadata() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let dslMarkerFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("DslMarker"),
-        ]
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: dslMarkerFQName),
-            "kotlin.DslMarker must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v2 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-        }
-        #expect(
-            v2,
-            "DslMarker should target annotation classes, got: \(annotations)"
-        )
-        let v3 = annotations.contains {
-            $0.annotationFQName == "kotlin.annotation.Retention"
-                && $0.arguments == ["AnnotationRetention.BINARY"]
-        }
-        #expect(
-            v3,
-            "DslMarker should carry binary retention, got: \(annotations)"
-        )
-        let v4 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
-        #expect(
-            v4,
-            "DslMarker should carry MustBeDocumented, got: \(annotations)"
-        )
-        let v5 = annotations.contains {
-            KnownCompilerAnnotation.sinceKotlin.matches($0.annotationFQName)
-                && $0.arguments == ["1.1"]
-        }
-        #expect(
-            v5,
-            "DslMarker should carry SinceKotlin(1.1), got: \(annotations)"
-        )
-    }
 
     @Test func testDslMarkerAcceptsAnnotationClassTarget() {
         let source = """
@@ -179,68 +482,6 @@ extension AnnotationSemanticTests {
         #expect(v6, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget() throws {
-        let source = """
-        class Host
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let introducedAtFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("IntroducedAt"),
-        ]
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: introducedAtFQName),
-            "kotlin.IntroducedAt must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v7 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.VALUE_PARAMETER"]
-        }
-        #expect(
-            v7,
-            "IntroducedAt should target value parameters, got: \(annotations)"
-        )
-        let v8 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
-        #expect(
-            v8,
-            "IntroducedAt should be documented in the public API, got: \(annotations)"
-        )
-        let v9 = annotations.contains {
-            KnownCompilerAnnotation.experimentalVersionOverloading.matches($0.annotationFQName)
-        }
-        #expect(
-            v9,
-            "IntroducedAt should require ExperimentalVersionOverloading opt-in, got: \(annotations)"
-        )
-
-        let versionSymbol = try #require(
-            sema.symbols.lookup(fqName: introducedAtFQName + [ctx.interner.intern("version")]),
-            "IntroducedAt.version property must be registered"
-        )
-        #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
-
-        let constructors = sema.symbols.lookupAll(fqName: introducedAtFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try #require(
-            constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
-                signature.parameterTypes == [sema.types.stringType]
-            },
-            "IntroducedAt(version: String) constructor must be registered"
-        )
-        #expect(constructorSignature.valueParameterSymbols.count == 1)
-        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        #expect(ctx.interner.resolve(parameter.name) == "version")
-    }
 
     @Test func testIntroducedAtAllowsValueParameterUse() {
         let source = """
@@ -267,44 +508,6 @@ extension AnnotationSemanticTests {
         #expect(v10, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental() throws {
-        let source = """
-        class Host
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let optionalExpectationFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("OptionalExpectation"),
-        ]
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: optionalExpectationFQName),
-            "kotlin.OptionalExpectation must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v11 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-        }
-        #expect(
-            v11,
-            "OptionalExpectation should target annotation classes, got: \(annotations)"
-        )
-        let v12 = annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" }
-        #expect(
-            v12,
-            "OptionalExpectation should require ExperimentalMultiplatform opt-in, got: \(annotations)"
-        )
-    }
 
     @Test func testOptionalExpectationAcceptsAnnotationClassTarget() {
         let source = """
@@ -333,63 +536,6 @@ extension AnnotationSemanticTests {
         #expect(v13, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets() throws {
-        let source = """
-        class Host
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let throwsFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("Throws"),
-        ]
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: throwsFQName),
-            "kotlin.Throws must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v14 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == [
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.CONSTRUCTOR",
-                ]
-        }
-        #expect(
-            v14,
-            "Throws should carry function/getter/setter/constructor target metadata, got: \(annotations)"
-        )
-
-        let exceptionClassesSymbol = try #require(
-            sema.symbols.lookup(fqName: throwsFQName + [ctx.interner.intern("exceptionClasses")]),
-            "Throws.exceptionClasses property must be registered"
-        )
-        let exceptionClassesType = try #require(sema.symbols.propertyType(for: exceptionClassesSymbol))
-        try assertArrayOfOutThrowableKClass(exceptionClassesType, in: sema, interner: ctx.interner)
-
-        let constructors = sema.symbols.lookupAll(fqName: throwsFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try #require(
-            constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
-                signature.valueParameterIsVararg == [true]
-                    && signature.valueParameterSymbols.count == 1
-            },
-            "Throws(vararg exceptionClasses: KClass<out Throwable>) constructor must be registered"
-        )
-        try assertThrowableKClass(constructorSignature.parameterTypes[0], in: sema, interner: ctx.interner)
-        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        #expect(ctx.interner.resolve(parameter.name) == "exceptionClasses")
-    }
 
     @Test func testRootThrowsAcceptsDocumentedDeclarationTargets() {
         let source = """
@@ -459,39 +605,6 @@ extension AnnotationSemanticTests {
         #expect(v17, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses() throws {
-        let source = """
-        annotation class ExperimentalApi
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let mustBeDocumentedFQName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("annotation"),
-            ctx.interner.intern("MustBeDocumented"),
-        ]
-        let symbolID = try #require(sema.symbols.lookup(fqName: mustBeDocumentedFQName))
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol.id)
-        let v18 = annotations.contains(
-            where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            }
-        )
-        #expect(
-            v18,
-            "Expected MustBeDocumented to carry @Target(AnnotationTarget.ANNOTATION_CLASS), got: \(annotations)"
-        )
-    }
 
     @Test func testAnnotationClassInheritsKotlinAnnotation() throws {
         let source = """
@@ -517,108 +630,7 @@ extension AnnotationSemanticTests {
         )
     }
 
-    @Test func testExperimentalContractsAnnotationIsSyntheticAnnotationClass() throws {
-        let source = """
-        annotation class ExperimentalApi
-        """
 
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let fqName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("contracts"),
-            ctx.interner.intern("ExperimentalContracts"),
-        ]
-        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol.id)
-        let v20 = annotations.contains(
-            where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-            }
-        )
-        #expect(
-            v20,
-            "Expected ExperimentalContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
-        )
-        let v21 = annotations.contains(
-            where: {
-                $0.annotationFQName == "kotlin.annotation.Retention"
-                    && $0.arguments == ["AnnotationRetention.BINARY"]
-            }
-        )
-        #expect(
-            v21,
-            "Expected ExperimentalContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
-        )
-    }
-
-    @Test func testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker() throws {
-        let source = """
-        fun noop() {}
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let fqName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("contracts"),
-            ctx.interner.intern("ExperimentalExtendedContracts"),
-        ]
-        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-        #expect(symbol.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: symbol.id)
-        let v22 = annotations.contains { $0.annotationFQName == "kotlin.RequiresOptIn" }
-        #expect(
-            v22,
-            "Expected ExperimentalExtendedContracts to carry @RequiresOptIn, got: \(annotations)"
-        )
-        let v23 = annotations.contains(
-            where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-            }
-        )
-        #expect(
-            v23,
-            "Expected ExperimentalExtendedContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
-        )
-        let v24 = annotations.contains(
-            where: {
-                $0.annotationFQName == "kotlin.annotation.Retention"
-                    && $0.arguments == ["AnnotationRetention.BINARY"]
-            }
-        )
-        #expect(
-            v24,
-            "Expected ExperimentalExtendedContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
-        )
-    }
 
     @Test func testExperimentalExtendedContractsRequiresOptIn() {
         let source = """

@@ -5,6 +5,422 @@ import Testing
 
 @Suite
 struct AnnotationSemanticTests {
+
+    @Test func testAnnotationSemanticSurfaceRegistrations() throws {
+        let sources: [String] = [
+            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
+            """
+            package sample0
+            fun noop() {}
+            """,
+            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
+            """
+            package sample1
+            fun noop() {}
+            """,
+            // testContextFunctionTypeParamsSurfaceIsRegistered
+            """
+            package sample2
+            fun noop() {}
+            """,
+            // testConsistentCopyVisibilityResolvesAndTargetsClasses
+            """
+            package sample3
+            fun noop() {}
+            """,
+            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
+            """
+            package sample4
+            fun marker(x: MustUseReturnValues?): Int = 0
+            """,
+            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
+            """
+            package sample5
+            fun noop() {}
+            """,
+            // testIgnorableReturnValueResolvesAndTargetsFunctions
+            """
+            package sample6
+            fun marker(x: IgnorableReturnValue?): Int = 0
+            """,
+            // testExposedCopyVisibilityResolvesAndTargetsClasses
+            """
+            package sample7
+            fun noop() {}
+            """,
+            // testDslMarkerResolvesAndTargetsAnnotationClasses
+            """
+            package sample8
+            fun noop() {}
+            """,
+            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
+            """
+            package sample9
+            fun noop() {}
+            """,
+            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
+            """
+            package sample10
+            fun noop() {}
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+
+            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
+            do {
+            let fqName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("DeprecatedSinceKotlin"),
+            ]
+            let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.kind == .annotationClass)
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v6 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            }
+            #expect(
+                v6,
+                "DeprecatedSinceKotlin should carry its declaration target list, got: \(annotations)"
+            )
+
+            let propertyNames = ["warningSince", "errorSince", "hiddenSince"]
+            for propertyName in propertyNames {
+                let propertySymbol = try #require(
+                    sema.symbols.lookup(fqName: fqName + [ctx.interner.intern(propertyName)])
+                )
+                #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.stringType)
+            }
+
+            let initName = ctx.interner.intern("<init>")
+            let ctorSymbol = try #require(
+                sema.symbols.lookupAll(fqName: fqName + [initName]).first {
+                    sema.symbols.symbol($0)?.kind == .constructor
+                }
+            )
+            let signature = try #require(sema.symbols.functionSignature(for: ctorSymbol))
+            #expect(signature.parameterTypes == Array(repeating: sema.types.stringType, count: 3))
+            #expect(signature.valueParameterHasDefaultValues == [true, true, true])
+            #expect(signature.valueParameterIsVararg == [false, false, false])
+
+            }
+            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
+            do {
+            let valueSymbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("SubclassOptInRequired"),
+                    ctx.interner.intern("markerClass"),
+                ]),
+                "kotlin.SubclassOptInRequired.markerClass must be registered"
+            )
+            #expect(sema.symbols.propertyType(for: valueSymbol) != nil, "markerClass must have a property type")
+
+            }
+            // testContextFunctionTypeParamsSurfaceIsRegistered
+            do {
+            let annotationFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ContextFunctionTypeParams"),
+            ]
+            let annotationSymbol = try #require(
+                sema.symbols.lookup(fqName: annotationFQName),
+                "kotlin.ContextFunctionTypeParams must be registered"
+            )
+            #expect(sema.symbols.symbol(annotationSymbol)?.kind == .annotationClass)
+
+            let annotations = sema.symbols.annotations(for: annotationSymbol)
+            let v13 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments.contains("AnnotationTarget.TYPE")
+            }
+            #expect(v13, "ContextFunctionTypeParams must be targeted to type usages")
+
+            let countSymbol = try #require(
+                sema.symbols.lookup(fqName: annotationFQName + [ctx.interner.intern("count")]),
+                "kotlin.ContextFunctionTypeParams.count must be registered"
+            )
+            #expect(sema.symbols.propertyType(for: countSymbol) == sema.types.intType)
+
+            let ctorSymbol = try #require(
+                sema.symbols.lookupAll(fqName: annotationFQName + [ctx.interner.intern("<init>")]).first(where: {
+                    sema.symbols.functionSignature(for: $0)?.parameterTypes == [sema.types.intType]
+                }),
+                "kotlin.ContextFunctionTypeParams(count: Int) constructor must be registered"
+            )
+            #expect(sema.symbols.functionSignature(for: ctorSymbol)?.returnType == sema.types.make(.classType(ClassType(
+                classSymbol: annotationSymbol,
+                args: [],
+                nullability: .nonNull
+            ))))
+
+            }
+            // testConsistentCopyVisibilityResolvesAndTargetsClasses
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ConsistentCopyVisibility"),
+                ]),
+                "kotlin.ConsistentCopyVisibility must be registered"
+            )
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v16 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.CLASS"]
+            }
+            #expect(
+                v16,
+                "ConsistentCopyVisibility should target classes, got: \(annotations)"
+            )
+
+            }
+            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("MustUseReturnValues"),
+                ]),
+                "kotlin.MustUseReturnValues must be registered"
+            )
+            let symbolInfo = try #require(sema.symbols.symbol(symbol))
+            #expect(symbolInfo.kind == .annotationClass, "MustUseReturnValues must be an annotation class")
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v18 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && Set($0.arguments) == Set(["AnnotationTarget.FILE", "AnnotationTarget.CLASS"])
+            }
+            #expect(
+                v18,
+                "MustUseReturnValues should target files and classes, got: \(annotations)"
+            )
+
+            }
+            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
+            do {
+            let symbolID = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("BuilderInference"),
+                ]),
+                "kotlin.BuilderInference must be registered"
+            )
+            let symbol = try #require(sema.symbols.symbol(symbolID))
+
+            #expect(symbol.kind == .annotationClass)
+            #expect(symbol.visibility == .public)
+            #expect(symbol.flags.contains(.synthetic))
+
+            let annotations = sema.symbols.annotations(for: symbolID)
+            let v20 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.VALUE_PARAMETER",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                    ]
+            }
+            #expect(
+                v20,
+                "BuilderInference should target value parameters, functions, and properties, got: \(annotations)"
+            )
+            let v21 = annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+            #expect(
+                v21,
+                "BuilderInference should carry binary retention, got: \(annotations)"
+            )
+            let v22 = annotations.contains {
+                KnownCompilerAnnotation.experimentalTypeInference.matches($0.annotationFQName)
+            }
+            #expect(
+                v22,
+                "BuilderInference should be annotated with ExperimentalTypeInference, got: \(annotations)"
+            )
+
+            }
+            // testIgnorableReturnValueResolvesAndTargetsFunctions
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("IgnorableReturnValue"),
+                ]),
+                "kotlin.IgnorableReturnValue must be registered"
+            )
+            let symbolInfo = try #require(sema.symbols.symbol(symbol))
+            #expect(symbolInfo.kind == .annotationClass, "IgnorableReturnValue must be an annotation class")
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v24 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.FUNCTION"]
+            }
+            #expect(
+                v24,
+                "IgnorableReturnValue should target functions, got: \(annotations)"
+            )
+
+            }
+            // testExposedCopyVisibilityResolvesAndTargetsClasses
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ExposedCopyVisibility"),
+                ]),
+                "kotlin.ExposedCopyVisibility must be registered"
+            )
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v26 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.CLASS"]
+            }
+            #expect(
+                v26,
+                "ExposedCopyVisibility should target classes, got: \(annotations)"
+            )
+
+            }
+            // testDslMarkerResolvesAndTargetsAnnotationClasses
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("DslMarker"),
+                ]),
+                "kotlin.DslMarker must be registered"
+            )
+            let declaration = try #require(sema.symbols.symbol(symbol))
+
+            #expect(declaration.kind == .annotationClass)
+            #expect(declaration.visibility == .public)
+            #expect(declaration.flags.contains(.synthetic))
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v27 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+            }
+            #expect(
+                v27,
+                "DslMarker should target annotation classes, got: \(annotations)"
+            )
+
+            }
+            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
+            do {
+            let fqName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ParameterName"),
+            ]
+            let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+            let declaration = try #require(sema.symbols.symbol(symbol))
+
+            #expect(declaration.kind == .annotationClass)
+            #expect(declaration.visibility == .public)
+            #expect(declaration.flags.contains(.synthetic))
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v29 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.TYPE"]
+            }
+            #expect(
+                v29,
+                "ParameterName should target type uses, got: \(annotations)"
+            )
+            let v30 = annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+            #expect(
+                v30,
+                "ParameterName should carry binary retention, got: \(annotations)"
+            )
+
+            let propertySymbol = try #require(
+                sema.symbols.lookup(fqName: fqName + [ctx.interner.intern("name")])
+            )
+            #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.stringType)
+
+            let ctorSymbol = try #require(
+                sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")]).first {
+                    sema.symbols.symbol($0)?.kind == .constructor
+                }
+            )
+            let signature = try #require(sema.symbols.functionSignature(for: ctorSymbol))
+            #expect(signature.parameterTypes == [sema.types.stringType])
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
+
+            }
+            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
+            do {
+            let symbol = try #require(
+                sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("PublishedApi"),
+                ]),
+                "kotlin.PublishedApi must be registered"
+            )
+            let declaration = try #require(sema.symbols.symbol(symbol))
+
+            #expect(declaration.kind == .annotationClass)
+            #expect(declaration.visibility == .public)
+            #expect(declaration.flags.contains(.synthetic))
+
+            let annotations = sema.symbols.annotations(for: symbol)
+            let v32 = annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                    ]
+            }
+            #expect(
+                v32,
+                "PublishedApi should target public ABI declaration sites, got: \(annotations)"
+            )
+            let v33 = annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+            #expect(
+                v33,
+                "PublishedApi should carry binary retention, got: \(annotations)"
+            )
+
+            }
+        }
+    }
+
     @Test func testDeprecatedLevelErrorEmitsErrorAtCallSite() {
         let source = """
         @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
@@ -167,59 +583,6 @@ struct AnnotationSemanticTests {
         #expect(diagnostics[0].codeActions.isEmpty, "Did not expect code actions for empty replaceWith")
     }
 
-    @Test func testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let fqName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("DeprecatedSinceKotlin"),
-        ]
-        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.kind == .annotationClass)
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v6 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.ANNOTATION_CLASS",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-        }
-        #expect(
-            v6,
-            "DeprecatedSinceKotlin should carry its declaration target list, got: \(annotations)"
-        )
-
-        let propertyNames = ["warningSince", "errorSince", "hiddenSince"]
-        for propertyName in propertyNames {
-            let propertySymbol = try #require(
-                sema.symbols.lookup(fqName: fqName + [ctx.interner.intern(propertyName)])
-            )
-            #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.stringType)
-        }
-
-        let initName = ctx.interner.intern("<init>")
-        let ctorSymbol = try #require(
-            sema.symbols.lookupAll(fqName: fqName + [initName]).first {
-                sema.symbols.symbol($0)?.kind == .constructor
-            }
-        )
-        let signature = try #require(sema.symbols.functionSignature(for: ctorSymbol))
-        #expect(signature.parameterTypes == Array(repeating: sema.types.stringType, count: 3))
-        #expect(signature.valueParameterHasDefaultValues == [true, true, true])
-        #expect(signature.valueParameterIsVararg == [false, false, false])
-    }
 
     @Test func testDeprecatedSinceKotlinAcceptsDocumentedTargets() {
         let source = """
@@ -385,61 +748,7 @@ struct AnnotationSemanticTests {
         #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected SubclassOptInRequired smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test func testSubclassOptInRequiredMarkerClassPropertyIsRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let valueSymbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("SubclassOptInRequired"),
-                ctx.interner.intern("markerClass"),
-            ]),
-            "kotlin.SubclassOptInRequired.markerClass must be registered"
-        )
-        #expect(sema.symbols.propertyType(for: valueSymbol) != nil, "markerClass must have a property type")
-    }
 
-    @Test func testContextFunctionTypeParamsSurfaceIsRegistered() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let interner = ctx.interner
-        let annotationFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ContextFunctionTypeParams"),
-        ]
-        let annotationSymbol = try #require(
-            sema.symbols.lookup(fqName: annotationFQName),
-            "kotlin.ContextFunctionTypeParams must be registered"
-        )
-        #expect(sema.symbols.symbol(annotationSymbol)?.kind == .annotationClass)
-
-        let annotations = sema.symbols.annotations(for: annotationSymbol)
-        let v13 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments.contains("AnnotationTarget.TYPE")
-        }
-        #expect(v13, "ContextFunctionTypeParams must be targeted to type usages")
-
-        let countSymbol = try #require(
-            sema.symbols.lookup(fqName: annotationFQName + [interner.intern("count")]),
-            "kotlin.ContextFunctionTypeParams.count must be registered"
-        )
-        #expect(sema.symbols.propertyType(for: countSymbol) == sema.types.intType)
-
-        let ctorSymbol = try #require(
-            sema.symbols.lookupAll(fqName: annotationFQName + [interner.intern("<init>")]).first(where: {
-                sema.symbols.functionSignature(for: $0)?.parameterTypes == [sema.types.intType]
-            }),
-            "kotlin.ContextFunctionTypeParams(count: Int) constructor must be registered"
-        )
-        #expect(sema.symbols.functionSignature(for: ctorSymbol)?.returnType == sema.types.make(.classType(ClassType(
-            classSymbol: annotationSymbol,
-            args: [],
-            nullability: .nonNull
-        ))))
-    }
 
     @Test func testContextFunctionTypeParamsResolvesAnnotatedFunctionType() throws {
         let source = """
@@ -518,27 +827,6 @@ struct AnnotationSemanticTests {
         #expect(v15, "Context-function-type diagnostics should be errors")
     }
 
-    @Test func testConsistentCopyVisibilityResolvesAndTargetsClasses() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("ConsistentCopyVisibility"),
-            ]),
-            "kotlin.ConsistentCopyVisibility must be registered"
-        )
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v16 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.CLASS"]
-        }
-        #expect(
-            v16,
-            "ConsistentCopyVisibility should target classes, got: \(annotations)"
-        )
-    }
 
     @Test func testConsistentCopyVisibilityRejectsFunctionUse() {
         let source = """
@@ -554,35 +842,6 @@ struct AnnotationSemanticTests {
         #expect(v17, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testMustUseReturnValuesResolvesAndTargetsFileAndClass() throws {
-        let source = """
-        fun marker(x: MustUseReturnValues?): Int = 0
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("MustUseReturnValues"),
-            ]),
-            "kotlin.MustUseReturnValues must be registered"
-        )
-        let symbolInfo = try #require(sema.symbols.symbol(symbol))
-        #expect(symbolInfo.kind == .annotationClass, "MustUseReturnValues must be an annotation class")
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v18 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && Set($0.arguments) == Set(["AnnotationTarget.FILE", "AnnotationTarget.CLASS"])
-        }
-        #expect(
-            v18,
-            "MustUseReturnValues should target files and classes, got: \(annotations)"
-        )
-    }
 
     @Test func testMustUseReturnValuesAllowsClassUse() {
         let source = """
@@ -623,52 +882,6 @@ struct AnnotationSemanticTests {
         #expect(v19, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let symbolID = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("BuilderInference"),
-            ]),
-            "kotlin.BuilderInference must be registered"
-        )
-        let symbol = try #require(sema.symbols.symbol(symbolID))
-
-        #expect(symbol.kind == .annotationClass)
-        #expect(symbol.visibility == .public)
-        #expect(symbol.flags.contains(.synthetic))
-
-        let annotations = sema.symbols.annotations(for: symbolID)
-        let v20 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == [
-                    "AnnotationTarget.VALUE_PARAMETER",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                ]
-        }
-        #expect(
-            v20,
-            "BuilderInference should target value parameters, functions, and properties, got: \(annotations)"
-        )
-        let v21 = annotations.contains {
-            $0.annotationFQName == "kotlin.annotation.Retention"
-                && $0.arguments == ["AnnotationRetention.BINARY"]
-        }
-        #expect(
-            v21,
-            "BuilderInference should carry binary retention, got: \(annotations)"
-        )
-        let v22 = annotations.contains {
-            KnownCompilerAnnotation.experimentalTypeInference.matches($0.annotationFQName)
-        }
-        #expect(
-            v22,
-            "BuilderInference should be annotated with ExperimentalTypeInference, got: \(annotations)"
-        )
-    }
 
     @Test func testBuilderInferenceAcceptsDocumentedTargets() {
         let source = """
@@ -701,35 +914,6 @@ struct AnnotationSemanticTests {
         #expect(v23, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testIgnorableReturnValueResolvesAndTargetsFunctions() throws {
-        let source = """
-        fun marker(x: IgnorableReturnValue?): Int = 0
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("IgnorableReturnValue"),
-            ]),
-            "kotlin.IgnorableReturnValue must be registered"
-        )
-        let symbolInfo = try #require(sema.symbols.symbol(symbol))
-        #expect(symbolInfo.kind == .annotationClass, "IgnorableReturnValue must be an annotation class")
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v24 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.FUNCTION"]
-        }
-        #expect(
-            v24,
-            "IgnorableReturnValue should target functions, got: \(annotations)"
-        )
-    }
 
     @Test func testIgnorableReturnValueAllowsFunctionUse() {
         let source = """
@@ -757,56 +941,7 @@ struct AnnotationSemanticTests {
         #expect(v25, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testExposedCopyVisibilityResolvesAndTargetsClasses() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("ExposedCopyVisibility"),
-            ]),
-            "kotlin.ExposedCopyVisibility must be registered"
-        )
 
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v26 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.CLASS"]
-        }
-        #expect(
-            v26,
-            "ExposedCopyVisibility should target classes, got: \(annotations)"
-        )
-    }
-
-    @Test func testDslMarkerResolvesAndTargetsAnnotationClasses() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("DslMarker"),
-            ]),
-            "kotlin.DslMarker must be registered"
-        )
-        let declaration = try #require(sema.symbols.symbol(symbol))
-
-        #expect(declaration.kind == .annotationClass)
-        #expect(declaration.visibility == .public)
-        #expect(declaration.flags.contains(.synthetic))
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v27 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-        }
-        #expect(
-            v27,
-            "DslMarker should target annotation classes, got: \(annotations)"
-        )
-    }
 
     @Test func testExposedCopyVisibilityRejectsFunctionUse() {
         let source = """
@@ -822,54 +957,6 @@ struct AnnotationSemanticTests {
         #expect(v28, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let fqName = [
-            ctx.interner.intern("kotlin"),
-            ctx.interner.intern("ParameterName"),
-        ]
-        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
-        let declaration = try #require(sema.symbols.symbol(symbol))
-
-        #expect(declaration.kind == .annotationClass)
-        #expect(declaration.visibility == .public)
-        #expect(declaration.flags.contains(.synthetic))
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v29 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == ["AnnotationTarget.TYPE"]
-        }
-        #expect(
-            v29,
-            "ParameterName should target type uses, got: \(annotations)"
-        )
-        let v30 = annotations.contains {
-            $0.annotationFQName == "kotlin.annotation.Retention"
-                && $0.arguments == ["AnnotationRetention.BINARY"]
-        }
-        #expect(
-            v30,
-            "ParameterName should carry binary retention, got: \(annotations)"
-        )
-
-        let propertySymbol = try #require(
-            sema.symbols.lookup(fqName: fqName + [ctx.interner.intern("name")])
-        )
-        #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.stringType)
-
-        let ctorSymbol = try #require(
-            sema.symbols.lookupAll(fqName: fqName + [ctx.interner.intern("<init>")]).first {
-                sema.symbols.symbol($0)?.kind == .constructor
-            }
-        )
-        let signature = try #require(sema.symbols.functionSignature(for: ctorSymbol))
-        #expect(signature.parameterTypes == [sema.types.stringType])
-        #expect(signature.valueParameterHasDefaultValues == [false])
-        #expect(signature.valueParameterIsVararg == [false])
-    }
 
     @Test func testParameterNameAcceptsTypeUse() {
         let source = """
@@ -897,46 +984,6 @@ struct AnnotationSemanticTests {
         #expect(v31, "Annotation-target diagnostics should be errors")
     }
 
-    @Test func testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
-        try runSema(ctx)
-        let sema = try #require(ctx.sema)
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: [
-                ctx.interner.intern("kotlin"),
-                ctx.interner.intern("PublishedApi"),
-            ]),
-            "kotlin.PublishedApi must be registered"
-        )
-        let declaration = try #require(sema.symbols.symbol(symbol))
-
-        #expect(declaration.kind == .annotationClass)
-        #expect(declaration.visibility == .public)
-        #expect(declaration.flags.contains(.synthetic))
-
-        let annotations = sema.symbols.annotations(for: symbol)
-        let v32 = annotations.contains {
-            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                && $0.arguments == [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                ]
-        }
-        #expect(
-            v32,
-            "PublishedApi should target public ABI declaration sites, got: \(annotations)"
-        )
-        let v33 = annotations.contains {
-            $0.annotationFQName == "kotlin.annotation.Retention"
-                && $0.arguments == ["AnnotationRetention.BINARY"]
-        }
-        #expect(
-            v33,
-            "PublishedApi should carry binary retention, got: \(annotations)"
-        )
-    }
 
     @Test func testPublishedApiAcceptsDocumentedDeclarationTargets() {
         let source = """
