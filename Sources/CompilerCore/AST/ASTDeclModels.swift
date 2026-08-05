@@ -391,6 +391,10 @@ public struct PropertyDecl: Codable {
     /// `Delegates.observable(init) { body }`). Captured separately because
     /// `propertyHeadTokens` excludes the block node from the delegate expression.
     public let delegateBody: FunctionBody?
+    /// Parameter names declared by the trailing lambda of a delegate property
+    /// (e.g. `property, old, new` in `Delegates.observable(init) { property, old, new -> ... }`).
+    /// Empty when the lambda declares no parameters.
+    public let delegateBodyParams: [InternedString]
     /// The receiver type reference for extension properties (e.g. `val Int.double`).
     /// `nil` for regular (non-extension) properties.
     public let receiverType: TypeRefID?
@@ -414,6 +418,7 @@ public struct PropertyDecl: Codable {
         setter: PropertyAccessorDecl? = nil,
         delegateExpression: ExprID? = nil,
         delegateBody: FunctionBody? = nil,
+        delegateBodyParams: [InternedString] = [],
         receiverType: TypeRefID? = nil,
         isSynthesizedPrimaryConstructorProperty: Bool = false,
         explicitBackingField: ExplicitBackingField? = nil
@@ -429,6 +434,7 @@ public struct PropertyDecl: Codable {
         self.setter = setter
         self.delegateExpression = delegateExpression
         self.delegateBody = delegateBody
+        self.delegateBodyParams = delegateBodyParams
         self.receiverType = receiverType
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
         self.explicitBackingField = explicitBackingField

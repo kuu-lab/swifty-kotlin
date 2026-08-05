@@ -14,6 +14,9 @@ file fdelegate_vetoable package=golden.sema
 expr e@5:17 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
 expr e@5:36 int(0) type=Int
 expr e@5:17#1 memberCall recv=e@5:17 callee=vetoable args=[_:e@5:36] type=kotlin.properties.ReadWriteProperty<in Any?, Int> call=kotlin.properties.Delegates.vetoable targs=[Int]
+expr e@6:5 name(new) type=Int ref=s-0
+expr e@6:12 int(0) type=Int
+expr e@6:5#1 binary(greaterOrEqual) lhs=e@6:5 rhs=e@6:12 type=Boolean
 expr e@10:13 name(age) type=Int ref=golden.sema.age
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
 expr e@11:11 int(10) type=Int

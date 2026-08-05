@@ -501,17 +501,20 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let name = interner.intern("IndexedValue")
         let fqName = kotlinCollectionsPkg + [name]
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
+        // STDLIB-SHARED-014: IndexedValue may have been imported as a synthetic
+        // nominal anchor; its members are not serialized and must be re-registered.
+        let symbol: SymbolID = if let existing = symbols.lookup(fqName: fqName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .dataType]
+            )
         }
-        let symbol = symbols.define(
-            kind: .class,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .dataType]
-        )
         let tName = interner.intern("T")
         let tFQName = fqName + [tName]
         let tSymbol = symbols.define(
@@ -535,6 +538,7 @@ extension DataFlowSemaPhase {
         func registerComponent(name: String, ret: TypeID, externalLinkName: String) {
             let mName = interner.intern(name)
             let mFQName = fqName + [mName]
+            guard symbols.lookup(fqName: mFQName) == nil else { return }
             let mSymbol = symbols.define(
                 kind: .function,
                 name: mName,
@@ -560,6 +564,7 @@ extension DataFlowSemaPhase {
         func registerPropertyGetter(name: String, ret: TypeID, externalLinkName: String) {
             let mName = interner.intern(name)
             let mFQName = fqName + [mName]
+            guard symbols.lookup(fqName: mFQName) == nil else { return }
             let mSymbol = symbols.define(
                 kind: .property,
                 name: mName,

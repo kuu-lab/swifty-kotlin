@@ -597,12 +597,12 @@ final class ExprTypeChecker {
             }
             return classType.classSymbol
         }
-        let sourceCandidates = candidates.filter { sema.symbols.symbol($0)?.declSite != nil }
+        let sourceCandidates = candidates.filter { sema.symbols.isSourceBackedSymbol($0) }
         if !sourceCandidates.isEmpty {
             let sourceReceiverClasses = Set(sourceCandidates.compactMap { receiverClassSymbol(of: sema.symbols.functionSignature(for: $0)) })
             candidates = candidates.filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.declSite == nil,
+                guard sema.symbols.symbol(candidate) != nil,
+                      !sema.symbols.isSourceBackedSymbol(candidate),
                       let candidateClass = receiverClassSymbol(of: sema.symbols.functionSignature(for: candidate))
                 else {
                     return true
