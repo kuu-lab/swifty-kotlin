@@ -65,4 +65,42 @@ struct StringContainsFunctionTests {
         )
     }
 
+    @Test func testRegexInOperatorResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
+        fun regexInString(r: Regex, s: String): Boolean {
+            return r in s
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected `Regex in String` to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let regexInExprs = (0..<ast.arena.exprs.count).compactMap { i -> (ExprID, Expr)? in
+            let exprID = ExprID(rawValue: Int32(i))
+            guard let expr = ast.arena.expr(exprID),
+                  case .inExpr = expr else { return nil }
+            return (exprID, expr)
+        }.filter { _, expr in
+            guard case let .inExpr(lhs, rhs, _) = expr else { return false }
+            guard let lhsType = sema.bindings.exprType(for: lhs),
+                  let rhsType = sema.bindings.exprType(for: rhs) else { return false }
+            let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: ctx.interner)
+            let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: ctx.interner)
+            return lhsName == "Regex" && rhsName == "String"
+        }
+        #expect(regexInExprs.count >= 1, "Expected at least one `Regex in String` expression")
+        let firstInExpr = try #require(regexInExprs.first, "Expected one `Regex in String` expression").0
+        let binding = sema.bindings.callBinding(for: firstInExpr)
+        let link = binding.flatMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }
+        #expect(
+            link == "kk_string_contains_regex_flat",
+            "Expected `r in s` to bind to kk_string_contains_regex_flat, got \(link ?? "nil")"
+        )
+    }
+
 }
