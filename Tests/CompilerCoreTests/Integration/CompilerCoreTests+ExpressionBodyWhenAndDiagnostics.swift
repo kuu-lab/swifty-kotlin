@@ -4,6 +4,131 @@ import Foundation
 import Testing
 
 extension CompilerCoreTests {
+
+    @Test func testExpressionBodyWhenAndDiagnosticsSema() throws {
+        let sources: [String] = [
+            // testSubjectLessWhenGuardChainSemaPassesWithElse
+            """
+            package sample0
+                    fun classify(x: Int, y: Int): Int = when {
+                        x > 0 -> 1
+                        y > 0 -> 2
+                        else -> 0
+                    }
+
+            """,
+
+            // testSubjectLessWhenWithoutElseIsNonExhaustive
+            """
+            package sample1
+                    fun classify(x: Int): Int {
+                        when {
+                            x > 0 -> 1
+                        }
+                    }
+
+            """,
+
+            // testSubjectLessWhenWithNonBooleanConditionEmitsDiagnostic
+            """
+            package sample2
+                    fun test() = when {
+                        42 -> "invalid"
+                        else -> "ok"
+                    }
+
+            """,
+
+            // testUnresolvedIdentifierEmitsDiagnostic
+            """
+            package sample3
+                    fun test() = unknownVariable
+
+            """,
+
+            // testUnresolvedFunctionCallEmitsDiagnostic
+            """
+            package sample4
+                    fun test() = unknownFunction(1)
+
+            """,
+
+            // testUnresolvedTypeAnnotationEmitsDiagnostic
+            """
+            package sample5
+                    fun test(x: UnknownType) = x
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testSubjectLessWhenGuardChainSemaPassesWithElse
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
+
+            }
+            // testSubjectLessWhenWithoutElseIsNonExhaustive
+
+            do {
+                let sample1Path = paths[1]
+                let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
+
+            }
+            // testSubjectLessWhenWithNonBooleanConditionEmitsDiagnostic
+
+            do {
+                let sample2Path = paths[2]
+                let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0032", in: sampleDiags)
+
+            }
+            // testUnresolvedIdentifierEmitsDiagnostic
+
+            do {
+                let sample3Path = paths[3]
+                let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0022", in: sampleDiags)
+
+            }
+            // testUnresolvedFunctionCallEmitsDiagnostic
+
+            do {
+                let sample4Path = paths[4]
+                let sampleDiags = diagnosticsForPath(sample4Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0023", in: sampleDiags)
+
+            }
+            // testUnresolvedTypeAnnotationEmitsDiagnostic
+
+            do {
+                let sample5Path = paths[5]
+                let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0025", in: sampleDiags)
+
+            }
+
+        }
+    }
+
     @Test func testDriverReportsPipelineOutputUnavailableWithoutICE() throws {
         let source = "fun main() = 0"
         let missingDir = FileManager.default.temporaryDirectory
@@ -24,6 +149,7 @@ extension CompilerCoreTests {
             #expect(!(result.diagnostics.contains { $0.code == "KSWIFTK-ICE-0001" }))
         }
     }
+
 
     @Test func testFunctionExpressionBodyWhenRemainsExpressionBody() throws {
         let source = """
@@ -58,6 +184,7 @@ extension CompilerCoreTests {
         }
     }
 
+
     @Test func testBlockBodySplitsStatementsOnNewline() throws {
         let source = """
         fun main() {
@@ -89,6 +216,7 @@ extension CompilerCoreTests {
             Issue.record("Block-body function should produce block expressions.")
         }
     }
+
 
     @Test func testDoWhileInlineBodyParsesConditionOutsideBody() throws {
         let source = """
@@ -143,6 +271,7 @@ extension CompilerCoreTests {
         }
     }
 
+
     @Test func testLambdaLiteralExpressionBodyParsesAsDedicatedExprNode() throws {
         let source = """
         fun build() = { x: Int -> x + 1 }
@@ -178,6 +307,7 @@ extension CompilerCoreTests {
         }
     }
 
+
     @Test func testObjectLiteralExpressionBodyParsesAsDedicatedExprNode() throws {
         let source = """
         interface I
@@ -206,6 +336,7 @@ extension CompilerCoreTests {
         }
         #expect(ctx.interner.resolve(first) == "I")
     }
+
 
     @Test func testCallableReferenceExpressionBodyParsesAsDedicatedExprNode() throws {
         let source = """
@@ -247,6 +378,7 @@ extension CompilerCoreTests {
         #expect(ctx.interner.resolve(receiverName) == "x")
     }
 
+
     @Test func testSubjectLessWhenParsesCorrectly() throws {
         let source = """
         fun classify(x: Int, y: Int): Int {
@@ -286,77 +418,6 @@ extension CompilerCoreTests {
         case .expr, .unit:
             Issue.record("Block-body function should produce block expressions.")
         }
-    }
-
-    @Test func testSubjectLessWhenGuardChainSemaPassesWithElse() throws {
-        let source = """
-        fun classify(x: Int, y: Int): Int = when {
-            x > 0 -> 1
-            y > 0 -> 2
-            else -> 0
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
-    }
-
-    @Test func testSubjectLessWhenWithoutElseIsNonExhaustive() throws {
-        let source = """
-        fun classify(x: Int): Int {
-            when {
-                x > 0 -> 1
-            }
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
-    }
-
-    @Test func testSubjectLessWhenWithNonBooleanConditionEmitsDiagnostic() throws {
-        let source = """
-        fun test() = when {
-            42 -> "invalid"
-            else -> "ok"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0032", in: ctx)
-    }
-
-    @Test func testUnresolvedIdentifierEmitsDiagnostic() throws {
-        let source = """
-        fun test() = unknownVariable
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
-    }
-
-    @Test func testUnresolvedFunctionCallEmitsDiagnostic() throws {
-        let source = """
-        fun test() = unknownFunction(1)
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-    }
-
-    @Test func testUnresolvedTypeAnnotationEmitsDiagnostic() throws {
-        let source = """
-        fun test(x: UnknownType) = x
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
 }

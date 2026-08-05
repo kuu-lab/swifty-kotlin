@@ -5,220 +5,428 @@ import Testing
 
 @Suite struct InheritanceModifierTests {
 
-    // MARK: - Abstract Override Tests
+    @Test func testInheritanceModifierSema() throws {
+        let sources: [String] = [
+            // testAbstractOverrideInAbstractClass
+            """
+            package sample0
+                    abstract class Shape {
+                        abstract fun area(): Double
+                        open fun describe(): String = "Shape"
+                    }
 
-    @Test func testAbstractOverrideInAbstractClass() throws {
-        let source = """
-        abstract class Shape {
-            abstract fun area(): Double
-            open fun describe(): String = "Shape"
+                    abstract class Circle : Shape() {
+                        abstract override fun area(): Double
+                        abstract override fun describe(): String
+                    }
+
+            """,
+
+            // testAbstractOverrideInConcreteClass
+            """
+            package sample1
+                    open class Shape {
+                        open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        abstract override fun describe(): String
+                    }
+
+            """,
+
+            // testAbstractOverrideOfAbstractMember
+            """
+            package sample2
+                    abstract class Shape {
+                        abstract fun area(): Double
+                    }
+
+                    abstract class Circle : Shape() {
+                        abstract override fun area(): Double
+                    }
+
+            """,
+
+            // testFinalOverrideValid
+            """
+            package sample3
+                    open class Shape {
+                        open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        final override fun describe(): String = "Circle"
+                    }
+
+            """,
+
+            // testFinalOverrideCannotBeFurtherOverridden
+            """
+            package sample4
+                    open class Shape {
+                        open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        final override fun describe(): String = "Circle"
+                    }
+
+                    class ColoredCircle : Circle() {
+                        override fun describe(): String = "Colored Circle"
+                    }
+
+            """,
+
+            // testAbstractFinalConflict
+            """
+            package sample5
+                    abstract class Shape {
+                        abstract final fun area(): Double
+                    }
+
+            """,
+
+            // testInterfaceMemberCannotBeFinal
+            """
+            package sample6
+                    interface Shape {
+                        final fun area(): Double
+                    }
+
+            """,
+
+            // testInterfaceAbstractRedundant
+            """
+            package sample7
+                    interface Shape {
+                        abstract fun area(): Double
+                    }
+
+            """,
+
+            // testDataClassCannotHaveOpenMembers
+            """
+            package sample8
+                    data class Point(val x: Int, val y: Int) {
+                        open fun distance(): Double = 0.0
+                    }
+
+            """,
+
+            // testOverrideWithLessVisibility
+            """
+            package sample9
+                    open class Shape {
+                        public fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        protected override fun describe(): String = "Circle"
+                    }
+
+            """,
+
+            // testOverrideWithSameVisibility
+            """
+            package sample10
+                    open class Shape {
+                        protected open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        protected override fun describe(): String = "Circle"
+                    }
+
+            """,
+
+            // testOverrideWithMoreVisibility
+            """
+            package sample11
+                    open class Shape {
+                        protected open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        public override fun describe(): String = "Circle"
+                    }
+
+            """,
+
+            // testInternalOverrideOfPublicInSameModule
+            """
+            package sample12
+                    open class Shape {
+                        open fun describe(): String = "Shape"
+                    }
+
+                    class Circle : Shape() {
+                        internal override fun describe(): String = "Circle"
+                    }
+
+            """,
+
+            // testOverrideWithCovariantReturnType
+            """
+            package sample13
+                    open class Animal
+                    class Dog : Animal()
+
+                    open class Factory {
+                        open fun create(): Animal = Animal()
+                    }
+
+                    class DogFactory : Factory() {
+                        override fun create(): Dog = Dog()
+                    }
+
+            """,
+
+            // testOverrideWithIncompatibleReturnType
+            """
+            package sample14
+                    open class Animal
+                    open class Plant
+
+                    open class Factory {
+                        open fun create(): Animal = Animal()
+                    }
+
+                    class PlantFactory : Factory() {
+                        override fun create(): Plant = Plant()
+                    }
+
+            """,
+
+            // testComplexInheritanceHierarchy
+            """
+            package sample15
+                    abstract class Animal {
+                        abstract fun makeSound(): String
+                        open fun move(): String = "moving"
+                    }
+
+                    abstract class Mammal : Animal() {
+                        abstract override fun makeSound(): String
+                        final override fun move(): String = "mammal moving"
+                    }
+
+                    class Dog : Mammal() {
+                        override fun makeSound(): String = "woof"
+                        // Cannot override move() because it's final in Mammal
+                    }
+
+            """,
+
+            // testOverrideChaining
+            """
+            package sample16
+                    open class Base {
+                        open fun method(): String = "base"
+                    }
+
+                    open class Middle : Base() {
+                        override fun method(): String = "middle" // Implicitly open
+                    }
+
+                    class Derived : Middle() {
+                        final override fun method(): String = "derived" // Final override
+                    }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testAbstractOverrideInAbstractClass
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testAbstractOverrideInConcreteClass
+
+            do {
+                let sample1Path = paths[1]
+                let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
+
+            }
+            // testAbstractOverrideOfAbstractMember
+
+            do {
+                let sample2Path = paths[2]
+                let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
+
+
+                        // Kotlin allows an abstract class to keep an inherited abstract member abstract.
+                        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testFinalOverrideValid
+
+            do {
+                let sample3Path = paths[3]
+                let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testFinalOverrideCannotBeFurtherOverridden
+
+            do {
+                let sample4Path = paths[4]
+                let sampleDiags = diagnosticsForPath(sample4Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: sampleDiags)
+
+            }
+            // testAbstractFinalConflict
+
+            do {
+                let sample5Path = paths[5]
+                let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
+
+
+                        // Class-level abstract/final conflict is currently reported by abstract-class validation.
+                        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: sampleDiags)
+
+            }
+            // testInterfaceMemberCannotBeFinal
+
+            do {
+                let sample6Path = paths[6]
+                let sampleDiags = diagnosticsForPath(sample6Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+
+            }
+            // testInterfaceAbstractRedundant
+
+            do {
+                let sample7Path = paths[7]
+                let sampleDiags = diagnosticsForPath(sample7Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-REDUNDANT-MODIFIER", in: sampleDiags)
+
+            }
+            // testDataClassCannotHaveOpenMembers
+
+            do {
+                let sample8Path = paths[8]
+                let sampleDiags = diagnosticsForPath(sample8Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+
+            }
+            // testOverrideWithLessVisibility
+
+            do {
+                let sample9Path = paths[9]
+                let sampleDiags = diagnosticsForPath(sample9Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+
+            }
+            // testOverrideWithSameVisibility
+
+            do {
+                let sample10Path = paths[10]
+                let sampleDiags = diagnosticsForPath(sample10Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testOverrideWithMoreVisibility
+
+            do {
+                let sample11Path = paths[11]
+                let sampleDiags = diagnosticsForPath(sample11Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testInternalOverrideOfPublicInSameModule
+
+            do {
+                let sample12Path = paths[12]
+                let sampleDiags = diagnosticsForPath(sample12Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testOverrideWithCovariantReturnType
+
+            do {
+                let sample13Path = paths[13]
+                let sampleDiags = diagnosticsForPath(sample13Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testOverrideWithIncompatibleReturnType
+
+            do {
+                let sample14Path = paths[14]
+                let sampleDiags = diagnosticsForPath(sample14Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: sampleDiags)
+
+            }
+            // testComplexInheritanceHierarchy
+
+            do {
+                let sample15Path = paths[15]
+                let sampleDiags = diagnosticsForPath(sample15Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+            // testOverrideChaining
+
+            do {
+                let sample16Path = paths[16]
+                let sampleDiags = diagnosticsForPath(sample16Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: sampleDiags)
+                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+
+            }
+
         }
-
-        abstract class Circle : Shape() {
-            abstract override fun area(): Double
-            abstract override fun describe(): String
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    @Test func testAbstractOverrideInConcreteClass() throws {
-        let source = """
-        open class Shape {
-            open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            abstract override fun describe(): String
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-    }
-
-    @Test func testAbstractOverrideOfAbstractMember() throws {
-        let source = """
-        abstract class Shape {
-            abstract fun area(): Double
-        }
-
-        abstract class Circle : Shape() {
-            abstract override fun area(): Double
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        // Kotlin allows an abstract class to keep an inherited abstract member abstract.
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    // MARK: - Final Override Tests
-
-    @Test func testFinalOverrideValid() throws {
-        let source = """
-        open class Shape {
-            open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            final override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testFinalOverrideCannotBeFurtherOverridden() throws {
-        let source = """
-        open class Shape {
-            open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            final override fun describe(): String = "Circle"
-        }
-
-        class ColoredCircle : Circle() {
-            override fun describe(): String = "Colored Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-    }
-
-    // MARK: - Modifier Combination Tests
-
-    @Test func testAbstractFinalConflict() throws {
-        let source = """
-        abstract class Shape {
-            abstract final fun area(): Double
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        // Class-level abstract/final conflict is currently reported by abstract-class validation.
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
-
-    @Test func testInterfaceMemberCannotBeFinal() throws {
-        let source = """
-        interface Shape {
-            final fun area(): Double
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-    }
-
-    @Test func testInterfaceAbstractRedundant() throws {
-        let source = """
-        interface Shape {
-            abstract fun area(): Double
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-REDUNDANT-MODIFIER", in: ctx)
-    }
-
-    @Test func testDataClassCannotHaveOpenMembers() throws {
-        let source = """
-        data class Point(val x: Int, val y: Int) {
-            open fun distance(): Double = 0.0
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-    }
-
-    // MARK: - Visibility Constraint Tests
-
-    @Test func testOverrideWithLessVisibility() throws {
-        let source = """
-        open class Shape {
-            public fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            protected override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-    }
-
-    @Test func testOverrideWithSameVisibility() throws {
-        let source = """
-        open class Shape {
-            protected open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            protected override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testOverrideWithMoreVisibility() throws {
-        let source = """
-        open class Shape {
-            protected open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            public override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testInternalOverrideOfPublicInSameModule() throws {
-        let source = """
-        open class Shape {
-            open fun describe(): String = "Shape"
-        }
-
-        class Circle : Shape() {
-            internal override fun describe(): String = "Circle"
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
 
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
@@ -291,6 +499,7 @@ import Testing
         assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
     }
 
+
     @Test func testImportedLibrarySymbolsReceiveModuleFQN() throws {
         let fm = FileManager.default
         let libDir = fm.temporaryDirectory
@@ -341,93 +550,6 @@ import Testing
                 ctx.interner.resolve(symbols.moduleFQN(for: baseSymbol!.id)!) == "BaseLib"
             )
         }
-    }
-
-    @Test func testOverrideWithCovariantReturnType() throws {
-        let source = """
-        open class Animal
-        class Dog : Animal()
-
-        open class Factory {
-            open fun create(): Animal = Animal()
-        }
-
-        class DogFactory : Factory() {
-            override fun create(): Dog = Dog()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testOverrideWithIncompatibleReturnType() throws {
-        let source = """
-        open class Animal
-        open class Plant
-
-        open class Factory {
-            open fun create(): Animal = Animal()
-        }
-
-        class PlantFactory : Factory() {
-            override fun create(): Plant = Plant()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
-    }
-
-    // MARK: - Complex Inheritance Scenarios
-
-    @Test func testComplexInheritanceHierarchy() throws {
-        let source = """
-        abstract class Animal {
-            abstract fun makeSound(): String
-            open fun move(): String = "moving"
-        }
-
-        abstract class Mammal : Animal() {
-            abstract override fun makeSound(): String
-            final override fun move(): String = "mammal moving"
-        }
-
-        class Dog : Mammal() {
-            override fun makeSound(): String = "woof"
-            // Cannot override move() because it's final in Mammal
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
-    }
-
-    @Test func testOverrideChaining() throws {
-        let source = """
-        open class Base {
-            open fun method(): String = "base"
-        }
-
-        open class Middle : Base() {
-            override fun method(): String = "middle" // Implicitly open
-        }
-
-        class Derived : Middle() {
-            final override fun method(): String = "derived" // Final override
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
 }

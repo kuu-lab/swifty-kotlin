@@ -805,7 +805,8 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 localTypeParameters: localTypeParameters,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: classDecl.range
             ) ?? types.anyType
 
             let funcSymbol = symbols.define(
@@ -1014,7 +1015,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: declSite
             ) ?? fallbackType
             paramTypes.append(resolvedType)
             paramSymbols.append(paramSymbol)
@@ -1068,7 +1070,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    localTypeParameters: localTypeParameters
+                    localTypeParameters: localTypeParameters,
+                    usageRange: declSite
                 )
             }
             if !resolvedBounds.isEmpty {

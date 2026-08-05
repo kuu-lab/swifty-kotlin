@@ -57,7 +57,8 @@ extension DataFlowSemaPhase {
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
-        recursionDepth: Int = 0
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> TypeID? {
         guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
             diagnostics?.error(
@@ -145,7 +146,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth
+                    recursionDepth: recursionDepth,
+                    usageRange: usageRange
                 )
                 if resolved.kind == .typeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
@@ -186,7 +188,8 @@ extension DataFlowSemaPhase {
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 )
                 return types.make(.classType(ClassType(
                     classSymbol: stringBuilderSymbol,
@@ -197,7 +200,7 @@ extension DataFlowSemaPhase {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0025",
                 "Unresolved type '\(interner.resolve(shortName))'.",
-                range: nil
+                range: usageRange
             )
             return types.errorType
 
@@ -216,7 +219,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -234,7 +238,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             var paramTypes: [TypeID] = []
@@ -250,7 +255,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) else {
                     return nil
                 }
@@ -267,7 +273,8 @@ extension DataFlowSemaPhase {
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
                 diagnostics: diagnostics,
-                recursionDepth: recursionDepth + 1
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
@@ -290,7 +297,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -308,7 +316,8 @@ extension DataFlowSemaPhase {
                 currentPackageFQName: currentPackageFQName,
                 imports: imports,
                 diagnostics: diagnostics,
-                recursionDepth: recursionDepth + 1
+                recursionDepth: recursionDepth + 1,
+                usageRange: usageRange
             ) else {
                 return nil
             }
@@ -448,7 +457,8 @@ extension DataFlowSemaPhase {
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
-        recursionDepth: Int = 0
+        recursionDepth: Int = 0,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         var result: [TypeArg] = []
         result.reserveCapacity(argRefs.count)
@@ -466,7 +476,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.invariant(resolved))
             case let .out(innerRef):
@@ -481,7 +492,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.out(resolved))
             case let .in(innerRef):
@@ -496,7 +508,8 @@ extension DataFlowSemaPhase {
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
                     diagnostics: diagnostics,
-                    recursionDepth: recursionDepth + 1
+                    recursionDepth: recursionDepth + 1,
+                    usageRange: usageRange
                 ) ?? types.errorType
                 result.append(.in(resolved))
             case .star:
