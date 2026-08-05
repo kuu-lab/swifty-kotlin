@@ -949,4 +949,77 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             XCTAssertEqual(normalizedStdout, "variance test\nconsumed: hello from feeder\nstored: new value\ninvariant value\n")
         }
     }
+
+    /// STDLIB-ARTIFACT-STRING-INDENT: the indent-formatting family
+    /// (`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/
+    /// `replaceIndentByMargin`) must resolve to bundled Kotlin source
+    /// (`Stdlib/kotlin/text/StringIndentFormat.kt`) when compiling against a
+    /// prebuilt stdlib artifact, not the removed `kk_string_*_flat` runtime ABI.
+    /// This is the shared-path analogue of the `raw_string_basic`,
+    /// `string_indent`, `trim_margin` and `string_replaceindentbymargin` diff
+    /// cases, whose failure mode was an undefined reference to
+    /// `kk_string_trimIndent_flat` (and friends) at link time under
+    /// `--no-stdlib --stdlib-library`.
+    func testStringIndentFormattingThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = #"""
+        fun marker(value: String) {
+            println(value.replace("\n", "/"))
+        }
+
+        fun main() {
+            val raw = """
+                line1
+                line2
+            """.trimIndent()
+            marker(raw)
+            marker("\n    |alpha\n    |beta\n".trimMargin())
+            marker("\n    >alpha\n    >beta\n".trimMargin(">"))
+            marker("Hello\nWorld".prependIndent())
+            marker("Hello\nWorld".prependIndent(">>"))
+            marker("  Hello\n  World".replaceIndent())
+            marker("  Hello\n  World".replaceIndent("--"))
+            marker("\n    |alpha\n    |beta\n".replaceIndentByMargin())
+            marker("\n    |alpha\n    |beta\n".replaceIndentByMargin("> ", "|"))
+        }
+        """#
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                line1/line2
+                alpha/beta
+                alpha/beta
+                    Hello/    World
+                >>Hello/>>World
+                Hello/World
+                --Hello/--World
+                alpha/beta
+                > alpha/> beta
+
+                """
+            )
+        }
+    }
 }
