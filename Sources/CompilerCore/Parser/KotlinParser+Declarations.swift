@@ -349,12 +349,12 @@ extension KotlinParser {
                 break
             }
 
-            if isIdentifierLike(token.kind) {
-                children.append(.node(parseEnumEntryDeclaration()))
+            if enumBodyStartsDeclaration() {
+                children.append(.node(parseDeclaration()))
                 continue
             }
-            if isDeclarationStart(token.kind) {
-                children.append(.node(parseDeclaration()))
+            if isIdentifierLike(token.kind) {
+                children.append(.node(parseEnumEntryDeclaration()))
                 continue
             }
             if token.kind == .symbol(.comma) || token.kind == .symbol(.semicolon) {
@@ -365,6 +365,27 @@ extension KotlinParser {
         }
 
         return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
+    }
+
+    /// Distinguishes a member declaration from an enum entry inside an enum body.
+    /// Enum entry names are identifier-like and may be soft/modifier keywords
+    /// (`data`, `value`, ...), so a modifier keyword only starts a declaration
+    /// when another declaration token follows it.
+    private func enumBodyStartsDeclaration() -> Bool {
+        let kind = stream.peek().kind
+        if kind == .symbol(.at) {
+            return true
+        }
+        if case .softKeyword(.context) = kind {
+            return true
+        }
+        guard case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) else {
+            return false
+        }
+        if Self.isDeclarationModifierKeyword(keyword) {
+            return isDeclarationStart(stream.peek(1).kind)
+        }
+        return true
     }
 
     func parseEnumEntryDeclaration() -> NodeID {
