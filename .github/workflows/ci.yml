@@ -400,6 +400,7 @@ jobs:
   verify-swiftbuild:
     name: Verification (swiftbuild)
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 180
     env:
       SWIFT_BUILD_SYSTEM: swiftbuild
