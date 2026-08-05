@@ -428,21 +428,20 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
-        let hasExternalLink = !(sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true)
-
-        // Source-backed callees with no external link get function-value
-        // arguments materialized so the compiled body can invoke them.
-        // Imported inline callees also need materialization: their expansion
-        // may store or pass function-typed parameters to non-inline code
-        // (e.g. a Comparator SAM wrapper method) that expects runtime
-        // function objects, not raw lambda function pointers.
-        guard !hasExternalLink || (isImported && isInline) else {
-            return
-        }
 
         // Source-backed inline functions are fully expanded in the same
         // module, so lambda arguments can be consumed directly there.
         if isInline, !isImported {
+            return
+        }
+
+        // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
+        // raw function-pointer expansion; they must not receive a wrapped
+        // function-value object. Imported Kotlin functions compiled to .kklib
+        // carry a `kk_fn_` C symbol and still need materialization.
+        if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+           !externalLinkName.isEmpty,
+           !externalLinkName.hasPrefix("kk_fn_") {
             return
         }
 
