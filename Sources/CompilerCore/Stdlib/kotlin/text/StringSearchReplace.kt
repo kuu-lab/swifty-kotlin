@@ -181,16 +181,9 @@ public fun String.substringBeforeLast(delimiter: String, missingDelimiterValue: 
     return if (index == -1) missingDelimiterValue else this.substring(0, index)
 }
 
-/**
- * @see substringBeforeLast
- *
- * BUG-172 workaround: the 1-arg CharSequence.lastIndexOf(Char) fast path crashes
- * (SIGBUS) because it is misrouted through the String-typed flat ABI dispatch.
- * Calling the fully-explicit 3-arg overload sidesteps it and matches the real
- * Kotlin default expansion (`startIndex = lastIndex`, `ignoreCase = false`).
- */
+/** @see substringBeforeLast */
 public fun String.substringBeforeLast(delimiter: Char, missingDelimiterValue: String = this): String {
-    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    val index = this.lastIndexOf(delimiter)
     return if (index == -1) missingDelimiterValue else this.substring(0, index)
 }
 
@@ -203,9 +196,9 @@ public fun String.substringAfterLast(delimiter: String, missingDelimiterValue: S
     return if (index == -1) missingDelimiterValue else this.substring(index + delimiter.length)
 }
 
-/** @see substringAfterLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+/** @see substringAfterLast */
 public fun String.substringAfterLast(delimiter: Char, missingDelimiterValue: String = this): String {
-    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    val index = this.lastIndexOf(delimiter)
     return if (index == -1) missingDelimiterValue else this.substring(index + 1)
 }
 
@@ -251,9 +244,9 @@ public fun String.replaceAfterLast(delimiter: String, replacement: String, missi
     return if (index == -1) missingDelimiterValue else this.substring(0, index + delimiter.length) + replacement
 }
 
-/** @see replaceAfterLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+/** @see replaceAfterLast */
 public fun String.replaceAfterLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
-    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    val index = this.lastIndexOf(delimiter)
     return if (index == -1) missingDelimiterValue else this.substring(0, index + 1) + replacement
 }
 
@@ -267,9 +260,9 @@ public fun String.replaceBeforeLast(delimiter: String, replacement: String, miss
     return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
 }
 
-/** @see replaceBeforeLast — BUG-172 workaround, see substringBeforeLast(Char) above. */
+/** @see replaceBeforeLast */
 public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
-    val index = this.lastIndexOf(delimiter, this.length - 1, false)
+    val index = this.lastIndexOf(delimiter)
     return if (index == -1) missingDelimiterValue else replacement + this.substring(index)
 }
 
