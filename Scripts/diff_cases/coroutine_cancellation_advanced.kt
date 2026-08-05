@@ -1,4 +1,5 @@
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.*
 
 // TEST-CORO-003: Advanced cancellation — cooperative cancellation via
 // isActive / ensureActive, cancellation with cause, and finally blocks.
@@ -35,22 +36,27 @@ fun main() = runBlocking {
     println("job2 cancelled: ${job2.isCancelled}")
 
     // 3. finally block runs on cancellation
+    val job3Entered = Channel<Int>()
     val job3 = launch {
         try {
+            job3Entered.send(0)
             delay(Long.MAX_VALUE)
         } finally {
             println("finally ran")
         }
     }
-    // Let the child enter its try/finally block before cancellation so this case
-    // compares cleanup semantics instead of depending on a launch scheduling race.
-    delay(1)
+    // Wait until the child has entered its try block before cancelling, so this case
+    // compares cleanup semantics instead of depending on a launch scheduling race
+    // (a bare delay() does not guarantee the child started).
+    job3Entered.receive()
     job3.cancel()
     job3.join()
 
     // 4. withContext(NonCancellable) protects cleanup
+    val job4Entered = Channel<Int>()
     val job4 = launch {
         try {
+            job4Entered.send(0)
             delay(Long.MAX_VALUE)
         } finally {
             withContext(NonCancellable) {
@@ -59,8 +65,9 @@ fun main() = runBlocking {
             }
         }
     }
-    // Ensure the child reaches the NonCancellable cleanup block before cancelling it.
-    delay(1)
+    // Ensure the child reaches its try/finally before cancelling so the NonCancellable
+    // cleanup deterministically runs on both JVM and native.
+    job4Entered.receive()
     job4.cancel()
     job4.join()
 
