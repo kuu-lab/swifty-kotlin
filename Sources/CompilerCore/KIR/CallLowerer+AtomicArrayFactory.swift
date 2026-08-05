@@ -67,7 +67,7 @@ extension CallLowerer {
         storeAtCalleeName: String
     ) -> KIRExprID? {
         guard sema.bindings.stdlibSpecialCallKind(for: exprID) == specialKind,
-              args.count == 2
+              args.count == 1 || args.count == 2
         else {
             return nil
         }
@@ -99,6 +99,10 @@ extension CallLowerer {
             result: arrayExpr,
             into: &instructions
         )
+
+        guard args.count == 2 else {
+            return arrayExpr
+        }
 
         let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)

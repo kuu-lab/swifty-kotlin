@@ -196,26 +196,46 @@ final class DeclTypeChecker {
                 diagnostics: diagnostics
             )
 
-            // DEBT-KIR-008: `lazy { ... }`'s trailing lambda (delegateBody) is
-            // parsed as a separate FunctionBody from delegateExpression and was
-            // never type-checked, so identifier references inside it (e.g. a
-            // captured `this`-implicit property) never got an identifierSymbols
-            // binding and silently lowered to `.unit` in KIR. Only `.lazy` is
-            // safe to check here: `.observable`/`.vetoable` bodies bind three
-            // synthetic callback parameters that KIR lowering
-            // (lowerDelegateLambdaBody) still wires up by raw numeric symbol
-            // offset rather than by name, so checking their bodies here would
-            // surface spurious "unresolved reference" diagnostics for those
-            // parameter names — a separately-tracked gap
-            // (docs/diff-skip-inventory.md DEBT-DIFF-005).
-            if let delegateBody = property.delegateBody,
-               StdlibDelegateKind.detect(delegateExpr: delegateExpr, ast: ctx.ast, interner: ctx.interner) == .lazy
-            {
-                var lazyBodyLocals: LocalBindings = [:]
-                _ = inferFunctionBodyType(
-                    delegateBody, ctx: accessorCtx, locals: &lazyBodyLocals,
-                    expectedType: nil
+            // Delegate bodies are parsed separately from delegateExpression, so
+            // they must be type-checked explicitly. Besides validating the body,
+            // this records the identifier bindings KIR needs for implicit member
+            // access and for observable/vetoable callback parameters.
+            if let delegateBody = property.delegateBody {
+                let delegateKind = StdlibDelegateKind.detect(
+                    delegateExpr: delegateExpr, ast: ctx.ast, interner: ctx.interner
                 )
+                if delegateKind == .lazy
+                    || delegateKind == .observable
+                    || delegateKind == .vetoable
+                {
+                    var bodyLocals: LocalBindings = [:]
+                    if delegateKind == .observable || delegateKind == .vetoable {
+                        let valueType = inferredPropertyType ?? sema.types.anyType
+                        let parameterTypes = [sema.types.anyType, valueType, valueType]
+                        let underscore = ctx.interner.intern("_")
+                        for (index, name) in property.delegateBodyParams.enumerated()
+                            where index < parameterTypes.count && name != underscore
+                        {
+                            bodyLocals[name] = (
+                                parameterTypes[index],
+                                SyntheticSymbolScheme.delegateLambdaParameterSymbol(
+                                    for: symbol, at: index
+                                ),
+                                false,
+                                true
+                            )
+                        }
+                    }
+                    let expectedBodyType: TypeID? = switch delegateKind {
+                    case .observable: sema.types.unitType
+                    case .vetoable: sema.types.booleanType
+                    default: inferredPropertyType
+                    }
+                    _ = inferFunctionBodyType(
+                        delegateBody, ctx: accessorCtx, locals: &bodyLocals,
+                        expectedType: expectedBodyType
+                    )
+                }
             }
         }
 

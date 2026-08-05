@@ -440,8 +440,8 @@ extension CollectionLiteralLoweringSupport {
         {
             if let result {
                 let isSourceBacked = {
-                    guard let sema, let symbol, let resolved = sema.symbols.symbol(symbol) else { return false }
-                    return resolved.declSite != nil && (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+                    guard let sema, let symbol, sema.symbols.symbol(symbol) != nil else { return false }
+                    return sema.symbols.isSourceBackedSymbol(symbol)
                 }()
                 if !isSourceBacked {
                     sequenceExprIDs.insert(result.rawValue)

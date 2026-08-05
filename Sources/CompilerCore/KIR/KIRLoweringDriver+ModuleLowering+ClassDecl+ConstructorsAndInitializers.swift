@@ -534,7 +534,8 @@ extension KIRLoweringDriver {
         switch delegateKind {
         case .lazy:
             let lambdaFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
             let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
@@ -551,7 +552,9 @@ extension KIRLoweringDriver {
                 delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &body
             )
             let callbackFnPtr = lowerDelegateLambdaBody(
-                delegateBody: propertyDecl.delegateBody, propertySymbol: propSymbol,
+                delegateBody: propertyDecl.delegateBody,
+                delegateBodyParams: propertyDecl.delegateBodyParams,
+                valueType: sema.symbols.propertyType(for: propSymbol), propertySymbol: propSymbol,
                 paramCount: 3, shared: shared, emit: &body
             )
             let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
