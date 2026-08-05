@@ -395,6 +395,70 @@ extension DataFlowSemaPhase {
                 thrownResult: nil,
                 isSuperCall: isSuperCall
             )
+        case "virtualCall":
+            guard let calleeEncoded = pairs["calleeB64"],
+                  let calleeName = decodeBase64String(calleeEncoded),
+                  let receiverRaw = pairs["receiver"], let receiver = Int32(receiverRaw),
+                  let dispatch = parseImportedInlineDispatchKind(pairs["dispatch"] ?? "")
+            else {
+                return nil
+            }
+            let args = parseInlineIntList(pairs["args"] ?? "[]").map { value in
+                KIRExprID(rawValue: Int32(truncatingIfNeeded: value))
+            }
+            let result: KIRExprID? = if let resultRaw = pairs["result"], resultRaw != "_" {
+                Int32(resultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let thrownResult: KIRExprID? = if let thrownResultRaw = pairs["thrownResult"], thrownResultRaw != "_" {
+                Int32(thrownResultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let canThrowRaw = pairs["canThrow"] ?? "0"
+            let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
+            var callSymbol: SymbolID? = nil
+            if let linkEncoded = pairs["linkB64"],
+               let linkName = decodeBase64String(linkEncoded),
+               !linkName.isEmpty,
+               let consumerSymbol = externalLinkNameToSymbol[linkName]
+            {
+                callSymbol = consumerSymbol
+            }
+            return .virtualCall(
+                symbol: callSymbol,
+                callee: interner.intern(calleeName),
+                receiver: KIRExprID(rawValue: receiver),
+                arguments: args,
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
+                dispatch: dispatch
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
+        let parts = token.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.first {
+        case "vtable":
+            guard parts.count == 2, let slot = Int(parts[1]) else { return nil }
+            return .vtable(slot: slot)
+        case "itable":
+            guard parts.count == 3,
+                  let interfaceSlot = Int(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
+            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        case "itableDynamic":
+            guard parts.count == 3,
+                  let interfaceTypeID = Int64(parts[1]),
+                  let methodSlot = Int(parts[2])
+            else { return nil }
+            return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         default:
             return nil
         }
