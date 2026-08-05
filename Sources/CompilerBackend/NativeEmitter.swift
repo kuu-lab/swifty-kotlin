@@ -26,6 +26,13 @@ struct NativeEmitter {
         let type: LLVMCAPIBindings.LLVMTypeRef
     }
 
+    /// Lookup key used to resolve internal functions by either their KIR name
+    /// or generated C symbol name plus user parameter count.
+    struct FunctionLookupKey: Hashable {
+        let name: String
+        let parameterCount: Int
+    }
+
     struct DebugInfoContext {
         let diBuilder: LLVMCAPIBindings.LLVMDIBuilderRef
         let file: LLVMCAPIBindings.LLVMMetadataRef
@@ -480,6 +487,8 @@ struct NativeEmitter {
         )
 
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
+        var internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)] = [:]
+        var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
         var emittableFunctions: [(KIRFunction, String)] = []
 
         for declaration in module.arena.declarations {
@@ -527,6 +536,11 @@ struct NativeEmitter {
                 bindings.setLinkOnceODRLinkage(functionValue)
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
+            internalSignatures[function.symbol] = (function.params.map(\.type), function.returnType)
+            let functionLookupKey = FunctionLookupKey(name: interner.resolve(function.name), parameterCount: function.params.count)
+            let cSymbolLookupKey = FunctionLookupKey(name: functionName, parameterCount: function.params.count)
+            internalFunctionsByLookupKey[functionLookupKey, default: []].append(function)
+            internalFunctionsByLookupKey[cSymbolLookupKey, default: []].append(function)
             emittableFunctions.append((function, functionName))
         }
 
@@ -554,6 +568,8 @@ struct NativeEmitter {
                         typeLowering: typeLowering,
                         outThrownPointerType: outThrownPointerType,
                         internalFunctions: internalFunctions,
+                        internalSignatures: internalSignatures,
+                        internalFunctionsByLookupKey: internalFunctionsByLookupKey,
                         globalVariables: llvmGlobalVariables,
                         runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
                         usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
