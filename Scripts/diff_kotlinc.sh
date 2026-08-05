@@ -410,6 +410,8 @@ ensure_kotlinc_classpath() {
   fi
 
   KOTLINC_CLASSPATH="$KOTLINC_COROUTINES_JAR"
+  echo "DEBUG: KOTLINC_COROUTINES_JAR=$KOTLINC_COROUTINES_JAR" >&2
+  echo "DEBUG: KOTLINC_CLASSPATH=$KOTLINC_CLASSPATH" >&2
 }
 
 if [[ -z "$TARGET" ]]; then
@@ -1040,6 +1042,8 @@ run_case() {
 
     if [[ $ref_cache_hit -eq 0 ]]; then
       if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+        echo "DEBUG run_case: KOTLINC=$KOTLINC" >&2
+        echo "DEBUG run_case: KOTLINC_CLASSPATH=$KOTLINC_CLASSPATH" >&2
         # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
         # jars (see resolve_kotlinc_lib_jar above) whenever they could be
         # resolved, so the runtime classes needed by ref_run below are
