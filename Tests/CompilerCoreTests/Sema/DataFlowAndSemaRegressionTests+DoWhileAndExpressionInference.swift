@@ -185,11 +185,10 @@ extension DataFlowAndSemaRegressionTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaCleanDoWhileAndExpressionInference() throws {
-
+    func testDataFlowAndSemaRegression_DoWhileAndExpressionInferenceSema() throws {
         let sources: [String] = [
             // testClassWithTypeParametersDefinesVariance
             """
@@ -224,18 +223,80 @@ extension DataFlowAndSemaRegressionTests {
                     }
 
             """,
+            // testValReassignmentEmitsDiagnostic
+            """
+            package sample3
+
+                    fun main(): Int {
+                        val x = 1
+                        x = 2
+                        return x
+                    }
+
+            """,
+            // testDoWhileBodyLocalDoesNotLeakOutsideLoop
+            """
+            package sample4
+
+                    fun main(): Int {
+                        do {
+                            val local = 1
+                        } while (local < 2)
+                        return local
+                    }
+
+            """,
+            // testCompoundAssignOnValEmitsDiagnostic
+            """
+            package sample5
+
+                    fun main(): Int {
+                        val x = 5
+                        x += 1
+                        return x
+                    }
+
+            """,
+            // testMemberCompoundAssignOnValEmitsDiagnostic
+            """
+            package sample6
+
+                    class Box(val n: Int)
+                    fun bump(b: Box): Int {
+                        b.n += 1
+                        return b.n
+                    }
+                    fun main(): Int = bump(Box(5))
+
+            """,
+            // testMemberPostfixIncrementOnValEmitsDiagnostic
+            """
+            package sample7
+
+                    class Box(val n: Int)
+                    fun bump(b: Box): Int {
+                        b.n++
+                        return b.n
+                    }
+                    fun main(): Int = bump(Box(5))
+
+            """,
+            // testBreakOutsideLoopEmitsDiagnostic
+            """
+            package sample8
+
+                    fun main(): Int {
+                        break
+                        return 0
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
             let interner = ctx.interner
 
             // === testClassWithTypeParametersDefinesVariance ===
@@ -285,102 +346,11 @@ extension DataFlowAndSemaRegressionTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnosticsDoWhileAndExpressionInference() throws {
-
-        let sources: [String] = [
-            // testValReassignmentEmitsDiagnostic
-            """
-            package sample0
-
-                    fun main(): Int {
-                        val x = 1
-                        x = 2
-                        return x
-                    }
-
-            """,
-            // testDoWhileBodyLocalDoesNotLeakOutsideLoop
-            """
-            package sample1
-
-                    fun main(): Int {
-                        do {
-                            val local = 1
-                        } while (local < 2)
-                        return local
-                    }
-
-            """,
-            // testCompoundAssignOnValEmitsDiagnostic
-            """
-            package sample2
-
-                    fun main(): Int {
-                        val x = 5
-                        x += 1
-                        return x
-                    }
-
-            """,
-            // testMemberCompoundAssignOnValEmitsDiagnostic
-            """
-            package sample3
-
-                    class Box(val n: Int)
-                    fun bump(b: Box): Int {
-                        b.n += 1
-                        return b.n
-                    }
-                    fun main(): Int = bump(Box(5))
-
-            """,
-            // testMemberPostfixIncrementOnValEmitsDiagnostic
-            """
-            package sample4
-
-                    class Box(val n: Int)
-                    fun bump(b: Box): Int {
-                        b.n++
-                        return b.n
-                    }
-                    fun main(): Int = bump(Box(5))
-
-            """,
-            // testBreakOutsideLoopEmitsDiagnostic
-            """
-            package sample5
-
-                    fun main(): Int {
-                        break
-                        return 0
-                    }
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testValReassignmentEmitsDiagnostic ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[3]
 
                 let path = sample0Path
 
@@ -394,7 +364,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[4]
 
                 let path = sample1Path
 
@@ -408,7 +378,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[5]
 
                 let path = sample2Path
 
@@ -422,7 +392,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[6]
 
                 let path = sample3Path
 
@@ -436,7 +406,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample4Path = paths[4]
+                let sample4Path = paths[7]
 
                 let path = sample4Path
 
@@ -450,7 +420,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample5Path = paths[5]
+                let sample5Path = paths[8]
 
                 let path = sample5Path
 
@@ -462,8 +432,7 @@ extension DataFlowAndSemaRegressionTests {
 
         }
     }
-
-    // MARK: - Consolidated runToKIR clean tests
+// MARK: - Consolidated runToKIR clean tests
 
     @Test
     func testRunToKIRCleanDoWhileAndExpressionInference() throws {
