@@ -65,6 +65,56 @@ struct TypeRefParserTests {
         #expect(!diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-TYPE-DEPTH" })
     }
 
+    @Test("Function type parameters with documentation labels still parse")
+    func testLabeledFunctionTypeParametersParse() {
+        let interner = StringInterner()
+        let arena = ASTArena()
+        let diagnostics = DiagnosticEngine()
+
+        let accName = interner.intern("acc")
+        let charName = interner.intern("Char")
+        let valueKeyword = Keyword.value
+
+        let tokens: [Token] = [
+            makeToken(kind: .symbol(.lParen), start: 0, end: 1),
+            makeToken(kind: .identifier(accName), start: 1, end: 4),
+            makeToken(kind: .symbol(.colon), start: 4, end: 5),
+            makeToken(kind: .identifier(charName), start: 5, end: 9),
+            makeToken(kind: .symbol(.comma), start: 9, end: 10),
+            makeToken(kind: .keyword(valueKeyword), start: 10, end: 15),
+            makeToken(kind: .symbol(.colon), start: 15, end: 16),
+            makeToken(kind: .identifier(charName), start: 16, end: 20),
+            makeToken(kind: .symbol(.rParen), start: 20, end: 21),
+            makeToken(kind: .symbol(.arrow), start: 21, end: 23),
+            makeToken(kind: .identifier(charName), start: 23, end: 27),
+        ]
+
+        let options = TypeRefParserCore.Options(
+            allowQualifiedPath: true,
+            allowFunctionType: true,
+            allowKeywordIdentifiers: true,
+            reserveVarianceKeywords: false,
+            allowTypeAnnotations: false
+        )
+
+        let result = TypeRefParserCore.parseTypeRefPrefix(
+            tokens[...],
+            interner: interner,
+            astArena: arena,
+            options: options,
+            diagnostics: diagnostics
+        )
+
+        #expect(result != nil)
+        #expect(diagnostics.diagnostics.isEmpty)
+        let typeRef = arena.typeRef(result!.ref)
+        guard case .functionType(_, _, let params, _, _, _) = typeRef else {
+            Issue.record("Parsed type was not a function type")
+            return
+        }
+        #expect(params.count == 2)
+    }
+
     @Test("Shallow nested generic types still parse successfully")
     func testShallowNestedGenericTypeParses() {
         let interner = StringInterner()
