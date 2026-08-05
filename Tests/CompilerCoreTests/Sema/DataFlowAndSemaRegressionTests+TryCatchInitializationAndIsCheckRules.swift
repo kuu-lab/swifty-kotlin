@@ -177,11 +177,10 @@ extension DataFlowAndSemaRegressionTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaCleanTryCatchInitializationAndIsCheckRules() throws {
-
+    func testDataFlowAndSemaRegression_TryCatchInitializationAndIsCheckRulesSema() throws {
         let sources: [String] = [
             // testFunctionTypeParameterWithUpperBound
             """
@@ -361,18 +360,66 @@ extension DataFlowAndSemaRegressionTests {
                     fun main(): Int = 0
 
             """,
+            // testUninitializedVariableUseEmitsDiagnostic
+            """
+            package sample14
+
+                    fun main(): Int {
+                        var x: Int
+                        return x
+                    }
+
+            """,
+            // testCompoundAssignOnUninitializedVariableEmitsDiagnostic
+            """
+            package sample15
+
+                    fun main(): Int {
+                        var x: Int
+                        x += 1
+                        return x
+                    }
+
+            """,
+            // testIsCheckWithErasedGenericTypeEmitsWarning
+            """
+            package sample16
+
+                    fun f(x: Any): Boolean = x is List<String>
+                    fun main(): Int = 0
+
+            """,
+            // testIsCheckWithNonReifiedTypeParameterEmitsDiagnostic
+            """
+            package sample17
+
+                    fun <T> f(x: Any): Boolean = x is T
+                    fun main(): Int = 0
+
+            """,
+            // testConstValRejectsNullablePrimitiveTypeAnnotation
+            """
+            package sample18
+
+                    const val maybeInt: Int? = 1
+                    fun main(): Int = 0
+
+            """,
+            // testConstValRejectsNullableStringTypeAnnotation
+            """
+            package sample19
+
+                    const val maybeName: String? = "ok"
+                    fun main(): Int = 0
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
-
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
-
             let ast = try #require(ctx.ast)
-
             let sema = try #require(ctx.sema)
-
             let interner = ctx.interner
 
             // === testFunctionTypeParameterWithUpperBound ===
@@ -683,87 +730,11 @@ extension DataFlowAndSemaRegressionTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnosticsTryCatchInitializationAndIsCheckRules() throws {
-
-        let sources: [String] = [
-            // testUninitializedVariableUseEmitsDiagnostic
-            """
-            package sample0
-
-                    fun main(): Int {
-                        var x: Int
-                        return x
-                    }
-
-            """,
-            // testCompoundAssignOnUninitializedVariableEmitsDiagnostic
-            """
-            package sample1
-
-                    fun main(): Int {
-                        var x: Int
-                        x += 1
-                        return x
-                    }
-
-            """,
-            // testIsCheckWithErasedGenericTypeEmitsWarning
-            """
-            package sample2
-
-                    fun f(x: Any): Boolean = x is List<String>
-                    fun main(): Int = 0
-
-            """,
-            // testIsCheckWithNonReifiedTypeParameterEmitsDiagnostic
-            """
-            package sample3
-
-                    fun <T> f(x: Any): Boolean = x is T
-                    fun main(): Int = 0
-
-            """,
-            // testConstValRejectsNullablePrimitiveTypeAnnotation
-            """
-            package sample4
-
-                    const val maybeInt: Int? = 1
-                    fun main(): Int = 0
-
-            """,
-            // testConstValRejectsNullableStringTypeAnnotation
-            """
-            package sample5
-
-                    const val maybeName: String? = "ok"
-                    fun main(): Int = 0
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testUninitializedVariableUseEmitsDiagnostic ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample0Path = paths[14]
 
                 let path = sample0Path
 
@@ -777,7 +748,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample1Path = paths[1]
+                let sample1Path = paths[15]
 
                 let path = sample1Path
 
@@ -791,7 +762,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample2Path = paths[2]
+                let sample2Path = paths[16]
 
                 let path = sample2Path
 
@@ -805,7 +776,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample3Path = paths[3]
+                let sample3Path = paths[17]
 
                 let path = sample3Path
 
@@ -819,7 +790,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample4Path = paths[4]
+                let sample4Path = paths[18]
 
                 let path = sample4Path
 
@@ -833,7 +804,7 @@ extension DataFlowAndSemaRegressionTests {
 
             do {
 
-                let sample5Path = paths[5]
+                let sample5Path = paths[19]
 
                 let path = sample5Path
 
@@ -845,8 +816,7 @@ extension DataFlowAndSemaRegressionTests {
 
         }
     }
-
-    // MARK: - Consolidated runToKIR clean tests
+// MARK: - Consolidated runToKIR clean tests
 
     @Test
     func testRunToKIRCleanTryCatchInitializationAndIsCheckRules() throws {
