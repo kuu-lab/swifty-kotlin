@@ -170,15 +170,18 @@ extension CallLowerer {
         // (minOf) / greater (maxOf) than the running result.
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
-        let isGenericComparable = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
+        let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
+            isComparatorType(paramType, sema: sema, interner: interner)
+        })
+        let hasComparableUpperBound = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
             upperBounds.contains(where: { bound in
                 isComparableUpperBound(bound, sema: sema)
             })
         })
-        let isComparatorOverload = !isGenericComparable
-            && signature.parameterTypes.contains(where: { paramType in
-                isComparatorType(paramType, sema: sema, interner: interner)
-            })
+        let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
+            && !isComparatorOverload
+            && isUniformTypeParameterOverload(signature, sema: sema)
+        let isGenericComparable = hasComparableUpperBound || isGenericTypeParameterOverload
         let isPrimitiveOverload = !isGenericComparable
             && !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
@@ -356,6 +359,34 @@ extension CallLowerer {
             return false
         }
         return interner.resolve(symbol.name) == "Comparator"
+    }
+
+    /// True when every value parameter of the signature is the same type
+    /// parameter. This captures generic `maxOf`/`minOf` overloads whose upper
+    /// bounds were lost during metadata round-trip but are still known to be
+    /// `Comparable<T>` by the stdlib contract.
+    private func isUniformTypeParameterOverload(
+        _ signature: FunctionSignature,
+        sema: SemaModule
+    ) -> Bool {
+        guard let firstParamType = signature.parameterTypes.first else {
+            return false
+        }
+        return signature.parameterTypes.allSatisfy { paramType in
+            paramType == firstParamType && isTypeParameter(paramType, sema: sema)
+        }
+    }
+
+    private func isTypeParameter(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .typeParam:
+            return true
+        default:
+            return false
+        }
     }
 
     /// True for the numeric primitive types whose ordering can be lowered to a

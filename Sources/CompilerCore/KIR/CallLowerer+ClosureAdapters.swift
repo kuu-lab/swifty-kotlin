@@ -420,18 +420,29 @@ extension CallLowerer {
         arguments: inout [KIRExprID]
     ) {
         guard let chosenCallee,
-              sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
         else {
             return
         }
 
-        // Inline calls consume lambda arguments directly during inline
-        // expansion. Wrapping those arguments in a runtime function object
-        // disconnects their thrown-result slot from the caller's try/catch.
-        // Materialization is only needed for non-inline source-backed bodies
-        // that invoke a function-valued parameter at runtime.
-        if sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) == true {
+        let symbol = sema.symbols.symbol(chosenCallee)
+        let isImported = symbol?.flags.contains(.importedLibrary) == true
+        let isInline = symbol?.flags.contains(.inlineFunction) == true
+        let hasExternalLink = !(sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true)
+
+        // Source-backed callees with no external link get function-value
+        // arguments materialized so the compiled body can invoke them.
+        // Imported inline callees also need materialization: their expansion
+        // may store or pass function-typed parameters to non-inline code
+        // (e.g. a Comparator SAM wrapper method) that expects runtime
+        // function objects, not raw lambda function pointers.
+        guard !hasExternalLink || (isImported && isInline) else {
+            return
+        }
+
+        // Source-backed inline functions are fully expanded in the same
+        // module, so lambda arguments can be consumed directly there.
+        if isInline, !isImported {
             return
         }
 
@@ -596,10 +607,16 @@ extension CallLowerer {
         }
 
         let boxedResult = arena.appendTemporary(type: returnType)
-        emitNonThrowingCall(
-            callee: boxCallee,
-            arg: callResult,
+        emitBoxCallWithValueClassTag(
+            boxCallee: boxCallee,
+            value: callResult,
+            rawSourceKind: sema.types.kind(of: returnType),
             result: boxedResult,
+            resultType: returnType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
             into: &body
         )
         body.append(.returnValue(boxedResult))
@@ -654,8 +671,11 @@ extension CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
            case let .functionType(nextFT) = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType)),
            let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: sema.types.makeNonNullable(nextFT.returnType),
-               types: sema.types,
+               for: resolveValueClassKind(
+                   sema.types.kind(of: sema.types.makeNonNullable(nextFT.returnType)),
+                   types: sema.types,
+                   symbols: sema.symbols
+               ),
                requireNonNull: true
            )
         {
@@ -923,6 +943,8 @@ extension CallLowerer {
         let fixedComparatorSelectorCount: Int? = switch externalLinkName {
         case "kk_comparator_from_multi_selectors": 2
         case "kk_comparator_from_multi_selectors3": 3
+        case "kk_comparator_from_selector",
+             "kk_comparator_from_selector_descending": 1
         case "kk_compareValuesBy1": 1
         case "kk_compareValuesBy": 2
         case "kk_compareValuesBy3": 3

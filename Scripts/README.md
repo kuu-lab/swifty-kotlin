@@ -215,6 +215,29 @@ Render a markdown summary from that report:
 bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary /tmp/step_summary.md
 ```
 
+## Precompiled stdlib artifact for diff runs
+
+`diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
+each candidate compile. The artifact is created under `DIFF_ARTIFACT_ROOT` (default
+`.artifacts/diff_kotlinc/KSwiftKStdlib.kklib`) at runtime and is never committed.
+
+```bash
+# Default: build artifact automatically and use it for all cases
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+
+# Reuse an existing artifact (useful for local debugging or repro scripts)
+DIFF_STDLIB_LIBRARY=/path/to/KSwiftKStdlib.kklib bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+bash Scripts/diff_kotlinc.sh --stdlib-library /path/to/KSwiftKStdlib.kklib Scripts/diff_cases
+
+# Build a stdlib artifact manually
+.build/debug/kswiftc --stdlib-only --emit library -o /tmp/KSwiftKStdlib.kklib
+# Then compile a user file against it
+.build/debug/kswiftc --no-stdlib --stdlib-library /tmp/KSwiftKStdlib.kklib Scripts/diff_cases/hello.kt -o /tmp/hello
+```
+
+The artifact manifest records `libraryKind: stdlib` and `stdlibManifestHash` so
+mismatched compiler/stdlib versions are rejected with `KSWIFTK-LIB-0021` / `KSWIFTK-LIB-0022`.
+
 ## CI test sharding
 
 `shard_swift_tests.sh` splits one test target across several CI jobs using the
