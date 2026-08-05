@@ -39,16 +39,6 @@ struct StringSyntheticMemberLinkTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try #require(result)
-    }
 
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         var results: [ExprID] = []
@@ -60,458 +50,6 @@ struct StringSyntheticMemberLinkTests {
             }
         }
         return results
-    }
-    @Test func testStringSyntheticMemberLinkRegistrations() throws {
-        let (sema, interner) = try makeSema()
-
-        do {
-            // Originally testExistingStringStubsRetainCorrectExternalLinks
-                    let expected: [String: String] = [
-                        "toInt": "kk_string_toInt",
-                    ]
-
-                    for (member, expectedLink) in expected {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            links.contains(expectedLink),
-                            "String.\(member) should link to \(expectedLink), got \(links.sorted())"
-                        )
-                    }
-                    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
-                    // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
-                    for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
-                            "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
-                        )
-                    }
-                    #expect(
-                        !externalLinks(for: "split", sema: sema, interner: interner)
-                            .contains("kk_string_split_flat"),
-                        "String.split(String) should be source-backed after RF-STDLIB-005"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
-                            .contains("__kk_string_split"),
-                        "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
-                            .contains("__kk_string_split_limit"),
-                        "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
-                    )
-                    #expect(
-                        externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
-                            .contains("__kk_string_splitToSequence"),
-                        "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
-                    )
-                    #expect(
-                        externalLink(for: "findAnyOf", sema: sema, interner: interner) == nil,
-                        "CharSequence.findAnyOf should be source-backed after KSP-408"
-                    )
-                    #expect(
-                        externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == nil,
-                        "CharSequence.findLastAnyOf should be source-backed after KSP-408"
-                    )
-                    // KSP-407: substringBefore/After/BeforeLast/AfterLast and
-                    // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
-                    // (StringSearchReplace.kt) and carry no runtime link.
-                    // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are now
-                    // bundled Kotlin source (StringIndexOf.kt) and carry no runtime link.
-                    for member in [
-                        "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
-                        "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
-                        "indexOfAny", "lastIndexOfAny",
-                    ] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            links.isEmpty,
-                            "String.\(member) should be source-backed after KSP-407/KSP-408, got \(links.sorted())"
-                        )
-                    }
-                    // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
-                    #expect(
-                        externalLinks(for: "plus", sema: sema, interner: interner)
-                            .contains("kk_string_plus"),
-                        "String?.plus(other: Any?) should link to kk_string_plus"
-                    )
-                    // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
-                    let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
-                    #expect(
-                        !replaceLinks.contains("kk_string_replace_flat")
-                            && !replaceLinks.contains("kk_string_replace_char_flat")
-                            && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
-                            && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
-                            && !replaceLinks.contains("kk_string_replace_regex"),
-                        "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
-                    )
-        }
-
-        do {
-            // Originally testNewCaseConversionStubsHaveCorrectExternalLinks
-                    // lowercase() and uppercase() are now bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
-                    // The `externalLink(for:)` helper returns the first match in the symbol table; since
-                    // Char.lowercase / Char.uppercase share the same FQN prefix, we verify via the String-receiver
-                    // overloads specifically.
-                    let lowercaseLinks = externalLinks(for: "lowercase", sema: sema, interner: interner)
-                    #expect(
-                        !lowercaseLinks.contains("kk_string_lowercase"),
-                        "String.lowercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
-                    )
-                    let uppercaseLinks = externalLinks(for: "uppercase", sema: sema, interner: interner)
-                    #expect(
-                        !uppercaseLinks.contains("kk_string_uppercase"),
-                        "String.uppercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
-                    )
-                    // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
-                    #expect(
-                        externalLink(for: "capitalize", sema: sema, interner: interner) == nil,
-                        "String.capitalize should be a bundled Kotlin function with no C external link"
-                    )
-
-                    #expect(
-                        externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner) == "__kk_lowercase_locale",
-                        "String.lowercase(Locale) wrapper should call the private locale primitive"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner) == "__kk_uppercase_locale",
-                        "String.uppercase(Locale) wrapper should call the private locale primitive"
-                    )
-        }
-
-        do {
-            // Originally testCodePointCountStubsHaveCorrectExternalLinks
-                    let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount"),
-                        "CharSequence.codePointCount() should link to __kk_string_codePointCount"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_from"),
-                        "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_range"),
-                        "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
-                    )
-        }
-
-        do {
-            // Originally testStringNormalizationStubsHaveCorrectExternalLinks
-                    #expect(
-                        externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
-                        "String.normalize should link to __kk_string_normalize_flat"
-                    )
-                    #expect(
-                        externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
-                        "String.isNormalized should link to __kk_string_isNormalized_flat"
-                    )
-        }
-
-        do {
-            // Originally testChunkedSequenceStubsHaveCorrectExternalLinks
-                    let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                    #expect(
-                        links.contains("kk_string_chunked_sequence_transform"),
-                        "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
-                    )
-                    #expect(
-                        links.contains("kk_string_chunked_sequence"),
-                        "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
-                    )
-        }
-
-        do {
-            // Originally testNewNullableConversionStubsHaveCorrectExternalLinks
-                    #expect(
-                        externalLink(
-                            for: "toIntOrNull",
-                            receiverType: sema.types.stringType,
-                            parameterCount: 0,
-                            sema: sema,
-                            interner: interner
-                        ) == "kk_string_toIntOrNull_flat",
-                        "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
-                    )
-                    #expect(
-                        externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toIntOrNull_radix_flat"),
-                        "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
-                    )
-                    #expect(
-                        externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",
-                        "String.toUByteOrNull should link to kk_string_toUByteOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUByteOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUByteOrNull_radix"),
-                        "String.toUByteOrNull(radix) should link to kk_string_toUByteOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toUShortOrNull", sema: sema, interner: interner) == "kk_string_toUShortOrNull",
-                        "String.toUShortOrNull should link to kk_string_toUShortOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUShortOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUShortOrNull_radix"),
-                        "String.toUShortOrNull(radix) should link to kk_string_toUShortOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toUIntOrNull", sema: sema, interner: interner) == "kk_string_toUIntOrNull",
-                        "String.toUIntOrNull should link to kk_string_toUIntOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toUIntOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toUIntOrNull_radix"),
-                        "String.toUIntOrNull(radix) should link to kk_string_toUIntOrNull_radix"
-                    )
-                    #expect(
-                        externalLink(for: "toULongOrNull", sema: sema, interner: interner) == "kk_string_toULongOrNull",
-                        "String.toULongOrNull should link to kk_string_toULongOrNull"
-                    )
-                    #expect(
-                        externalLinks(for: "toULongOrNull", sema: sema, interner: interner)
-                            .contains("kk_string_toULongOrNull_radix"),
-                        "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
-                    )
-                    #expect(
-                        !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
-                            .contains("__kk_string_toDoubleOrNull"),
-                        "String.toDoubleOrNull should be source-backed and not have a direct external link"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
-                    )
-                    #expect(
-                        externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
-                    )
-        }
-
-        do {
-            // Originally testNewTransformStubsHaveCorrectExternalLinks
-                    // repeat and reversed are now bundled Kotlin functions — no C external link.
-                    let bundledMembers = ["repeat", "reversed"]
-                    for member in bundledMembers {
-                        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-                        #expect(
-                            !sema.symbols.lookupAll(fqName: fq).isEmpty,
-                            "String.\(member) should be registered as a bundled Kotlin symbol"
-                        )
-                        #expect(
-                            externalLink(for: member, sema: sema, interner: interner) == nil,
-                            "String.\(member) must not have a C external link after migration to Kotlin source"
-                        )
-                    }
-
-                    let expected: [String: String] = [
-                        "toList": "kk_string_toList",
-                        "toCharArray": "kk_string_toCharArray_flat",
-                        "toTypedArray": "kk_string_toTypedArray_flat",
-                    ]
-                    for (member, expectedLink) in expected {
-                        #expect(
-                            externalLink(for: member, sema: sema, interner: interner) == expectedLink,
-                            "String.\(member) should link to \(expectedLink)"
-                        )
-                    }
-        }
-
-        do {
-            // Originally testSourceBackedStringStubsHaveNoExternalLinks
-                    // These bundled Kotlin source extensions should not have any C external link.
-                    for member in ["padStart", "padEnd", "lines", "lineSequence"] {
-                        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-                        let symbols = sema.symbols.lookupAll(fqName: fq)
-                        #expect(!symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
-                        let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                        #expect(links.isEmpty, "String.\(member) must not have C external links after migration to Kotlin source")
-                    }
-        }
-
-        do {
-            // Originally testStringCollectionAndSequenceResultStubsUseFlatExternalLinks
-                    let expected: [(member: String, parameterCount: Int, link: String)] = [
-                        ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
-                        ("toCollection", 1, "kk_string_toCollection_flat"),
-                        ("asIterable", 0, "kk_string_asIterable_flat"),
-                        ("chunked", 1, "kk_string_chunked_flat"),
-                        ("windowed", 1, "kk_string_windowed_default"),
-                        ("windowed", 2, "kk_string_windowed"),
-                        ("windowed", 3, "kk_string_windowed_partial"),
-                        ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
-                        ("asSequence", 0, "kk_string_asSequence_flat"),
-                        ("withIndex", 0, "kk_string_withIndex_flat"),
-                    ]
-
-                    for item in expected {
-                        #expect(
-                            externalLink(
-                                for: item.member,
-                                receiverType: sema.types.stringType,
-                                parameterCount: item.parameterCount,
-                                sema: sema,
-                                interner: interner
-                            ) == item.link,
-                            "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
-                        )
-                    }
-
-                    // toByteArray / encodeToByteArray are bundled Kotlin source that bridge through
-                    // private `__kk_string_*_flat` primitives, so the public members carry no link.
-                    let sourceBacked: [(member: String, parameterCount: Int)] = [
-                        ("toByteArray", 0),
-                        ("toByteArray", 1),
-                        ("toByteArray", 2),
-                        ("encodeToByteArray", 0),
-                        ("encodeToByteArray", 1),
-                        ("encodeToByteArray", 2),
-                    ]
-                    for item in sourceBacked {
-                        #expect(
-                            externalLink(
-                                for: item.member,
-                                receiverType: sema.types.stringType,
-                                parameterCount: item.parameterCount,
-                                sema: sema,
-                                interner: interner
-                            ) == nil,
-                            "String.\(item.member)/\(item.parameterCount) should be source-backed with no C external link"
-                        )
-                    }
-        }
-
-        do {
-            // Originally testKSP401StringHelpersAreBundledKotlinMembers
-                    for member in [
-                        "isEmpty",
-                        "isNotEmpty",
-                        "isBlank",
-                        "isNotBlank",
-                        "isNullOrEmpty",
-                        "isNullOrBlank",
-                        "ifEmpty",
-                        "ifBlank",
-                        "orEmpty",
-                        "lines",
-                        "lineSequence",
-                    ] {
-                        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-                        let symbols = sema.symbols.lookupAll(fqName: fq)
-                        #expect(!symbols.isEmpty, "kotlin.text.\(member) should be registered as a bundled Kotlin symbol")
-                        let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-                        #expect(
-                            links.isEmpty,
-                            "kotlin.text.\(member) must not have C external links after KSP-401 migration, got \(links.sorted())"
-                        )
-                    }
-        }
-
-        do {
-            // Originally testTakeDropMembersAreBundledKotlin
-                    // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-                    // (StringTakeDrop.kt) and carry no runtime link.
-                    for member in ["take", "takeLast", "drop", "dropLast"] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
-                            "String.\(member) should be source-backed after KSP-405, got \(links.sorted())"
-                        )
-                    }
-        }
-
-        do {
-            // Originally testStringHOFMembersAreBundledKotlin
-                    // KSP-410: filter/filterNot/any/all/none/count/find/findLast/
-                    // onEach/partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/
-                    // reduce family/fold family are bundled Kotlin source
-                    // (StringHOF.kt) and carry no runtime link. map/mapIndexed are
-                    // excluded (BUG-171 keeps them Swift-backed).
-                    for member in [
-                        "filter", "filterNot", "any", "all", "none", "count",
-                        "find", "findLast", "onEach", "partition", "sumBy", "sumByDouble",
-                        "filterIndexed", "onEachIndexed",
-                        "reduce", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull",
-                        "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull",
-                        "fold", "foldIndexed", "foldRight", "foldRightIndexed",
-                    ] {
-                        let links = externalLinks(for: member, sema: sema, interner: interner)
-                        #expect(
-                            !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
-                            "String.\(member) should be source-backed after KSP-410, got \(links.sorted())"
-                        )
-                    }
-        }
-
-        do {
-            // Originally testIfBlankStubIsBundledKotlin
-                    #expect(
-                        externalLink(for: "ifBlank", sema: sema, interner: interner) == nil,
-                        "CharSequence.ifBlank should be bundled Kotlin without a C external link"
-                    )
-        }
-
-        do {
-            // Originally testIfEmptyStubIsBundledKotlin
-                    #expect(
-                        externalLink(for: "ifEmpty", sema: sema, interner: interner) == nil,
-                        "CharSequence.ifEmpty should be bundled Kotlin without a C external link"
-                    )
-        }
-
-        do {
-            // Originally testChunkedSequenceStubHasCorrectExternalLink
-                    let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                    #expect(
-                        links.contains("kk_string_chunked_sequence"),
-                        "CharSequence.chunkedSequence should link to kk_string_chunked_sequence, got \(links.sorted())"
-                    )
-                    #expect(
-                        links.contains("kk_string_chunked_sequence_transform"),
-                        "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
-                    )
-        }
-
-        do {
-            // Originally testWindowedSequenceStubHasCorrectExternalLink
-                    let windowedLinks = externalLinks(for: "windowedSequence", sema: sema, interner: interner)
-                    #expect(
-                        windowedLinks.contains("kk_string_windowedSequence_partial"),
-                        "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial, got \(windowedLinks.sorted())"
-                    )
-                    #expect(
-                        windowedLinks.contains("kk_string_windowedSequence_transform"),
-                        "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform"
-                    )
-        }
-
-        do {
-            // Originally testTrimMembersAreBundledKotlinFunctionsWithoutExternalLinks
-                    for member in ["trim", "trimStart", "trimEnd"] {
-                        #expect(
-                            externalLinks(for: member, sema: sema, interner: interner).isEmpty,
-                            "String.\(member) should be a bundled Kotlin function with no C external link"
-                        )
-                    }
-        }
     }
 
     // MARK: - Path-aware expression search helpers
@@ -845,7 +383,456 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            // === testStringIndentFormatMembersResolveAsSourceBackedCalls ===
+            do {
+                // Originally testExistingStringStubsRetainCorrectExternalLinks
+                        let expected: [String: String] = [
+                            "toInt": "kk_string_toInt",
+                        ]
+
+                        for (member, expectedLink) in expected {
+                            let links = externalLinks(for: member, sema: sema, interner: interner)
+                            #expect(
+                                links.contains(expectedLink),
+                                "String.\(member) should link to \(expectedLink), got \(links.sorted())"
+                            )
+                        }
+                        // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
+                        // bundled Kotlin source (StringPrefixSuffix.kt) and carry no runtime link.
+                        for member in ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"] {
+                            let links = externalLinks(for: member, sema: sema, interner: interner)
+                            #expect(
+                                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                                "String.\(member) should be source-backed after KSP-404, got \(links.sorted())"
+                            )
+                        }
+                        #expect(
+                            !externalLinks(for: "split", sema: sema, interner: interner)
+                                .contains("kk_string_split_flat"),
+                            "String.split(String) should be source-backed after RF-STDLIB-005"
+                        )
+                        #expect(
+                            externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
+                                .contains("__kk_string_split"),
+                            "String.__kk_string_split should bridge through the private __kk_string_split ABI alias"
+                        )
+                        #expect(
+                            externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
+                                .contains("__kk_string_split_limit"),
+                            "String.__kk_string_split_limit should bridge through the private __kk_string_split_limit ABI alias"
+                        )
+                        #expect(
+                            externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
+                                .contains("__kk_string_splitToSequence"),
+                            "String.__kk_string_splitToSequence should bridge through the private __kk_string_splitToSequence ABI alias"
+                        )
+                        #expect(
+                            externalLink(for: "findAnyOf", sema: sema, interner: interner) == nil,
+                            "CharSequence.findAnyOf should be source-backed after KSP-408"
+                        )
+                        #expect(
+                            externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == nil,
+                            "CharSequence.findLastAnyOf should be source-backed after KSP-408"
+                        )
+                        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+                        // replaceBefore/After/BeforeLast/AfterLast are now bundled Kotlin source
+                        // (StringSearchReplace.kt) and carry no runtime link.
+                        // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are now
+                        // bundled Kotlin source (StringIndexOf.kt) and carry no runtime link.
+                        for member in [
+                            "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast",
+                            "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
+                            "indexOfAny", "lastIndexOfAny",
+                        ] {
+                            let links = externalLinks(for: member, sema: sema, interner: interner)
+                            #expect(
+                                links.isEmpty,
+                                "String.\(member) should be source-backed after KSP-407/KSP-408, got \(links.sorted())"
+                            )
+                        }
+                        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+                        #expect(
+                            externalLinks(for: "plus", sema: sema, interner: interner)
+                                .contains("kk_string_plus"),
+                            "String?.plus(other: Any?) should link to kk_string_plus"
+                        )
+                        // KSP-303: replace overloads are now bundled Kotlin source, not public runtime stubs.
+                        let replaceLinks = externalLinks(for: "replace", sema: sema, interner: interner)
+                        #expect(
+                            !replaceLinks.contains("kk_string_replace_flat")
+                                && !replaceLinks.contains("kk_string_replace_char_flat")
+                                && !replaceLinks.contains("kk_string_replace_ignoreCase_flat")
+                                && !replaceLinks.contains("kk_string_replace_char_ignoreCase_flat")
+                                && !replaceLinks.contains("kk_string_replace_regex"),
+                            "String.replace overloads should be source-backed; got \(replaceLinks.sorted())"
+                        )
+            }
+
+            do {
+                // Originally testNewCaseConversionStubsHaveCorrectExternalLinks
+                        // lowercase() and uppercase() are now bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
+                        // The `externalLink(for:)` helper returns the first match in the symbol table; since
+                        // Char.lowercase / Char.uppercase share the same FQN prefix, we verify via the String-receiver
+                        // overloads specifically.
+                        let lowercaseLinks = externalLinks(for: "lowercase", sema: sema, interner: interner)
+                        #expect(
+                            !lowercaseLinks.contains("kk_string_lowercase"),
+                            "String.lowercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
+                        )
+                        let uppercaseLinks = externalLinks(for: "uppercase", sema: sema, interner: interner)
+                        #expect(
+                            !uppercaseLinks.contains("kk_string_uppercase"),
+                            "String.uppercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
+                        )
+                        // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
+                        #expect(
+                            externalLink(for: "capitalize", sema: sema, interner: interner) == nil,
+                            "String.capitalize should be a bundled Kotlin function with no C external link"
+                        )
+
+                        #expect(
+                            externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner) == "__kk_lowercase_locale",
+                            "String.lowercase(Locale) wrapper should call the private locale primitive"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner) == "__kk_uppercase_locale",
+                            "String.uppercase(Locale) wrapper should call the private locale primitive"
+                        )
+            }
+
+            do {
+                // Originally testCodePointCountStubsHaveCorrectExternalLinks
+                        let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+                        #expect(
+                            codePointCountLinks.contains("__kk_string_codePointCount"),
+                            "CharSequence.codePointCount() should link to __kk_string_codePointCount"
+                        )
+                        #expect(
+                            codePointCountLinks.contains("__kk_string_codePointCount_from"),
+                            "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
+                        )
+                        #expect(
+                            codePointCountLinks.contains("__kk_string_codePointCount_range"),
+                            "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
+                        )
+            }
+
+            do {
+                // Originally testStringNormalizationStubsHaveCorrectExternalLinks
+                        #expect(
+                            externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
+                            "String.normalize should link to __kk_string_normalize_flat"
+                        )
+                        #expect(
+                            externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
+                            "String.isNormalized should link to __kk_string_isNormalized_flat"
+                        )
+            }
+
+            do {
+                // Originally testChunkedSequenceStubsHaveCorrectExternalLinks
+                        let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
+                        #expect(
+                            links.contains("kk_string_chunked_sequence_transform"),
+                            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+                        )
+                        #expect(
+                            links.contains("kk_string_chunked_sequence"),
+                            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
+                        )
+            }
+
+            do {
+                // Originally testNewNullableConversionStubsHaveCorrectExternalLinks
+                        #expect(
+                            externalLink(
+                                for: "toIntOrNull",
+                                receiverType: sema.types.stringType,
+                                parameterCount: 0,
+                                sema: sema,
+                                interner: interner
+                            ) == "kk_string_toIntOrNull_flat",
+                            "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
+                        )
+                        #expect(
+                            externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
+                                .contains("kk_string_toIntOrNull_radix_flat"),
+                            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
+                        )
+                        #expect(
+                            externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",
+                            "String.toUByteOrNull should link to kk_string_toUByteOrNull"
+                        )
+                        #expect(
+                            externalLinks(for: "toUByteOrNull", sema: sema, interner: interner)
+                                .contains("kk_string_toUByteOrNull_radix"),
+                            "String.toUByteOrNull(radix) should link to kk_string_toUByteOrNull_radix"
+                        )
+                        #expect(
+                            externalLink(for: "toUShortOrNull", sema: sema, interner: interner) == "kk_string_toUShortOrNull",
+                            "String.toUShortOrNull should link to kk_string_toUShortOrNull"
+                        )
+                        #expect(
+                            externalLinks(for: "toUShortOrNull", sema: sema, interner: interner)
+                                .contains("kk_string_toUShortOrNull_radix"),
+                            "String.toUShortOrNull(radix) should link to kk_string_toUShortOrNull_radix"
+                        )
+                        #expect(
+                            externalLink(for: "toUIntOrNull", sema: sema, interner: interner) == "kk_string_toUIntOrNull",
+                            "String.toUIntOrNull should link to kk_string_toUIntOrNull"
+                        )
+                        #expect(
+                            externalLinks(for: "toUIntOrNull", sema: sema, interner: interner)
+                                .contains("kk_string_toUIntOrNull_radix"),
+                            "String.toUIntOrNull(radix) should link to kk_string_toUIntOrNull_radix"
+                        )
+                        #expect(
+                            externalLink(for: "toULongOrNull", sema: sema, interner: interner) == "kk_string_toULongOrNull",
+                            "String.toULongOrNull should link to kk_string_toULongOrNull"
+                        )
+                        #expect(
+                            externalLinks(for: "toULongOrNull", sema: sema, interner: interner)
+                                .contains("kk_string_toULongOrNull_radix"),
+                            "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
+                        )
+                        #expect(
+                            !externalLinks(for: "toDoubleOrNull", sema: sema, interner: interner)
+                                .contains("__kk_string_toDoubleOrNull"),
+                            "String.toDoubleOrNull should be source-backed and not have a direct external link"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toDoubleOrNull", sema: sema, interner: interner) == "__kk_string_toDoubleOrNull"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toDouble", sema: sema, interner: interner) == "__kk_string_toDouble"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toFloat", sema: sema, interner: interner) == "__kk_string_toFloat"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toFloatOrNull", sema: sema, interner: interner) == "__kk_string_toFloatOrNull"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toBigDecimal", sema: sema, interner: interner) == "__kk_string_toBigDecimal"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toBigDecimalOrNull", sema: sema, interner: interner) == "__kk_string_toBigDecimalOrNull"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toBigInteger", sema: sema, interner: interner) == "__kk_string_toBigInteger"
+                        )
+                        #expect(
+                            externalLink(for: "__kk_string_toBigIntegerOrNull", sema: sema, interner: interner) == "__kk_string_toBigIntegerOrNull"
+                        )
+            }
+
+            do {
+                // Originally testNewTransformStubsHaveCorrectExternalLinks
+                        // repeat and reversed are now bundled Kotlin functions — no C external link.
+                        let bundledMembers = ["repeat", "reversed"]
+                        for member in bundledMembers {
+                            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+                            #expect(
+                                !sema.symbols.lookupAll(fqName: fq).isEmpty,
+                                "String.\(member) should be registered as a bundled Kotlin symbol"
+                            )
+                            #expect(
+                                externalLink(for: member, sema: sema, interner: interner) == nil,
+                                "String.\(member) must not have a C external link after migration to Kotlin source"
+                            )
+                        }
+
+                        let expected: [String: String] = [
+                            "toList": "kk_string_toList",
+                            "toCharArray": "kk_string_toCharArray_flat",
+                            "toTypedArray": "kk_string_toTypedArray_flat",
+                        ]
+                        for (member, expectedLink) in expected {
+                            #expect(
+                                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
+                                "String.\(member) should link to \(expectedLink)"
+                            )
+                        }
+            }
+
+            do {
+                // Originally testSourceBackedStringStubsHaveNoExternalLinks
+                        // These bundled Kotlin source extensions should not have any C external link.
+                        for member in ["padStart", "padEnd", "lines", "lineSequence"] {
+                            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+                            let symbols = sema.symbols.lookupAll(fqName: fq)
+                            #expect(!symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
+                            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                            #expect(links.isEmpty, "String.\(member) must not have C external links after migration to Kotlin source")
+                        }
+            }
+
+            do {
+                // Originally testStringCollectionAndSequenceResultStubsUseFlatExternalLinks
+                        let expected: [(member: String, parameterCount: Int, link: String)] = [
+                            ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
+                            ("toCollection", 1, "kk_string_toCollection_flat"),
+                            ("asIterable", 0, "kk_string_asIterable_flat"),
+                            ("chunked", 1, "kk_string_chunked_flat"),
+                            ("windowed", 1, "kk_string_windowed_default"),
+                            ("windowed", 2, "kk_string_windowed"),
+                            ("windowed", 3, "kk_string_windowed_partial"),
+                            ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
+                            ("asSequence", 0, "kk_string_asSequence_flat"),
+                            ("withIndex", 0, "kk_string_withIndex_flat"),
+                        ]
+
+                        for item in expected {
+                            #expect(
+                                externalLink(
+                                    for: item.member,
+                                    receiverType: sema.types.stringType,
+                                    parameterCount: item.parameterCount,
+                                    sema: sema,
+                                    interner: interner
+                                ) == item.link,
+                                "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
+                            )
+                        }
+
+                        // toByteArray / encodeToByteArray are bundled Kotlin source that bridge through
+                        // private `__kk_string_*_flat` primitives, so the public members carry no link.
+                        let sourceBacked: [(member: String, parameterCount: Int)] = [
+                            ("toByteArray", 0),
+                            ("toByteArray", 1),
+                            ("toByteArray", 2),
+                            ("encodeToByteArray", 0),
+                            ("encodeToByteArray", 1),
+                            ("encodeToByteArray", 2),
+                        ]
+                        for item in sourceBacked {
+                            #expect(
+                                externalLink(
+                                    for: item.member,
+                                    receiverType: sema.types.stringType,
+                                    parameterCount: item.parameterCount,
+                                    sema: sema,
+                                    interner: interner
+                                ) == nil,
+                                "String.\(item.member)/\(item.parameterCount) should be source-backed with no C external link"
+                            )
+                        }
+            }
+
+            do {
+                // Originally testKSP401StringHelpersAreBundledKotlinMembers
+                        for member in [
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isBlank",
+                            "isNotBlank",
+                            "isNullOrEmpty",
+                            "isNullOrBlank",
+                            "ifEmpty",
+                            "ifBlank",
+                            "orEmpty",
+                            "lines",
+                            "lineSequence",
+                        ] {
+                            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+                            let symbols = sema.symbols.lookupAll(fqName: fq)
+                            #expect(!symbols.isEmpty, "kotlin.text.\(member) should be registered as a bundled Kotlin symbol")
+                            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+                            #expect(
+                                links.isEmpty,
+                                "kotlin.text.\(member) must not have C external links after KSP-401 migration, got \(links.sorted())"
+                            )
+                        }
+            }
+
+            do {
+                // Originally testTakeDropMembersAreBundledKotlin
+                        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+                        // (StringTakeDrop.kt) and carry no runtime link.
+                        for member in ["take", "takeLast", "drop", "dropLast"] {
+                            let links = externalLinks(for: member, sema: sema, interner: interner)
+                            #expect(
+                                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                                "String.\(member) should be source-backed after KSP-405, got \(links.sorted())"
+                            )
+                        }
+            }
+
+            do {
+                // Originally testStringHOFMembersAreBundledKotlin
+                        // KSP-410: filter/filterNot/any/all/none/count/find/findLast/
+                        // onEach/partition/sumBy/sumByDouble/filterIndexed/onEachIndexed/
+                        // reduce family/fold family are bundled Kotlin source
+                        // (StringHOF.kt) and carry no runtime link. map/mapIndexed are
+                        // excluded (BUG-171 keeps them Swift-backed).
+                        for member in [
+                            "filter", "filterNot", "any", "all", "none", "count",
+                            "find", "findLast", "onEach", "partition", "sumBy", "sumByDouble",
+                            "filterIndexed", "onEachIndexed",
+                            "reduce", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull",
+                            "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull",
+                            "fold", "foldIndexed", "foldRight", "foldRightIndexed",
+                        ] {
+                            let links = externalLinks(for: member, sema: sema, interner: interner)
+                            #expect(
+                                !links.contains("kk_string_\(member)_flat") && !links.contains("kk_string_\(member)"),
+                                "String.\(member) should be source-backed after KSP-410, got \(links.sorted())"
+                            )
+                        }
+            }
+
+            do {
+                // Originally testIfBlankStubIsBundledKotlin
+                        #expect(
+                            externalLink(for: "ifBlank", sema: sema, interner: interner) == nil,
+                            "CharSequence.ifBlank should be bundled Kotlin without a C external link"
+                        )
+            }
+
+            do {
+                // Originally testIfEmptyStubIsBundledKotlin
+                        #expect(
+                            externalLink(for: "ifEmpty", sema: sema, interner: interner) == nil,
+                            "CharSequence.ifEmpty should be bundled Kotlin without a C external link"
+                        )
+            }
+
+            do {
+                // Originally testChunkedSequenceStubHasCorrectExternalLink
+                        let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
+                        #expect(
+                            links.contains("kk_string_chunked_sequence"),
+                            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence, got \(links.sorted())"
+                        )
+                        #expect(
+                            links.contains("kk_string_chunked_sequence_transform"),
+                            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+                        )
+            }
+
+            do {
+                // Originally testWindowedSequenceStubHasCorrectExternalLink
+                        let windowedLinks = externalLinks(for: "windowedSequence", sema: sema, interner: interner)
+                        #expect(
+                            windowedLinks.contains("kk_string_windowedSequence_partial"),
+                            "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial, got \(windowedLinks.sorted())"
+                        )
+                        #expect(
+                            windowedLinks.contains("kk_string_windowedSequence_transform"),
+                            "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform"
+                        )
+            }
+
+            do {
+                // Originally testTrimMembersAreBundledKotlinFunctionsWithoutExternalLinks
+                        for member in ["trim", "trimStart", "trimEnd"] {
+                            #expect(
+                                externalLinks(for: member, sema: sema, interner: interner).isEmpty,
+                                "String.\(member) should be a bundled Kotlin function with no C external link"
+                            )
+                        }
+            }
+
+                // === testStringIndentFormatMembersResolveAsSourceBackedCalls ===
 
             do {
 
