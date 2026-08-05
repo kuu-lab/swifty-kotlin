@@ -20,17 +20,6 @@ struct UnsignedPrimitiveMemberCallTests {
             nullability: .nonNull
         )))
     }
-
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
-            try runSema(ctx)
-        } catch {
-            // Error diagnostics are asserted by each test.
-        }
-        return ctx
-    }
-
     // MARK: - Per-source diagnostic helpers
 
     private func diagnosticsForPath(
