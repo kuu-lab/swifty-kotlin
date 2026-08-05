@@ -31,12 +31,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
         func isSourceBackedSequenceCall() -> Bool {
             guard let symbol,
                   let sema = context.sema,
-                  let semanticSymbol = sema.symbols.symbol(symbol),
-                  semanticSymbol.declSite != nil
+                  sema.symbols.symbol(symbol) != nil
             else {
                 return false
             }
-            return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+            return sema.symbols.isSourceBackedSymbol(symbol)
         }
         if isSourceBackedSequenceCall() {
             return false
