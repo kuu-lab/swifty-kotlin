@@ -282,19 +282,25 @@ done
 
 requires_kotlinx_coroutines() {
   local target="$1"
-  # Plain grep (POSIX ERE), not rg: this must keep working on hosts/CI jobs
-  # without ripgrep installed. A missing `rg` here previously made `rg -q`
-  # exit non-zero for "command not found" the same way it does for "no
-  # match", so this silently reported "does not need kotlinx.coroutines"
+  # Plain grep (POSIX ERE) + find, not rg: this must keep working on hosts/CI
+  # jobs without ripgrep installed. A missing `rg` here previously made
+  # `rg -q` exit non-zero for "command not found" the same way it does for
+  # "no match", so this silently reported "does not need kotlinx.coroutines"
   # and skipped downloading the jar — the reference kotlinc then failed
   # every coroutines diff case with "unresolved reference 'kotlinx'".
+  local import_pattern='import[[:space:]]+kotlinx\.coroutines'
   if [[ -f "$target" ]]; then
-    grep -Eq 'import[[:space:]]+kotlinx\.coroutines' "$target"
+    grep -Eq "$import_pattern" "$target"
     return $?
   fi
   if [[ -d "$target" ]]; then
-    grep -rlEq --include='*.kt' 'import[[:space:]]+kotlinx\.coroutines' "$target"
-    return $?
+    local source_file
+    while IFS= read -r -d '' source_file; do
+      if grep -Eq "$import_pattern" "$source_file"; then
+        return 0
+      fi
+    done < <(find "$target" -type f -name '*.kt' -print0)
+    return 1
   fi
   return 1
 }
