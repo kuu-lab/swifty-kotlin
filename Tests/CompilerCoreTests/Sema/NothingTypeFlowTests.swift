@@ -5,21 +5,6 @@ import Testing
 @Suite
 struct NothingTypeFlowTests {
 
-    private func exprIDs(
-        in ast: ASTModule,
-        where predicate: (Expr) -> Bool
-    ) -> [ExprID] {
-        var result: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            if predicate(expr) {
-                result.append(exprID)
-            }
-        }
-        return result
-    }
-
     // MARK: - Per-source diagnostic helpers
 
     private func diagnosticsForPath(
@@ -168,11 +153,10 @@ struct NothingTypeFlowTests {
         return nil
     }
 
-    // MARK: - Consolidated runSema clean tests
+    // MARK: - Consolidated Sema tests
 
     @Test
-    func testRunSemaClean() throws {
-
+    func testNothingTypeFlowSema() throws {
         let sources: [String] = [
             // testControlFlowTerminalsBindNothingType
             """
@@ -225,6 +209,18 @@ struct NothingTypeFlowTests {
                     }
 
             """,
+            // testUnreachableAfterNothingEmitsDiagnostic
+            """
+            package sample3
+
+                    class E
+
+                    fun f(): Int {
+                        throw E()
+                        return 1
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -245,23 +241,21 @@ struct NothingTypeFlowTests {
 
                 let sample0Path = paths[0]
 
-                let path = sample0Path
-
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                let returnExprs = exprIDs(in: ast) { expr in
+                let returnExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .returnExpr = expr { return true }
                     return false
                 }
-                let breakExprs = exprIDs(in: ast) { expr in
+                let breakExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .breakExpr = expr { return true }
                     return false
                 }
-                let continueExprs = exprIDs(in: ast) { expr in
+                let continueExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .continueExpr = expr { return true }
                     return false
                 }
-                let throwExprs = exprIDs(in: ast) { expr in
+                let throwExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .throwExpr = expr { return true }
                     return false
                 }
@@ -286,34 +280,22 @@ struct NothingTypeFlowTests {
 
                 let sample1Path = paths[1]
 
-                let path = sample1Path
-
-                let source = sources[1]
-
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
-                // Bundled stdlib contributes if/when/try expressions of its own
-                // (e.g. String.padStart/padEnd, Files.kt's fileNormalizePath),
-                // and that set grows over time. Filter to user-source expressions
-                // only so this test doesn't need updating every time bundled
-                // stdlib gains or loses a control-flow expression.
-                func isUserSource(_ range: SourceRange) -> Bool {
-                    !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
-                }
-                let allIfExprIDs = exprIDs(in: ast) { expr in
-                    guard case let .ifExpr(_, _, _, range) = expr else { return false }
-                    return isUserSource(range)
+                let allIfExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                    guard case .ifExpr = expr else { return false }
+                    return true
                 }
                 let ifExprIDs = allIfExprIDs.filter {
                     sema.bindings.exprType(for: $0) == sema.types.intType
                 }
-                let whenExprIDs = exprIDs(in: ast) { expr in
-                    guard case let .whenExpr(_, _, _, range) = expr else { return false }
-                    return isUserSource(range)
+                let whenExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                    guard case .whenExpr = expr else { return false }
+                    return true
                 }
-                let tryExprIDs = exprIDs(in: ast) { expr in
-                    guard case let .tryExpr(_, _, _, range) = expr else { return false }
-                    return isUserSource(range)
+                let tryExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                    guard case .tryExpr = expr else { return false }
+                    return true
                 }
 
                 // 2 user if-expressions (ifCase + tryCase), both merged to Int via
@@ -339,8 +321,6 @@ struct NothingTypeFlowTests {
 
                 let sample2Path = paths[2]
 
-                let path = sample2Path
-
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
                 let nullNameRef = try #require(firstExprIDInPath(in: ast, path: sample2Path, ctx: ctx) { _, expr in
@@ -357,52 +337,15 @@ struct NothingTypeFlowTests {
 
             }
 
-        }
-    }
-
-    // MARK: - Consolidated runSema error tests
-
-    @Test
-    func testRunSemaWithExpectedDiagnostics() throws {
-
-        let sources: [String] = [
-            // testUnreachableAfterNothingEmitsDiagnostic
-            """
-            package sample0
-
-                    class E
-
-                    fun f(): Int {
-                        throw E()
-                        return 1
-                    }
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-
-            let ctx = makeCompilationContext(inputs: paths)
-
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
-
             // === testUnreachableAfterNothingEmitsDiagnostic ===
 
             do {
 
-                let sample0Path = paths[0]
+                let sample3Path = paths[3]
 
-                let path = sample0Path
+                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
 
-                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
-
-                assertHasDiagnostic("KSWIFTK-SEMA-0096", in: sample0Diagnostics)
+                assertHasDiagnostic("KSWIFTK-SEMA-0096", in: sample3Diagnostics)
 
             }
 
