@@ -4,15 +4,26 @@ import Testing
 
 @Suite
 struct NativeCInteropUIntArrayToCValuesFunctionTests {
-    @Test func testUIntArrayToCValuesFunctionSurfaceMatchesNativeShape() throws {
-        let ctx = makeContextFromSource("fun noop() {}")
+    @Test func testUIntArrayToCValuesFunction() throws {
+        let source = """
+        import kotlinx.cinterop.CValues
+        import kotlinx.cinterop.UIntVar
+        import kotlinx.cinterop.toCValues
+
+        fun toUInts(uints: UIntArray): CValues<UIntVar> {
+            return uints.toCValues()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "Expected UIntArray.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+        #expect(!(ctx.diagnostics.hasError), "Expected UIntArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
+
         let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         let kotlinPkg = [interner.intern("kotlin")]
-
         let uIntArraySymbol = try #require(
             sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("UIntArray")]),
             "kotlin.UIntArray must be registered"
@@ -40,7 +51,6 @@ struct NativeCInteropUIntArrayToCValuesFunctionTests {
             args: [.invariant(uIntVarType)],
             nullability: .nonNull
         )))
-
         let toCValuesFQName = cinteropPkg + [interner.intern("toCValues")]
         let toCValuesCandidates = sema.symbols.lookupAll(fqName: toCValuesFQName)
         let toCValues = try #require(toCValuesCandidates.first { symbolID in
@@ -52,24 +62,9 @@ struct NativeCInteropUIntArrayToCValuesFunctionTests {
                 && signature.returnType == expectedReturnType
         })
         let flags = try #require(sema.symbols.symbol(toCValues)?.flags)
-
         #expect(flags.contains(.synthetic))
         #expect(sema.symbols.parentSymbol(for: toCValues) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    @Test func testUIntArrayToCValuesFunctionResolvesInSource() throws {
-        let ctx = makeContextFromSource("""
-        import kotlinx.cinterop.CValues
-        import kotlinx.cinterop.UIntVar
-        import kotlinx.cinterop.toCValues
-
-        fun toUInts(uints: UIntArray): CValues<UIntVar> {
-            return uints.toCValues()
-        }
-        """)
-        try runSema(ctx)
-
-        #expect(!(ctx.diagnostics.hasError), "Expected UIntArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
-    }
 }
 #endif
