@@ -9,7 +9,8 @@ struct SequenceSyntheticMemberLinkTests {
     // 30-line boilerplate used by the remaining tests in this file (which are kept verbose
     // for now to minimize this PR's diff; gradual migration is planned).
     @Test func testSequenceSyntheticMemberLinksResolutions() throws {
-        let source = """
+        let source0 = """
+
         fun evenValuesFilterTypeChecksInCallExpressions(): Sequence<Int> {
         val values = sequenceOf(1, 2, 3, 4)
         return values.filter { value -> value % 2 == 0 }
@@ -468,10 +469,52 @@ struct SequenceSyntheticMemberLinkTests {
         val values = sequenceOf(5, 2, 3)
         return values.minByOrNull { value -> value % 3 }
         }
+
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+
+        let source1 = """
+
+        fun pickValue(): Int { return sequenceOf(7).random() }
+        fun indexedValuesSize(): Int {
+            val values = sequenceOf(10, 20, 30)
+            return values.withIndex().toList().size
+        }
+        fun weightedDouble(): Int {
+            val values = sequenceOf(1, 2, 3)
+            return values.sumBy { value ->
+                if (value == 2) 10 else value
+            }
+        }
+        fun weighted(): Double {
+            val values = sequenceOf(1, 2, 3)
+            return values.sumByDouble { value ->
+                if (value == 2) 1.5 else 0.25
+            }
+        }
+        fun smallestByReverseOrderOrNull(): Int? {
+            val values = sequenceOf(5, 2, 3)
+            return values.minWithOrNull(reverseOrder<Int>())
+        }
+        fun collectInts(): MutableList<Int> {
+            val values: Sequence<Any> = sequenceOf(1, "two", 3)
+            val dest = mutableListOf<Int>(0)
+            return values.filterIsInstanceTo(dest)
+        }
+        fun smallest(): Int? {
+            val values = sequenceOf(5, 2, 3)
+            return values.minOrNull()
+        }
+        fun smallestByReverseOrder(): Int {
+            val values = sequenceOf(5, 2, 3)
+            return values.minWith(reverseOrder<Int>())
+        }
+
+        """
+
+        try withTemporaryFiles(contents: [source0, source1]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
+
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
@@ -480,7 +523,10 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected combined Sequence member sources to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
         // testSequenceFilterTypeChecksInCallExpressions -> no additional link assertion (source only)
 
         do {
@@ -1242,60 +1288,6 @@ struct SequenceSyntheticMemberLinkTests {
         // testSequenceMaxByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
 
         // testSequenceMinByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
-        }
-    }
-
-    @Test func testSequenceSyntheticMemberLinksAdditionalResolutions() throws {
-        let source = """
-        fun pickValue(): Int { return sequenceOf(7).random() }
-        fun indexedValuesSize(): Int {
-            val values = sequenceOf(10, 20, 30)
-            return values.withIndex().toList().size
-        }
-        fun weightedDouble(): Int {
-            val values = sequenceOf(1, 2, 3)
-            return values.sumBy { value ->
-                if (value == 2) 10 else value
-            }
-        }
-        fun weighted(): Double {
-            val values = sequenceOf(1, 2, 3)
-            return values.sumByDouble { value ->
-                if (value == 2) 1.5 else 0.25
-            }
-        }
-        fun smallestByReverseOrderOrNull(): Int? {
-            val values = sequenceOf(5, 2, 3)
-            return values.minWithOrNull(reverseOrder<Int>())
-        }
-        fun collectInts(): MutableList<Int> {
-            val values: Sequence<Any> = sequenceOf(1, "two", 3)
-            val dest = mutableListOf<Int>(0)
-            return values.filterIsInstanceTo(dest)
-        }
-        fun smallest(): Int? {
-            val values = sequenceOf(5, 2, 3)
-            return values.minOrNull()
-        }
-        fun smallestByReverseOrder(): Int {
-            val values = sequenceOf(5, 2, 3)
-            return values.minWith(reverseOrder<Int>())
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnosticSummary = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected combined trailing Sequence member sources to resolve cleanly, got: \(diagnosticSummary)"
-            )
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
             // === testSequenceRandomResolvesInCallExpressions ===
             do {
                 let fq = ["kotlin", "sequences", "Sequence", "random"].map { interner.intern($0) }
