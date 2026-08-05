@@ -25,7 +25,17 @@ extension DataFlowSemaPhase {
             guard !fqName.isEmpty else {
                 continue
             }
-            let superFQName: [InternedString]? = metadataRecord.superFQName.flatMap { value in
+            let superFQNames: [[InternedString]]? = metadataRecord.superFQName.flatMap { value in
+                // Multiple direct supertypes are encoded as comma-separated FQ names,
+                // e.g. "kotlin.collections.Collection,kotlin.collections.Iterable".
+                let names = value.split(separator: ",")
+                guard !names.isEmpty else { return nil }
+                let parsed = names.map { name in
+                    name.split(separator: ".").map { interner.intern(String($0)) }
+                }
+                return parsed.isEmpty || parsed.contains(where: { $0.isEmpty }) ? nil : parsed
+            }
+            let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
                 let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
                 return parsed.isEmpty ? nil : parsed
             }
@@ -75,24 +85,42 @@ extension DataFlowSemaPhase {
                 arity: metadataRecord.arity,
                 isSuspend: metadataRecord.isSuspend,
                 isInline: metadataRecord.isInline,
+                isOperator: metadataRecord.isOperator,
+                valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
+                valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
+                canThrow: metadataRecord.canThrow,
+                valueParameterNames: metadataRecord.valueParameterNames,
+                reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
+                defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
                 declaredInstanceSizeWords: metadataRecord.declaredInstanceSizeWords,
                 declaredVtableSize: metadataRecord.declaredVtableSize,
                 declaredItableSize: metadataRecord.declaredItableSize,
-                superFQName: superFQName,
+                superFQName: superFQNames?.first,
+                superFQNames: superFQNames,
+                companionObjectFQName: companionObjectFQName,
                 fieldOffsets: fieldOffsets,
                 vtableSlots: vtableSlots,
                 itableSlots: itableSlots,
+                objectInitializerLinkName: metadataRecord.objectInitializerLinkName,
+                companionInitializerLinkName: metadataRecord.companionInitializerLinkName,
+                enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isSealedClass: metadataRecord.isSealedClass,
+                isFunInterface: metadataRecord.isFunInterface,
                 isValueClass: metadataRecord.isValueClass,
                 isExpect: metadataRecord.isExpect,
                 isActual: metadataRecord.isActual,
                 valueClassUnderlyingTypeSig: metadataRecord.valueClassUnderlyingTypeSig,
                 annotations: metadataRecord.annotations,
-                sealedSubclassFQNames: sealedSubclassFQNames
+                sealedSubclassFQNames: sealedSubclassFQNames,
+                propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
+                propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
+                abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
+                propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
+                isMutable: metadataRecord.isMutable
             ))
         }
 
@@ -101,12 +129,14 @@ extension DataFlowSemaPhase {
 
     func importedFunctionSignature(
         record: ImportedLibrarySymbolRecord,
+        ownerSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> FunctionSignature {
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         let fallback = FunctionSignature(
@@ -125,7 +155,8 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
         ) else {
             return fallback
         }
@@ -144,12 +175,95 @@ extension DataFlowSemaPhase {
                 range: nil
             )
         }
+        var valueParameterIsVararg = Array(repeating: false, count: functionType.params.count)
+        for index in record.valueParameterIsVararg.indices where index < valueParameterIsVararg.count {
+            valueParameterIsVararg[index] = record.valueParameterIsVararg[index]
+        }
+        var valueParameterHasDefaultValues = Array(repeating: false, count: functionType.params.count)
+        for index in record.valueParameterHasDefaultValues.indices where index < valueParameterHasDefaultValues.count {
+            valueParameterHasDefaultValues[index] = record.valueParameterHasDefaultValues[index]
+        }
+        let typeParameterSymbols = collectTypeParameterSymbols(
+            from: functionType,
+            types: types
+        )
+        var valueParameterSymbols: [SymbolID] = []
+        for (index, _) in functionType.params.enumerated() {
+            let name: String
+            if index < record.valueParameterNames.count && !record.valueParameterNames[index].isEmpty {
+                name = record.valueParameterNames[index]
+            } else {
+                name = "__param\(index)"
+            }
+            let paramName = interner.intern(name)
+            let paramFQName = record.fqName + [paramName]
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: paramFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
             returnType: functionType.returnType,
-            isSuspend: functionType.isSuspend
+            isSuspend: functionType.isSuspend,
+            canThrow: record.canThrow,
+            valueParameterSymbols: valueParameterSymbols,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterIsVararg: valueParameterIsVararg,
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: record.reifiedTypeParameterIndices
         )
+    }
+
+    /// Collects the type parameter symbols referenced by a decoded function type
+    /// in declaration order (first occurrence), so imported generic signatures
+    /// can be solved during overload resolution.
+    private func collectTypeParameterSymbols(
+        from functionType: FunctionType,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        var seen: Set<SymbolID> = []
+        var result: [SymbolID] = []
+
+        func visit(_ type: TypeID) {
+            switch types.kind(of: type) {
+            case let .typeParam(typeParam):
+                if seen.insert(typeParam.symbol).inserted {
+                    result.append(typeParam.symbol)
+                }
+            case let .classType(classType):
+                for arg in classType.args {
+                    switch arg {
+                    case let .invariant(t), let .out(t), let .in(t): visit(t)
+                    case .star: break
+                    }
+                }
+            case let .functionType(fn):
+                for ctx in fn.contextReceivers { visit(ctx) }
+                if let receiver = fn.receiver { visit(receiver) }
+                for param in fn.params { visit(param) }
+                visit(fn.returnType)
+            case let .kClassType(kc):
+                visit(kc.argument)
+            case let .intersection(parts):
+                for part in parts { visit(part) }
+            case .nothing, .any, .primitive, .unit, .error, .stringStruct:
+                break
+            }
+        }
+
+        for ctx in functionType.contextReceivers { visit(ctx) }
+        if let receiver = functionType.receiver { visit(receiver) }
+        for param in functionType.params { visit(param) }
+        visit(functionType.returnType)
+        return result
     }
 
     func importedPropertyType(
@@ -159,7 +273,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID {
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         guard let encodedSignature = record.typeSignature else {
@@ -173,7 +288,8 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
         ) ?? platformAny
     }
 
@@ -184,7 +300,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         guard let encodedSignature = record.typeSignature else {
             return nil
@@ -197,7 +314,8 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             metadataPath: metadataPath,
             ownerFQName: record.fqName,
-            cache: cache
+            cache: cache,
+            allowPlaceholders: allowPlaceholders
         ) else {
             return nil
         }
@@ -219,7 +337,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         metadataPath: String,
-        ownerFQName: [InternedString]
+        ownerFQName: [InternedString],
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         guard let decoded = decodeImportedTypeSignature(
             token: signature,
@@ -228,14 +347,15 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             metadataPath: metadataPath,
-            ownerFQName: ownerFQName
+            ownerFQName: ownerFQName,
+            allowPlaceholders: allowPlaceholders
         ) else {
             return nil
         }
         return decoded
     }
 
-    private func decodeImportedTypeSignature(
+    package func decodeImportedTypeSignature(
         token: String,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -243,7 +363,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         metadataPath: String,
         ownerFQName: [InternedString],
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        allowPlaceholders: Bool = false
     ) -> TypeID? {
         if let cache, let cached = cache.cachedSignature(token, types: types, symbols: symbols) {
             return cached
@@ -255,7 +376,8 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             metadataPath: metadataPath,
-            ownerFQName: ownerFQName
+            ownerFQName: ownerFQName,
+            allowPlaceholders: allowPlaceholders
         )
         let result = parser.parse()
         cache?.cacheSignature(result, for: token, types: types, symbols: symbols)
@@ -274,6 +396,7 @@ extension DataFlowSemaPhase {
         private let diagnostics: DiagnosticEngine
         private let metadataPath: String
         private let ownerFQName: [InternedString]
+        private let allowPlaceholders: Bool
         private let syntheticTypeParameterBase: Int32 = DataFlowSemaPhase.syntheticTypeParameterBase
         // Keep enough headroom for the smaller stacks used by macOS test workers.
         // A signature with more than 63 nested wrappers is not practical metadata.
@@ -287,7 +410,8 @@ extension DataFlowSemaPhase {
             interner: StringInterner,
             diagnostics: DiagnosticEngine,
             metadataPath: String,
-            ownerFQName: [InternedString]
+            ownerFQName: [InternedString],
+            allowPlaceholders: Bool = false
         ) {
             if source.count > Self.maxSourceLength {
                 self.source = []
@@ -305,6 +429,7 @@ extension DataFlowSemaPhase {
             self.diagnostics = diagnostics
             self.metadataPath = metadataPath
             self.ownerFQName = ownerFQName
+            self.allowPlaceholders = allowPlaceholders
         }
 
         mutating func parse() -> TypeID? {
@@ -467,6 +592,17 @@ extension DataFlowSemaPhase {
                 }
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
             guard let classSymbol = candidates.first?.id else {
+                if allowPlaceholders, fqName.count >= 2 {
+                    let placeholder = symbols.define(
+                        kind: .class,
+                        name: fqName.last!,
+                        fqName: fqName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    return types.make(.classType(ClassType(classSymbol: placeholder, args: args, nullability: .nonNull)))
+                }
                 diagnostics.warning(
                     "KSWIFTK-LIB-0004",
                     "Unknown nominal type in metadata signature at \(metadataPath): \(name) (\(ownerName()))",

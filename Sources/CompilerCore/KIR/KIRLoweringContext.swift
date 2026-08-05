@@ -59,6 +59,8 @@ final class KIRLoweringContext {
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
     var syntheticObjectLiteralSymbolsByExprID: [ExprID: (nominalSymbol: SymbolID, constructorSymbol: SymbolID, constructorName: InternedString)] = [:]
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
+    /// Caches itable ABI bridge symbols keyed by the interface/implementation pair.
+    var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
     var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
     /// Companion object initializer functions registered during class lowering.
@@ -199,6 +201,10 @@ final class KIRLoweringContext {
     }
 
     func registerLambdaParam(symbol: SymbolID, forName name: InternedString) {
+        lambdaParamNameToSymbol[name] = symbol
+    }
+
+    func restoreLambdaParam(symbol: SymbolID?, forName name: InternedString) {
         lambdaParamNameToSymbol[name] = symbol
     }
 
@@ -469,6 +475,7 @@ final class KIRLoweringContext {
         syntheticLambdaSymbolsByExprID.removeAll(keepingCapacity: true)
         syntheticObjectLiteralSymbolsByExprID.removeAll(keepingCapacity: true)
         emittedObjectLiteralExprIDs.removeAll(keepingCapacity: true)
+        itableBridgeSymbolsByKey.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
     }
 }

@@ -371,7 +371,8 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         let interner = shared.interner
         let lambdaFnPtr = lowerDelegateLambdaBody(
-            delegateBody: propertyDecl.delegateBody, propertySymbol: symbol,
+            delegateBody: propertyDecl.delegateBody,
+            delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: symbol,
             paramCount: 0, shared: shared, emit: &initInstructions
         )
         let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
@@ -401,7 +402,9 @@ extension KIRLoweringDriver {
             delegateExpr: propertyDecl.delegateExpression, shared: shared, emit: &initInstructions
         )
         let callbackFnPtr = lowerDelegateLambdaBody(
-            delegateBody: propertyDecl.delegateBody, propertySymbol: symbol,
+            delegateBody: propertyDecl.delegateBody,
+            delegateBodyParams: propertyDecl.delegateBodyParams,
+            valueType: shared.sema.symbols.propertyType(for: symbol), propertySymbol: symbol,
             paramCount: 3, shared: shared, emit: &initInstructions
         )
         let createResult = arena.appendTemporary(type: delegateType)
