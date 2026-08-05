@@ -4,17 +4,6 @@ import Testing
 
 @Suite
 struct RangeSyntheticInterfaceTests {
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     // MARK: - Per-source diagnostic helpers
 
     private func diagnosticsForPath(
