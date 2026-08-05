@@ -13,110 +13,185 @@ import Testing
 /// pin the shorthand form (`MyClass.extensionFun()`, no `.Companion.`) that
 /// KSP-CAP-003 is specifically about.
 extension CompanionObjectTests {
-    @Test func testCompanionExtensionFunctionShorthandCall() throws {
-        let source = """
-        class MyClass {
-            companion object
+
+    @Test func testExtensionFunctionShorthandCallsSema() throws {
+        let sources: [String] = [
+            // testCompanionExtensionFunctionShorthandCall
+            """
+            package sample0
+                    class MyClass {
+                        companion object
+                    }
+
+                    fun MyClass.Companion.extensionFun(): String = "extended"
+
+                    fun main() {
+                        val result: String = MyClass.extensionFun()
+                    }
+
+            """,
+
+            // testCompanionExtensionFunctionWithArgumentShorthandCall
+            """
+            package sample1
+                    class Widget {
+                        companion object
+                    }
+
+                    fun Widget.Companion.create(count: Int): Widget = Widget()
+
+                    fun main() {
+                        val w: Widget = Widget.create(3)
+                    }
+
+            """,
+
+            // testCompanionExtensionPropertyShorthandCall
+            """
+            package sample2
+                    class Data {
+                        companion object
+                    }
+
+                    val Data.Companion.extensionProp: Int get() = 42
+
+                    fun main() {
+                        val value: Int = Data.extensionProp
+                    }
+
+            """,
+
+            // testNamedCompanionExtensionFunctionShorthandCall
+            """
+            package sample3
+                    class Service {
+                        companion object Factory
+                    }
+
+                    fun Service.Factory.create(): Service = Service()
+
+                    fun main() {
+                        val s: Service = Service.create()
+                    }
+
+            """,
+
+            // testInterfaceCompanionExtensionFunctionShorthandCall
+            """
+            package sample4
+                    interface ClockLike {
+                        companion object
+                    }
+
+                    fun ClockLike.Companion.system(): Int = 42
+
+                    fun main() {
+                        val result: Int = ClockLike.system()
+                    }
+
+            """,
+
+            // testExtensionFunctionOnBundledInstantCompanionShorthandCall
+            """
+            package sample5
+                    import kotlin.time.Instant
+
+                    fun Instant.Companion.epoch(): Instant = Instant.fromEpochMilliseconds(0L)
+
+                    fun main() {
+                        val i: Instant = Instant.epoch()
+                    }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testCompanionExtensionFunctionShorthandCall
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testCompanionExtensionFunctionWithArgumentShorthandCall
+
+            do {
+                let sample1Path = paths[1]
+                let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for companion extension function (with argument) shorthand call, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testCompanionExtensionPropertyShorthandCall
+
+            do {
+                let sample2Path = paths[2]
+                let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for companion extension property shorthand call, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testNamedCompanionExtensionFunctionShorthandCall
+
+            do {
+                let sample3Path = paths[3]
+                let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for named companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testInterfaceCompanionExtensionFunctionShorthandCall
+
+            do {
+                let sample4Path = paths[4]
+                let sampleDiags = diagnosticsForPath(sample4Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for interface companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+            // testExtensionFunctionOnBundledInstantCompanionShorthandCall
+
+            do {
+                let sample5Path = paths[5]
+                let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
+
+
+                        #expect(
+                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            "Expected no sema errors for extension function on bundled Instant.Companion, got: \(sampleDiags.map(\.code))"
+                        )
+
+            }
+
         }
-
-        fun MyClass.Companion.extensionFun(): String = "extended"
-
-        fun main() {
-            val result: String = MyClass.extensionFun()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for companion extension function shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
     }
 
-    @Test func testCompanionExtensionFunctionWithArgumentShorthandCall() throws {
-        let source = """
-        class Widget {
-            companion object
-        }
 
-        fun Widget.Companion.create(count: Int): Widget = Widget()
-
-        fun main() {
-            val w: Widget = Widget.create(3)
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for companion extension function (with argument) shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    @Test func testCompanionExtensionPropertyShorthandCall() throws {
-        let source = """
-        class Data {
-            companion object
-        }
-
-        val Data.Companion.extensionProp: Int get() = 42
-
-        fun main() {
-            val value: Int = Data.extensionProp
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for companion extension property shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    @Test func testNamedCompanionExtensionFunctionShorthandCall() throws {
-        let source = """
-        class Service {
-            companion object Factory
-        }
-
-        fun Service.Factory.create(): Service = Service()
-
-        fun main() {
-            val s: Service = Service.create()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for named companion extension function shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
-
-    @Test func testInterfaceCompanionExtensionFunctionShorthandCall() throws {
-        let source = """
-        interface ClockLike {
-            companion object
-        }
-
-        fun ClockLike.Companion.system(): Int = 42
-
-        fun main() {
-            val result: Int = ClockLike.system()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for interface companion extension function shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
 
     /// Mirrors the exact KSP-472 blocker scenario: a Kotlin-source extension
     /// function declared on the bundled `kotlin.time.Instant` class's
@@ -124,24 +199,8 @@ extension CompanionObjectTests {
     /// `HeaderHelpers+SyntheticInstantStubs.swift`), invoked with the
     /// shorthand call form. This is the concrete proof that KSP-CAP-003's
     /// fix unblocks KSP-472's `kk_instant_now`/`kk_clock_system_now` wiring.
-    @Test func testExtensionFunctionOnBundledInstantCompanionShorthandCall() throws {
-        let source = """
-        import kotlin.time.Instant
 
-        fun Instant.Companion.epoch(): Instant = Instant.fromEpochMilliseconds(0L)
 
-        fun main() {
-            val i: Instant = Instant.epoch()
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-            "Expected no sema errors for extension function on bundled Instant.Companion, got: \(ctx.diagnostics.diagnostics.map(\.code))"
-        )
-    }
 
     @Test func testCompanionExtensionFunctionShorthandCallKIRLowering() throws {
         let source = """
@@ -172,5 +231,6 @@ extension CompanionObjectTests {
             "Expected companion extension function in KIR, got: \(functionNames)"
         )
     }
+
 }
 #endif

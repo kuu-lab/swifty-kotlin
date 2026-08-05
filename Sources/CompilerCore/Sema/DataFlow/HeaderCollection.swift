@@ -491,7 +491,8 @@ extension DataFlowSemaPhase {
                         localTypeParameters: classLocalTypeParameters,
                         currentPackageFQName: package,
                         imports: file.imports,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        usageRange: classDecl.range
                     ) ?? anyType
                     symbols.setValueClassUnderlyingType(underlyingType, for: symbol)
                 }
@@ -801,7 +802,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
             )
             let params = collectValueParameters(
                 funDecl.valueParams,
@@ -826,7 +828,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
             ) {
                 explicit
             } else {
@@ -899,7 +902,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
 
@@ -912,7 +916,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
             ) {
                 symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
 
@@ -998,7 +1003,8 @@ extension DataFlowSemaPhase {
                         relativeOwnerFQName: package,
                         currentPackageFQName: package,
                         imports: file.imports,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        usageRange: propertyDecl.range
                     ) ?? resolvedType
                 } else {
                     backingFieldType = resolvedType
@@ -1041,7 +1047,8 @@ extension DataFlowSemaPhase {
                 localTypeParameters: localTypeParameters,
                 currentPackageFQName: package,
                 imports: file.imports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: typeAliasDecl.range
             ) {
                 symbols.setTypeAliasUnderlyingType(resolvedUnderlying, for: symbol)
             }

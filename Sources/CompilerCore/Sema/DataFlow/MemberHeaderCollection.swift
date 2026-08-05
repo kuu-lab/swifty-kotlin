@@ -192,7 +192,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: funDecl.range
             ) {
                 explicit
             } else {
@@ -402,7 +403,8 @@ extension DataFlowSemaPhase {
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: memberSymbol)
 
@@ -470,7 +472,8 @@ extension DataFlowSemaPhase {
                         relativeOwnerFQName: ownerFQName,
                         currentPackageFQName: sourcePackageFQName,
                         imports: sourceImports,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        usageRange: propertyDecl.range
                     ) ?? resolvedType
                 } else {
                     backingFieldType = resolvedType

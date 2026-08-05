@@ -4,6 +4,61 @@ import Foundation
 import Testing
 
 @Suite struct DeepRecursiveFunctionTests {
+
+    @Test func testDeepRecursiveFunctionSema() throws {
+        let sources: [String] = [
+            // testDeepRecursiveFunctionExtensionCallRecursiveResolves
+            """
+            package sample0
+                    fun wrapper(other: DeepRecursiveFunction<Int, Int>): DeepRecursiveFunction<Int, Int> =
+                        DeepRecursiveFunction<Int, Int>({ n ->
+                            if (n <= 0) 0 else other.callRecursive(n - 1)
+                        })
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // testDeepRecursiveFunctionExtensionCallRecursiveResolves
+
+            do {
+                let sample0Path = paths[0]
+                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
+
+
+                        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: sampleDiags)
+
+                        let ast = try #require(ctx.ast)
+                        let sema = try #require(ctx.sema)
+                        let resolved = ast.arena.exprs.indices.contains(where: { raw in
+                            let exprID = ExprID(rawValue: Int32(raw))
+                            guard let expr = ast.arena.expr(exprID),
+                                  case let .memberCall(_, callee, _, _, _) = expr
+                            else {
+                                return false
+                            }
+                            guard ctx.interner.resolve(callee) == "callRecursive",
+                                  let callBinding = sema.bindings.callBinding(for: exprID),
+                                  let symbol = sema.symbols.symbol(callBinding.chosenCallee)
+                            else {
+                                return false
+                            }
+                            let fqName = symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+                            return sema.symbols.functionSignature(for: symbol.id)?.isSuspend == true
+                                && fqName == "kotlin.DeepRecursiveScope.callRecursive"
+                        })
+
+                        #expect(resolved, "Expected DeepRecursiveScope.callRecursive extension overload to resolve")
+
+            }
+
+        }
+    }
+
     @Test func testTopLevelDeepRecursiveInitializerParsesLambdaBeforeNextDeclaration() throws {
         let source = """
         val factorial = DeepRecursiveFunction<Int, Int>({ n ->
@@ -32,6 +87,7 @@ import Testing
         }
     }
 
+
     @Test func testDeepRecursiveFunctionBasicRecursionCompilesToKIR() throws {
         try assertKotlinCompilesToKIR("""
         val factorial = DeepRecursiveFunction<Int, Int>({ n ->
@@ -42,41 +98,6 @@ import Testing
         """)
     }
 
-    @Test func testDeepRecursiveFunctionExtensionCallRecursiveResolves() throws {
-        let source = """
-        fun wrapper(other: DeepRecursiveFunction<Int, Int>): DeepRecursiveFunction<Int, Int> =
-            DeepRecursiveFunction<Int, Int>({ n ->
-                if (n <= 0) 0 else other.callRecursive(n - 1)
-            })
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let resolved = ast.arena.exprs.indices.contains(where: { raw in
-            let exprID = ExprID(rawValue: Int32(raw))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr
-            else {
-                return false
-            }
-            guard ctx.interner.resolve(callee) == "callRecursive",
-                  let callBinding = sema.bindings.callBinding(for: exprID),
-                  let symbol = sema.symbols.symbol(callBinding.chosenCallee)
-            else {
-                return false
-            }
-            let fqName = symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-            return sema.symbols.functionSignature(for: symbol.id)?.isSuspend == true
-                && fqName == "kotlin.DeepRecursiveScope.callRecursive"
-        })
-
-        #expect(resolved, "Expected DeepRecursiveScope.callRecursive extension overload to resolve")
-    }
 
     @Test func testDeepRecursiveSymbolsExposeExpectedSignatures() throws {
         var result: (SemaModule, StringInterner)?
@@ -104,5 +125,6 @@ import Testing
             sema.symbols.functionSignature(for: symbolID)?.isSuspend == true
         })
     }
+
 }
 #endif
