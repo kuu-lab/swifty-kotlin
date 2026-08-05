@@ -282,12 +282,21 @@ done
 
 requires_kotlinx_coroutines() {
   local target="$1"
+  local pattern='import[[:space:]]+kotlinx\.coroutines'
   if [[ -f "$target" ]]; then
-    rg -q 'import[[:space:]]+kotlinx\.coroutines' "$target"
+    if command -v rg >/dev/null 2>&1; then
+      rg -q "$pattern" "$target"
+    else
+      grep -Eq "$pattern" "$target"
+    fi
     return $?
   fi
   if [[ -d "$target" ]]; then
-    rg -q 'import[[:space:]]+kotlinx\.coroutines' --glob '*.kt' "$target"
+    if command -v rg >/dev/null 2>&1; then
+      rg -q "$pattern" --glob '*.kt' "$target"
+    else
+      grep -REq --include='*.kt' "$pattern" "$target"
+    fi
     return $?
   fi
   return 1
