@@ -1068,18 +1068,13 @@ extension CallLowerer {
             interner: interner
         )
         let storedValueID: KIRExprID
-        if assignReceiverIsGenericArray,
-           let valueType = arena.exprType(valueID),
-           let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-               for: valueType,
-               types: sema.types,
-               requireNonNull: false
-           )
-        {
-            storedValueID = emitNonThrowingCall(
-                callee: boxCallee,
-                arg: valueID,
-                resultType: sema.types.anyType,
+        if assignReceiverIsGenericArray, let valueType = arena.exprType(valueID) {
+            storedValueID = boxValueForAnySlot(
+                valueID,
+                sourceType: valueType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
                 arena: arena,
                 into: &instructions
             )
