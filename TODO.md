@@ -563,7 +563,7 @@
   - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` / `HeaderHelpers+SyntheticOnErrorActionStubs.swift` 内のコメント参照を整理
   - 連動整理: bundled `Stdlib/kotlin/io/FileIO.kt`（および `FileStreamExtensions.kt`/`FileTraversal.kt`）の出番確認、Runtime `Sources/Runtime/RuntimeFileIO.swift`（`kk_file_*`/`kk_files_*` 等）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`
   - テスト影響: `Tests/CompilerCoreTests/GoldenCases/Sema/file_*.golden`・`file_tree_walk.golden`、`Tests/CompilerBackendTests/Codegen/*File*` テスト群、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、`Scripts/diff_cases/file_*.kt` 等の整理
-- [ ] CLEANUP-STUB-108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` を削除する
+- [x] CLEANUP-STUB-108: `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileTreeWalkStubs.swift`（291行）
   - 削除内容: `registerSyntheticFileTreeWalkStubs(...)` および `kotlin.io.FileTreeWalk` クラス・`walkTopDown`/`walkBottomUp`/`walk`/`maxDepth`/`filter`/`onEnter`/`onLeave`/`onFail`/`toList`/`forEach` 等の登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1244`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:210`（`name: "FileTreeWalk"`）を削除
