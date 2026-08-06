@@ -445,20 +445,6 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: classSymbol,
-            sema: sema,
-            interner: interner
-        )
-        emitDataClassFieldRegistration(
-            objectSymbol: classSymbol,
-            classID: classID,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
-
         emitKClassAnnotationRegistration(
             objectSymbol: classSymbol,
             typeTokenExpr: typeTokenExpr,
