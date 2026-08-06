@@ -87,22 +87,24 @@ struct SyntheticStubSurfaceSpecTests {
         #expect(arrayType.args == [.invariant(throwableType)])
     }
 
-    @Test func testDeclarativeCharSpecsKeepRadixOverloadParameterMetadata() throws {
+    // KSP-662: digitToInt(radix) が bundled Kotlin へ移行したため、残る 1 引数の
+    // 宣言的 Char スペックである compareTo(other) でパラメータメタデータを固定する。
+    @Test func testDeclarativeCharSpecsKeepOverloadParameterMetadata() throws {
         let (sema, interner) = try makeSema()
-        let digitToInt = try function(
-            named: "digitToInt",
+        let compareTo = try function(
+            named: "compareTo",
             ownerFQName: ["kotlin", "text"].map(interner.intern),
-            parameterTypes: [sema.types.intType],
+            parameterTypes: [sema.types.charType],
             receiverType: sema.types.charType,
             sema: sema,
             interner: interner
         )
-        #expect(sema.symbols.externalLinkName(for: digitToInt) == "kk_char_digitToInt_radix")
+        #expect(sema.symbols.externalLinkName(for: compareTo) == "kk_char_compareTo")
 
-        let signature = try #require(sema.symbols.functionSignature(for: digitToInt))
-        let radixSymbol = try #require(signature.valueParameterSymbols.first)
-        let radixInfo = try #require(sema.symbols.symbol(radixSymbol))
-        #expect(interner.resolve(radixInfo.name) == "radix")
+        let signature = try #require(sema.symbols.functionSignature(for: compareTo))
+        let otherSymbol = try #require(signature.valueParameterSymbols.first)
+        let otherInfo = try #require(sema.symbols.symbol(otherSymbol))
+        #expect(interner.resolve(otherInfo.name) == "other")
         #expect(signature.valueParameterHasDefaultValues == [false])
         #expect(signature.valueParameterIsVararg == [false])
     }

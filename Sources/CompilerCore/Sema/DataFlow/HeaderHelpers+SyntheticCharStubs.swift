@@ -109,46 +109,8 @@ private struct SyntheticCharCompanionFunctionSpec {
 private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
     // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
-    SyntheticCharMemberSpec(
-        name: "uppercase",
-        externalLinkName: "kk_char_uppercase",
-        returnKind: .string
-    ),
-    SyntheticCharMemberSpec(
-        name: "uppercaseChar",
-        externalLinkName: "kk_char_uppercaseChar",
-        returnKind: .char
-    ),
-    SyntheticCharMemberSpec(
-        name: "lowercase",
-        externalLinkName: "kk_char_lowercase",
-        returnKind: .string
-    ),
-    SyntheticCharMemberSpec(
-        name: "lowercaseChar",
-        externalLinkName: "kk_char_lowercaseChar",
-        returnKind: .char
-    ),
-    SyntheticCharMemberSpec(
-        name: "titlecase",
-        externalLinkName: "kk_char_titlecase",
-        returnKind: .string
-    ),
-    SyntheticCharMemberSpec(
-        name: "titlecaseChar",
-        externalLinkName: "kk_char_titlecaseChar",
-        returnKind: .char
-    ),
-    SyntheticCharMemberSpec(
-        name: "digitToInt",
-        externalLinkName: "kk_char_digitToInt",
-        returnKind: .int
-    ),
-    SyntheticCharMemberSpec(
-        name: "digitToIntOrNull",
-        externalLinkName: "kk_char_digitToIntOrNull",
-        returnKind: .nullableInt
-    ),
+    // KSP-662: uppercase(Char)/lowercase(Char)/titlecase(Char)/digitToInt(OrNull)/
+    // digitToChar は bundled Kotlin (kotlin.text.CharConversions) へ移行済み。
     // New numeric conversion functions
     SyntheticCharMemberSpec(
         name: "toInt",
@@ -378,30 +340,6 @@ extension DataFlowSemaPhase {
 
         registerSyntheticFunctionStubs(
             [
-                SyntheticFunctionStubSpec(
-                    name: "lowercase",
-                    externalLinkName: "kk_char_lowercase_locale",
-                    receiverType: .char,
-                    parameters: [
-                        SyntheticStubParameterSpec(
-                            name: "locale",
-                            type: .namedClass(["java", "util", "Locale"])
-                        ),
-                    ],
-                    returnType: .string
-                ),
-                SyntheticFunctionStubSpec(
-                    name: "uppercase",
-                    externalLinkName: "kk_char_uppercase_locale",
-                    receiverType: .char,
-                    parameters: [
-                        SyntheticStubParameterSpec(
-                            name: "locale",
-                            type: .namedClass(["java", "util", "Locale"])
-                        ),
-                    ],
-                    returnType: .string
-                ),
                 // PARITY-CODEGEN-005: Char.compareTo(Char)
                 SyntheticFunctionStubSpec(
                     name: "compareTo",
@@ -411,42 +349,6 @@ extension DataFlowSemaPhase {
                         SyntheticStubParameterSpec(name: "other", type: .char),
                     ],
                     returnType: .int
-                ),
-                // STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
-                SyntheticFunctionStubSpec(
-                    name: "digitToInt",
-                    externalLinkName: "kk_char_digitToInt_radix",
-                    receiverType: .char,
-                    parameters: [
-                        SyntheticStubParameterSpec(name: "radix", type: .int),
-                    ],
-                    returnType: .int
-                ),
-                // STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
-                SyntheticFunctionStubSpec(
-                    name: "digitToIntOrNull",
-                    externalLinkName: "kk_char_digitToIntOrNull_radix",
-                    receiverType: .char,
-                    parameters: [
-                        SyntheticStubParameterSpec(name: "radix", type: .int),
-                    ],
-                    returnType: .nullable(.int)
-                ),
-                // DOCPARITY-CHAR-005: Int.digitToChar() / Int.digitToChar(radix: Int)
-                SyntheticFunctionStubSpec(
-                    name: "digitToChar",
-                    externalLinkName: "kk_char_digitToChar_radix",
-                    receiverType: .int,
-                    returnType: .char
-                ),
-                SyntheticFunctionStubSpec(
-                    name: "digitToChar",
-                    externalLinkName: "kk_char_digitToChar_radix",
-                    receiverType: .int,
-                    parameters: [
-                        SyntheticStubParameterSpec(name: "radix", type: .int),
-                    ],
-                    returnType: .char
                 ),
             ],
             context: kotlinTextContext,
