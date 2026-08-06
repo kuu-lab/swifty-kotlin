@@ -2905,39 +2905,76 @@ public func kk_coroutine_yield() -> Int {
 
 // MARK: - withTimeout / withTimeoutOrNull
 
-/// Runs the given block with a timeout. If the block does not complete within
-/// `timeoutMillis`, a CancellationException is thrown (represented as a trap
-/// in this runtime).
-/// Used as the lowering target for `withTimeout(timeMillis) { }`.
-@_cdecl("kk_with_timeout")
-public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
-    // Run the block inside a coroutine scope with a deadline.
+/// Runs a `withTimeout`/`withTimeoutOrNull` block on a deadline, reporting whether
+/// the deadline expired first.
+///
+/// BUG-181: the block runs on its own *child* continuation seeded from the caller,
+/// never on the caller's continuation. When the deadline expires the block's entry
+/// loop is abandoned while still suspended (e.g. inside `delay()`); sharing the
+/// caller's continuation state meant that loop's pending timer later fired a
+/// `signalResume()` on the caller, spuriously resuming the caller's *next* suspend
+/// point (e.g. `job.join()`) a second time. Two concurrent resumptions of the same
+/// body then let one of them signal the completion gate early, so `runBlocking`
+/// returned -- and the process exited -- while statements after the join were still
+/// running or had not run at all.
+private func runTimeoutBlock(
+    timeoutMillis: Int,
+    entryPointRaw: Int,
+    continuation: Int
+) -> (timedOut: Bool, result: Int) {
     let scopeHandle = kk_coroutine_scope_new()
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
         UnsafeMutableRawPointer(bitPattern: scopeHandle)!
     ).takeUnretainedValue()
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
 
-    var result: Int = 0
+    let blockContinuation = kk_coroutine_continuation_new(entryPointRaw)
+    let blockJob = RuntimeJobHandle()
+    if let blockState = runtimeContinuationState(from: blockContinuation) {
+        blockState.scope = scope
+        blockState.jobHandle = blockJob
+        blockJob.continuationState = blockState
+    }
+    blockJob.markStarted()
+
+    final class ResultBox: @unchecked Sendable { var value = 0 }
+    let resultBox = ResultBox()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
     let workItem = DispatchWorkItem {
-        result = runSuspendEntryLoopWithContinuation(
-            entryPointRaw: entryPointRaw, continuation: continuation
+        resultBox.value = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw, continuation: blockContinuation
         )
     }
     DispatchQueue.global().async(execute: workItem)
     let waitResult = workItem.wait(timeout: deadline)
     if waitResult == .timedOut {
         workItem.cancel()
+        // Cancel the block's own job so an abandoned, still-suspended body observes
+        // cancellation cooperatively and unwinds instead of running to completion.
+        blockJob.cancel(message: "TimeoutCancellationException")
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
-        runtimeStructuredPanic("withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+        return (true, 0)
     }
     _ = kk_coroutine_scope_wait(scopeHandle)
-    return result
+    return (false, resultBox.value)
+}
+
+/// Runs the given block with a timeout. If the block does not complete within
+/// `timeoutMillis`, a CancellationException is thrown (represented as a trap
+/// in this runtime).
+/// Used as the lowering target for `withTimeout(timeMillis) { }`.
+@_cdecl("kk_with_timeout")
+public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    let outcome = runTimeoutBlock(
+        timeoutMillis: timeoutMillis,
+        entryPointRaw: entryPointRaw,
+        continuation: continuation
+    )
+    if outcome.timedOut {
+        runtimeStructuredPanic("withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+    }
+    return outcome.result
 }
 
 /// Runs the given block with a timeout. If the block does not complete within
@@ -2945,35 +2982,18 @@ public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ contin
 /// Used as the lowering target for `withTimeoutOrNull(timeMillis) { }`.
 @_cdecl("kk_with_timeout_or_null")
 public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
-    let scopeHandle = kk_coroutine_scope_new()
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
-        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
-    ).takeUnretainedValue()
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = scope
-    }
-
-    var result: Int = 0
-    let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
-
-    let workItem = DispatchWorkItem {
-        result = runSuspendEntryLoopWithContinuation(
-            entryPointRaw: entryPointRaw, continuation: continuation
-        )
-    }
-    DispatchQueue.global().async(execute: workItem)
-    let waitResult = workItem.wait(timeout: deadline)
-    if waitResult == .timedOut {
-        workItem.cancel()
-        scope.cancel()
-        _ = kk_coroutine_scope_wait(scopeHandle)
+    let outcome = runTimeoutBlock(
+        timeoutMillis: timeoutMillis,
+        entryPointRaw: entryPointRaw,
+        continuation: continuation
+    )
+    if outcome.timedOut {
         // Use the shared null-sentinel convention (see e.g. RuntimeRangeAndDispatch's
         // `orNull` helpers) rather than raw 0, which is a valid unboxed Int result and
         // would otherwise be indistinguishable from "no value" when printed/compared.
         return runtimeNullSentinelInt
     }
-    _ = kk_coroutine_scope_wait(scopeHandle)
-    return result
+    return outcome.result
 }
 
 // MARK: - Child Cancel/Join Helpers (P5-89)
