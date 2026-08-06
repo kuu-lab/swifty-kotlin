@@ -172,7 +172,7 @@ public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThr
         // Block threw — propagate the block exception (case 1 & 2).
         // If close() also threw, attach it as a suppressed exception.
         if closeThrown != 0 {
-            _ = kk_throwable_addSuppressed(blockThrown, closeThrown)
+            _ = __kk_throwable_appendSuppressed(blockThrown, closeThrown)
         }
         return handleCollectionLambdaThrow(blockThrown, outThrown)
     }
