@@ -372,35 +372,37 @@ ensure_kotlinc_classpath() {
   fi
 
   mkdir -p "$KOTLINC_DEP_DIR"
-  if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
-    local expected_sha256="$KOTLINC_COROUTINES_SHA256"
-    if [[ -z "$expected_sha256" ]]; then
-      expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
-    fi
-    if [[ -z "$expected_sha256" ]]; then
-      echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
-      echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
-      return 1
-    fi
 
+  local expected_sha256="$KOTLINC_COROUTINES_SHA256"
+  if [[ -z "$expected_sha256" ]]; then
+    expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
+  fi
+  if [[ -z "$expected_sha256" ]]; then
+    echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
+    echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
+    return 1
+  fi
+
+  if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
     local download_url
     download_url="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
     echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}..."
     curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
-
-    local actual_sha256
-    if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
-      echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
-      actual_sha256="$expected_sha256"
-    fi
-    if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-      echo "Error: checksum mismatch for kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" >&2
-      echo "Expected: $expected_sha256" >&2
-      echo "Actual:   $actual_sha256" >&2
-      rm -f "$KOTLINC_COROUTINES_JAR"
-      return 1
-    fi
   fi
+
+  local actual_sha256
+  if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
+    echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
+    actual_sha256="$expected_sha256"
+  fi
+  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    echo "Error: checksum mismatch for kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" >&2
+    echo "Expected: $expected_sha256" >&2
+    echo "Actual:   $actual_sha256" >&2
+    rm -f "$KOTLINC_COROUTINES_JAR"
+    return 1
+  fi
+
   KOTLINC_CLASSPATH="$KOTLINC_COROUTINES_JAR"
 }
 
