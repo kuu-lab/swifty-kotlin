@@ -287,8 +287,9 @@
 
 #### kotlin.comparisons [M5 実行体]（前提: KSP-309）
 
-- [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
+- [x] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
   - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+  - 残留: `kk_string_case_insensitive_order(_trampoline)` は companion `val` の同一インスタンス保証（BUG-036/BUG-154）のため runtime シングルトンのまま。比較コアは `__kk_comparable_compareTo` / Comparator 呼び出しは `__kk_compare_with_comparator` へ降格
 
 #### kotlin.random [M7 実行体]
 

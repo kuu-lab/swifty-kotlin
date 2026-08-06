@@ -7,13 +7,13 @@ import Testing
 ///
 /// Verifies that
 /// `fun <T> compareValuesBy(a: T, b: T, selector: (T) -> Comparable<*>?): Int`
-/// is registered as a synthetic stub in the kotlin.comparisons package and
-/// resolves cleanly from user source code.
+/// KSP-461: it is provided by bundled Kotlin source (Stdlib/kotlin/comparisons/
+/// Comparators.kt) and must resolve cleanly from user source code.
 @Suite
 struct ComparisonsCompareValuesByFunctionTests {
 
     /// Calling `compareValuesBy(a, b, selector)` from user source must resolve
-    /// to the synthetic 1-selector stub without semantic errors.
+    /// to the 1-selector overload without semantic errors.
     @Test func testCompareValuesByFunctionResolvesInSource() throws {
         let source = """
         import kotlin.comparisons.compareValuesBy
@@ -31,19 +31,22 @@ struct ComparisonsCompareValuesByFunctionTests {
         }
     }
 
-    /// The 1-selector overload of `kotlin.comparisons.compareValuesBy`
-    /// must be registered with the `kk_compareValuesBy1` external link.
-    @Test func testCompareValuesByOneSelectorIsRegistered() throws {
+    /// KSP-461: the 1-selector overload is bundled Kotlin source, so it must be
+    /// registered without any runtime external link.
+    @Test func testCompareValuesByOneSelectorIsSourceBacked() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
             let fq = ["kotlin", "comparisons", "compareValuesBy"].map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: fq)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
+            let symbols = sema.symbols.lookupAll(fqName: fq)
+            let isSourceBacked = symbols.contains { symbolID in
+                sema.symbols.externalLinkName(for: symbolID) == nil
+                    && sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == 3
+            }
+            #expect(isSourceBacked, "compareValuesBy (1-selector) must be bundled Kotlin source")
+            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+            #expect(links.isEmpty, "compareValuesBy must not keep runtime links; found: \(links)")
         }
     }
 }
