@@ -7,6 +7,17 @@ import Foundation
 // total job time reduction for the CompilerCore test shards.
 let optimizeCompilerCore = ProcessInfo.processInfo.environment["KSWIFTK_OPTIMIZE_COMPILER_CORE"] == "1"
 
+// `-enable-testing` is required for `@testable import CompilerCore` from
+// GoldenHarnessSupport in release builds. Optionally add `-O` in debug when CI
+// requests it to keep test-shard build times low.
+let compilerCoreSwiftSettings: [SwiftSetting] = {
+    var settings: [SwiftSetting] = [.unsafeFlags(["-enable-testing"])]
+    if optimizeCompilerCore {
+        settings.append(.unsafeFlags(["-O"], .when(configuration: .debug)))
+    }
+    return settings
+}()
+
 let package = Package(
     name: "KSwiftK",
     platforms: [
@@ -40,9 +51,7 @@ let package = Package(
             resources: [
                 .copy("Stdlib"),
             ],
-            swiftSettings: optimizeCompilerCore
-                ? [.unsafeFlags(["-O"], .when(configuration: .debug))]
-                : []
+            swiftSettings: compilerCoreSwiftSettings
         ),
         .target(
             name: "CompilerBackend",
