@@ -280,8 +280,8 @@ struct LinkPhaseIntegrationTests {
 
     @Test
     func testLinuxAutolinkStubIsRewrittenWhenCorrupted() throws {
-        // Use a test-only triple so this corruption check never races with regular link tests
-        // that share the default Linux autolink stub path.
+        // Use a test-only triple so the stub path is isolated from any real target, even though
+        // each LinkPhase now writes its autolink stub to a unique per-instance directory.
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "kswiftkstubtest", os: "linux-gnu", osVersion: nil)
         let linkPhase = LinkPhase()
 
