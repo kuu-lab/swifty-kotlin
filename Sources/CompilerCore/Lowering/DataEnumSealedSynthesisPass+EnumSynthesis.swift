@@ -210,8 +210,16 @@ extension DataEnumSealedSynthesisPass {
         return (arrayExpr, countExpr)
     }
 
-    /// Synthesizes `$enumOrdinalToName(ordinal: Int): String` for (valueOf result).name.
+    /// Synthesizes `$enumOrdinalToName$<id>(ordinal: Int): String` for (valueOf result).name.
     /// Switches on ordinal and returns the entry name via the per-entry $enumName helpers.
+    ///
+    /// The bare name is suffixed with the enum class's own `SymbolID` (`<id>`)
+    /// so it stays globally unique across every enum class in the module —
+    /// `emitEnumOrdinalBoxCall` (KIRCallEmissionHelpers.swift) calls this
+    /// helper by bare name (`symbol: nil`) from lowering passes that run
+    /// *before* this one, when there is no Sema symbol yet to call by ID, and
+    /// relies on that uniqueness for codegen's by-name resolution
+    /// (`resolveUnnamedInternalFunction`) to land on the right class's helper.
     func appendSyntheticEnumOrdinalToNameIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -222,7 +230,7 @@ extension DataEnumSealedSynthesisPass {
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let name = interner.intern("$enumOrdinalToName")
+        let name = interner.intern("$enumOrdinalToName$\(owner.id.rawValue)")
         let fqName = owner.fqName + [name]
         let paramName = interner.intern("$ordinal")
         let paramSymbol = sema.symbols.define(

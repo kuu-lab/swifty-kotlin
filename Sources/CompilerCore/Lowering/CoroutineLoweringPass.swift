@@ -69,6 +69,11 @@ final class CoroutineLoweringPass: LoweringPass {
         let anyType = ctx.sema?.types.nullableAnyType ?? ctx.sema?.types.anyType
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
         let unitType = ctx.sema?.types.unitType
+        let sequenceClassSymbol = ctx.sema?.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("sequences"),
+            ctx.interner.intern("Sequence"),
+        ])
         let kxMiniRunBlockingCallee = ctx.interner.intern("runBlocking")
         let kxMiniLaunchCallee = ctx.interner.intern("launch")
         let kxMiniAsyncCallee = ctx.interner.intern("async")
@@ -327,6 +332,8 @@ final class CoroutineLoweringPass: LoweringPass {
             sequenceBuilderBuildCallee: ctx.interner.intern("kk_sequence_builder_build"),
             sequenceBuilderBuildCoroCallee: ctx.interner.intern("kk_sequence_builder_build_coro"),
             sequenceBuilderYieldAllCallee: ctx.interner.intern("kk_sequence_builder_yieldAll"),
+            sequenceBuilderYieldCallee: ctx.interner.intern("kk_sequence_builder_yield"),
+            sequenceClassSymbol: sequenceClassSymbol,
             iteratorBuilderBuildCallee: ctx.interner.intern("kk_iterator_builder_build"),
             iteratorBuilderBuildCoroCallee: ctx.interner.intern("kk_iterator_builder_build_coro"),
             sequenceBuilderThunkByOriginalSymbol: sequenceBuilderThunkByOriginalSymbol,
