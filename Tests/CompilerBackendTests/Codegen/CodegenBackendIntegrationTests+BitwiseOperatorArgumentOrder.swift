@@ -45,7 +45,7 @@ private func runCodegenPipeline(
 // dropped/read-as-zero. Verified against Kotlin/JVM semantics for each
 // operator in both operand orders, plus a self-referential accumulator loop
 // matching the pattern Base64.decodeRaw relies on.
-@Suite
+@Suite(.serialized)
 struct CodegenBackendBitwiseOperatorArgumentOrderTests {
 
     private func assertKotlinOutput(
