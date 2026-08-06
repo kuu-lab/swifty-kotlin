@@ -70,7 +70,7 @@ struct CodegenBackendCoroutineCancellationEdgeCasesTests {
 
         fun main() = runBlocking {
             val timeoutResult = withTimeoutOrNull(1L) {
-                delay(10)
+                delay(1000)
                 1
             }
             println(timeoutResult)
