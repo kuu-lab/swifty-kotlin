@@ -1339,7 +1339,9 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           args.count == 2 || args.count == 3
+           args.count == 2 || args.count == 3,
+           ["maxOf", "minOf"].contains(interner.resolve(calleeName)),
+           !isLambdaOrCallableRefArg(args[0].expr, ast: ast)
         {
             // Infer the first argument without an expected type to determine the overload.
             let firstArgType = driver.inferExpr(
@@ -1566,75 +1568,6 @@ final class CallTypeChecker {
             }
         }
 
-        // --- compareBy(selector1, selector2, ...) multi-selector overloads (STDLIB-613) ---
-        if let calleeName,
-           args.count == 2 || args.count == 3,
-           interner.resolve(calleeName) == "compareBy",
-           args.allSatisfy({ isLambdaOrCallableRefArg($0.expr, ast: ast) }),
-           locals[calleeName] == nil,
-           sourceOrSyntheticStdlibFunctionSymbol(
-               calleeName,
-               fqComponents: ["kotlin", "comparisons", "compareBy"],
-               ctx: ctx
-           ) != nil
-        {
-            let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-            let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
-            let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
-                explicitT
-            } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: expectedType),
-                      let firstArg = classType.args.first {
-                switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let selectorExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [elementType],
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            for arg in args {
-                sema.bindings.markCollectionHOFLambdaExpr(arg.expr)
-                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
-            }
-            let resultType: TypeID = if let comparatorSymbol {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(elementType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                sema.types.anyType
-            }
-            let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
-            let funcFQName = comparisonsPkg + [calleeName]
-            let expectedExternalLink = args.count == 2
-                ? "kk_comparator_from_multi_selectors"
-                : "kk_comparator_from_multi_selectors3"
-            if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                return sig.parameterTypes.count == args.count &&
-                    sema.symbols.externalLinkName(for: candidate) == expectedExternalLink
-            }) {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: chosen,
-                        substitutedTypeArguments: [elementType],
-                        parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-            }
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
-        }
-
         // --- compareBy/compareByDescending(comparator, selector) (STDLIB-COMP-004/005) ---
         if let calleeName,
            args.count == 2,
@@ -1712,73 +1645,6 @@ final class CallTypeChecker {
                         chosenCallee: chosen,
                         substitutedTypeArguments: [elementType, keyType],
                         parameterMapping: [0: 0, 1: 1]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-            }
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
-        }
-
-        // --- compareBy(vararg selectors) (STDLIB-COMP-006) ---
-        if let calleeName,
-           args.count >= 4,
-           interner.resolve(calleeName) == "compareBy",
-           locals[calleeName] == nil,
-           sourceOrSyntheticStdlibFunctionSymbol(
-               calleeName,
-               fqComponents: ["kotlin", "comparisons", "compareBy"],
-               ctx: ctx
-           ) != nil
-        {
-            let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
-                explicitT
-            } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: expectedType),
-                      let firstArg = classType.args.first {
-                switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let selectorExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [elementType],
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            for arg in args {
-                if let lambdaExpr = ast.arena.expr(arg.expr), case .lambdaLiteral = lambdaExpr {
-                    sema.bindings.markCollectionHOFLambdaExpr(arg.expr)
-                }
-                _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
-            }
-
-            let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-            let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
-            let resultType: TypeID = if let comparatorSymbol {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(elementType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                sema.types.anyType
-            }
-
-            let comparisonsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("comparisons")]
-            let funcFQName = comparisonsPkg + [calleeName]
-            if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_comparator_from_multi_selectors_vararg"
-            }) {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: chosen,
-                        substitutedTypeArguments: [elementType],
-                        parameterMapping: [0: 0]
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -2253,107 +2119,6 @@ final class CallTypeChecker {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                 sema.bindings.bindExprType(id, type: returnType)
                 return returnType
-            }
-        }
-
-        if let calleeName,
-           interner.resolve(calleeName) == "compareValuesBy",
-           args.count == 4 || args.count >= 6,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
-        {
-            let firstType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let secondType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
-            let comparatorArgType = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals)
-            let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
-            if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
-                let nonNullComparatorArgType = sema.types.makeNonNullable(comparatorArgType)
-                let inferredKeyType: TypeID? = if case let .classType(classType) = sema.types.kind(of: nonNullComparatorArgType),
-                                                  classType.classSymbol == comparatorSymbol,
-                                                  let firstArg = classType.args.first
-                {
-                    switch firstArg {
-                    case let .invariant(type), let .out(type), let .in(type): type
-                    case .star: sema.types.anyType
-                    }
-                } else {
-                    nil
-                }
-
-                if let inferredKeyType {
-                    let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
-                        sema.types.makeNonNullable($0)
-                    }
-                    let elementType = explicitTypeArgs.first
-                        ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
-                    let keyType = explicitTypeArgs.count >= 2 ? explicitTypeArgs[1] : inferredKeyType
-                    let comparatorType = sema.types.make(.classType(ClassType(
-                        classSymbol: comparatorSymbol,
-                        args: [.invariant(keyType)],
-                        nullability: .nonNull
-                    )))
-                    let selectorExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [elementType],
-                        returnType: keyType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: comparatorType)
-                    sema.bindings.markCollectionHOFLambdaExpr(args[3].expr)
-                    _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
-
-                    if let chosen = candidates.first(where: { candidate in
-                        sema.symbols.externalLinkName(for: candidate) == "kk_compareValuesByComparator"
-                    }) {
-                        sema.bindings.bindCall(
-                            id,
-                            binding: CallBinding(
-                                chosenCallee: chosen,
-                                substitutedTypeArguments: [elementType, keyType],
-                                parameterMapping: [0: 0, 1: 1, 2: 2, 3: 3]
-                            )
-                        )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                    }
-                    sema.bindings.bindExprType(id, type: sema.types.intType)
-                    return sema.types.intType
-                }
-            }
-            if args.count >= 6 {
-                let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
-                    sema.types.makeNonNullable($0)
-                }
-                let elementType = explicitTypeArgs.first
-                    ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
-                let selectorExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [elementType],
-                    returnType: sema.types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                for index in 2..<args.count {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[index].expr)
-                    _ = driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
-                }
-
-                if let chosen = candidates.first(where: { candidate in
-                    sema.symbols.externalLinkName(for: candidate) == "kk_compareValuesByVararg"
-                }) {
-                    var mapping: [Int: Int] = [0: 0, 1: 1]
-                    for index in 2..<args.count {
-                        mapping[index] = 2
-                    }
-                    sema.bindings.bindCall(
-                        id,
-                        binding: CallBinding(
-                            chosenCallee: chosen,
-                            substitutedTypeArguments: [elementType],
-                            parameterMapping: mapping
-                        )
-                    )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                }
-                sema.bindings.bindExprType(id, type: sema.types.intType)
-                return sema.types.intType
             }
         }
 

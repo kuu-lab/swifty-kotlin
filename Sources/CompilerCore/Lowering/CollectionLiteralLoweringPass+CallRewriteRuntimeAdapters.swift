@@ -121,51 +121,21 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // --- sortedWith with Comparator argument (STDLIB-649) ---
         // When kk_list_sortedWith is emitted as a .call (from synthetic stub),
-        // the comparator argument needs trampoline/closure expansion.
+        // the comparator argument still needs the trailing closure slot.
         // args layout: [receiver, comparatorExpr]
         if callee == lookup.kkListSortedWithName, arguments.count == 2 {
             let receiverID = arguments[0]
             let comparatorExpr = arguments[1]
-            let source = isComparatorFromCall(
-                exprID: comparatorExpr,
-                body: function.body,
-                multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
-                nullsFirstCallee: lookup.kkComparatorNullsFirstName,
-                nullsLastCallee: lookup.kkComparatorNullsLastName,
-                nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
-                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
-                multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
-                multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
-            )
-            if let (trampolineName, closureExpr) = retainedComparatorRuntimePair(
-                source: source,
-                comparatorExpr: comparatorExpr,
-                module: module,
-                lookup: lookup,
-                loweredBody: &loweredBody
-            ) {
-                let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
-                loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListSortedWithName,
-                    arguments: [receiverID, trampolineExpr, closureExpr],
-                    result: result,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-            } else {
-                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkListSortedWithName,
-                    arguments: [receiverID, comparatorExpr, zeroExpr],
-                    result: result,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-            }
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListSortedWithName,
+                arguments: [receiverID, comparatorExpr, zeroExpr],
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult
+            ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
             }
