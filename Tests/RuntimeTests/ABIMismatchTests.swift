@@ -1089,6 +1089,22 @@ struct ABIMismatchTests {
         #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
+    // KSP-618: kotlin.synchronized is Kotlin source over this demoted bridge.
+    @Test
+    func kkSynchronizedSignature() throws {
+        let spec = try requireSpec("__kk_synchronized")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 4)
+        #expect(spec.parameters[0].name == "lock")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "fnPtr")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "closureRaw")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+    }
+
     @Test
     func kkMutexCreateSignature() throws {
         let spec = try requireSpec("__kk_mutex_create")

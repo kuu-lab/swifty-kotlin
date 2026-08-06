@@ -508,8 +508,11 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Exception"
         ),
+        // KSP-618: synchronized(lock) { } is Kotlin source delegating to this
+        // demoted bridge; the block arrives as a function pointer + closure
+        // environment pair with the usual outThrown channel.
         RuntimeABIFunctionSpec(
-            name: "kk_synchronized",
+            name: "__kk_synchronized",
             parameters: [
                 RuntimeABIParameter(name: "lock", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

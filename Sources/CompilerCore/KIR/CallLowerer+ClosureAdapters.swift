@@ -129,15 +129,41 @@ extension CallLowerer {
             lambdaID = adaptedExpr
             resolvedCallableInfo = adaptedInfo
         }
-        if let callableInfo = resolvedCallableInfo {
-            let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
-            instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-            finalArgs.append(fnPtrExpr)
-        } else {
-            finalArgs.append(lambdaID)
+        guard let callableInfo = resolvedCallableInfo else {
+            // No compile-time callable info: the argument is a callable *value*
+            // (e.g. a function-typed parameter of a bundled Kotlin-source
+            // wrapper such as kotlin.synchronized, whose lambda was boxed by
+            // kk_function_create_0 at the user call site). Passing it as a raw
+            // fnPtr would make the runtime call into an object pointer, so
+            // recover the (fnPtr, closureRaw) pair at runtime instead.
+            let intType = sema.types.intType
+            let fnPtrResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [lambdaID],
+                result: fnPtrResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let closureRawResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [lambdaID],
+                result: closureRawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArgs.append(fnPtrResult)
+            finalArgs.append(closureRawResult)
+            return finalArgs
         }
+        let fnPtrExpr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+        finalArgs.append(fnPtrExpr)
         finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: resolvedCallableInfo,
+            callableInfo: callableInfo,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -907,9 +933,10 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-325: synchronized(lock) { block } — expand block lambda to
-        // (lock, fnPtr, closureRaw) while preserving the runtime outThrown slot.
-        if externalLinkName == "kk_synchronized", loweredArguments.count == 2 {
+        // STDLIB-325 / KSP-618: __kkSynchronized(lock, block) — expand the block
+        // argument to (lock, fnPtr, closureRaw) while preserving the runtime
+        // outThrown slot.
+        if externalLinkName == "__kk_synchronized", loweredArguments.count == 2 {
             return makeClosureThunkExpandedArguments(
                 prefixArguments: [loweredArguments[0]],
                 loweredArgID: loweredArguments[1],
