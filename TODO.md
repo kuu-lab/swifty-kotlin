@@ -289,6 +289,7 @@
 
 - [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
   - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
+  - Comparator 消費側（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`）: 上記 rg パターンには**含まれない**。実体は `RuntimeCollectionHOFMaxMin.swift` の `kk_list_maxWith(OrNull)` / `kk_list_minWith(OrNull)` と `RuntimeSequenceAssociation.swift` の `kk_sequence_maxWith(OrNull)` / `kk_sequence_minWith(OrNull)` の 8 関数で、削除自体は KSP-426（List）/ KSP-444（Sequence）の担当。KSP-461 は本 API が依存する Comparator の Kotlin 実装（`compare` の member dispatch）を提供する側として整合を確認する
 
 #### kotlin.random [M7 実行体]
 
@@ -443,7 +444,8 @@
 - [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
 - [ ] KSP-632: IterableRegistry 残余の HOF を Kotlin 化する（KSP-435 対象外の登録分: `reduceRight(Indexed)`/`sumBy(Double)`/`plusElement`/`minusElement`/`minus`。着手時 `rg 'registerIterable' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で固定）
 - [ ] KSP-633: IterableRegistry の殻を .kt 化する（`MutableIterable`/`AbstractCollection`/`AbstractMutableCollection` interface/abstract class 宣言）
-- [ ] KSP-634: maxWith/minWith を KSP-461 の明示対象に追記する（現状 rg パターン包含の推定のみ — KSP-461 のタスク文へ明示列挙を追加する編集タスク）
+- [x] KSP-634: maxWith/minWith を KSP-461 の明示対象に追記する（現状 rg パターン包含の推定のみ — KSP-461 のタスク文へ明示列挙を追加する編集タスク）
+  - KSP-461 に「Comparator 消費側」の項を追加し、`maxWith(OrNull)`/`minWith(OrNull)` の実体が `RuntimeCollectionHOFMaxMin.swift` / `RuntimeSequenceAssociation.swift` の 8 関数であること、KSP-461 の rg パターンには含まれず削除担当は KSP-426 / KSP-444 であることを明示した（コード変更なし）
 
 #### math / numbers
 
