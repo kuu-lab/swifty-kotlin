@@ -14,6 +14,10 @@ extension NativeEmitter {
         let context: LLVMCAPIBindings.LLVMContextRef?
         let module: LLVMCAPIBindings.LLVMModuleRef?
         let typeLowering: LLVMTypeLowering?
+        /// Entry block of the function being emitted, used to keep stack slots out
+        /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
+        let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
+        let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
@@ -21,7 +25,9 @@ extension NativeEmitter {
             zeroValue: LLVMCAPIBindings.LLVMValueRef,
             context: LLVMCAPIBindings.LLVMContextRef? = nil,
             module: LLVMCAPIBindings.LLVMModuleRef? = nil,
-            typeLowering: LLVMTypeLowering? = nil
+            typeLowering: LLVMTypeLowering? = nil,
+            entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef? = nil,
+            allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef? = nil
         ) {
             self.builder = builder
             self.int64Type = int64Type
@@ -29,6 +35,22 @@ extension NativeEmitter {
             self.context = context
             self.module = module
             self.typeLowering = typeLowering
+            self.entryBlock = entryBlock
+            self.allocaBuilder = allocaBuilder
+        }
+
+        /// Allocates an i64 stack slot in the entry block of the current function.
+        func buildEntrySlot(
+            _ bindings: LLVMCAPIBindings,
+            name: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
         }
     }
 
@@ -155,9 +177,9 @@ extension NativeEmitter {
         ) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let typeLowering = state.typeLowering,
                   let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
-                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
-                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
-                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
             else {
                 return nil
             }
