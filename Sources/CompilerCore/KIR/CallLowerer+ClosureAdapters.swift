@@ -94,6 +94,7 @@ extension CallLowerer {
         prefixArguments: [KIRExprID] = [],
         loweredArgID: KIRExprID,
         argExprID: ExprID,
+        adaptOnlyWhenCapturing: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -104,6 +105,7 @@ extension CallLowerer {
         var resolvedCallableInfo = driver.ctx.callableValueInfo(for: lambdaID)
         if let callableInfo = resolvedCallableInfo,
            !callableInfo.hasClosureParam,
+           !adaptOnlyWhenCapturing || !callableInfo.captureArguments.isEmpty,
            let adaptedInfo = makeClosureThunkCallableAdapter(
                callableInfo: callableInfo,
                loweredArgID: lambdaID,
@@ -922,11 +924,12 @@ extension CallLowerer {
         }
 
         // kotlin.DeepRecursiveFunction { block } — expand the callable argument
-        // to (fnPtr, closureRaw) so runtime can retain both the entry point and
-        // the captured environment. Multi-capture lambdas are packed into a
-        // closure object, reusing the same adapter strategy as collection HOFs.
-        if externalLinkName == "kk_deep_recursive_function_new", loweredArguments.count == 1 {
-            return makeCollectionHOFExpandedArguments(
+        // to (fnPtr, closureRaw) so the runtime trampoline can retain both the
+        // entry point and the captured environment. A non-capturing block keeps
+        // its plain `(scope, value)` entry point, matching the closureRaw == 0
+        // branch of the runtime bridge.
+        if externalLinkName == "__kk_deep_recursive_function_new", loweredArguments.count == 1 {
+            return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
                 adaptOnlyWhenCapturing: true,

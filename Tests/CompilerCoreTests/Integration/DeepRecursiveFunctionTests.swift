@@ -42,7 +42,7 @@ import Testing
         """)
     }
 
-    @Test func testDeepRecursiveFunctionExtensionCallRecursiveResolves() throws {
+    @Test func testDeepRecursiveFunctionMemberCallRecursiveResolves() throws {
         let source = """
         fun wrapper(other: DeepRecursiveFunction<Int, Int>): DeepRecursiveFunction<Int, Int> =
             DeepRecursiveFunction<Int, Int>({ n ->
@@ -71,11 +71,11 @@ import Testing
                 return false
             }
             let fqName = symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-            return sema.symbols.functionSignature(for: symbol.id)?.isSuspend == true
-                && fqName == "kotlin.DeepRecursiveScope.callRecursive"
+            return fqName == "kotlin.DeepRecursiveFunction.callRecursive"
+                && sema.symbols.externalLinkName(for: symbol.id) == "__kk_deep_recursive_function_callRecursive"
         })
 
-        #expect(resolved, "Expected DeepRecursiveScope.callRecursive extension overload to resolve")
+        #expect(resolved, "Expected DeepRecursiveFunction.callRecursive member to resolve")
     }
 
     @Test func testDeepRecursiveSymbolsExposeExpectedSignatures() throws {
@@ -99,9 +99,9 @@ import Testing
         #expect(!(invokeSignature.isSuspend))
 
         let callRecursiveSymbols = sema.symbols.lookupAll(fqName: scopeCallFQName)
-        #expect(callRecursiveSymbols.count == 2, "Expected plain and extension callRecursive overloads")
+        #expect(callRecursiveSymbols.count == 1, "Expected a single bundled callRecursive member")
         #expect(callRecursiveSymbols.allSatisfy { symbolID in
-            sema.symbols.functionSignature(for: symbolID)?.isSuspend == true
+            sema.symbols.externalLinkName(for: symbolID) == "__kk_deep_recursive_scope_callRecursive"
         })
     }
 }

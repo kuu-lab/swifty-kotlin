@@ -170,7 +170,7 @@ final class CallLowerer {
         let abiValueParameters = spec.parameters.filter { parameter in
             !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
         }
-        guard abiParametersMatchFactorySignature(abiValueParameters, signature) else {
+        guard abiParametersMatchFactorySignature(abiValueParameters, signature, sema: sema) else {
             return false
         }
         switch spec.returnType {
@@ -190,18 +190,37 @@ final class CallLowerer {
     /// constructors are not mistaken for normal `this`-accepting constructors.
     private func abiParametersMatchFactorySignature(
         _ abiParameters: [RuntimeABIParameter],
-        _ signature: FunctionSignature
+        _ signature: FunctionSignature,
+        sema: SemaModule
     ) -> Bool {
         var abiIndex = 0
-        for _ in signature.parameterTypes {
+        for parameterType in signature.parameterTypes {
             guard abiIndex < abiParameters.count else { return false }
             if isFlatStringGroup(at: abiIndex, in: abiParameters) {
                 abiIndex += 4
+            } else if isFunctionTypedPair(at: abiIndex, in: abiParameters),
+                      case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType))
+            {
+                // A function-typed parameter is passed as (fnPtr, closureRaw).
+                abiIndex += 2
             } else {
                 abiIndex += 1
             }
         }
         return abiIndex == abiParameters.count
+    }
+
+    private func isFunctionTypedPair(
+        at index: Int,
+        in parameters: [RuntimeABIParameter]
+    ) -> Bool {
+        guard index + 1 < parameters.count,
+              parameters[index].type == .intptr,
+              parameters[index + 1].type == .intptr
+        else {
+            return false
+        }
+        return parameters[index].name.hasSuffix("fnPtr") && parameters[index + 1].name.hasSuffix("closureRaw")
     }
 
     private func isFlatStringGroup(
@@ -229,6 +248,7 @@ final class CallLowerer {
 
     private func lowerAtomicScalarConstructorCall(
         constructorSymbol: SymbolID,
+        originalArgs: [CallArgument],
         finalArgIDs: [KIRExprID],
         resultType: TypeID,
         sema: SemaModule,
@@ -244,13 +264,24 @@ final class CallLowerer {
             .flatMap { name in name.isEmpty ? nil : interner.intern(name) }
             ?? interner.intern("__kk_atomic_unknown_create")
         let canThrow = sema.symbols.functionSignature(for: constructorSymbol)?.canThrow ?? false
+        // Function-typed parameters still need their (fnPtr, closureRaw) expansion,
+        // which the non-factory constructor path performs after prepending `this`.
+        let expandedArgIDs = appendClosureArgumentsIfNeeded(
+            finalArgIDs,
+            originalArgs: originalArgs,
+            chosenCallee: constructorSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         // Keep the constructor symbol on the call so ABI lowering can resolve the
         // FunctionSignature (e.g. type-parameter parameters for Pair/Triple) while
         // the runtime factory callee handles allocation directly.
         instructions.append(.call(
             symbol: constructorSymbol,
             callee: callee,
-            arguments: finalArgIDs,
+            arguments: expandedArgIDs,
             result: result,
             canThrow: canThrow,
             thrownResult: nil
@@ -1100,6 +1131,7 @@ final class CallLowerer {
         {
             return lowerAtomicScalarConstructorCall(
                 constructorSymbol: chosen,
+                originalArgs: args,
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,
                 sema: sema,

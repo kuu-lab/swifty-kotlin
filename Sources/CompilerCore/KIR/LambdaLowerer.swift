@@ -189,6 +189,7 @@ final class LambdaLowerer {
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
                 functionType: functionType,
+                needsExplicitReceiver: needsExplicitReceiver,
                 isSamConversion: isSamConversion,
                 boundType: boundType,
                 effectiveFuncTypeID: effectiveFuncTypeID,
@@ -367,7 +368,9 @@ final class LambdaLowerer {
         } else {
             params
         }
-        let valueParamStart = needsClosureParam ? 1 : 0
+        // Value parameters follow the closure param (if any) and the explicit
+        // receiver param (if any); names must not bind to either of those slots.
+        let valueParamStart = (needsClosureParam ? 1 : 0) + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
@@ -477,6 +480,7 @@ final class LambdaLowerer {
                 lambdaSymbol: lambdaSymbol,
                 lambdaReturnType: lambdaReturnType,
                 functionType: functionType,
+                valueTypes: lambdaParameterTypes,
                 captureArguments: captureArgs,
                 sema: sema,
                 arena: arena,
@@ -494,14 +498,20 @@ final class LambdaLowerer {
         lambdaSymbol: SymbolID,
         lambdaReturnType: TypeID,
         functionType: FunctionType,
+        valueTypes: [TypeID],
         captureArguments: [KIRExprID],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The adapter forwards the parameters the lambda actually declares:
+        // a lambda with an explicit receiver slot (`Receiver.(T) -> R` lowered
+        // without an ambient implicit receiver) takes the receiver first, while
+        // a receiver lambda that captured its receiver takes only the declared
+        // value parameters.
         let createCallee: InternedString
-        switch functionType.params.count {
+        switch valueTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -518,7 +528,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = valueTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -1424,6 +1434,7 @@ final class LambdaLowerer {
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
         functionType: FunctionType?,
+        needsExplicitReceiver: Bool,
         isSamConversion: Bool,
         boundType: TypeID?,
         effectiveFuncTypeID: TypeID?,
@@ -1459,7 +1470,7 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
             // Handle receiver parameter if needed
-            if paramIndex == 0, functionType?.receiver != nil {
+            if paramIndex == 0, needsExplicitReceiver {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
@@ -1470,8 +1481,9 @@ final class LambdaLowerer {
         } else {
             params
         }
-        for (i, paramName) in effectiveParamNames.enumerated() where i < lambdaParameters.count {
-            driver.ctx.registerLambdaParam(symbol: lambdaParameters[i].symbol, forName: paramName)
+        let valueParamStart = needsExplicitReceiver ? 1 : 0
+        for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
+            driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
         // Lower the body

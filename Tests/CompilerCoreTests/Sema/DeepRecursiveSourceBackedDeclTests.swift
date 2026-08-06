@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Suite
-struct DeepRecursiveSyntheticStubTests {
+struct DeepRecursiveSourceBackedDeclTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -15,7 +15,7 @@ struct DeepRecursiveSyntheticStubTests {
         return try #require(result)
     }
 
-    @Test func testDeepRecursiveSyntheticTypesAndMembersAreRegistered() throws {
+    @Test func testDeepRecursiveBundledTypesAndMembersAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let functionFQName = ["kotlin", "DeepRecursiveFunction"].map { interner.intern($0) }
@@ -30,24 +30,24 @@ struct DeepRecursiveSyntheticStubTests {
         #expect(sema.types.nominalTypeParameterSymbols(for: scopeSymbol).count == 2)
 
         let functionInit = try #require(sema.symbols.lookup(fqName: functionFQName + [interner.intern("<init>")]))
-        #expect(sema.symbols.externalLinkName(for: functionInit) == "kk_deep_recursive_function_new")
+        #expect(sema.symbols.externalLinkName(for: functionInit) == "__kk_deep_recursive_function_new")
 
         let invokeSymbol = try #require(sema.symbols.lookup(fqName: functionFQName + [interner.intern("invoke")]))
-        #expect(sema.symbols.externalLinkName(for: invokeSymbol) == "kk_deep_recursive_function_invoke")
+        #expect(sema.symbols.externalLinkName(for: invokeSymbol) == "__kk_deep_recursive_function_invoke")
         #expect(sema.symbols.symbol(invokeSymbol)?.flags.contains(.operatorFunction) == true)
 
         let functionCallRecursive = try #require(
             sema.symbols.lookup(fqName: functionFQName + [interner.intern("callRecursive")])
         )
         #expect(
-            sema.symbols.externalLinkName(for: functionCallRecursive) == "kk_deep_recursive_function_callRecursive"
+            sema.symbols.externalLinkName(for: functionCallRecursive) == "__kk_deep_recursive_function_callRecursive"
         )
 
         let scopeCallRecursive = try #require(
             sema.symbols.lookup(fqName: scopeFQName + [interner.intern("callRecursive")])
         )
         #expect(
-            sema.symbols.externalLinkName(for: scopeCallRecursive) == "kk_deep_recursive_scope_callRecursive"
+            sema.symbols.externalLinkName(for: scopeCallRecursive) == "__kk_deep_recursive_scope_callRecursive"
         )
     }
 
@@ -77,10 +77,10 @@ struct DeepRecursiveSyntheticStubTests {
                 guard let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee else {
                     return false
                 }
-                return sema.symbols.externalLinkName(for: chosen) == "kk_deep_recursive_function_new"
+                return sema.symbols.externalLinkName(for: chosen) == "__kk_deep_recursive_function_new"
             })
             let constructorCallee = try #require(sema.bindings.callBinding(for: constructorCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: constructorCallee) == "kk_deep_recursive_function_new")
+            #expect(sema.symbols.externalLinkName(for: constructorCallee) == "__kk_deep_recursive_function_new")
 
         }
     }
