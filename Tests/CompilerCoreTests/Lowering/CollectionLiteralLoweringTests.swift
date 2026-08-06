@@ -994,7 +994,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testSourceBackedStringSplitResultIsTreatedAsListForToStringRewrite() throws {
+    func testSourceBackedStringSplitResultUsesGenericToStringBridge() throws {
         let source = """
         fun main() {
             val parts = "1,2,3".split(",")
@@ -1019,8 +1019,8 @@ struct CollectionLiteralLoweringTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(callees.contains("split"), "Expected public split to stay source-backed, got: \(callees)")
             #expect(
-                callees.contains("kk_list_to_string"),
-                "source-backed split result should still be recognized as list for toString rewrite"
+                callees.contains("kk_any_member_to_string"),
+                "split result should render through the generic toString bridge, got: \(callees)"
             )
         }
     }

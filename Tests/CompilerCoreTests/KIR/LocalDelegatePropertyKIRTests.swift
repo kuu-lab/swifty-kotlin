@@ -411,7 +411,9 @@ struct LocalDelegatePropertyKIRTests {
             // StdlibDelegateLoweringPass, which runs after this stage.
             let createIndex = try #require(callees.firstIndex(of: "lazy"))
             let getValueIndex = try #require(callees.firstIndex(of: "kk_lazy_get_value"))
-            let printIndices = callees.indices.filter { callees[$0].hasPrefix("kk_println") }
+            let printIndices = callees.indices.filter {
+                callees[$0] == "println" || callees[$0].hasPrefix("kk_println")
+            }
             let firstPrintIndex = try #require(printIndices.first)
 
             #expect(createIndex < firstPrintIndex, "the delegate must be created at the declaration")
