@@ -1,89 +1,10 @@
 public extension RuntimeABISpec {
+    // KSP-610: the KotlinVersion class is bundled Kotlin source; only the
+    // build-time version constant remains as a native bridge.
     static let kotlinVersionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_new",
-            parameters: [
-                RuntimeABIParameter(name: "major", type: .intptr),
-                RuntimeABIParameter(name: "minor", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_new_patch",
-            parameters: [
-                RuntimeABIParameter(name: "major", type: .intptr),
-                RuntimeABIParameter(name: "minor", type: .intptr),
-                RuntimeABIParameter(name: "patch", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_current",
+            name: "__kk_kotlin_version_current",
             parameters: [],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_major",
-            parameters: [
-                RuntimeABIParameter(name: "versionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_minor",
-            parameters: [
-                RuntimeABIParameter(name: "versionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_patch",
-            parameters: [
-                RuntimeABIParameter(name: "versionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_compareTo",
-            parameters: [
-                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
-                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_isAtLeast",
-            parameters: [
-                RuntimeABIParameter(name: "versionRaw", type: .intptr),
-                RuntimeABIParameter(name: "major", type: .intptr),
-                RuntimeABIParameter(name: "minor", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "KotlinVersion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kotlin_version_isAtLeast_patch",
-            parameters: [
-                RuntimeABIParameter(name: "versionRaw", type: .intptr),
-                RuntimeABIParameter(name: "major", type: .intptr),
-                RuntimeABIParameter(name: "minor", type: .intptr),
-                RuntimeABIParameter(name: "patch", type: .intptr),
-            ],
             returnType: .intptr,
             section: "KotlinVersion",
             isThrowing: false
