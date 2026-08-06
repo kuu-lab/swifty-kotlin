@@ -1,7 +1,44 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
+
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
 
 /// RF-TEST-001: fixture 駆動の Codegen 実行テストハーネス。
 ///
@@ -13,15 +50,17 @@ import XCTest
 /// 新しいケースは fixture ディレクトリ（`<領域>/<ケース名>/<ケース名>.kt` +
 /// `expected.txt`）を追加するだけで自動検出され、テストクラスの編集は不要。
 /// 詳細は `Tests/CompilerBackendTests/Fixtures/README.md` を参照。
-final class CodegenBackendFixtureTests: CodegenBackendTestSupport {
+@Suite
+struct CodegenBackendFixtureTests {
 
     /// 全 fixture を検出して実行する単一エントリポイント。
     /// 各 fixture の失敗はケースの相対パス付きで報告され、1 件の失敗が他の
     /// fixture の実行を止めないようにする。
+    @Test
     func testCodegenFixturesMatchExpectedStdout() throws {
         let fixtures = try discoverFixtures()
-        XCTAssertFalse(
-            fixtures.isEmpty,
+        #expect(
+            !fixtures.isEmpty,
             "No fixtures discovered under \(Self.fixturesRoot.path); ハーネスのパス解決が壊れている可能性がある"
         )
 
@@ -77,7 +116,7 @@ final class CodegenBackendFixtureTests: CodegenBackendTestSupport {
             let relativePath = url.path.replacingOccurrences(of: root.path + "/", with: "")
 
             guard ktFiles.count == 1 else {
-                XCTFail(
+                Issue.record(
                     "fixture \(relativePath) は .kt を 1 つだけ含む必要がある（検出: \(ktFiles)）"
                 )
                 continue
@@ -111,13 +150,12 @@ final class CodegenBackendFixtureTests: CodegenBackendTestSupport {
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                fixture.expected,
+            #expect(
+                normalizedStdout == fixture.expected,
                 "fixture \(fixture.relativePath) の stdout が expected.txt と一致しない"
             )
         } catch {
-            XCTFail("fixture \(fixture.relativePath) の実行に失敗: \(error)")
+            Issue.record("fixture \(fixture.relativePath) の実行に失敗: \(error)")
         }
     }
 
@@ -129,3 +167,4 @@ final class CodegenBackendFixtureTests: CodegenBackendTestSupport {
         return "Fixture_" + String(sanitized)
     }
 }
+#endif
