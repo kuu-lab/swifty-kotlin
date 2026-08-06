@@ -392,7 +392,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
+    func testBuildKIRLowersMapWithDefaultToBundledSourceCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {
             values.withDefault { it * 10 }
@@ -407,8 +407,8 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_map_withDefault"))
-            #expect(!(callNames.contains("withDefault")))
+            #expect(callNames.contains("withDefault"))
+            #expect(!(callNames.contains("kk_map_withDefault")))
         }
     }
 
@@ -730,7 +730,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
 
-            #expect(throwFlags["kk_map_getValue"]?.allSatisfy { $0 == true } == true, "kk_map_getValue should be lowered as throwing so ABI lowering wires outThrown.")
+            #expect(throwFlags["getValue"]?.allSatisfy { $0 == true } == true, "Map.getValue should be lowered as throwing so ABI lowering wires outThrown.")
         }
     }
 

@@ -1525,18 +1525,10 @@ extension ListSyntheticMemberLinkTests {
             let mapFQ = kotlinCollections + [interner.intern("Map")]
             let mutableMapFQ = kotlinCollections + [interner.intern("MutableMap")]
 
-            // KSP-430: Map higher-order functions are source-backed in
-            // MapHOF.kt, so only non-migrated Map members appear here.
+            // KSP-430 / KSP-431: Map higher-order functions (MapHOF.kt) and Map
+            // lookup/conversion members (MapLookupAndTransform.kt) are
+            // source-backed, so only non-migrated Map members appear here.
             let expectedLinks: [(fqName: [InternedString], memberName: String, externalLink: String)] = [
-                (mapFQ, "containsKey", "kk_map_contains_key"),
-                (mapFQ, "containsValue", "kk_map_contains_value"),
-                (mapFQ, "keys", "kk_map_keys"),
-                (mapFQ, "values", "kk_map_values"),
-                (mapFQ, "entries", "kk_map_entries"),
-                (mapFQ, "getValue", "kk_map_getValue"),
-                (mapFQ, "withDefault", "kk_map_withDefault"),
-                (mapFQ, "toList", "kk_map_toList"),
-                (mapFQ, "toMutableMap", "kk_map_to_mutable_map"),
                 (mutableMapFQ, "put", "kk_mutable_map_put"),
                 (mutableMapFQ, "remove", "kk_mutable_map_remove"),
                 (mutableMapFQ, "putAll", "kk_mutable_map_putAll"),

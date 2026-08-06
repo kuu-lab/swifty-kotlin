@@ -565,32 +565,12 @@ extension CollectionVirtualCallRewriteLoweringPass {
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
         guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-            || callee == lookup.mapValuesName || callee == lookup.mapKeysName || callee == lookup.toListName
+            || callee == lookup.mapValuesName || callee == lookup.mapKeysName
             || callee == lookup.filterKeysName || callee == lookup.filterValuesName
         else {
             return false
         }
         guard mapExprIDs.contains(receiver.rawValue) else { return false }
-
-        if callee == lookup.toListName {
-            guard arguments.isEmpty else { return false }
-            let toListResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkMapToListName,
-                arguments: [receiver],
-                result: toListResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(toListResult.rawValue)
-                loweredBody.append(.copy(from: toListResult, to: result))
-            }
-            return true
-        }
 
         guard arguments.count == 1 else { return false }
 
