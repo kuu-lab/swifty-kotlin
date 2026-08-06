@@ -1082,7 +1082,7 @@ extension ListSyntheticMemberLinkTests {
                 return true
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_set_contains", "Expected contains to resolve to kk_set_contains")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "__kk_set_contains", "Expected contains to resolve to __kk_set_contains")
         }
     }
 
@@ -1143,9 +1143,9 @@ extension ListSyntheticMemberLinkTests {
             let listContainsAll = try #require(containsAllSymbol(owner: listSymbol), "Expected List.containsAll source extension")
             let setContainsAll = try #require(containsAllSymbol(owner: setSymbol), "Expected Set.containsAll")
 
-            // List.containsAll is source-backed (KSP-423); Set.containsAll still uses the runtime bridge.
+            // List.containsAll is source-backed (KSP-423), Set.containsAll (KSP-432).
             #expect(sema.symbols.externalLinkName(for: listContainsAll) == nil)
-            #expect(sema.symbols.externalLinkName(for: setContainsAll) == "kk_set_containsAll")
+            #expect(sema.symbols.externalLinkName(for: setContainsAll) == nil)
         }
     }
 
@@ -1156,12 +1156,23 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
+            let collectionsPkg = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
-                ctx.interner.intern("Set"),
-                ctx.interner.intern("containsAll"),
-            ]))
+            ]
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
+            let setContainsAll = try #require(
+                sema.symbols.lookupAll(fqName: collectionsPkg + [ctx.interner.intern("containsAll")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType,
+                          case let .classType(classType) = sema.types.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return classType.classSymbol == setSymbol
+                },
+                "Expected Set.containsAll source extension"
+            )
             let signature = try #require(sema.symbols.functionSignature(for: setContainsAll))
             let parameterType = try #require(signature.parameterTypes.first)
 

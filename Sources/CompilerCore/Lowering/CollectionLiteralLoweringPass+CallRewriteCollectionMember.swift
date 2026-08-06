@@ -165,23 +165,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        if callee == lookup.containsAllName {
-            if arguments.count == 2 {
-                let receiverID = arguments[0]
-                if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkSetContainsAllName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return true
-                }
-            }
-        }
-
         if callee == lookup.containsKeyName {
             if arguments.count == 2 {
                 let receiverID = arguments[0]

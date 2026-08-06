@@ -75,7 +75,7 @@ extension DataFlowSemaPhase {
         register(name: "emptySet", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptySet")
         register(name: "setOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptySet")
         register(name: "setOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
-        register(name: "setOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_set_of_not_null")
+        register(name: "setOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of_not_null")
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_set_of")
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
         register(name: "hashSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")

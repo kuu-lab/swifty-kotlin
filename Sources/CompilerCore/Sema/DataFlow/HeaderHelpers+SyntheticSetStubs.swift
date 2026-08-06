@@ -62,39 +62,6 @@ extension DataFlowSemaPhase {
             typeParamSymbol: typeParamSymbol,
             typeParamType: typeParamType
         )
-        registerSetContainsAllMember(
-            symbols: symbols, types: types, interner: interner,
-            setFQName: setFQName,
-            setInterfaceSymbol: setInterfaceSymbol,
-            typeParamSymbol: typeParamSymbol,
-            typeParamType: typeParamType,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
-        )
-        for (memberName, externName) in [
-            ("intersect", "kk_set_intersect"),
-            ("union", "kk_set_union"),
-            ("subtract", "kk_set_subtract"),
-        ] {
-            registerSetBinaryOperationMember(
-                symbols: symbols, types: types, interner: interner,
-                setFQName: setFQName,
-                setInterfaceSymbol: setInterfaceSymbol,
-                collectionInterfaceSymbol: collectionInterfaceSymbol,
-                typeParamSymbol: typeParamSymbol,
-                typeParamType: typeParamType,
-                memberName: memberName,
-                externName: externName
-            )
-        }
-
-        // STDLIB-651: Set.toSet() → kk_set_to_set
-        registerSetToSetMember(
-            symbols: symbols, types: types, interner: interner,
-            setFQName: setFQName,
-            setInterfaceSymbol: setInterfaceSymbol,
-            typeParamSymbol: typeParamSymbol,
-            typeParamType: typeParamType
-        )
         _ = registerSyntheticAbstractSetStub(
             symbols: symbols,
             types: types,
@@ -103,56 +70,6 @@ extension DataFlowSemaPhase {
             collectionInterfaceSymbol: collectionInterfaceSymbol,
             setInterfaceSymbol: setInterfaceSymbol
         )
-
-        // Set.minOrNull / Set.maxOrNull with T : Comparable<T> bound
-        do {
-            let nullableElementType = types.makeNullable(typeParamType)
-            if types.comparableInterfaceSymbol == nil {
-                registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
-            }
-            let comparableElementBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
-                [types.make(.classType(ClassType(
-                    classSymbol: comparableSymbol,
-                    args: [.invariant(typeParamType)],
-                    nullability: .nonNull
-                )))]
-            } else {
-                []
-            }
-            let setReceiverType = types.make(.classType(ClassType(
-                classSymbol: setInterfaceSymbol,
-                args: [.out(typeParamType)],
-                nullability: .nonNull
-            )))
-            func registerSetComparableMember(name: String, externalLinkName: String) {
-                let memberName = interner.intern(name)
-                let memberFQName = setFQName + [memberName]
-                guard symbols.lookup(fqName: memberFQName) == nil else { return }
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: memberName,
-                    fqName: memberFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: setReceiverType,
-                        parameterTypes: [],
-                        returnType: nullableElementType,
-                        typeParameterSymbols: [typeParamSymbol],
-                        typeParameterUpperBoundsList: [comparableElementBounds],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-            registerSetComparableMember(name: "maxOrNull", externalLinkName: "kk_set_maxOrNull")
-            registerSetComparableMember(name: "minOrNull", externalLinkName: "kk_set_minOrNull")
-        }
 
         return setInterfaceSymbol
     }
@@ -279,7 +196,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_set_contains", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_set_contains", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -318,104 +235,12 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_set_is_empty", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_set_is_empty", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
                 parameterTypes: [],
                 returnType: types.booleanType,
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerSetContainsAllMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        setFQName: [InternedString],
-        setInterfaceSymbol: SymbolID,
-        typeParamSymbol: SymbolID,
-        typeParamType: TypeID,
-        collectionInterfaceSymbol: SymbolID
-    ) {
-        let memberName = interner.intern("containsAll")
-        let memberFQName = setFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let collectionType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_set_containsAll", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [collectionType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerSetBinaryOperationMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        setFQName: [InternedString],
-        setInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID,
-        typeParamSymbol: SymbolID,
-        typeParamType: TypeID,
-        memberName: String,
-        externName: String
-    ) {
-        let internedMemberName = interner.intern(memberName)
-        let memberFQName = setFQName + [internedMemberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let setType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let paramType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: internedMemberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externName, for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: setType,
-                parameterTypes: [paramType],
-                returnType: setType,
                 typeParameterSymbols: [typeParamSymbol],
                 classTypeParameterCount: 1
             ),
@@ -544,26 +369,6 @@ extension DataFlowSemaPhase {
             setInterfaceSymbol: setInterfaceSymbol,
             mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
         )
-
-        // STDLIB-651: Set.toMutableSet() → kk_set_to_mutable_set
-        // Register on Set (not MutableSet) since Set.toMutableSet() returns MutableSet
-        if let setFQName = symbols.symbol(setInterfaceSymbol)?.fqName {
-            let setTypeParamName = interner.intern("E")
-            let setTypeParamFQName = setFQName + [setTypeParamName]
-            if let setTypeParamSymbol = symbols.lookup(fqName: setTypeParamFQName) {
-                let setTypeParamType = types.make(.typeParam(TypeParamType(
-                    symbol: setTypeParamSymbol, nullability: .nonNull
-                )))
-                registerSetToMutableSetMember(
-                    symbols: symbols, types: types, interner: interner,
-                    setFQName: setFQName,
-                    setInterfaceSymbol: setInterfaceSymbol,
-                    typeParamSymbol: setTypeParamSymbol,
-                    typeParamType: setTypeParamType,
-                    mutableSetInterfaceSymbol: mutableSetInterfaceSymbol
-                )
-            }
-        }
     }
 
     /// Register `kotlin.collections.AbstractMutableSet<E>` surface (STDLIB-COL-ABSTRACT-008).

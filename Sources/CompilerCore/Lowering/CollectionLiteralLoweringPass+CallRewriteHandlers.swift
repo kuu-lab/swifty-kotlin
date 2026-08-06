@@ -47,23 +47,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return CollectionCallRewriteResult(instructions: instructions)
             }
-            if state.setExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendTemporary(type: nil
-                )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkSetToListName,
-                    arguments: [receiverID],
-                    result: toListResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                state.tagListResult(call.result, temporary: toListResult)
-                if let result = call.result {
-                    instructions.append(.copy(from: toListResult, to: result))
-                }
-                return CollectionCallRewriteResult(instructions: instructions)
-            }
         }
 
         guard call.arguments.count == 2 || call.arguments.count == 3 else {
