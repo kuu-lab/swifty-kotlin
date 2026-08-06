@@ -56,6 +56,38 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "MeasureTimeMillisSideEffects", expected: "3\n")
     }
 
+    /// KSP-617: measureTimeMillis is a bundled Kotlin inline function, so an
+    /// exception thrown by the block must propagate to the caller.
+    func testMeasureTimeMillisPropagatesExceptionFromBlock() throws {
+        let source = """
+        import kotlin.system.measureTimeMillis
+
+        fun boom() {
+            throw IllegalStateException("boom")
+        }
+
+        fun main() {
+            try {
+                measureTimeMillis(::boom)
+                println("not reached")
+            } catch (e: IllegalStateException) {
+                println("caught " + e.message)
+            }
+            try {
+                measureTimeMillis { throw IllegalStateException("lambda") }
+            } catch (e: IllegalStateException) {
+                println("caught " + e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MeasureTimeMillisPropagatesException",
+            expected: "caught boom\ncaught lambda\n"
+        )
+    }
+
     func testMeasureTimeMillisNestedCalls() throws {
         let source = """
         import kotlin.system.measureTimeMillis

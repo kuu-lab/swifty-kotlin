@@ -8,4 +8,4 @@ expr e@4:13#1 binary(add) lhs=e@4:13 rhs=e@4:17 type=Int
 expr e@4:5 localDecl x mutable=0 type=_ init=e@4:13#1 type=Unit ref=__local_0.x
 expr e@4:5#1 blockExpr stmts=[e@4:5] trailing=_ type=Unit
 expr e@3:54 lambda params=[] body=e@4:5#1 label=measureTimeMillis type=() -> Unit
-expr e@3:36 call callee=e@3:36#1 args=[_:e@3:54] type=Long
+expr e@3:36 call callee=e@3:36#1 args=[_:e@3:54] type=Long call=kotlin.system.measureTimeMillis

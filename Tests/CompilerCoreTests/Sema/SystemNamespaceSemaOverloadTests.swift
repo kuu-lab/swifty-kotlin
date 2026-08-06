@@ -37,14 +37,19 @@ struct SystemNamespaceSemaOverloadTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func systemPkgStdlibSpecialCallKind(
-        for name: String,
+    private func systemPkgIsDeclared(
+        _ name: String,
         sema: SemaModule,
         interner: StringInterner
-    ) -> StdlibSpecialCallKind? {
+    ) -> Bool {
         let fq = ["kotlin", "system", name].map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
-        return sema.symbols.stdlibSpecialCallKind(forSymbol: sym)
+        return !sema.symbols.lookupAll(fqName: fq).isEmpty
+    }
+
+    /// All runtime link names registered anywhere in the module, used to assert
+    /// that the bundled `__kk_system_*` bridges exist (KSP-617).
+    private func allExternalLinks(sema: SemaModule) -> Set<String> {
+        Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
     }
 
     // MARK: - STDLIB-SYSTEM-001: API list / symbol registration
@@ -53,33 +58,37 @@ struct SystemNamespaceSemaOverloadTests {
     func testKotlinSystemAPIInventoryMatchesTrackedSurface() throws {
         let (sema, interner) = try makeSema()
 
-        let implementedTopLevelFunctions: [(name: String, link: String)] = [
-            ("exitProcess", "kk_system_exitProcess"),
-            ("getTimeMicros", "kk_system_getTimeMicros"),
-            ("getTimeMillis", "kk_system_getTimeMillis"),
-            ("getTimeNanos", "kk_system_getTimeNanos"),
-            ("measureTimeMicros", "kk_system_measureTimeMicros"),
-            ("measureTimeMillis", "kk_system_measureTimeMillis"),
-            ("measureNanoTime", "kk_system_measureNanoTime"),
+        // KSP-617: the public surface lives in bundled Kotlin source; the OS
+        // entry points are private `__kk_system_*` bridges.
+        let publicTopLevelFunctions = [
+            "exitProcess",
+            "getTimeMicros",
+            "getTimeMillis",
+            "getTimeNanos",
+            "measureTimeMicros",
+            "measureTimeMillis",
+            "measureNanoTime",
         ]
-        for function in implementedTopLevelFunctions {
+        for name in publicTopLevelFunctions {
             #expect(
-                systemPkgExternalLink(for: function.name, sema: sema, interner: interner) == function.link,
-                "kotlin.system.\(function.name) should remain implemented via \(function.link)"
+                systemPkgIsDeclared(name, sema: sema, interner: interner),
+                "kotlin.system.\(name) should be declared in bundled Kotlin source"
+            )
+            #expect(
+                systemPkgExternalLink(for: name, sema: sema, interner: interner) == nil,
+                "kotlin.system.\(name) must not be an external runtime declaration"
             )
         }
-        #expect(
-            systemPkgStdlibSpecialCallKind(for: "measureTimeMillis", sema: sema, interner: interner) ==
-            .measureTimeMillis
-        )
-        #expect(
-            systemPkgStdlibSpecialCallKind(for: "measureTimeMicros", sema: sema, interner: interner) ==
-            .measureTimeMicros
-        )
-        #expect(
-            systemPkgStdlibSpecialCallKind(for: "measureNanoTime", sema: sema, interner: interner) ==
-            .measureNanoTime
-        )
+
+        let links = allExternalLinks(sema: sema)
+        for bridge in [
+            "__kk_system_exitProcess",
+            "__kk_system_getTimeMicros",
+            "__kk_system_getTimeMillis",
+            "__kk_system_getTimeNanos",
+        ] {
+            #expect(links.contains(bridge), "\(bridge) bridge must be declared")
+        }
 
         let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
         let systemSymbol = try #require(
@@ -88,9 +97,9 @@ struct SystemNamespaceSemaOverloadTests {
         )
         let systemName = try #require(sema.symbols.symbol(systemSymbol)?.fqName)
         let shimMembers = [
-            ("currentTimeMillis", "kk_system_currentTimeMillis"),
-            ("nanoTime", "kk_system_nanoTime"),
-            ("processStartNanos", "kk_system_process_start_nanos"),
+            ("currentTimeMillis", "__kk_system_currentTimeMillis"),
+            ("nanoTime", "__kk_system_nanoTime"),
+            ("processStartNanos", "__kk_system_process_start_nanos"),
         ]
         for member in shimMembers {
             let memberFQ = systemName + [interner.intern(member.0)]
@@ -103,67 +112,47 @@ struct SystemNamespaceSemaOverloadTests {
         }
     }
 
-    /// measureTimeMillis, measureTimeMicros, and measureNanoTime are distinct top-level symbols
-    /// in kotlin.system and map to different runtime entry points.
+    /// measureTimeMillis, measureTimeMicros, and measureNanoTime are distinct
+    /// top-level Kotlin symbols in kotlin.system, each backed by its own clock
+    /// bridge.
     @Test
     func testMeasureTimeFunctionsAreRegisteredAsSeparateSymbols() throws {
         let (sema, interner) = try makeSema()
 
-        let millisLink = systemPkgExternalLink(
-            for: "measureTimeMillis", sema: sema, interner: interner
-        )
-        let microsLink = systemPkgExternalLink(
-            for: "measureTimeMicros", sema: sema, interner: interner
-        )
-        let nanoLink = systemPkgExternalLink(
-            for: "measureNanoTime", sema: sema, interner: interner
-        )
+        for name in ["measureTimeMillis", "measureTimeMicros", "measureNanoTime"] {
+            #expect(
+                systemPkgIsDeclared(name, sema: sema, interner: interner),
+                "kotlin.system.\(name) must be declared"
+            )
+        }
 
-        #expect(
-            millisLink == "kk_system_measureTimeMillis",
-            "measureTimeMillis must link to kk_system_measureTimeMillis"
-        )
-        #expect(
-            microsLink == "kk_system_measureTimeMicros",
-            "measureTimeMicros must link to kk_system_measureTimeMicros"
-        )
-        #expect(
-            nanoLink == "kk_system_measureNanoTime",
-            "measureNanoTime must link to kk_system_measureNanoTime"
-        )
-        #expect(
-            millisLink != nanoLink,
-            "measureTimeMillis and measureNanoTime must link to distinct runtime functions"
-        )
-        #expect(
-            millisLink != microsLink,
-            "measureTimeMillis and measureTimeMicros must link to distinct runtime functions"
-        )
-        #expect(
-            microsLink != nanoLink,
-            "measureTimeMicros and measureNanoTime must link to distinct runtime functions"
-        )
+        let links = allExternalLinks(sema: sema)
+        for bridge in [
+            "__kk_system_getTimeMillis", "__kk_system_getTimeMicros", "__kk_system_getTimeNanos",
+        ] {
+            #expect(links.contains(bridge), "\(bridge) must back the measureTime* implementations")
+        }
     }
 
     @Test
     func testGetTimeMicrosIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
-        let link = systemPkgExternalLink(for: "getTimeMicros", sema: sema, interner: interner)
-        #expect(link == "kk_system_getTimeMicros")
+        #expect(systemPkgIsDeclared("getTimeMicros", sema: sema, interner: interner))
+        #expect(allExternalLinks(sema: sema).contains("__kk_system_getTimeMicros"))
     }
 
     @Test
     func testGetTimeMillisIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
-        let link = systemPkgExternalLink(for: "getTimeMillis", sema: sema, interner: interner)
-        #expect(link == "kk_system_getTimeMillis")
+        #expect(systemPkgIsDeclared("getTimeMillis", sema: sema, interner: interner))
+        #expect(allExternalLinks(sema: sema).contains("__kk_system_getTimeMillis"))
     }
 
     @Test
     func testGetTimeNanosIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
-        let link = systemPkgExternalLink(for: "getTimeNanos", sema: sema, interner: interner)
-        #expect(link == "kk_system_getTimeNanos")
+        #expect(systemPkgIsDeclared("getTimeNanos", sema: sema, interner: interner))
+        #expect(allExternalLinks(sema: sema).contains("__kk_system_getTimeNanos"))
     }
 
     /// exitProcess is a top-level kotlin.system function that accepts an Int parameter.
@@ -171,10 +160,13 @@ struct SystemNamespaceSemaOverloadTests {
     func testExitProcessIsRegisteredInKotlinSystemPackage() throws {
         let (sema, interner) = try makeSema()
 
-        let link = systemPkgExternalLink(for: "exitProcess", sema: sema, interner: interner)
         #expect(
-            link == "kk_system_exitProcess",
-            "exitProcess must link to kk_system_exitProcess"
+            systemPkgIsDeclared("exitProcess", sema: sema, interner: interner),
+            "exitProcess must be declared in bundled Kotlin source"
+        )
+        #expect(
+            allExternalLinks(sema: sema).contains("__kk_system_exitProcess"),
+            "exitProcess must be backed by the __kk_system_exitProcess bridge"
         )
     }
 
@@ -194,9 +186,9 @@ struct SystemNamespaceSemaOverloadTests {
 
         // Verify expected member links on the System object
         let expectedMembers: [(String, String)] = [
-            ("currentTimeMillis", "kk_system_currentTimeMillis"),
-            ("nanoTime", "kk_system_nanoTime"),
-            ("processStartNanos", "kk_system_process_start_nanos"),
+            ("currentTimeMillis", "__kk_system_currentTimeMillis"),
+            ("nanoTime", "__kk_system_nanoTime"),
+            ("processStartNanos", "__kk_system_process_start_nanos"),
         ]
 
         for (memberName, expectedLink) in expectedMembers {
@@ -214,170 +206,61 @@ struct SystemNamespaceSemaOverloadTests {
 
     // MARK: - STDLIB-SYSTEM-002: Sema overload resolution
 
-    /// measureTimeMillis { } call is tagged with .measureTimeMillis special call kind
-    /// and resolves to Long.
-    ///
-    /// Note: measureTimeMillis uses a special fast path in CallTypeChecker that does NOT
-    /// set callBinding (KIR lowering drives dispatch directly from the special kind tag).
-    /// The test validates the kind tag and return type, matching the compiler's design.
+    /// KSP-617: measureTime* are ordinary bundled Kotlin functions — they
+    /// resolve through normal overload resolution to Long, without a
+    /// StdlibSpecialCallKind tag.
     @Test
-    func testMeasureTimeMillisCallResolvesToCorrectCallee() throws {
-        let source = """
-        import kotlin.system.measureTimeMillis
+    func testMeasureTimeFunctionsResolveToBundledKotlinDeclarations() throws {
+        for name in ["measureTimeMillis", "measureTimeMicros", "measureNanoTime"] {
+            let source = """
+            import kotlin.system.\(name)
 
-        fun sample(): Long {
-            return measureTimeMillis { }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureTimeMillis call")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "measureTimeMillis"
-                },
-                "Expected call to measureTimeMillis"
-            )
-
-            // Type must be Long
-            #expect(
-                sema.bindings.exprTypes[callExpr] == sema.types.longType,
-                "measureTimeMillis must resolve to Long"
-            )
-
-            // Must be tagged as measureTimeMillis special call
-            let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            #expect(kind == .measureTimeMillis, "Expected .measureTimeMillis special call kind")
-
-            // measureTimeMillis fast path does not set callBinding (KIR lowering reads special kind tag).
-            // Instead verify the top-level symbol is registered with the correct link name.
-            let fq = ["kotlin", "system", "measureTimeMillis"].map { ctx.interner.intern($0) }
-            let allSymbols = sema.symbols.lookupAll(fqName: fq)
-            let hasLink = allSymbols.contains {
-                sema.symbols.externalLinkName(for: $0) == "kk_system_measureTimeMillis"
+            fun sample(): Long {
+                return \(name) { }
             }
-            #expect(hasLink, "kotlin.system.measureTimeMillis must link to kk_system_measureTimeMillis")
+            """
+
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+
+                #expect(!(ctx.diagnostics.hasError), "Expected no errors for \(name) call")
+
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+
+                let callExpr = try #require(
+                    firstExprID(in: ast) { _, expr in
+                        guard case let .call(calleeExpr, _, _, _) = expr,
+                              case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                        else { return false }
+                        return ctx.interner.resolve(calleeName) == name
+                    },
+                    "Expected call to \(name)"
+                )
+
+                #expect(
+                    sema.bindings.exprTypes[callExpr] == sema.types.longType,
+                    "\(name) must resolve to Long"
+                )
+                #expect(
+                    sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil,
+                    "\(name) must no longer be a stdlib special call"
+                )
+
+                let chosenCallee = try #require(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected a chosen callee for \(name)"
+                )
+                let fqName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+                    .map { ctx.interner.resolve($0) }
+                #expect(fqName == ["kotlin", "system", name], "Unexpected callee: \(fqName)")
+            }
         }
     }
 
-    /// measureTimeMicros { } call is tagged with .measureTimeMicros special call kind
-    /// and resolves to Long.
-    ///
-    /// Note: Like measureTimeMillis, this uses the special fast path that does NOT set callBinding.
-    @Test
-    func testMeasureTimeMicrosCallResolvesToCorrectCallee() throws {
-        let source = """
-        import kotlin.system.measureTimeMicros
-
-        fun sample(): Long {
-            return measureTimeMicros { }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureTimeMicros call")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "measureTimeMicros"
-                },
-                "Expected call to measureTimeMicros"
-            )
-
-            #expect(
-                sema.bindings.exprTypes[callExpr] == sema.types.longType,
-                "measureTimeMicros must resolve to Long"
-            )
-
-            let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            #expect(kind == .measureTimeMicros, "Expected .measureTimeMicros special call kind")
-
-            // measureTimeMicros fast path does not set callBinding.
-            // Verify the top-level symbol is registered with the correct link name.
-            let fq = ["kotlin", "system", "measureTimeMicros"].map { ctx.interner.intern($0) }
-            let allSymbols = sema.symbols.lookupAll(fqName: fq)
-            let hasLink = allSymbols.contains {
-                sema.symbols.externalLinkName(for: $0) == "kk_system_measureTimeMicros"
-            }
-            #expect(hasLink, "kotlin.system.measureTimeMicros must link to kk_system_measureTimeMicros")
-        }
-    }
-
-    /// measureNanoTime { } call is tagged with .measureNanoTime special call kind
-    /// and resolves to Long.
-    ///
-    /// Note: Like measureTimeMillis, this uses the special fast path that does NOT set callBinding.
-    @Test
-    func testMeasureNanoTimeCallResolvesToCorrectCallee() throws {
-        let source = """
-        import kotlin.system.measureNanoTime
-
-        fun sample(): Long {
-            return measureNanoTime { }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureNanoTime call")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
-                    guard case let .call(calleeExpr, _, _, _) = expr,
-                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                    else { return false }
-                    return ctx.interner.resolve(calleeName) == "measureNanoTime"
-                },
-                "Expected call to measureNanoTime"
-            )
-
-            // Type must be Long
-            #expect(
-                sema.bindings.exprTypes[callExpr] == sema.types.longType,
-                "measureNanoTime must resolve to Long"
-            )
-
-            // Must be tagged as measureNanoTime special call
-            let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            #expect(kind == .measureNanoTime, "Expected .measureNanoTime special call kind")
-
-            // measureNanoTime fast path does not set callBinding.
-            // Verify the top-level symbol is registered with the correct link name.
-            let fq = ["kotlin", "system", "measureNanoTime"].map { ctx.interner.intern($0) }
-            let allSymbols = sema.symbols.lookupAll(fqName: fq)
-            let hasLink = allSymbols.contains {
-                sema.symbols.externalLinkName(for: $0) == "kk_system_measureNanoTime"
-            }
-            #expect(hasLink, "kotlin.system.measureNanoTime must link to kk_system_measureNanoTime")
-        }
-    }
-
-    /// measureTimeMillis, measureTimeMicros, and measureNanoTime must produce distinct special call kind tags
-    /// when used in the same translation unit (overload disambiguation).
+    /// measureTimeMillis, measureTimeMicros, and measureNanoTime must resolve to
+    /// distinct callees when used in the same translation unit.
     @Test
     func testMeasureTimeFunctionsResolveToDistinctCallees() throws {
         let source = """
@@ -400,40 +283,21 @@ struct SystemNamespaceSemaOverloadTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            var millisKind: StdlibSpecialCallKind?
-            var microsKind: StdlibSpecialCallKind?
-            var nanoKind: StdlibSpecialCallKind?
-
+            var callees: [String: SymbolID] = [:]
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
                       case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                      let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee
                 else { continue }
-
-                let name = ctx.interner.resolve(calleeName)
-                let kind = sema.bindings.stdlibSpecialCallKind(for: exprID)
-
-                if name == "measureTimeMillis" { millisKind = kind }
-                if name == "measureTimeMicros" { microsKind = kind }
-                if name == "measureNanoTime" { nanoKind = kind }
+                callees[ctx.interner.resolve(calleeName)] = chosen
             }
 
-            #expect(millisKind == .measureTimeMillis, "measureTimeMillis must be tagged .measureTimeMillis")
-            #expect(microsKind == .measureTimeMicros, "measureTimeMicros must be tagged .measureTimeMicros")
-            #expect(nanoKind == .measureNanoTime, "measureNanoTime must be tagged .measureNanoTime")
-            #expect(
-                millisKind != nanoKind,
-                "measureTimeMillis and measureNanoTime must have distinct special call kind tags"
-            )
-            #expect(
-                millisKind != microsKind,
-                "measureTimeMillis and measureTimeMicros must have distinct special call kind tags"
-            )
-            #expect(
-                microsKind != nanoKind,
-                "measureTimeMicros and measureNanoTime must have distinct special call kind tags"
-            )
+            let millis = try #require(callees["measureTimeMillis"])
+            let micros = try #require(callees["measureTimeMicros"])
+            let nanos = try #require(callees["measureNanoTime"])
+            #expect(Set([millis, micros, nanos]).count == 3, "measureTime* must resolve to distinct callees")
         }
     }
 
@@ -478,9 +342,9 @@ struct SystemNamespaceSemaOverloadTests {
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected a chosen callee for exitProcess"
             )
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_system_exitProcess"
-            )
+            let calleeFQName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
+                .map { ctx.interner.resolve($0) }
+            #expect(calleeFQName == ["kotlin", "system", "exitProcess"])
         }
     }
 
