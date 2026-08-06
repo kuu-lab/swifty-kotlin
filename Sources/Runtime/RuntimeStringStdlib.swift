@@ -158,8 +158,10 @@ public func __kk_uppercase_locale_flat(
     )
 }
 
-@_cdecl("kk_string_compareTo_locale")
-public func kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw: Int) -> Int {
+// KSP-413: locale-aware collation stays in the runtime (Foundation/ICU), demoted
+// to `__kk_` so only bundled stdlib source reaches it.
+@_cdecl("__kk_string_compareTo_locale")
+public func __kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(lhsRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(rhsRaw, caller: #function)
     let locale: Locale = runtimeLocaleBox(from: localeRaw)?.locale ?? Locale.current
@@ -173,8 +175,8 @@ public func kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw
     }
 }
 
-@_cdecl("kk_string_compareTo_locale_flat")
-public func kk_string_compareTo_locale_flat(
+@_cdecl("__kk_string_compareTo_locale_flat")
+public func __kk_string_compareTo_locale_flat(
     _ lhsData: UnsafePointer<UInt8>?,
     _ lhsLength: Int,
     _ lhsByteCount: Int,
@@ -185,7 +187,7 @@ public func kk_string_compareTo_locale_flat(
     _ rhsHash: Int,
     _ localeRaw: Int
 ) -> Int {
-    kk_string_compareTo_locale(
+    __kk_string_compareTo_locale(
         kk_string_from_flat(lhsData, lhsLength, lhsByteCount, lhsHash),
         kk_string_from_flat(rhsData, rhsLength, rhsByteCount, rhsHash),
         localeRaw
