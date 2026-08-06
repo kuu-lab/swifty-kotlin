@@ -1393,25 +1393,6 @@ public func kk_long_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
 }
 
-// Kotlin Int is 32-bit; runtime stores it sign-extended in a 64-bit word.
-// Truncate to Int32 before querying bit properties so results match Kotlin semantics
-// (e.g. (-1).countOneBits() == 32, not 64).
-// Optimized: Use direct bit manipulation to avoid Int32 conversion overhead
-@_cdecl("kk_int_countOneBits")
-public func kk_int_countOneBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).nonzeroBitCount)
-}
-
-@_cdecl("kk_int_countLeadingZeroBits")
-public func kk_int_countLeadingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).leadingZeroBitCount)
-}
-
-@_cdecl("kk_int_countTrailingZeroBits")
-public func kk_int_countTrailingZeroBits(_ value: Int) -> Int {
-    Int(Int32(truncatingIfNeeded: value).trailingZeroBitCount)
-}
-
 // MARK: - Double arithmetic ops (bit-encoded intptr_t ABI)
 
 @_cdecl("kk_op_dadd")

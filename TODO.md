@@ -455,7 +455,7 @@
 - [ ] KSP-640: coerce の unsigned 4型を Kotlin 化する（前提: KSP-639。スタブ残存の `kk_ubyte/ushort/uint/ulong_coerceIn/coerceAtLeast/coerceAtMost` 12 + range 版 `kk_int/long_coerceIn` 2 を削除）
 - [ ] KSP-641: coerce の Comparable 総称版・ClosedFloatingPointRange range 版を**新規実装**する（本家 API `T.coerceIn(min?, max?)` / `coerceIn(ClosedFloatingPointRange)` が現状全く存在しない。前提: KSP-639, KSP-652）
 - [ ] KSP-642: rotateLeft/rotateRight を Kotlin 化する（Int/Long 版 kk_* 4 削除。shl/shr/or で完結・残留ゼロ。diff: rotate ケース新規）
-- [ ] KSP-643: countOneBits/countLeadingZeroBits/countTrailingZeroBits を Kotlin 化する（**BUG-015 修正込み: Long 版は Sema 通過後に KIR で握りつぶされる壊れたパス** — Kotlin 実装で Int/Long 両対応に。Int 版 kk_* 3 削除。diff: count 系新規）
+- [x] KSP-643: countOneBits/countLeadingZeroBits/countTrailingZeroBits を Kotlin 化する（**BUG-015 修正込み: Long 版は Sema 通過後に KIR で握りつぶされる壊れたパス** — Kotlin 実装で Int/Long 両対応に。Int 版 kk_* 3 削除。diff: count 系新規）
 - [ ] KSP-644: takeHighestOneBit/takeLowestOneBit/highestOneBit/lowestOneBit を Kotlin 化する（Int/Long 版 kk_* 8 削除・残留ゼロ）
 - [ ] KSP-645: kotlin.experimental の Byte/Short 版 and/or/xor/inv を**新規実装**する（本家仕様は Byte/Short 用。現行の Int 版登録（`HeaderHelpers+SyntheticExperimentalBitwiseStubs.swift`）は汎用 Int/Long 特例が先に解決する完全デッドコードのため削除 — CLEANUP-STUB-101 と重複しない側で実施）
 - [ ] KSP-646: isNaN/isFinite/isInfinite を Kotlin 化する（IEEE754 ビットパターン判定。kk_* 6 削除。diff: isNaN/isFinite ケース新規 — 現状カバレッジ薄）

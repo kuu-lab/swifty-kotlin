@@ -109,6 +109,21 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
+    /// Result type of an arithmetic compound assignment whose operator function could
+    /// not be resolved: numeric targets keep their own type, everything else falls back
+    /// to `Int` (BUG-015).
+    private func numericCompoundAssignResultType(_ targetType: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        guard case let .primitive(primitive, .nonNull) = ctx.sema.types.kind(of: targetType) else {
+            return ctx.sema.types.intType
+        }
+        switch primitive {
+        case .boolean, .char:
+            return ctx.sema.types.intType
+        case .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort:
+            return targetType
+        }
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -199,6 +214,10 @@ extension ExprTypeChecker {
                 )
             }
             let underlyingOp = driver.helpers.compoundAssignToBinaryOp(op)
+            // Arithmetic compound assignment keeps the target's own numeric type
+            // (BUG-015): demoting `Long`/`Double`/unsigned locals to `Int` here broke
+            // later member resolution such as `longVar and 0xFFL`.
+            let arithmeticResultType = numericCompoundAssignResultType(local.type, ctx: ctx)
             let resultType: TypeID = switch underlyingOp {
             case .add:
                 if local.type == stringType || valueType == stringType {
@@ -206,16 +225,16 @@ extension ExprTypeChecker {
                 } else if local.type == charType, valueType == intType {
                     charType
                 } else {
-                    intType
+                    arithmeticResultType
                 }
             case .subtract:
                 if local.type == charType, valueType == intType {
                     charType
                 } else {
-                    intType
+                    arithmeticResultType
                 }
             case .multiply, .divide, .modulo:
-                intType
+                arithmeticResultType
             default:
                 local.type
             }
