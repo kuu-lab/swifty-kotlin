@@ -10,20 +10,32 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let rangeCallees: Set<InternedString>
     }
 
+    /// Callee names that denote `kotlin.io.println`.  The Kotlin declaration is
+    /// compiled from `Stdlib/kotlin/io/Console.kt`, so it is reached either by its
+    /// source name (bundled stdlib build) or by its mangled library symbol name
+    /// (`--stdlib-library` build).
+    private func printlnCallees(ctx: KIRContext) -> Set<InternedString> {
+        var names: Set<InternedString> = [ctx.interner.intern("println")]
+        guard let sema = ctx.sema else { return names }
+        let fqName = ["kotlin", "io", "println"].map { ctx.interner.intern($0) }
+        for symbol in sema.symbols.lookupAll(fqName: fqName) {
+            if let link = sema.symbols.externalLinkName(for: symbol) {
+                names.insert(ctx.interner.intern(link))
+            }
+        }
+        return names
+    }
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()
         if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp, .hasNullAssert]) {
             return true
         }
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        return module.usedCallees.contains(printlnCallee)
-            || module.usedCallees.contains(kkPrintlnAnyCallee)
+        return !printlnCallees(ctx: ctx).isDisjoint(with: module.usedCallees)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
+        let printlnCallees = printlnCallees(ctx: ctx)
 
         let printlnConversionCallees = PrintlnConversionCallees(
             intToFloat: ctx.interner.intern("kk_int_to_float"),
@@ -75,7 +87,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 case let .nullAssert(operand, result):
                     newBody.append(.call(symbol: nil, callee: ctx.interner.intern("kk_op_notnull"), arguments: [operand], result: result, canThrow: true, thrownResult: nil))
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
-                    if callee == printlnCallee || callee == kkPrintlnAnyCallee,
+                    if printlnCallees.contains(callee),
                        arguments.count == 1,
                        tryLowerPrintlnCall(
                            symbol: symbol, callee: callee, arguments: arguments,
@@ -210,7 +222,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
 
         // Range expressions (rangeTo, rangeUntil, downTo, step, reversed) produce
         // opaque runtime object handles typed as Long/Int in sema.  Do NOT lower
-        // to kk_println_long — let them fall through to kk_println_any so the
+        // to kk_println_long — let them fall through to the generic println so the
         // runtime can resolve the RuntimeRangeBox and print "first..last".
         if isArgumentProducedByRangeCall(
             exprID: arguments[0],
@@ -240,7 +252,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
 
         // Only classType receivers are handled by the direct-call rewrites below
         // (toString()/data class/data object). Everything else (Any, type params,
-        // collections, ...) falls through to kk_println_any unchanged.
+        // collections, ...) falls through to the generic println unchanged.
         guard case .classType = types.kind(of: argType) else {
             return false
         }
@@ -270,8 +282,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let nonNullLabel = allocateLabel()
         let endLabel = allocateLabel()
         newBody.append(.jumpIfNotNull(value: arguments[0], target: nonNullLabel))
-        // Null path: reuse the original call — kk_println_any already special-cases
-        // the null sentinel and prints "null".
+        // Null path: reuse the original call — the generic println already
+        // special-cases the null sentinel and prints "null".
         newBody.append(.call(
             symbol: symbol, callee: callee, arguments: arguments,
             result: result, canThrow: canThrow, thrownResult: thrownResult, isSuperCall: isSuperCall
@@ -650,7 +662,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     /// Rewrites `println(classInstance)` for non-data class types that have a
     /// `toString()` method override.  Emits a direct call to the class's
     /// `toString()` implementation and returns the resulting string expression
-    /// so the caller can pass it to `kk_println_any`.
+    /// so the caller can pass it to the generic `println`.
     private func rewriteClassToStringPrintlnArgument(
         argument: KIRExprID,
         arena: KIRArena,

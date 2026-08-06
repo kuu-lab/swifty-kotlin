@@ -56,7 +56,7 @@ struct LocalDelegatePropertyKIRTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_any)
+            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_long)
             // rather than literally "println", so identify it positionally instead:
             // main is `val x by IntProp(); println(x)`, so the getValue call must be
             // followed by exactly one more call — println — that consumes its result.

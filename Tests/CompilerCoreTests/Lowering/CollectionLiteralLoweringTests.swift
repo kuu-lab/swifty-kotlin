@@ -947,7 +947,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testStringSplitResultIsTreatedAsListForToStringRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let sourceExpr = arena.appendExpr(.temporary(0))
@@ -970,7 +970,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_println_any"),
+                    callee: interner.intern("kk_any_to_string"),
                     arguments: [splitResult],
                     result: printlnResult,
                     canThrow: false,
@@ -994,11 +994,11 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testSourceBackedStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testSourceBackedStringSplitResultIsTreatedAsListForToStringRewrite() throws {
         let source = """
         fun main() {
             val parts = "1,2,3".split(",")
-            println(parts)
+            println(parts.toString())
         }
         """
 
@@ -1020,13 +1020,13 @@ struct CollectionLiteralLoweringTests {
             #expect(callees.contains("split"), "Expected public split to stay source-backed, got: \(callees)")
             #expect(
                 callees.contains("kk_list_to_string"),
-                "source-backed split result should still be recognized as list for println rewrite"
+                "source-backed split result should still be recognized as list for toString rewrite"
             )
         }
     }
 
     @Test
-    func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
+    func testListMinusCollectionResultIsTreatedAsListForToStringRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let listInput = arena.appendExpr(.temporary(0))
@@ -1058,7 +1058,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_println_any"),
+                    callee: interner.intern("kk_any_to_string"),
                     arguments: [minusResult],
                     result: printlnResult,
                     canThrow: false,

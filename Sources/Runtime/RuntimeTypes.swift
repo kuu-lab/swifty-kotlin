@@ -275,7 +275,7 @@ final class RuntimeIntBox {
 
     /// Set when this box represents a Kotlin enum ordinal (an element of
     /// `values()`/`entries`) round-tripped through an Any-erased array slot.
-    /// Generic Any-printing paths (kk_println_any, runtimeRenderAnyForPrint,
+    /// Generic Any-printing paths (__kk_print_raw, runtimeRenderAnyForPrint,
     /// runtimeElementToString) check this to show the entry name instead of
     /// the raw ordinal once the static enum type has been erased. See
     /// kk_enum_box_ordinal.
