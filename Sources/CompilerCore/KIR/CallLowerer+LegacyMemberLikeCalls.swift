@@ -177,7 +177,13 @@ extension CallLowerer {
                 return true
             }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-               !externalLinkName.isEmpty
+               !externalLinkName.isEmpty,
+               // `kk_fn_*` is the mangling for a compiled Kotlin declaration
+               // (CodegenSymbolSupport), so an imported stdlib artifact symbol
+               // carrying such a link name is still a Kotlin-source function
+               // taking plain function values -- not a runtime HOF builtin
+               // expecting the (fnPtr, closureRaw) pair convention.
+               !externalLinkName.hasPrefix("kk_fn_")
             {
                 return true
             }
