@@ -495,6 +495,11 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val value = "  alpha\\n  beta"
             val margin = "|alpha\\n|beta"
+            val raw = ""\"
+                alpha
+                beta
+            ""\".trimIndent()
+            println(raw)
             println(value.trimIndent())
             println(margin.trimMargin())
             println(margin.trimMargin("|"))
@@ -505,6 +510,8 @@ extension CodegenBackendIntegrationTests {
             println(margin.replaceIndentByMargin())
             println(margin.replaceIndentByMargin(">"))
             println(margin.replaceIndentByMargin(">", "|"))
+            println(value.indent())
+            println(value.indent(2))
         }
         """
 
@@ -538,6 +545,8 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default_flat",
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
+                "kk_string_indent",
+                "kk_string_indent_flat",
             ]
             for name in forbiddenNames {
                 XCTAssertFalse(ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
