@@ -585,12 +585,7 @@
   - 削除内容: `registerSyntheticJsFunctionStubs(...)` / `registerSyntheticJsFunction(...)` および Kotlin/JS `js(...)` 外部関数の synthetic 登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1228`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:174`（`name: "JsFunction"`）を削除
   - テスト影響: 本家 Kotlin/JS 専用のためテストは少ない；`swift build` と Sema inventory テストの確認
-- [ ] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` を削除する
-  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）
-  - 削除内容: `registerSyntheticLocaleConstructorStubs(...)` および `java.util.Locale` クラス・コンストラクタ / `forLanguageTag` / `getDefault` 等の登録を削除
-  - 呼び出し元: `HeaderHelpers+SyntheticBucketedStubRegistry.swift:263`（`name: "LocaleConstructor"`）を削除
-  - 連動整理: Runtime `Sources/Runtime/RuntimeI18N.swift`（`kk_locale_*` 28件）、`Sources/RuntimeABI/RuntimeABISpec+Locale.swift`/`RuntimeABISpec+String.swift` 内 Locale ABI 登録
-  - テスト影響: diff case `locale_basic.kt`、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+LLVMLinkingAndArtifacts.swift` などで Locale 使用箇所の確認
+- [x] CLEANUP-STUB-112: `HeaderHelpers+SyntheticLocaleConstructorStubs.swift`（401行）を削除する（`java.util.Locale` の member/companion 面（`language`/`country`/`variant`/`displayLanguage`/`hashCode`/`equals`/`getDefault`/`setDefault`/`getAvailableLocales`）と対応する `kk_locale_*` runtime export・ABI 登録を削除。`Locale` は locale 付き String/Char 演算のハンドルとしてのみ残し、コンストラクタ登録（`kk_locale_new_flat`/`kk_locale_new_language_country_flat`）は `+SyntheticStringStubs.swift` 側に既存のものを維持。diff case `locale_basic.kt` 削除、`i18n_common_edge_cases.kt` は locale 付き `lowercase`/`uppercase` に置換）
 - [ ] CLEANUP-STUB-113: `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift`（85行）
   - 削除内容: `registerSyntheticNativeGetterStubs(...)` / `registerSyntheticNativeSetterStubs(...)` および `kotlin.js.nativeGetter`/`nativeSetter`/`nativeInvoke` 注釈クラスの登録を削除
