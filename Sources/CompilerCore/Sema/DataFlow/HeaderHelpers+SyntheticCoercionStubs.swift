@@ -587,30 +587,8 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            // Int rotation functions
-            registerSyntheticCoercionFunction(
-                named: "rotateLeft",
-                externalLinkName: "kk_int_rotateLeft",
-                receiverType: types.intType,
-                parameters: [("distance", types.intType)],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "rotateRight",
-                externalLinkName: "kk_int_rotateRight",
-                receiverType: types.intType,
-                parameters: [("distance", types.intType)],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
+            // KSP-642: Int rotateLeft / rotateRight are declared in bundled Kotlin
+            // source (`Stdlib/kotlin/Numbers.kt`).
 
             // Zero-argument Long functions
             registerSyntheticCoercionFunction(
@@ -661,30 +639,8 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            // Long rotation functions
-            registerSyntheticCoercionFunction(
-                named: "rotateLeft",
-                externalLinkName: "kk_long_rotateLeft",
-                receiverType: types.longType,
-                parameters: [("distance", types.intType)],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "rotateRight",
-                externalLinkName: "kk_long_rotateRight",
-                receiverType: types.longType,
-                parameters: [("distance", types.intType)],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner
-            )
+            // KSP-642: Long rotateLeft / rotateRight are declared in bundled Kotlin
+            // source (`Stdlib/kotlin/Numbers.kt`).
 
             // MARK: - Primitive Type Conversion Functions (STDLIB-PRIM-002)
 
