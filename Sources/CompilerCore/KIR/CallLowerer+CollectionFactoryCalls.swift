@@ -228,6 +228,7 @@ extension CallLowerer {
             intType: intType,
             anyType: sema.types.anyType,
             types: sema.types,
+            symbols: sema.symbols,
             instructions: &instructions
         )
 
