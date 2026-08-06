@@ -59,7 +59,6 @@ extension CallLowerer {
         _ exprID: ExprID,
         classRefTargetType: TypeID,
         memberName: String,
-        args: [CallArgument],
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -119,13 +118,9 @@ extension CallLowerer {
             exprID,
             kclassExpr: kclassExpr,
             memberName: memberName,
-            args: args,
-            ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            castFallbackType: classRefTargetType,
             instructions: &instructions
         )
     }
@@ -134,30 +129,12 @@ extension CallLowerer {
         _ exprID: ExprID,
         kclassExpr: KIRExprID,
         memberName: String,
-        args: [CallArgument],
-        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        castFallbackType: TypeID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-
-        func lowerFirstArgumentOrNull() -> KIRExprID {
-            guard let firstArg = args.first else {
-                let valueExpr = arena.appendExpr(.intLiteral(0), type: intType)
-                instructions.append(.constValue(result: valueExpr, value: .intLiteral(0)))
-                return valueExpr
-            }
-            return driver.lowerExpr(
-                firstArg.expr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
-        }
 
         func emitRuntimeCall(
             callee: String,
@@ -179,22 +156,11 @@ extension CallLowerer {
         }
 
         switch memberName {
-        // KSP-496: cast/safeCast stay compiler special cases — see
-        // KClassBasicAPI.kt for why (generic return-type inference gap).
-        case "cast", "safeCast":
-            let canThrow = memberName == "cast"
-            return emitRuntimeCall(
-                callee: canThrow ? "__kk_kclass_cast" : "__kk_kclass_safeCast",
-                arguments: [kclassExpr, lowerFirstArgumentOrNull()],
-                fallbackType: castFallbackType,
-                canThrow: canThrow
-            )
-
         case "findAnnotation":
             // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
             // no value parameters — the annotation class to search for comes from
             // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
-            // `bindKClassFindAnnotationCall`), not from `args`.
+            // `bindKClassFindAnnotationCall`), not from the argument list.
             let searchNameExpr = lowerReifiedTypeNameHint(
                 typeArg: sema.bindings.findAnnotationSearchType(for: exprID),
                 sema: sema,
@@ -319,7 +285,6 @@ extension CallLowerer {
         _ exprID: ExprID,
         receiverExpr: ExprID,
         memberName: String,
-        args: [CallArgument],
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -339,13 +304,9 @@ extension CallLowerer {
             exprID,
             kclassExpr: kclassExpr,
             memberName: memberName,
-            args: args,
-            ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            castFallbackType: sema.types.anyType,
             instructions: &instructions
         )
     }
