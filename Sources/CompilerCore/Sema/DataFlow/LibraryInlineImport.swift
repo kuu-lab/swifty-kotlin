@@ -379,16 +379,25 @@ extension DataFlowSemaPhase {
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
             var callSymbol: SymbolID? = nil
+            var resolvedCalleeName = calleeName
             if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
-               !linkName.isEmpty,
-               let consumerSymbol = externalLinkNameToSymbol[linkName]
+               !linkName.isEmpty
             {
-                callSymbol = consumerSymbol
+                if let consumerSymbol = externalLinkNameToSymbol[linkName] {
+                    callSymbol = consumerSymbol
+                } else {
+                    // The callee is defined by the library itself (a mangled
+                    // `kk_fn_*` symbol in its object archive) and has no
+                    // counterpart in the consumer's symbol table. The declared
+                    // name would not resolve at link time, so call the library
+                    // symbol directly.
+                    resolvedCalleeName = linkName
+                }
             }
             return .call(
                 symbol: callSymbol,
-                callee: interner.intern(calleeName),
+                callee: interner.intern(resolvedCalleeName),
                 arguments: args,
                 result: result,
                 canThrow: canThrow,
