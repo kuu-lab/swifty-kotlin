@@ -548,6 +548,11 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         fun main() {
             val value = "  alpha\\n  beta"
             val margin = "|alpha\\n|beta"
+            val raw = ""\"
+                alpha
+                beta
+            ""\".trimIndent()
+            println(raw)
             println(value.trimIndent())
             println(margin.trimMargin())
             println(margin.trimMargin("|"))
@@ -558,6 +563,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             println(margin.replaceIndentByMargin())
             println(margin.replaceIndentByMargin(">"))
             println(margin.replaceIndentByMargin(">", "|"))
+            println(value.indent())
+            println(value.indent(2))
         }
         """
 
@@ -591,6 +598,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "kk_string_replaceIndent_default_flat",
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
+                "kk_string_indent",
+                "kk_string_indent_flat",
             ]
             for name in forbiddenNames {
                 #expect(!ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
