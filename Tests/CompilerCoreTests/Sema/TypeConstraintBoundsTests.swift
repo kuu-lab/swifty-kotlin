@@ -83,36 +83,50 @@ struct TypeConstraintBoundsTests {
 
             // upperBoundViolationEmitsBoundDiagnostic
             do {
+                let samplePath = paths[0]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertHasDiagnostic("KSWIFTK-SEMA-BOUND", in: sampleDiags)
             }
             // conflictingClassUpperBoundsEmitsDiagnostic
             do {
+                let samplePath = paths[1]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertHasDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
             // conflictingUserClassUpperBoundsEmitsDiagnostic
             do {
+                let samplePath = paths[2]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertHasDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
             // conflictingUpperBoundsOnClassTypeParameterEmitsDiagnostic
             do {
+                let samplePath = paths[3]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertHasDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
             // interfaceAndAnyUpperBoundsEmitNoDiagnostic
             do {
+                let samplePath = paths[4]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
             // subtypeRelatedClassUpperBoundsEmitNoDiagnostic
             do {
+                let samplePath = paths[5]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
             // subtypeRelatedClassUpperBoundsOnClassTypeParameterEmitNoDiagnostic
             do {
+                let samplePath = paths[6]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
