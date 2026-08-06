@@ -1075,21 +1075,31 @@ extension ExprTypeChecker {
                 }
                 return true
             }()
-            let expectedReturnIsUnconstrainedTypeParam: Bool = {
+            // A bounded callee type parameter is no more solvable here than an
+            // unbounded one -- nothing but the parameter itself is its subtype --
+            // so constrain the body against the parameter's upper bound (carrying
+            // over `T?`'s nullability) instead of the parameter. Checking the
+            // parameter directly rejects every body type, e.g.
+            // `fun <R : Any> f(t: (Char) -> R?)` called with `{ 1 }`.
+            let localExpectedReturnType: TypeID? = {
                 guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
-                    return false
+                    return expectedFunctionType.returnType
                 }
-                return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
+                guard expectedFunctionType.receiver == nil,
+                      let bound = sema.symbols.typeParameterUpperBounds(for: tp.symbol).first,
+                      sema.symbols.typeParameterUpperBounds(for: tp.symbol).count == 1
+                else {
+                    return nil
+                }
+                return tp.nullability == .nonNull ? bound : sema.types.makeNullable(bound)
             }()
             let shouldSkipSubtypeConstraint =
                 expectedFunctionType.returnType == sema.types.unitType
-                || (expectedFunctionType.receiver != nil
-                    ? expectedReturnIsTypeParam
-                    : expectedReturnIsUnconstrainedTypeParam)
-            if !shouldSkipSubtypeConstraint {
+                || localExpectedReturnType == nil
+            if !shouldSkipSubtypeConstraint, let localExpectedReturnType {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
-                    right: expectedFunctionType.returnType,
+                    right: localExpectedReturnType,
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
@@ -1105,9 +1115,7 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
-            let shouldReturnResolvedFunctionType =
-                expectedReturnIsUnconstrainedTypeParam
-                || (expectedFunctionType.receiver != nil && expectedReturnIsTypeParam)
+            let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

@@ -1688,10 +1688,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.firstNotNullOf surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let firstNotNullOfBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf_flat"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "firstNotNullOf"
             }
+            #expect(callIDs.count == 2, "Expected two String.firstNotNullOf call sites")
+            let firstNotNullOfBindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(firstNotNullOfBindings.count == 2)
         }
     }
@@ -1716,10 +1720,14 @@ struct StringSyntheticMemberLinkTests {
                 "Expected CharSequence.firstNotNullOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
+            let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull_flat"
+            let callIDs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "firstNotNullOfOrNull"
             }
+            #expect(callIDs.count == 2, "Expected two String.firstNotNullOfOrNull call sites")
+            let bindings = callIDs.compactMap { sema.bindings.callBindings[$0] }
             #expect(bindings.count == 2)
         }
     }

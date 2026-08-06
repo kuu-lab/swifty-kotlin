@@ -409,10 +409,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_compareTo_flat")
         case ("matches", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_matches_regex_flat")
-        case ("mapIndexed", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapIndexed_flat", argumentMode: .normalized)
-        case ("mapNotNull", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_mapNotNull_flat", argumentMode: .normalized)
         case ("chunked", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_chunked_flat")
         case ("chunkedSequence", 1):
