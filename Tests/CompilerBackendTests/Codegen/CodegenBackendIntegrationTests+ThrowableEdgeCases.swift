@@ -85,4 +85,39 @@ extension CodegenBackendIntegrationTests {
                 """ + "\n"
         )
     }
+
+    // KSP-616: TODO() is a bundled Kotlin declaration throwing NotImplementedError,
+    // which must stay catchable both as its own type and as its Error supertype.
+    func testCodegenTodoThrowsCatchableNotImplementedError() throws {
+        let source = """
+        fun main() {
+            try {
+                TODO()
+            } catch (e: NotImplementedError) {
+                println(e.message)
+            }
+            try {
+                TODO("later")
+            } catch (e: Error) {
+                println(e.message)
+            }
+            try {
+                TODO("rendered")
+            } catch (e: Throwable) {
+                println(e)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TodoNotImplementedError",
+            expected:
+                """
+                An operation is not implemented.
+                An operation is not implemented: later
+                Throwable(NotImplementedError: An operation is not implemented: rendered)
+                """ + "\n"
+        )
+    }
 }
