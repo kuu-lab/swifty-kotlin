@@ -11,13 +11,13 @@ import CompilerCore
 final class LinkPhase: CompilerPhase {
     static let name = "Link"
 
-    /// Linux links share one Swift autolink stub per target triple under a per-user private
-    /// directory (`TMPDIR/kswiftk-link-stubs-<uid>`, mode 0700). Guard creation with a file lock
-    /// so parallel Swift test workers in separate processes cannot race on the same stub path and
-    /// hand `swiftc` a torn or empty file. The directory is scoped to the current user and its
-    /// ownership/permissions are validated, and the lock file is opened with `O_NOFOLLOW`, so a
-    /// local attacker on a shared host cannot plant symlinks or pre-created files to tamper with
-    /// the build input (symlink/TOCTOU).
+    /// Linux links emit a Swift autolink stub that pulls in runtime dependencies. The stub is
+    /// written to a per-`LinkPhase` private temporary directory
+    /// (`TMPDIR/kswiftk-link-stubs-<uid>-<pid>-<uuid>`, mode 0700). Because every compilation
+    /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
+    /// the same stub path, and no cross-process file lock is required. The directory is created
+    /// with `mkdir(0700)` and validated to be owned by the current user with no group/other
+    /// permissions, so a local attacker cannot tamper with the build input.
     private static let linuxAutolinkStubContents = """
     import Dispatch
     import Foundation
@@ -29,6 +29,9 @@ final class LinkPhase: CompilerPhase {
         _ = DispatchSemaphore(value: 0)
     }
     """
+
+    private let stubLock = NSLock()
+    private var stubDirectory: URL?
 
     init() {}
 
@@ -65,9 +68,7 @@ final class LinkPhase: CompilerPhase {
             )
             throw CompilerPipelineError.outputUnavailable
         }
-        try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
-            try performLink(objectPath: objectPath, entrySymbol: entrySymbol, ctx: ctx)
-        }
+        try performLink(objectPath: objectPath, entrySymbol: entrySymbol, ctx: ctx)
     }
 
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
@@ -83,6 +84,15 @@ final class LinkPhase: CompilerPhase {
                 try? FileManager.default.removeItem(atPath: entryWrapperDirectoryPath)
             }
             let autolinkStubPath = try emitSwiftAutolinkStubIfNeeded(target: ctx.options.target)
+            var stubDirectoryPath: String?
+            if let autolinkStubPath {
+                stubDirectoryPath = URL(fileURLWithPath: autolinkStubPath).deletingLastPathComponent().path
+            }
+            defer {
+                if let stubDirectoryPath {
+                    try? FileManager.default.removeItem(atPath: stubDirectoryPath)
+                }
+            }
             let linkInputs = buildLinkInputs(
                 objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,
                 runtimeObjects: runtimeObjects, autoLinkedObjects: autoLinkedObjects
@@ -115,82 +125,52 @@ final class LinkPhase: CompilerPhase {
             return nil
         }
 
+        stubLock.lock()
+        defer { stubLock.unlock() }
+
         let stubDirectory = try secureStubDirectory()
 
         let targetKey = CodegenRuntimeSupport.stableFNV1a64Hex(CodegenRuntimeSupport.targetTripleString(target))
         let stubName = "runtime-autolink-\(targetKey).swift"
         let stubURL = stubDirectory.appendingPathComponent(stubName)
-        let lockURL = stubDirectory.appendingPathComponent("runtime-autolink-\(targetKey).lock")
-        try withFileLock(at: lockURL) {
-            let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
-            if currentContents != Self.linuxAutolinkStubContents {
-                try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
-            }
+        let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
+        if currentContents != Self.linuxAutolinkStubContents {
+            try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
         }
         return stubURL.path
     }
 
     private func secureStubDirectory() throws -> URL {
+        if let cached = stubDirectory {
+            return cached
+        }
+
         let uid = getuid()
+        let pid = getpid()
+        let uuid = UUID().uuidString
         let stubDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kswiftk-link-stubs-\(uid)", isDirectory: true)
+            .appendingPathComponent("kswiftk-link-stubs-\(uid)-\(pid)-\(uuid)", isDirectory: true)
         let path = stubDirectory.path
-        let result = path.withCString { mkdir($0, S_IRWXU) }
-        if result != 0 {
-            let err = errno
-            guard err == EEXIST else {
-                throw LinkPhaseFileLockError.systemCallFailed("mkdir", err)
-            }
+        guard path.withCString({ mkdir($0, S_IRWXU) }) == 0 else {
+            throw LinkPhaseStubError.systemCallFailed("mkdir", errno)
         }
 
         var info = stat()
         guard path.withCString({ lstat($0, &info) }) == 0 else {
-            throw LinkPhaseFileLockError.insecurePath(
-                path,
-                "lstat failed: \(String(cString: strerror(errno)))"
-            )
+            throw LinkPhaseStubError.systemCallFailed("lstat", errno)
         }
         guard (info.st_mode & S_IFMT) == S_IFDIR else {
-            throw LinkPhaseFileLockError.insecurePath(path, "not a directory")
+            throw LinkPhaseStubError.insecurePath(path, "not a directory")
         }
         guard info.st_uid == uid else {
-            throw LinkPhaseFileLockError.insecurePath(path, "unexpected owner")
+            throw LinkPhaseStubError.insecurePath(path, "unexpected owner")
         }
         guard (info.st_mode & (S_IRWXG | S_IRWXO)) == 0 else {
-            throw LinkPhaseFileLockError.insecurePath(path, "group/other permissions are not allowed")
+            throw LinkPhaseStubError.insecurePath(path, "group/other permissions are not allowed")
         }
+
+        self.stubDirectory = stubDirectory
         return stubDirectory
-    }
-
-    private func withFileLock<T>(at lockURL: URL, body: () throws -> T) throws -> T {
-        let descriptor = lockURL.path.withCString { path in
-            open(path, O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
-        }
-        guard descriptor >= 0 else {
-            throw LinkPhaseFileLockError.systemCallFailed("open", errno)
-        }
-        defer { close(descriptor) }
-
-        var info = stat()
-        guard fstat(descriptor, &info) == 0 else {
-            throw LinkPhaseFileLockError.insecurePath(
-                lockURL.path,
-                "fstat failed: \(String(cString: strerror(errno)))"
-            )
-        }
-        guard (info.st_mode & S_IFMT) == S_IFREG else {
-            throw LinkPhaseFileLockError.insecurePath(lockURL.path, "not a regular file")
-        }
-        guard info.st_uid == getuid() else {
-            throw LinkPhaseFileLockError.insecurePath(lockURL.path, "unexpected owner")
-        }
-
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            throw LinkPhaseFileLockError.systemCallFailed("flock", errno)
-        }
-        defer { _ = flock(descriptor, LOCK_UN) }
-
-        return try body()
     }
 
     private func buildLinkInputs(
@@ -334,7 +314,7 @@ final class LinkPhase: CompilerPhase {
     }
 }
 
-private enum LinkPhaseFileLockError: Error, CustomStringConvertible {
+private enum LinkPhaseStubError: Error, CustomStringConvertible {
     case systemCallFailed(String, Int32)
     case insecurePath(String, String)
 
