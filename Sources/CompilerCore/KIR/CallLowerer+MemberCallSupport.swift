@@ -92,6 +92,31 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
+    /// The `$enumOrdinalToName$<id>(ordinal): String` helper for `type`, when
+    /// `type` is a non-null enum class that has one.
+    ///
+    /// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
+    /// header-only symbols with no source declSite, so
+    /// DataEnumSealedSynthesisPass never synthesizes their helper — see
+    /// `emitBoxCallWithValueClassTag`, which skips them for the same reason.
+    /// A nullable enum is excluded too: its null sentinel would be fed to the
+    /// helper as an ordinal.
+    func enumOrdinalToNameCallee(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard case let .classType(classType) = sema.types.kind(of: type),
+              classType.nullability == .nonNull,
+              let symbol = sema.symbols.symbol(classType.classSymbol),
+              symbol.kind == .enumClass,
+              !symbol.flags.contains(.synthetic)
+        else {
+            return nil
+        }
+        return interner.intern("$enumOrdinalToName$\(classType.classSymbol.rawValue)")
+    }
+
     /// Converts `valueID` (of static type `valueType`) to a `String` via
     /// `kk_any_to_string`, using `anyFallbackTag`'s tag for `valueType` and
     /// guarding against the null-sentinel collision for nullable
@@ -115,6 +140,23 @@ extension CallLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
+        // A statically enum-typed value is represented as its bare ordinal, so
+        // `kk_any_to_string` would render the number. The enum class's
+        // `$enumOrdinalToName$<id>` helper maps it back to the entry name — the
+        // same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
+        // an Any-erased boundary.
+        if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
+            let name = arena.appendTemporary(type: stringType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: nameHelper,
+                arguments: [valueID],
+                result: name,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return name
+        }
         let tag = anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))

@@ -1,7 +1,7 @@
 symbol fq=__destructuring_0.evens kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=__destructuring_0.odds kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=__local_0.list kind=local vis=private flags=_ type=kotlin.collections.List<out Int>
-symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
+symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic

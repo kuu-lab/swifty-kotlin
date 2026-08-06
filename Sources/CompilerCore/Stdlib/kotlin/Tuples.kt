@@ -13,6 +13,14 @@ import kotlin.internal.KsSymbolName
 // runtime boxes because the runtime hands out the very same boxes for
 // zip / associate / withIndex / Map.Entry, so allocation and component reads
 // remain bridges while the rest of the surface is ordinary Kotlin.
+//
+// Upstream declares both as `data class`es. Here they are plain classes: a data
+// class stores its constructor parameters in the object's own layout, whereas
+// these are views over a `RuntimePairBox`/`RuntimeTripleBox` whose fields are
+// read back through the component bridges. The generated `equals`/`hashCode`
+// are what that costs -- structural equality is not available and `==` falls
+// back to reference identity (BUG-185, which also covers the hand-written
+// `override fun equals` that would otherwise substitute for it).
 
 /**
  * Represents a generic pair of two values.
