@@ -331,14 +331,9 @@ private let adjacentDifference: @convention(c) (Int, Int, Int, UnsafeMutablePoin
     right - left
 }
 
-private let returnSeven: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in
+private let throwForMapDefault: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
     gHOFState.addCall()
-    return 7
-}
-
-private let throwForGetOrPut: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-    gHOFState.addCall()
-    outThrown?.pointee = runtimeAllocateThrowable(message: "test getOrPut throw")
+    outThrown?.pointee = runtimeAllocateThrowable(message: "test map default throw")
     return 123
 }
 
@@ -1714,7 +1709,7 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testMapImplicitDefaultPropagatesThrowingDefaultLambda() {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-        let defaulted = kk_map_withDefault(map, unsafeBitCast(throwForGetOrPut, to: Int.self), 0)
+        let defaulted = kk_map_withDefault(map, unsafeBitCast(throwForMapDefault, to: Int.self), 0)
 
         gHOFState.reset()
         var thrown = 0

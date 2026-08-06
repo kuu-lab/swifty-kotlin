@@ -1716,7 +1716,19 @@ extension ListSyntheticMemberLinkTests {
                 #expect(symbol.fqName == packageFQName + [interner.intern(memberName)])
             }
 
-            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [interner.intern("toList")]))
+            // KSP-431: Map.toList is a bundled source extension, not a Map member stub.
+            let toListSymbol = try #require(
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("toList")]).first { symbolID in
+                    guard let signature = sema.symbols.functionSignature(for: symbolID),
+                          let receiverType = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return nominalOwnerFQName(for: receiverType) == mapFQName
+                },
+                "Expected bundled source for Map.toList"
+            )
+            #expect(sema.symbols.externalLinkName(for: toListSymbol) == nil)
             let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
                 Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
@@ -1724,9 +1736,14 @@ extension ListSyntheticMemberLinkTests {
             let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
             #expect(interner.resolve(listName) == "List")
             let firstListArg = try #require(listType.args.first)
-            guard case let .out(pairTypeID) = firstListArg,
-                  case let .classType(pairType) = sema.types.kind(of: pairTypeID)
-            else {
+            let pairTypeID: TypeID
+            switch firstListArg {
+            case let .invariant(id), let .out(id), let .in(id):
+                pairTypeID = id
+            case .star:
+                Issue.record("Expected Map.toList element type to be Pair"); return
+            }
+            guard case let .classType(pairType) = sema.types.kind(of: pairTypeID) else {
                 Issue.record("Expected Map.toList element type to be Pair"); return
             }
             let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
