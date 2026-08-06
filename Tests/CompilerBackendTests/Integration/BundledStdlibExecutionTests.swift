@@ -250,4 +250,63 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-646: Double/Float の isNaN / isInfinite / isFinite は bundled Kotlin
+    // (kotlin/util/Numbers.kt) の IEEE 754 ビットパターン判定で実装される。
+    // 符号付きゼロ・非正規数・演算由来 NaN・ペイロード付き NaN まで含めて
+    // end-to-end で検証する。
+    @Test
+    func testFloatingPointPredicatesExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(Double.NaN.isNaN())
+                println((0.0 / 0.0).isNaN())
+                println(Double.fromBits(0x7FF0000000000001L).isNaN())
+                println(1.0.isNaN())
+                println(Double.POSITIVE_INFINITY.isNaN())
+                println(Double.POSITIVE_INFINITY.isInfinite())
+                println(Double.NEGATIVE_INFINITY.isInfinite())
+                println(Double.MAX_VALUE.isInfinite())
+                println(Double.NaN.isInfinite())
+                println((-0.0).isFinite())
+                println(Double.MIN_VALUE.isFinite())
+                println(Double.POSITIVE_INFINITY.isFinite())
+                println(Double.NaN.isFinite())
+                println(Float.NaN.isNaN())
+                println(Float.fromBits(0x7F800001).isNaN())
+                println(1.0f.isNaN())
+                println(Float.POSITIVE_INFINITY.isInfinite())
+                println(Float.MAX_VALUE.isInfinite())
+                println((-0.0f).isFinite())
+                println(Float.MIN_VALUE.isFinite())
+                println(Float.NEGATIVE_INFINITY.isFinite())
+            }
+            """,
+            expectedOutput: """
+            true
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            false
+            true
+            true
+            false
+            true
+            false
+            true
+            true
+            false
+
+            """
+        )
+    }
 }
