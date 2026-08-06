@@ -1,10 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenObjectContainsDebugSectionWhenDebugInfoEnabled() throws {
+@Suite
+struct CodegenBackendDebugInfoMetadataEmissionTests {
+
+    @Test
+    func codegenObjectContainsDebugSectionWhenDebugInfoEnabled() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -27,9 +31,9 @@ extension CodegenBackendIntegrationTests {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            let objectPath = try XCTUnwrap(ctx.generatedObjectPath)
+            let objectPath = try #require(ctx.generatedObjectPath)
             let objectData = try Data(contentsOf: URL(fileURLWithPath: objectPath))
-            XCTAssertGreaterThan(objectData.count, 0)
+            #expect(objectData.count > 0)
 
             let noDebugBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
@@ -51,14 +55,18 @@ extension CodegenBackendIntegrationTests {
             try LoweringPhase().run(noDebugCtx)
             try CodegenPhase().run(noDebugCtx)
 
-            let noDebugObjectPath = try XCTUnwrap(noDebugCtx.generatedObjectPath)
+            let noDebugObjectPath = try #require(noDebugCtx.generatedObjectPath)
             let noDebugData = try Data(contentsOf: URL(fileURLWithPath: noDebugObjectPath))
-            XCTAssertGreaterThan(noDebugData.count, 0)
-            XCTAssertNotEqual(objectData, noDebugData, "Debug and non-debug object files should differ when debug info is enabled.")
+            #expect(noDebugData.count > 0)
+            #expect(
+                objectData != noDebugData,
+                "Debug and non-debug object files should differ when debug info is enabled."
+            )
         }
     }
 
-    func testCodegenLLVMIRContainsDebugFlagWhenDebugInfoEnabled() throws {
+    @Test
+    func codegenLLVMIRContainsDebugFlagWhenDebugInfoEnabled() throws {
         let source = "fun main() = 0"
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -81,17 +89,19 @@ extension CodegenBackendIntegrationTests {
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
 
-            let irPath = try XCTUnwrap(ctx.generatedLLVMIRPath)
+            let irPath = try #require(ctx.generatedLLVMIRPath)
             let irContent = try String(contentsOfFile: irPath, encoding: .utf8)
-            XCTAssertTrue(
-                irContent.contains("!llvm.dbg") || irContent.contains("debug") || irContent.contains("DW_TAG"),
+            #expect(
+                irContent.contains("!llvm.dbg") || irContent.contains("debug")
+                    || irContent.contains("DW_TAG"),
                 "LLVM IR should contain debug metadata when -g is enabled"
             )
         }
     }
 
-    func testLLVMBackendPassesDebugInfoToNativeEmitter() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.loadUsable())
+    @Test
+    func llvmBackendPassesDebugInfoToNativeEmitter() throws {
+        let bindings = try #require(LLVMCAPIBindings.loadUsable())
 
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()
@@ -149,25 +159,28 @@ extension CodegenBackendIntegrationTests {
         let noDebugIR = try String(contentsOfFile: noDebugIRPath, encoding: .utf8)
 
         if bindings.debugInfoAvailable {
-            XCTAssertTrue(debugIR.contains("!llvm.dbg") || debugIR.count > noDebugIR.count)
+            #expect(debugIR.contains("!llvm.dbg") || debugIR.count > noDebugIR.count)
         }
-        XCTAssertFalse(noDebugIR.contains("!llvm.dbg"))
+        #expect(!noDebugIR.contains("!llvm.dbg"))
     }
 
-    func testLlvmBindingsReportsDebugInfoAvailability() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.load())
+    @Test
+    func llvmBindingsReportsDebugInfoAvailability() throws {
+        let bindings = try #require(LLVMCAPIBindings.load())
         _ = bindings.debugInfoAvailable
     }
 
-    func testLlvmBindingsReportsDebugLocationAvailability() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.load())
+    @Test
+    func llvmBindingsReportsDebugLocationAvailability() throws {
+        let bindings = try #require(LLVMCAPIBindings.load())
         _ = bindings.debugLocationAvailable
     }
 
-    func testLLVMBackendDebugIRContainsDebugLocationMetadata() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.loadUsable())
-        XCTAssertTrue(bindings.debugInfoAvailable)
-        XCTAssertTrue(bindings.debugLocationAvailable)
+    @Test
+    func llvmBackendDebugIRContainsDebugLocationMetadata() throws {
+        let bindings = try #require(LLVMCAPIBindings.loadUsable())
+        #expect(bindings.debugInfoAvailable)
+        #expect(bindings.debugLocationAvailable)
 
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()
@@ -207,13 +220,17 @@ extension CodegenBackendIntegrationTests {
         let irText = try String(contentsOfFile: irPath, encoding: .utf8)
         // When debug locations are set, instructions carry !dbg metadata
         // references and DISubprogram / DILocation entries appear in the IR.
-        XCTAssertTrue(irText.contains("!dbg"), "Expected !dbg metadata references in IR when debugInfo is enabled")
-        XCTAssertTrue(irText.contains("DISubprogram"), "Expected DISubprogram metadata in IR")
+        #expect(
+            irText.contains("!dbg"),
+            "Expected !dbg metadata references in IR when debugInfo is enabled"
+        )
+        #expect(irText.contains("DISubprogram"), "Expected DISubprogram metadata in IR")
     }
 
-    func testLLVMBackendDebugIRContainsLocalVariableMetadata() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.loadUsable())
-        XCTAssertTrue(bindings.debugInfoAvailable)
+    @Test
+    func llvmBackendDebugIRContainsLocalVariableMetadata() throws {
+        let bindings = try #require(LLVMCAPIBindings.loadUsable())
+        #expect(bindings.debugInfoAvailable)
         guard bindings.localVariableAvailable else {
             return
         }
@@ -262,10 +279,10 @@ extension CodegenBackendIntegrationTests {
         let irText = try String(contentsOfFile: irPath, encoding: .utf8)
         // When local variable debug info is emitted, the IR should contain
         // DILocalVariable entries and llvm.dbg.declare intrinsic calls.
-        XCTAssertTrue(
+        #expect(
             irText.contains("DILocalVariable") || irText.contains("dbg.declare"),
             "Expected DILocalVariable or dbg.declare in IR for local variable debug info"
         )
     }
 }
-
+#endif
