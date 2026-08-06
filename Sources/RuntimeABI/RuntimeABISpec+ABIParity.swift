@@ -84,45 +84,6 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_biginteger_modInverse", parameters: [
-            p("selfRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_modPow", parameters: [
-            p("selfRaw", .intptr),
-            p("exponentRaw", .intptr),
-            p("modulusRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_biginteger_not", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_or", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftLeft", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_shiftRight", parameters: [
-            p("selfRaw", .intptr),
-            p("n", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_toByteArray", parameters: [
-            p("selfRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_biginteger_xor", parameters: [
-            p("selfRaw", .intptr),
-            p("otherRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_callable_ref_arity", parameters: [
             p("tagged", .intptr),
         ],

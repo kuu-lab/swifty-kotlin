@@ -749,22 +749,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        if allCandidates.isEmpty,
-           let boundType = tryBindSyntheticBigIntegerMemberFallback(
-               id,
-               calleeName: calleeName,
-               receiverType: memberLookupType,
-               args: args,
-               argTypes: argTypes,
-               range: range,
-               ctx: ctx,
-               expectedType: expectedType,
-               explicitTypeArgs: explicitTypeArgs,
-               safeCall: safeCall
-           )
-        {
-            return boundType
-        }
         let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
             name == KnownCompilerNames(interner: interner).null
         } else {
