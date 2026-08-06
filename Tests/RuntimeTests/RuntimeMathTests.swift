@@ -5,20 +5,7 @@ import Testing
 
 @Suite
 struct RuntimeMathTests {
-    // MARK: - Int
-
-    @Test func testAbsInt() {
-        #expect(kk_math_abs_int(-12) == 12)
-        #expect(kk_math_abs_int(12) == 12)
-        #expect(kk_math_abs_int(Int.min) == Int.min)
-    }
-
     // MARK: - Double
-
-    @Test func testAbsDouble() {
-        #expect(doubleFromBits(kk_math_abs(doubleToBits(-3.5))) == 3.5)
-        #expect(doubleFromBits(kk_math_abs(doubleToBits(Double.nan))).isNaN)
-    }
 
     @Test func testSqrtDouble() {
         #expect(doubleFromBits(kk_math_sqrt(doubleToBits(4.0))) == 2.0)
@@ -205,12 +192,7 @@ struct RuntimeMathTests {
         #expect(floatFromBits(kk_math_floor_float(floatToBits(-2.3))) == -3.0)
     }
 
-    // MARK: - Float abs / exp / ln / log / sign / hypot (STDLIB-430)
-
-    @Test func testAbsFloat() {
-        #expect(abs(floatFromBits(kk_math_abs_float(floatToBits(-3.14))) - Float(3.14)) <= 1e-5)
-        #expect(floatFromBits(kk_math_abs_float(floatToBits(Float.nan))).isNaN)
-    }
+    // MARK: - Float exp / ln / log / hypot (STDLIB-430)
 
     @Test func testExpFloat() {
         #expect(abs(floatFromBits(kk_math_exp_float(floatToBits(0.0))) - 1.0) <= 1e-6)
@@ -244,66 +226,8 @@ struct RuntimeMathTests {
         #expect(abs(floatFromBits(kk_math_log_float(floatToBits(8.0), floatToBits(2.0))) - 3.0) <= 1e-5)
     }
 
-    @Test func testSignFloat() {
-        #expect(floatFromBits(kk_math_sign_float(floatToBits(-5.0))) == -1.0)
-        #expect(floatFromBits(kk_math_sign_float(floatToBits(5.0))) == 1.0)
-        #expect(floatFromBits(kk_math_sign_float(floatToBits(0.0))) == 0.0)
-        #expect(floatFromBits(kk_math_sign_float(floatToBits(Float.nan))).isNaN)
-    }
-
-    @Test func testIntegralSignProperties() {
-        #expect(kk_math_sign_int(-5) == -1)
-        #expect(kk_math_sign_int(0) == 0)
-        #expect(kk_math_sign_int(5) == 1)
-        #expect(kk_math_sign_long(-5) == -1)
-        #expect(kk_math_sign_long(0) == 0)
-        #expect(kk_math_sign_long(5) == 1)
-    }
-
     @Test func testHypotFloat() {
         #expect(abs(floatFromBits(kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))) - 5.0) <= 1e-6)
-    }
-
-    @Test func testMinMaxDouble() {
-        #expect(doubleFromBits(kk_math_max(doubleToBits(2.0), doubleToBits(3.0))) == 3.0)
-        #expect(doubleFromBits(kk_math_min(doubleToBits(2.0), doubleToBits(3.0))) == 2.0)
-        #expect(doubleFromBits(kk_math_max(doubleToBits(Double.nan), doubleToBits(1.0))).isNaN)
-        #expect(doubleFromBits(kk_math_min(doubleToBits(1.0), doubleToBits(Double.nan))).isNaN)
-        #expect(kk_math_max(doubleToBits(-0.0), doubleToBits(0.0)) == doubleToBits(0.0))
-        #expect(kk_math_min(doubleToBits(0.0), doubleToBits(-0.0)) == doubleToBits(-0.0))
-    }
-
-    @Test func testMinMaxFloat() {
-        #expect(floatFromBits(kk_math_max_float(floatToBits(2.0), floatToBits(3.0))) == 3.0)
-        #expect(floatFromBits(kk_math_min_float(floatToBits(2.0), floatToBits(3.0))) == 2.0)
-        #expect(floatFromBits(kk_math_max_float(floatToBits(Float.nan), floatToBits(1.0))).isNaN)
-        #expect(floatFromBits(kk_math_min_float(floatToBits(1.0), floatToBits(Float.nan))).isNaN)
-        #expect(kk_math_max_float(floatToBits(-0.0), floatToBits(0.0)) == floatToBits(0.0))
-        #expect(kk_math_min_float(floatToBits(0.0), floatToBits(-0.0)) == floatToBits(-0.0))
-    }
-
-    @Test func testMinMaxIntegral() {
-        #expect(kk_math_max_int(-2, 3) == 3)
-        #expect(kk_math_min_int(-2, 3) == -2)
-        #expect(kk_math_max_long(Int(Int64.min), Int(Int64.max)) == Int(Int64.max))
-        #expect(kk_math_min_long(Int(Int64.min), Int(Int64.max)) == Int(Int64.min))
-    }
-
-    @Test func testMinMaxUnsigned() {
-        let low = 7
-        let high = Int(bitPattern: UInt.max)
-        #expect(kk_math_max_uint(low, high) == high)
-        #expect(kk_math_min_uint(low, high) == low)
-        #expect(kk_math_max_ulong(low, high) == high)
-        #expect(kk_math_min_ulong(low, high) == low)
-    }
-
-    @Test func testPiConstant() {
-        #expect(abs(doubleFromBits(kk_math_PI()) - Double.pi) <= 1e-12)
-    }
-
-    @Test func testEConstant() {
-        #expect(abs(doubleFromBits(kk_math_E()) - Double(M_E)) <= 1e-12)
     }
 
     // MARK: - STDLIB-MATH-112: numeric constants
