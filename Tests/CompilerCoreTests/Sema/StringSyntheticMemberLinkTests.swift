@@ -211,6 +211,24 @@ struct StringSyntheticMemberLinkTests {
         )
     }
 
+    @Test func testStringRandomStubsHaveCorrectExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let links = externalLinks(for: "random", sema: sema, interner: interner)
+        #expect(
+            links.contains("__kk_string_random"),
+            "String.random() should link to __kk_string_random, got \(links.sorted())"
+        )
+        #expect(
+            links.contains("__kk_string_random_random"),
+            "String.random(Random) should link to __kk_string_random_random, got \(links.sorted())"
+        )
+        #expect(
+            !links.contains("kk_string_random") && !links.contains("kk_string_random_random"),
+            "String.random overloads should no longer expose public kk_ symbols (KSP-417)"
+        )
+    }
+
     @Test func testChunkedSequenceStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
