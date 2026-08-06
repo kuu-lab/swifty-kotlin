@@ -11,98 +11,144 @@ import Testing
 @Suite
 struct InfiniteLoopTypeCheckingTests {
 
-    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
-        let ctx = makeContextFromSource(source)
-        do {
+    @Test func testInfiniteLoopTypeCheckingSema() throws {
+        let sources: [String] = [
+            // testWhileTrueReturnLoopSatisfiesReturnType
+            """
+            package sample0
+                    fun f(cond: Boolean): Int {
+                        while (true) {
+                            if (cond) return 1
+                        }
+                    }
+
+            """,
+
+            // testWhileTrueBreakLoopIsUnit
+            """
+            package sample1
+                    fun f(cond: Boolean) {
+                        while (true) {
+                            if (cond) break
+                        }
+                    }
+
+            """,
+
+            // testNothingReturnInfiniteLoop
+            """
+            package sample2
+                    fun never(): Nothing {
+                        while (true) {}
+                    }
+
+            """,
+
+            // testDoWhileTrueReturnLoopSatisfiesReturnType
+            """
+            package sample3
+                    fun f(cond: Boolean): Int {
+                        do {
+                            if (cond) return 1
+                        } while (true)
+                    }
+
+            """,
+
+            // testLabeledWhileTrueBreakIsUnit
+            """
+            package sample4
+                    fun f(cond: Boolean) {
+                        loop@ while (true) {
+                            if (cond) break@loop
+                        }
+                    }
+
+            """,
+
+            // testNestedInnerBreakDoesNotReleaseOuterLoop
+            """
+            package sample5
+                    fun f(cond: Boolean): Int {
+                        outer@ while (true) {
+                            while (true) {
+                                if (cond) break
+                            }
+                        }
+                    }
+
+            """
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-        } catch {
-            // Diagnostics are inspected per-test.
-        }
-        return ctx
-    }
 
-    @Test func testWhileTrueReturnLoopSatisfiesReturnType() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun f(cond: Boolean): Int {
-            while (true) {
-                if (cond) return 1
-            }
-        }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "while(true) with a return inside should satisfy an Int return type: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
-    }
-
-    @Test func testWhileTrueBreakLoopIsUnit() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun f(cond: Boolean) {
-            while (true) {
-                if (cond) break
-            }
-        }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "while(true) with a break inside should type as Unit: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
-    }
-
-    @Test func testNothingReturnInfiniteLoop() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun never(): Nothing {
-            while (true) {}
-        }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "while(true) {} should satisfy a Nothing return type: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
-    }
-
-    @Test func testDoWhileTrueReturnLoopSatisfiesReturnType() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun f(cond: Boolean): Int {
+            // testWhileTrueReturnLoopSatisfiesReturnType
             do {
-                if (cond) return 1
-            } while (true)
+                let samplePath = paths[0]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "while(true) with a return inside should satisfy an Int return type: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testWhileTrueBreakLoopIsUnit
+            do {
+                let samplePath = paths[1]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "while(true) with a break inside should type as Unit: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testNothingReturnInfiniteLoop
+            do {
+                let samplePath = paths[2]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "while(true) {} should satisfy a Nothing return type: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testDoWhileTrueReturnLoopSatisfiesReturnType
+            do {
+                let samplePath = paths[3]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "do { ... } while(true) with a return inside should satisfy an Int return type: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testLabeledWhileTrueBreakIsUnit
+            do {
+                let samplePath = paths[4]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "labeled while(true) with a matching break should type as Unit: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testNestedInnerBreakDoesNotReleaseOuterLoop
+            do {
+                let samplePath = paths[5]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "inner while(true) break should not make the outer infinite loop Unit-typed: \(sampleDiags.map { $0.message })"
+                )
+            }
+
         }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "do { ... } while(true) with a return inside should satisfy an Int return type: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
     }
 
-    @Test func testLabeledWhileTrueBreakIsUnit() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun f(cond: Boolean) {
-            loop@ while (true) {
-                if (cond) break@loop
-            }
-        }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "labeled while(true) with a matching break should type as Unit: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
-    }
 
-    @Test func testNestedInnerBreakDoesNotReleaseOuterLoop() {
-        let ctx = runSemaCollectingDiagnostics("""
-        fun f(cond: Boolean): Int {
-            outer@ while (true) {
-                while (true) {
-                    if (cond) break
-                }
-            }
-        }
-        """)
-        #expect(
-            !ctx.diagnostics.hasError,
-            "inner while(true) break should not make the outer infinite loop Unit-typed: \(ctx.diagnostics.diagnostics.map { $0.message })"
-        )
-    }
+
 }
 #endif
