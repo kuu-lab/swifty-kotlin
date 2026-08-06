@@ -174,7 +174,24 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            if let owner = driver.helpers.nominalSymbol(
+            if let sourceCallee = sourceBackedSequenceFlatMapIndexed(
+                lambdaBodyType: lambdaBodyType,
+                sema: sema,
+                interner: interner
+            ) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: sourceCallee,
+                        substitutedTypeArguments: [receiverElementType, flattenedElementType],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(sourceCallee))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                }
+            } else if let owner = driver.helpers.nominalSymbol(
                 of: sema.types.makeNonNullable(receiverType),
                 types: sema.types
             ),
@@ -321,5 +338,43 @@ extension CallTypeChecker {
             return staticMember.type
         }
         return nil
+    }
+
+    /// KSP-441: pick the bundled `kotlin.sequences.flatMapIndexed` overload whose
+    /// `transform` return type matches the lambda body (`Sequence<R>` or `Iterable<R>`).
+    /// Returns `nil` when the bundled source declaration is unavailable, letting the
+    /// caller fall back to the synthetic runtime-backed member.
+    private func sourceBackedSequenceFlatMapIndexed(
+        lambdaBodyType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let fqName = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("flatMapIndexed"),
+        ]
+        let lambdaReturnsSequence = isSequenceLikeType(lambdaBodyType, sema: sema, interner: interner)
+        let candidates = sema.symbols.lookupAll(fqName: fqName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  signature.receiverType != nil
+            else {
+                return false
+            }
+            return true
+        }
+        return candidates.first(where: { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  case let .functionType(transformType) = sema.types.kind(of: signature.parameterTypes[0])
+            else {
+                return false
+            }
+            return isSequenceLikeType(transformType.returnType, sema: sema, interner: interner)
+                == lambdaReturnsSequence
+        }) ?? candidates.first
     }
 }

@@ -21,7 +21,10 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "SequenceMapRuntime", expected: "[3, 6]\n2\n[3, 6, 9, 12]\n")
     }
 
-    func testCodegenSequenceMapUsesRuntimeHelper() throws {
+    /// KSP-441: `Sequence.map` is provided by the bundled Kotlin source
+    /// pipeline (`SequenceTransformHOF.kt`), so lowering keeps the call to the
+    /// source declaration instead of rewriting it to `kk_sequence_map`.
+    func testCodegenSequenceMapUsesBundledSourceImplementation() throws {
         let source = """
         fun render(): Sequence<Int> {
             return sequenceOf(1, 2, 3).map { it * 3 }
@@ -35,7 +38,8 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_sequence_map"))
+            XCTAssertTrue(callees.contains("map"))
+            XCTAssertFalse(callees.contains("kk_sequence_map"))
         }
     }
 }

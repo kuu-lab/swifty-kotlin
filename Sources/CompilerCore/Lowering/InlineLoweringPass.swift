@@ -31,8 +31,54 @@ final class InlineLoweringPass: LoweringPass {
         return false
     }
 
+    /// Upper bound on inline expansion rounds (see `run`). Nested inline calls
+    /// need one round per nesting level; the cap keeps mutually recursive inline
+    /// functions from expanding without end.
+    private static let maxInlineRounds = 4
+
     func run(module: KIRModule, ctx: KIRContext) throws {
         let unitType = ctx.sema?.types.unitType
+        // Each round expands the inline calls that are directly present in a
+        // body. Expanding an inline function into a caller copies the callee's
+        // body as it was at the start of the round, so an inline call nested
+        // inside that copied body (e.g. a bundled stdlib HOF called from a
+        // lambda body that is itself inlined into a closure adapter) only
+        // becomes visible in the next round. Without re-running, such a call
+        // survives as a reference to an inline-only function that is never
+        // emitted, producing an undefined symbol at link time.
+        for _ in 0..<Self.maxInlineRounds {
+            let inlineFunctionsBySymbol = collectInlineFunctions(module: module, ctx: ctx)
+            let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+
+            // Build a lookup of all KIR functions by symbol so that lambda bodies
+            // can be resolved during inline expansion.
+            var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
+            for decl in module.arena.declarations {
+                if case let .function(function) = decl {
+                    allFunctionsBySymbol[function.symbol] = function
+                }
+            }
+
+            module.arena.transformFunctions { [self] function in
+                inlineTransform(
+                    function: function,
+                    inlineFunctionsBySymbol: inlineFunctionsBySymbol,
+                    inlineFunctionsByName: inlineFunctionsByName,
+                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    module: module,
+                    ctx: ctx,
+                    unitType: unitType
+                )
+            }
+
+            if !hasExpandableInlineCall(module: module, inlineFunctionsBySymbol: inlineFunctionsBySymbol) {
+                break
+            }
+        }
+        module.recordLowering(Self.name)
+    }
+
+    private func collectInlineFunctions(module: KIRModule, ctx: KIRContext) -> [SymbolID: KIRFunction] {
         var inlineFunctionsBySymbol = Dictionary(uniqueKeysWithValues: module.arena.declarations.compactMap { decl -> (SymbolID, KIRFunction)? in
             guard case let .function(function) = decl, function.isInline else {
                 return nil
@@ -44,29 +90,30 @@ final class InlineLoweringPass: LoweringPass {
                 inlineFunctionsBySymbol[symbol] = function
             }
         }
-        let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
+        return inlineFunctionsBySymbol
+    }
 
-        // Build a lookup of all KIR functions by symbol so that lambda bodies
-        // can be resolved during inline expansion.
-        var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
+    /// True when some function body still calls an inline function that another
+    /// round would expand.
+    private func hasExpandableInlineCall(
+        module: KIRModule,
+        inlineFunctionsBySymbol: [SymbolID: KIRFunction]
+    ) -> Bool {
         for decl in module.arena.declarations {
-            if case let .function(function) = decl {
-                allFunctionsBySymbol[function.symbol] = function
+            guard case let .function(function) = decl else { continue }
+            for instruction in function.body {
+                guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                      let symbol,
+                      let target = inlineFunctionsBySymbol[symbol],
+                      target.symbol != function.symbol,
+                      arguments.count == target.params.count
+                else {
+                    continue
+                }
+                return true
             }
         }
-
-        module.arena.transformFunctions { [self] function in
-            inlineTransform(
-                function: function,
-                inlineFunctionsBySymbol: inlineFunctionsBySymbol,
-                inlineFunctionsByName: inlineFunctionsByName,
-                allFunctionsBySymbol: allFunctionsBySymbol,
-                module: module,
-                ctx: ctx,
-                unitType: unitType
-            )
-        }
-        module.recordLowering(Self.name)
+        return false
     }
 
     /// Compute the next available label ID by scanning all label references in the body.
