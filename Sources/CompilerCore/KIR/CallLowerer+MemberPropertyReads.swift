@@ -234,44 +234,16 @@ extension CallLowerer {
             return result
         }
 
-        // BUG-141: an interface has no per-instance storage of its own, so a
-        // stored/abstract interface property read through an interface-typed
-        // receiver cannot use a concrete field offset. Dispatch through the
-        // interface's itable to the implementing type's getter, mirroring how
-        // interface member functions are dispatched (see resolveItableDispatch).
         if ownerInfo.kind == .interface {
-            // Stdlib interfaces (e.g. `Collection.size`, `CharSequence.length`)
-            // are backed by runtime objects that never register itable property
-            // getters; their reads are lowered by the collection/runtime
-            // fallbacks that run after this helper. Only user-declared interface
-            // properties participate in itable getter dispatch, so let stdlib
-            // interfaces fall through.
-            if isStdlibDeclaredInterface(ownerInfo, interner: interner) {
-                return nil
-            }
-            guard let methodSlot = kirInterfacePropertyGetterSlot(
-                interfaceProperty: propertySymbol,
-                interfaceSymbol: ownerSymbol,
-                sema: sema
-            ) else {
-                return nil
-            }
-            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: ownerSymbol, sema: sema, interner: interner
+            return tryLowerInterfaceItablePropertyGetterRead(
+                propertySymbol: propertySymbol,
+                loweredReceiverID: loweredReceiverID,
+                resultType: resultType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             )
-            let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendTemporary(type: resultType)
-            instructions.append(.virtualCall(
-                symbol: getterSymbol,
-                callee: interner.intern("get"),
-                receiver: loweredReceiverID,
-                arguments: [],
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
-            ))
-            return result
         }
 
         guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
@@ -300,6 +272,60 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    /// BUG-141: an interface has no per-instance storage of its own, so a
+    /// stored/abstract interface property read through an interface-typed
+    /// receiver cannot use a concrete field offset. Dispatch through the
+    /// interface's itable to the implementing type's getter, mirroring how
+    /// interface member functions are dispatched (see resolveItableDispatch).
+    ///
+    /// BUG-183: the same applies to an implicit-receiver read (`rank` inside an
+    /// interface default method body), which otherwise calls the interface's own
+    /// abstract getter and observes its `null` placeholder body.
+    func tryLowerInterfaceItablePropertyGetterRead(
+        propertySymbol: SymbolID,
+        loweredReceiverID: KIRExprID,
+        resultType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        // Stdlib interfaces (e.g. `Collection.size`, `CharSequence.length`)
+        // are backed by runtime objects that never register itable property
+        // getters; their reads are lowered by the collection/runtime
+        // fallbacks that run after this helper. Only user-declared interface
+        // properties participate in itable getter dispatch, so let stdlib
+        // interfaces fall through.
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              ownerInfo.kind == .interface,
+              !isStdlibDeclaredInterface(ownerInfo, interner: interner),
+              let methodSlot = kirInterfacePropertyGetterSlot(
+                  interfaceProperty: propertySymbol,
+                  interfaceSymbol: ownerSymbol,
+                  sema: sema
+              )
+        else {
+            return nil
+        }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: ownerSymbol, sema: sema, interner: interner
+        )
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        let result = arena.appendTemporary(type: resultType)
+        instructions.append(.virtualCall(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            receiver: loweredReceiverID,
+            arguments: [],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        ))
+        return result
     }
 
     func tryLowerMemberPropertyAccessorRead(

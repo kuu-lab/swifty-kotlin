@@ -39,6 +39,67 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    // BUG-170: through an erased `T : Comparable<T>` bound the operands can have
+    // different runtime types (subclass vs base, or two classes sharing a
+    // Comparable interface); dispatch must still reach the user `compareTo`
+    // instead of comparing heap addresses.
+    func testCodegenComparisonOperatorsDispatchCompareToAcrossRelatedRuntimeTypes() throws {
+        let source = """
+        interface Ranked : Comparable<Ranked> {
+            val rank: Int
+            override fun compareTo(other: Ranked): Int = rank.compareTo(other.rank)
+        }
+
+        class Bronze : Ranked {
+            override val rank: Int = 1
+        }
+
+        class Gold : Ranked {
+            override val rank: Int = 3
+        }
+
+        open class Animal : Comparable<Animal> {
+            open fun weight(): Int = 10
+            override fun compareTo(other: Animal): Int = weight().compareTo(other.weight())
+        }
+
+        class Elephant : Animal() {
+            override fun weight(): Int = 100
+        }
+
+        fun <T : Comparable<T>> larger(a: T, b: T): T = if (a >= b) a else b
+
+        fun main() {
+            val bronze: Ranked = Bronze()
+            val gold: Ranked = Gold()
+            println(larger(bronze, gold).rank)
+            println(larger(gold, bronze).rank)
+
+            val animal: Animal = Animal()
+            val elephant: Animal = Elephant()
+            println(larger(animal, elephant).weight())
+            println(larger(elephant, animal).weight())
+            println(animal < elephant)
+            println(elephant < animal)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ComparisonOperatorsCompareToAcrossRelatedRuntimeTypes",
+            expected:
+                """
+                3
+                3
+                100
+                100
+                true
+                false
+
+                """
+        )
+    }
+
     func testCodegenComparableMaxOfMinOfDispatchUserDefinedCompareTo() throws {
         let source = """
         class Version(val major: Int, val minor: Int) : Comparable<Version> {
