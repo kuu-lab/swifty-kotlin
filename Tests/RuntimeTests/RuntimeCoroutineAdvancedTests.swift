@@ -45,6 +45,19 @@ func advcoro_delay_then_return(_ continuation: Int, _ outThrown: UnsafeMutablePo
     return kk_coroutine_state_exit(continuation, 55)
 }
 
+/// A suspend function that delays long enough to always outlive a short timeout.
+private let advCoroLongDelayFunctionID = 8830
+@_cdecl("advcoro_long_delay_then_return")
+func advcoro_long_delay_then_return(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, advCoroLongDelayFunctionID)
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(60, continuation)
+    }
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 55)
+}
+
 /// A suspend function that delays, sets a spill slot with a "live value", then reads it back.
 private let advCoroSpillFunctionID = 8802
 @_cdecl("advcoro_spill_across_suspension")
@@ -350,6 +363,34 @@ struct RuntimeCoroutineAdvancedTests {
         // Use a 0 ms timeout: the block should not complete in time.
         let result = kk_with_timeout_or_null(0, entryRaw, continuation)
         #expect(result == runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
+    }
+
+    // MARK: - BUG-181: a timed-out block must not resume its caller's continuation
+
+    /// The block of `withTimeout`/`withTimeoutOrNull` runs on its own child continuation.
+    /// Otherwise the abandoned block keeps sharing the caller's continuation state after
+    /// the deadline expires, and its still-pending `delay()` timer later fires a spurious
+    /// `signalResume()` on the caller -- resuming the caller's *next* suspension point
+    /// (e.g. `job.join()`) twice and losing statements after it.
+    @Test func testWithTimeoutOrNullDoesNotResumeCallerContinuationAfterTimeout() {
+        let entryRaw = unsafeBitCast(
+            advcoro_long_delay_then_return as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(advCoroLongDelayFunctionID)
+        let callerState = runtimeContinuationState(from: continuation)
+        #expect(callerState != nil)
+        #expect(kk_with_timeout_or_null(1, entryRaw, continuation) == runtimeNullSentinelInt)
+
+        // Model the caller's next suspension point and wait past the abandoned block's
+        // pending delay: nothing may wake this continuation.
+        let spuriousResume = DispatchSemaphore(value: 0)
+        callerState?.resetResumeState()
+        callerState?.installResumeContinuation { spuriousResume.signal() }
+        #expect(
+            spuriousResume.wait(timeout: .now() + .milliseconds(400)) == .timedOut,
+            "Timed-out withTimeoutOrNull block must not resume the caller's continuation"
+        )
     }
 
     // MARK: - Test 11: withTimeoutOrNull returns block value when block completes in time
