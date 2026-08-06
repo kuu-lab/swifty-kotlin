@@ -120,7 +120,8 @@ extension DataFlowSemaPhase {
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
-                isMutable: metadataRecord.isMutable
+                isMutable: metadataRecord.isMutable,
+                constValueLiteral: metadataRecord.constValueLiteral
             ))
         }
 

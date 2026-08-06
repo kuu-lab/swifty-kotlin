@@ -51,9 +51,53 @@ struct MathOverloadResolutionTests {
                 default:
                     continue
                 }
-                guard matchesCallName else { continue }
+                guard matchesCallName, isUserSourceExpr(exprID, in: ctx) else { continue }
                 if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
                     result = sema.symbols.externalLinkName(for: chosenCallee)
+                }
+                break
+            }
+        }
+        return result
+    }
+
+    /// KSP-635 families are implemented in bundled Kotlin source and therefore
+    /// carry no runtime link; overload selection is observed through the chosen
+    /// callee signature instead, rendered as `(P1, P2) -> R`.
+    private func resolvedSignature(
+        forCall callName: String,
+        withSource source: String,
+        importingKotlinMath: Bool = true
+    ) throws -> String? {
+        var result: String?
+        let contents = importingKotlinMath ? withKotlinMathImport(source) : source
+        try withTemporaryFile(contents: contents) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            for exprIndex in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(exprIndex))
+                guard let expr = ast.arena.expr(exprID) else { continue }
+                let matchesCallName: Bool
+                switch expr {
+                case let .call(calleeExpr, _, _, _):
+                    guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else {
+                        continue
+                    }
+                    matchesCallName = ctx.interner.resolve(calleeName) == callName
+                case let .memberCall(_, calleeName, _, _, _):
+                    matchesCallName = ctx.interner.resolve(calleeName) == callName
+                default:
+                    continue
+                }
+                guard matchesCallName, isUserSourceExpr(exprID, in: ctx) else { continue }
+                if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                   let signature = sema.symbols.functionSignature(for: chosenCallee)
+                {
+                    let params = signature.parameterTypes.map { sema.types.renderType($0) }
+                    result = "(\(params.joined(separator: ", "))) -> \(sema.types.renderType(signature.returnType))"
                 }
                 break
             }
@@ -81,7 +125,8 @@ struct MathOverloadResolutionTests {
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else { continue }
                 let name = ctx.interner.resolve(calleeName)
-                guard names.contains(name), results[name] == nil else { continue }
+                guard names.contains(name), results[name] == nil,
+                      isUserSourceExpr(exprID, in: ctx) else { continue }
                 if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
                     if let link = sema.symbols.externalLinkName(for: chosenCallee) {
                         results[name] = link
@@ -96,26 +141,26 @@ struct MathOverloadResolutionTests {
 
     @Test func testAbsIntOverload() throws {
         let source = "fun f(x: Int): Int = abs(x)"
-        let link = try resolvedLink(forCall: "abs", withSource: source)
-        #expect(link == "kk_math_abs_int")
+        let signature = try resolvedSignature(forCall: "abs", withSource: source)
+        #expect(signature == "(Int) -> Int")
     }
 
     @Test func testAbsLongOverload() throws {
         let source = "fun f(x: Long): Long = abs(x)"
-        let link = try resolvedLink(forCall: "abs", withSource: source)
-        #expect(link == "kk_math_abs_long")
+        let signature = try resolvedSignature(forCall: "abs", withSource: source)
+        #expect(signature == "(Long) -> Long")
     }
 
     @Test func testAbsDoubleOverload() throws {
         let source = "fun f(x: Double): Double = abs(x)"
-        let link = try resolvedLink(forCall: "abs", withSource: source)
-        #expect(link == "kk_math_abs")
+        let signature = try resolvedSignature(forCall: "abs", withSource: source)
+        #expect(signature == "(Double) -> Double")
     }
 
     @Test func testAbsFloatOverload() throws {
         let source = "fun f(x: Float): Float = abs(x)"
-        let link = try resolvedLink(forCall: "abs", withSource: source)
-        #expect(link == "kk_math_abs_float")
+        let signature = try resolvedSignature(forCall: "abs", withSource: source)
+        #expect(signature == "(Float) -> Float")
     }
 
     // MARK: - sqrt family (Double / Float)
@@ -451,27 +496,28 @@ struct MathOverloadResolutionTests {
     // MARK: - min / max family (Double / Float / Int / Long / UInt / ULong)
 
     @Test func testMinMaxOverloadMatrix() throws {
-        let cases: [(name: String, type: String, expectedLink: String)] = [
-            ("max", "Double", "kk_math_max"),
-            ("max", "Float", "kk_math_max_float"),
-            ("max", "Int", "kk_math_max_int"),
-            ("max", "Long", "kk_math_max_long"),
-            ("max", "UInt", "kk_math_max_uint"),
-            ("max", "ULong", "kk_math_max_ulong"),
-            ("min", "Double", "kk_math_min"),
-            ("min", "Float", "kk_math_min_float"),
-            ("min", "Int", "kk_math_min_int"),
-            ("min", "Long", "kk_math_min_long"),
-            ("min", "UInt", "kk_math_min_uint"),
-            ("min", "ULong", "kk_math_min_ulong"),
+        let cases: [(name: String, type: String)] = [
+            ("max", "Double"),
+            ("max", "Float"),
+            ("max", "Int"),
+            ("max", "Long"),
+            ("max", "UInt"),
+            ("max", "ULong"),
+            ("min", "Double"),
+            ("min", "Float"),
+            ("min", "Int"),
+            ("min", "Long"),
+            ("min", "UInt"),
+            ("min", "ULong"),
         ]
 
         for testCase in cases {
             let source = "fun f(a: \(testCase.type), b: \(testCase.type)): \(testCase.type) = \(testCase.name)(a, b)"
-            let link = try resolvedLink(forCall: testCase.name, withSource: source)
+            let signature = try resolvedSignature(forCall: testCase.name, withSource: source)
+            let expected = "(\(testCase.type), \(testCase.type)) -> \(testCase.type)"
             #expect(
-                link == testCase.expectedLink,
-                "\(testCase.name)(\(testCase.type), \(testCase.type)) should resolve to \(testCase.expectedLink)"
+                signature == expected,
+                "\(testCase.name)(\(testCase.type), \(testCase.type)) should resolve to \(expected), got \(signature ?? "nil")"
             )
         }
     }
@@ -494,14 +540,14 @@ struct MathOverloadResolutionTests {
 
     @Test func testSignDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sign(x)"
-        let link = try resolvedLink(forCall: "sign", withSource: source)
-        #expect(link == "kk_math_sign")
+        let signature = try resolvedSignature(forCall: "sign", withSource: source)
+        #expect(signature == "(Double) -> Double")
     }
 
     @Test func testSignFloatOverload() throws {
         let source = "fun f(x: Float): Float = sign(x)"
-        let link = try resolvedLink(forCall: "sign", withSource: source)
-        #expect(link == "kk_math_sign_float")
+        let signature = try resolvedSignature(forCall: "sign", withSource: source)
+        #expect(signature == "(Float) -> Float")
     }
 
     // MARK: - truncate family (Double / Float)
@@ -579,7 +625,7 @@ struct MathOverloadResolutionTests {
             val af = abs(flt)
         }
         """
-        var results: [(String, Int)] = []
+        var signatures: [String] = []
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -592,19 +638,18 @@ struct MathOverloadResolutionTests {
                       case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
                       ctx.interner.resolve(calleeName) == "abs",
+                      isUserSourceExpr(exprID, in: ctx),
                       let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
+                      let signature = sema.symbols.functionSignature(for: chosenCallee)
                 else { continue }
-                results.append((link, exprIndex))
+                let params = signature.parameterTypes.map { sema.types.renderType($0) }
+                signatures.append("(\(params.joined(separator: ", "))) -> \(sema.types.renderType(signature.returnType))")
             }
         }
-        let links = results.map(\.0)
-        #expect(links.contains("kk_math_abs_int"), "Int abs should resolve to kk_math_abs_int")
-        #expect(links.contains("kk_math_abs_long"), "Long abs should resolve to kk_math_abs_long")
-        #expect(links.contains("kk_math_abs"), "Double abs should resolve to kk_math_abs")
-        #expect(links.contains("kk_math_abs_float"), "Float abs should resolve to kk_math_abs_float")
-        // All 4 calls must pick distinct link names
-        #expect(Set(links).count == 4, "Each abs overload should resolve to a different runtime symbol")
+        for expected in ["(Int) -> Int", "(Long) -> Long", "(Double) -> Double", "(Float) -> Float"] {
+            #expect(signatures.contains(expected), "Expected abs overload \(expected), got \(signatures)")
+        }
+        #expect(Set(signatures).count == 4, "Each abs overload should resolve to a different declaration")
     }
 
     @Test func testSqrtSelectsDistinctOverloadsForDoubleAndFloat() throws {
@@ -659,7 +704,8 @@ struct MathOverloadResolutionTests {
                 guard let expr = ast.arena.expr(exprID) else { continue }
                 // FQN call kotlin.math.abs(x) is a .memberCall node (not .call).
                 guard case let .memberCall(_, calleeMember, _, _, _) = expr,
-                      ctx.interner.resolve(calleeMember) == lastComponent
+                      ctx.interner.resolve(calleeMember) == lastComponent,
+                      isUserSourceExpr(exprID, in: ctx)
                 else { continue }
                 if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
                     result = sema.symbols.externalLinkName(for: chosenCallee)
@@ -672,14 +718,22 @@ struct MathOverloadResolutionTests {
 
     @Test func testFQNAbsIntOverload() throws {
         let source = "fun f(x: Int): Int = kotlin.math.abs(x)"
-        let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
-        #expect(link == "kk_math_abs_int")
+        let signature = try resolvedSignature(
+            forCall: "abs",
+            withSource: source,
+            importingKotlinMath: false
+        )
+        #expect(signature == "(Int) -> Int")
     }
 
     @Test func testFQNAbsDoubleOverload() throws {
         let source = "fun f(x: Double): Double = kotlin.math.abs(x)"
-        let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
-        #expect(link == "kk_math_abs")
+        let signature = try resolvedSignature(
+            forCall: "abs",
+            withSource: source,
+            importingKotlinMath: false
+        )
+        #expect(signature == "(Double) -> Double")
     }
 
     @Test func testFQNSqrtDoubleOverload() throws {

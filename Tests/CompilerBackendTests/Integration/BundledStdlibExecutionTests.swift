@@ -250,4 +250,65 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    /// KSP-635: abs/sign/min/max と PI/E は bundled Kotlin 実装
+    /// (Stdlib/kotlin/math/Math.kt) に移行済み。オーバーフロー・NaN・符号付きゼロを固定する。
+    @Test
+    func testMathAbsSignMinMaxExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.math.*
+
+            fun main() {
+                println(abs(-4.5))
+                println(abs(-3.5f))
+                println(abs(-7))
+                println(abs(Int.MIN_VALUE))
+                println(abs(Long.MIN_VALUE))
+                println((-4.5).absoluteValue)
+                println(1.0 / abs(-0.0))
+                println(abs(Double.NaN).isNaN())
+                println(sign(-2.5))
+                println(sign(0.0f))
+                println((-9L).sign)
+                println(sign(Double.NaN).isNaN())
+                println(max(2, 3))
+                println(min(-2L, 3L))
+                println(max(1.5f, 2.5f))
+                println(min(1u, 2u))
+                println(max(1uL, 2uL))
+                println(max(Double.NaN, 1.0).isNaN())
+                println(1.0 / max(-0.0, 0.0))
+                println(1.0 / min(-0.0, 0.0))
+                println(PI)
+                println(E)
+            }
+            """,
+            expectedOutput: """
+            4.5
+            3.5
+            7
+            -2147483648
+            -9223372036854775808
+            4.5
+            Infinity
+            true
+            -1.0
+            0.0
+            -1
+            true
+            3
+            -2
+            2.5
+            1
+            2
+            true
+            Infinity
+            -Infinity
+            3.141592653589793
+            2.718281828459045
+
+            """
+        )
+    }
 }
