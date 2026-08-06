@@ -1022,4 +1022,72 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-ARTIFACT-KOTLIN-VERSION: `kotlin.KotlinVersion` is bundled Kotlin
+    /// source (`Stdlib/kotlin/KotlinVersion.kt`) whose only runtime dependency
+    /// is the `__kk_kotlin_version_current` build-time constant. Through the
+    /// shared artifact the class arrives as an imported (synthetic-flagged)
+    /// symbol, which used to make `println(version)` fall back to
+    /// `kk_any_to_string` and print `<object 0x...>` instead of dispatching the
+    /// imported `toString()` override.
+    func testKotlinVersionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val short = KotlinVersion(2, 1)
+            val full = KotlinVersion(2, 1, 20)
+            println(short)
+            println(full)
+            println(full.major.toString() + "/" + full.minor.toString() + "/" + full.patch.toString())
+            println(KotlinVersion.MAX_COMPONENT_VALUE)
+            println(short < full)
+            println(full.compareTo(short) > 0)
+            println(full.isAtLeast(2, 1))
+            println(full.isAtLeast(2, 1, 21))
+            println(full == KotlinVersion(2, 1, 20))
+            println(KotlinVersion.CURRENT.isAtLeast(1, 0))
+            println(KotlinVersion.CURRENT.toString())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                2.1.0
+                2.1.20
+                2/1/20
+                255
+                true
+                true
+                true
+                false
+                true
+                true
+                2.3.10
+
+                """
+            )
+        }
+    }
 }

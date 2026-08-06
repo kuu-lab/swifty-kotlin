@@ -722,10 +722,11 @@ extension KotlinParser {
                 if stillGrouped {
                     continue
                 }
-                // After `=`, continue consuming across newlines so that
-                // expression bodies like `= \n try { ... } catch { ... }` are
-                // captured in the same declaration node.
-                if case .symbol(.assign) = token.kind {
+                // A line ending in `=` or in a binary operator continues onto the
+                // next line, so that expression bodies like
+                // `= \n try { ... } catch { ... }` or `= 1 +\n    2` are captured
+                // in the same declaration node.
+                if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind) {
                     // But stop if the next line starts a new declaration
                     // (modifier keyword, declaration keyword, or annotation).
                     let nextToken = stream.peek()
