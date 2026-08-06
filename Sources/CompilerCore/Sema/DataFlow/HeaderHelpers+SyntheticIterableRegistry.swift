@@ -398,37 +398,41 @@ extension DataFlowSemaPhase {
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
             valueParameterNames: ["element"],
-            externalLinkName: "kk_mutable_collection_add"
+            externalLinkName: "__kk_mutable_collection_add"
         )
         registerMutableCollectionFunction(
             name: "addAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
             valueParameterNames: ["elements"],
-            externalLinkName: "kk_mutable_collection_addAll"
+            externalLinkName: "__kk_mutable_collection_addAll"
         )
         registerMutableCollectionFunction(
             name: "clear",
             parameterTypes: [],
-            returnType: types.unitType
+            returnType: types.unitType,
+            externalLinkName: "__kk_mutable_collection_clear"
         )
         registerMutableCollectionFunction(
             name: "remove",
             parameterTypes: [typeParamType],
             returnType: types.booleanType,
-            valueParameterNames: ["element"]
+            valueParameterNames: ["element"],
+            externalLinkName: "__kk_mutable_collection_remove"
         )
         registerMutableCollectionFunction(
             name: "removeAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
-            valueParameterNames: ["elements"]
+            valueParameterNames: ["elements"],
+            externalLinkName: "__kk_mutable_collection_removeAll"
         )
         registerMutableCollectionFunction(
             name: "retainAll",
             parameterTypes: [collectionType],
             returnType: types.booleanType,
-            valueParameterNames: ["elements"]
+            valueParameterNames: ["elements"],
+            externalLinkName: "__kk_mutable_collection_retainAll"
         )
 
         return mutableCollectionSymbol

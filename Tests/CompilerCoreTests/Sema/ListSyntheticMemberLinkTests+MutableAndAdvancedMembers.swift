@@ -529,7 +529,6 @@ extension ListSyntheticMemberLinkTests {
             values.removeLast()
             values.removeLastOrNull()
             values.clear()
-            values.fill(9)
         }
         """
 
@@ -541,18 +540,17 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks: [(String, Int, String)] = [
-                ("add", 1, "kk_mutable_list_add"),
-                ("add", 2, "kk_mutable_list_add_at"),
-                ("addAll", 1, "kk_mutable_list_addAll"),
-                ("removeAll", 1, "kk_mutable_list_removeAll"),
-                ("retainAll", 1, "kk_mutable_list_retainAll"),
-                ("removeAt", 1, "kk_mutable_list_removeAt"),
-                ("removeFirst", 0, "kk_mutable_list_removeFirst"),
-                ("removeFirstOrNull", 0, "kk_mutable_list_removeFirstOrNull"),
-                ("removeLast", 0, "kk_mutable_list_removeLast"),
-                ("removeLastOrNull", 0, "kk_mutable_list_removeLastOrNull"),
-                ("clear", 0, "kk_mutable_list_clear"),
-                ("fill", 1, "kk_mutable_list_fill"),
+                ("add", 1, "__kk_mutable_list_add"),
+                ("add", 2, "__kk_mutable_list_add_at"),
+                ("addAll", 1, "__kk_mutable_list_addAll"),
+                ("removeAll", 1, "__kk_mutable_list_removeAll"),
+                ("retainAll", 1, "__kk_mutable_list_retainAll"),
+                ("removeAt", 1, "__kk_mutable_list_removeAt"),
+                ("removeFirst", 0, "__kk_mutable_list_removeFirst"),
+                ("removeFirstOrNull", 0, "__kk_mutable_list_removeFirstOrNull"),
+                ("removeLast", 0, "__kk_mutable_list_removeLast"),
+                ("removeLastOrNull", 0, "__kk_mutable_list_removeLastOrNull"),
+                ("clear", 0, "__kk_mutable_list_clear"),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
@@ -562,6 +560,49 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
+            }
+        }
+    }
+
+    /// KSP-436: predicate-driven mutable list operations are bundled Kotlin
+    /// source; only the storage-mutating members keep a `__kk_mutable_*` bridge.
+    @Test
+    func testMutableListPredicateMembersResolveToBundledSource() throws {
+        let source = """
+        fun mutate(values: MutableList<Int>) {
+            values.removeIf { it > 1 }
+            values.replaceAll { it + 1 }
+            values.fill(9)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            for memberName in ["removeIf", "replaceAll", "fill"] {
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, valueArgs, range) = expr,
+                          valueArgs.count == 1,
+                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    else {
+                        return false
+                    }
+                    return ctx.interner.resolve(callee) == memberName
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected \(memberName) to be source-backed without a runtime link"
+                )
+                let declFile = try #require(sema.symbols.symbol(chosenCallee)?.declSite?.start.file)
+                #expect(
+                    ctx.sourceManager.path(of: declFile).hasPrefix("__bundled_"),
+                    "Expected \(memberName) to resolve to a bundled stdlib declaration"
+                )
             }
         }
     }
@@ -598,7 +639,7 @@ extension ListSyntheticMemberLinkTests {
                         ]
                     ))
 
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
+                #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType, "Expected \(memberName) to return Boolean")
                 #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to remain a scalar Boolean")
             }
@@ -620,9 +661,9 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let expectedExternalLinks = [
-                "collection": "kk_mutable_collection_addAll_sequence",
-                "list": "kk_mutable_list_addAll_sequence",
-                "set": "kk_mutable_set_addAll_sequence",
+                "collection": "__kk_mutable_collection_addAll_sequence",
+                "list": "__kk_mutable_list_addAll_sequence",
+                "set": "__kk_mutable_set_addAll_sequence",
             ]
 
             for (receiverName, externalLinkName) in expectedExternalLinks {
@@ -663,10 +704,10 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
             let expectedExternalLinks = [
-                "sort": "kk_mutable_list_sort",
-                "sortWith": "kk_mutable_list_sortWith",
-                "sortBy": "kk_mutable_list_sortBy",
-                "sortByDescending": "kk_mutable_list_sortByDescending",
+                "sort": "__kk_mutable_list_sort",
+                "sortWith": "__kk_mutable_list_sortWith",
+                "sortBy": "__kk_mutable_list_sortBy",
+                "sortByDescending": "__kk_mutable_list_sortByDescending",
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -798,9 +839,9 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                "addAll": "kk_mutable_list_addAll",
-                "removeAll": "kk_mutable_list_removeAll",
-                "retainAll": "kk_mutable_list_retainAll",
+                "addAll": "__kk_mutable_list_addAll",
+                "removeAll": "__kk_mutable_list_removeAll",
+                "retainAll": "__kk_mutable_list_retainAll",
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -1300,10 +1341,10 @@ extension ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                "add": "kk_mutable_set_add",
-                "remove": "kk_mutable_set_remove",
-                "addAll": "kk_mutable_set_addAll",
-                "clear": "kk_mutable_set_clear",
+                "add": "__kk_mutable_set_add",
+                "remove": "__kk_mutable_set_remove",
+                "addAll": "__kk_mutable_set_addAll",
+                "clear": "__kk_mutable_set_clear",
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
@@ -1322,7 +1363,7 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("MutableSet"),
                 ctx.interner.intern("addAll"),
             ]))
-            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
         }
     }
 
@@ -1409,17 +1450,17 @@ extension ListSyntheticMemberLinkTests {
         let cases: [(String, String, String)] = [
             (
                 "MutableCollection",
-                "kk_mutable_collection_addAll",
+                "__kk_mutable_collection_addAll",
                 "fun mutate(values: MutableCollection<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
                 "MutableList",
-                "kk_mutable_list_addAll",
+                "__kk_mutable_list_addAll",
                 "fun mutate(values: MutableList<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
                 "MutableSet",
-                "kk_mutable_set_addAll",
+                "__kk_mutable_set_addAll",
                 "fun mutate(values: MutableSet<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
         ]
@@ -1458,22 +1499,22 @@ extension ListSyntheticMemberLinkTests {
         let cases: [(String, String, String)] = [
             (
                 "MutableCollection",
-                "kk_mutable_collection_addAll_iterable",
+                "__kk_mutable_collection_addAll_iterable",
                 "fun mutate(values: MutableCollection<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
                 "MutableList",
-                "kk_mutable_list_addAll_iterable",
+                "__kk_mutable_list_addAll_iterable",
                 "fun mutate(values: MutableList<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
                 "MutableList sequence as Iterable",
-                "kk_mutable_list_addAll_iterable",
+                "__kk_mutable_list_addAll_iterable",
                 "fun mutate(values: MutableList<Int>) { values.addAll(sequenceOf(1).asIterable()) }"
             ),
             (
                 "MutableSet",
-                "kk_mutable_set_addAll_iterable",
+                "__kk_mutable_set_addAll_iterable",
                 "fun mutate(values: MutableSet<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
         ]
@@ -1537,9 +1578,9 @@ extension ListSyntheticMemberLinkTests {
                 (mapFQ, "withDefault", "kk_map_withDefault"),
                 (mapFQ, "toList", "kk_map_toList"),
                 (mapFQ, "toMutableMap", "kk_map_to_mutable_map"),
-                (mutableMapFQ, "put", "kk_mutable_map_put"),
-                (mutableMapFQ, "remove", "kk_mutable_map_remove"),
-                (mutableMapFQ, "putAll", "kk_mutable_map_putAll"),
+                (mutableMapFQ, "put", "__kk_mutable_map_put"),
+                (mutableMapFQ, "remove", "__kk_mutable_map_remove"),
+                (mutableMapFQ, "putAll", "__kk_mutable_map_putAll"),
             ]
 
             for (ownerFQ, memberName, expectedExternal) in expectedLinks {

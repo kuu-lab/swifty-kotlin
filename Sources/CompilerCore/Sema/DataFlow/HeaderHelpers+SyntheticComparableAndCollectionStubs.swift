@@ -347,6 +347,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             setInterfaceSymbol: setInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
         registerMutableCollectionIterableAddAllMembers(

@@ -257,7 +257,7 @@ public func kk_map_getOrElse(_ mapRaw: Int, _ key: Int, _ fnPtr: Int, _ closureR
     return result
 }
 
-@_cdecl("kk_mutable_map_getOrPut")
+@_cdecl("__kk_mutable_map_getOrPut")
 public func kk_mutable_map_getOrPut(_ mapRaw: Int, _ key: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         invalidContainerPanic(#function, "map")
@@ -1688,7 +1688,7 @@ public func kk_list_partition(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
 
 // MARK: - MutableList in-place sort (STDLIB-205)
 
-@_cdecl("kk_mutable_list_sort")
+@_cdecl("__kk_mutable_list_sort")
 public func kk_mutable_list_sort(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let indexed = list.elements.enumerated().sorted { lhs, rhs in
@@ -1702,7 +1702,7 @@ public func kk_mutable_list_sort(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_sort_primitive")
+@_cdecl("__kk_mutable_list_sort_primitive")
 public func kk_mutable_list_sort_primitive(_ listRaw: Int, _ kindRaw: Int32) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let sorted = runtimeSortElements(list.elements, descending: false, primitiveKind: runtimePrimitiveCompareKindFromRaw(kindRaw))
@@ -1712,7 +1712,7 @@ public func kk_mutable_list_sort_primitive(_ listRaw: Int, _ kindRaw: Int32) -> 
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortWith")
+@_cdecl("__kk_mutable_list_sortWith")
 public func kk_mutable_list_sortWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
@@ -1736,7 +1736,7 @@ public func kk_mutable_list_sortWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw:
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortBy")
+@_cdecl("__kk_mutable_list_sortBy")
 public func kk_mutable_list_sortBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1755,7 +1755,7 @@ public func kk_mutable_list_sortBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: I
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortBy_primitive")
+@_cdecl("__kk_mutable_list_sortBy_primitive")
 public func kk_mutable_list_sortBy_primitive(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ kindRaw: Int32, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1774,7 +1774,7 @@ public func kk_mutable_list_sortBy_primitive(_ listRaw: Int, _ fnPtr: Int, _ clo
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortByDescending")
+@_cdecl("__kk_mutable_list_sortByDescending")
 public func kk_mutable_list_sortByDescending(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1793,7 +1793,7 @@ public func kk_mutable_list_sortByDescending(_ listRaw: Int, _ fnPtr: Int, _ clo
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortByDescending_primitive")
+@_cdecl("__kk_mutable_list_sortByDescending_primitive")
 public func kk_mutable_list_sortByDescending_primitive(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ kindRaw: Int32, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     guard let sorted = runtimeSortByElements(
@@ -1812,7 +1812,7 @@ public func kk_mutable_list_sortByDescending_primitive(_ listRaw: Int, _ fnPtr: 
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortDescending")
+@_cdecl("__kk_mutable_list_sortDescending")
 public func kk_mutable_list_sortDescending(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let indexed = list.elements.enumerated().sorted { lhs, rhs in
@@ -1826,7 +1826,7 @@ public func kk_mutable_list_sortDescending(_ listRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortDescending_primitive")
+@_cdecl("__kk_mutable_list_sortDescending_primitive")
 public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: Int32) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let sorted = runtimeSortElements(list.elements, descending: true, primitiveKind: runtimePrimitiveCompareKindFromRaw(kindRaw))

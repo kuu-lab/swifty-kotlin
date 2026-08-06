@@ -441,14 +441,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMutableListFillReplacesEveryElement() {
-        let source = makeList([1, 2, 3])
-
-        #expect(kk_mutable_list_fill(source, 9) == 0)
-        #expect(listElements(source) == [9, 9, 9])
-    }
-
-    @Test
     func testMaxByReturnsElementWithLargestSelectorAndThrowsOnEmpty() {
         var thrown = 0
         let source = makeList([3, 1, 4, 2])
@@ -1791,6 +1783,44 @@ struct RuntimeCollectionHOFTests {
         #expect(kk_unbox_bool(kk_mutable_collection_add(setTarget, 2)) == 0)
         #expect(kk_unbox_bool(kk_mutable_collection_add(setTarget, 3)) == 1)
         #expect(setElements(setTarget) == [1, 2, 3])
+    }
+
+    @Test
+    func testMutableCollectionRemoveAndClearHandleListAndSetTargets() {
+        let listTarget = makeList([1, 2, 3])
+
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 2)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 9)) == 0)
+        #expect(listElements(listTarget) == [1, 3])
+        #expect(kk_mutable_collection_clear(listTarget) == 0)
+        #expect(listElements(listTarget) == [])
+
+        let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
+
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(setTarget, 1)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove(setTarget, 1)) == 0)
+        #expect(setElements(setTarget) == [2])
+        #expect(kk_mutable_collection_clear(setTarget) == 0)
+        #expect(setElements(setTarget) == [])
+    }
+
+    @Test
+    func testMutableCollectionBulkRemovalHandlesListAndSetTargets() {
+        let listTarget = makeList([1, 2, 3, 2])
+
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(listTarget, makeList([2]))) == 1)
+        #expect(listElements(listTarget) == [1, 3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 1)
+        #expect(listElements(listTarget) == [3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 0)
+
+        let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2, 3]))
+
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(setTarget, makeList([1]))) == 1)
+        #expect(setElements(setTarget) == [2, 3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 1)
+        #expect(setElements(setTarget) == [3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 0)
     }
 
     @Test
