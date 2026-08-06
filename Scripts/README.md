@@ -12,7 +12,12 @@
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `check_todo_ids.sh` | – | Detect duplicate task IDs in `TODO.md` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
+| `cleanup_stale_runner_temp.sh` | ✓ | Remove stale self-hosted runner temp entries |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing |
+
+`cleanup_stale_runner_temp.sh` is run at the end of the self-hosted CI lane and
+removes only top-level `$RUNNER_TEMP` entries older than
+`SELF_HOSTED_TEMP_RETENTION_MINUTES` (default: 360 minutes).
 
 ## swift_test.sh
 
