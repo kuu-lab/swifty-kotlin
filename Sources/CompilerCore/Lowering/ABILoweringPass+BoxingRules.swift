@@ -4,7 +4,12 @@
 /// except at reference-type boundaries — ValueClassUnboxingPass — and except
 /// when the value class implements an interface, in which case it stays
 /// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
-/// Non-value-class kinds, and nullable value classes, pass through unchanged.
+/// Non-null enum classes resolve the same way, to `Int`: enum constants are
+/// raw ordinal Ints everywhere outside Any-erased slots (see
+/// `emitBoxCallWithValueClassTag`, which boxes them via
+/// `kk_enum_box_ordinal` instead of the plain `kk_box_int` this resolution
+/// would otherwise imply). Non-value-class/non-enum kinds, and nullable
+/// value classes/enums, pass through unchanged.
 ///
 /// Shared as a free function (rather than an `ABILoweringPass` method) so
 /// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
@@ -22,8 +27,13 @@ func resolveValueClassKind(
     else {
         return kind
     }
-    guard let sym = symbols.symbol(classType.classSymbol),
-          sym.flags.contains(.valueType),
+    guard let sym = symbols.symbol(classType.classSymbol) else {
+        return kind
+    }
+    if sym.kind == .enumClass {
+        return .primitive(.int, .nonNull)
+    }
+    guard sym.flags.contains(.valueType),
           let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
     else {
         return kind
