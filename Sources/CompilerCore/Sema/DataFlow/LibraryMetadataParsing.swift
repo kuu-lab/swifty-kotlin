@@ -39,10 +39,6 @@ extension DataFlowSemaPhase {
                 let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
                 return parsed.isEmpty ? nil : parsed
             }
-            let companionObjectFQName: [InternedString]? = metadataRecord.companionObjectFQName.flatMap { value in
-                let parsed = value.split(separator: ".").map { interner.intern(String($0)) }
-                return parsed.isEmpty ? nil : parsed
-            }
             let fieldOffsets: [ImportedFieldOffsetEntry] = if let fieldOffsetsStr = metadataRecord.fieldOffsets {
                 parseImportedFieldOffsets(
                     token: fieldOffsetsStr,
