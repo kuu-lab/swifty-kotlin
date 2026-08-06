@@ -2,13 +2,6 @@
 // Runtime-backed entries below are generated from Sources/Runtime exported C symbols.
 
 public extension RuntimeABISpec {
-    private static let matchResultDestructuredComponentFunctions = numberedUnaryRuntimeABIFunctionSpecs(
-        prefix: "kk_match_result_destructured_component",
-        range: 1...9,
-        parameterName: "destructuredRaw",
-        section: "ABIParity"
-    )
-
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
         // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
         abiParitySpec("kk_kclass_register_annotation", parameters: [
@@ -690,32 +683,18 @@ public extension RuntimeABISpec {
             p("entryRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_match_result_component1", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_component2", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_next", parameters: [
-            p("matchRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_match_result_range", parameters: [
+        // KSP-486: MatchResult iteration / destructuring bridges
+        abiParitySpec("__kk_match_result_next", parameters: [
             p("matchRaw", .intptr),
         ],
             isThrowing: false),
         // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
-        abiParitySpec("kk_match_result_destructured", parameters: [
+        abiParitySpec("__kk_match_result_destructured", parameters: [
             p("matchRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_result_destructured_match", parameters: [
+        abiParitySpec("__kk_match_result_destructured_match", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-    ]
-    + matchResultDestructuredComponentFunctions
-    + [
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
         abiParitySpec("kk_mem_scope_alloc", parameters: [
