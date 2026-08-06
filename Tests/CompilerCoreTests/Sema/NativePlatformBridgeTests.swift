@@ -11,7 +11,7 @@ import Testing
 struct NativePlatformBridgeTests {
 
     @Test
-    func testNativePlatformSymbolsAndCleanBridges() throws {
+    func testNativePlatformBridgeSema() throws {
         let sources: [String] = [
             // source 0
             """
@@ -77,6 +77,22 @@ struct NativePlatformBridgeTests {
                         }
 
             """,
+            // source 9
+            """
+
+                        package sample4.native
+                        expect enum class OsFamily {
+                            UNKNOWN
+                        }
+
+            """,
+            // source 10
+            """
+
+                        package sample4.native
+                        actual class OsFamily
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -86,6 +102,11 @@ struct NativePlatformBridgeTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             _ = sema
+
+            func diagnosticsForPath(_ path: String) -> [Diagnostic] {
+                guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+                return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+            }
 
             // testOsFamilyEnumIsVisibleInSymbolTable
             do {
@@ -299,10 +320,12 @@ struct NativePlatformBridgeTests {
             // testOsFamilyLikeExpectActualBridgeResolvesCleanly
             do {
                 let samplePackage = "sample0"
-                _ = samplePackage
-                let errors = ctx.diagnostics.diagnostics.filter {
-                    if case .error = $0.severity { return true }
-                    return false
+                let sampleFiles = [paths[1], paths[2]]
+                let sampleFileIDs = Set(sampleFiles.compactMap { ctx.sourceManager.fileID(forPath: $0) })
+                let errors = ctx.diagnostics.diagnostics.filter { d in
+                    guard d.severity == .error else { return false }
+                    guard let fileID = d.primaryRange?.start.file else { return false }
+                    return sampleFileIDs.contains(fileID)
                 }
                 #expect(errors.isEmpty, "Expect/actual OsFamily bridge must not produce errors, got: \(errors)")
 
@@ -321,10 +344,12 @@ struct NativePlatformBridgeTests {
             // testCpuArchitectureLikeExpectActualBridgeResolvesCleanly
             do {
                 let samplePackage = "sample1"
-                _ = samplePackage
-                let errors = ctx.diagnostics.diagnostics.filter {
-                    if case .error = $0.severity { return true }
-                    return false
+                let sampleFiles = [paths[3], paths[4]]
+                let sampleFileIDs = Set(sampleFiles.compactMap { ctx.sourceManager.fileID(forPath: $0) })
+                let errors = ctx.diagnostics.diagnostics.filter { d in
+                    guard d.severity == .error else { return false }
+                    guard let fileID = d.primaryRange?.start.file else { return false }
+                    return sampleFileIDs.contains(fileID)
                 }
                 #expect(errors.isEmpty, "Expect/actual CpuArchitecture bridge must not produce errors, got: \(errors)")
 
@@ -343,10 +368,12 @@ struct NativePlatformBridgeTests {
             // testPlatformLikeExpectActualBridgeResolvesCleanly
             do {
                 let samplePackage = "sample2"
-                _ = samplePackage
-                let errors = ctx.diagnostics.diagnostics.filter {
-                    if case .error = $0.severity { return true }
-                    return false
+                let sampleFiles = [paths[5], paths[6]]
+                let sampleFileIDs = Set(sampleFiles.compactMap { ctx.sourceManager.fileID(forPath: $0) })
+                let errors = ctx.diagnostics.diagnostics.filter { d in
+                    guard d.severity == .error else { return false }
+                    guard let fileID = d.primaryRange?.start.file else { return false }
+                    return sampleFileIDs.contains(fileID)
                 }
                 #expect(errors.isEmpty, "Expect/actual Platform bridge must not produce errors, got: \(errors)")
 
@@ -365,10 +392,12 @@ struct NativePlatformBridgeTests {
             // testMemoryModelLikeExpectActualBridgeResolvesCleanly
             do {
                 let samplePackage = "sample3"
-                _ = samplePackage
-                let errors = ctx.diagnostics.diagnostics.filter {
-                    if case .error = $0.severity { return true }
-                    return false
+                let sampleFiles = [paths[7], paths[8]]
+                let sampleFileIDs = Set(sampleFiles.compactMap { ctx.sourceManager.fileID(forPath: $0) })
+                let errors = ctx.diagnostics.diagnostics.filter { d in
+                    guard d.severity == .error else { return false }
+                    guard let fileID = d.primaryRange?.start.file else { return false }
+                    return sampleFileIDs.contains(fileID)
                 }
                 #expect(errors.isEmpty, "Expect/actual MemoryModel bridge must not produce errors, got: \(errors)")
 
@@ -383,44 +412,15 @@ struct NativePlatformBridgeTests {
                 let actualSym = try #require(allSymbols.first { $0.flags.contains(.actualDeclaration) })
                 #expect(sema.symbols.actualSymbol(for: expectSym.id) == actualSym.id)
             }
-        }
-    }
-
-    @Test
-    func testExpectEnumActualClassMismatchIsRejected() throws {
-        let sources: [String] = [
-            // source 0
-            """
-
-                        package sample0.native
-                        expect enum class OsFamily {
-                            UNKNOWN
-                        }
-
-            """,
-            // source 1
-            """
-
-                        package sample0.native
-                        actual class OsFamily
-
-            """,
-        ]
-
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            _ = sema
 
             // testExpectEnumActualClassMismatchIsRejected
             do {
-                let samplePackage = "sample0"
-                _ = samplePackage
+                let sampleFiles = [paths[9], paths[10]]
+                let sampleFileIDs = Set(sampleFiles.compactMap { ctx.sourceManager.fileID(forPath: $0) })
                 let errorCodes = ctx.diagnostics.diagnostics.compactMap { d -> String? in
                     guard d.severity == .error else { return nil }
+                    guard let fileID = d.primaryRange?.start.file else { return nil }
+                    guard sampleFileIDs.contains(fileID) else { return nil }
                     return d.code
                 }
                 #expect(
