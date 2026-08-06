@@ -1081,6 +1081,8 @@ extension DataFlowSemaPhase {
         switch sourceManager.path(of: file.fileID) {
         case "__bundled_kotlin/Comparable.kt":
             return ["kotlin", "Comparable"].map { interner.intern($0) }
+        case "__bundled_kotlin/io/Closeable.kt":
+            return ["kotlin", "io", "Closeable"].map { interner.intern($0) }
         case "__bundled_kotlin/collections/RandomAccess.kt":
             return ["kotlin", "collections", "RandomAccess"].map { interner.intern($0) }
         case "__bundled_kotlin/Result.kt":
