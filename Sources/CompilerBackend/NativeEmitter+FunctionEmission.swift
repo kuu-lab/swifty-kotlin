@@ -1131,12 +1131,6 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_match_group_collection_get": FlatScalarReturnCallSpec(
-                    flatName: "kk_match_group_collection_get_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
                 "kk_regex_matches_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_matches_flat",
                     stringArgumentCount: 1,

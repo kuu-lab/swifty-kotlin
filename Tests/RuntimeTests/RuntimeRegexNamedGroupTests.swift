@@ -25,10 +25,22 @@ struct RuntimeRegexNamedGroupTests {
         }
     }
 
-    private func group(_ groupsRaw: Int, named name: String) -> Int {
-        withFlatString(name) { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
+            }
         }
+    }
+
+    private func groupIndex(_ matchRaw: Int, named name: String) -> Int {
+        __kk_match_result_group_index_of_name(matchRaw, makeStringRaw(name))
+    }
+
+    private func groupValue(_ matchRaw: Int, named name: String) -> String {
+        let index = groupIndex(matchRaw, named: name)
+        guard index >= 0 else { return "" }
+        return runtimeString(__kk_match_result_group_value(matchRaw, index))
     }
 
     private func runtimeString(_ raw: Int) -> String {
@@ -45,15 +57,11 @@ struct RuntimeRegexNamedGroupTests {
         defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let lhsGroupRaw = group(groupsRaw, named: "lhs")
-        let rhsGroupRaw = group(groupsRaw, named: "rhs")
-
-        #expect(lhsGroupRaw != runtimeNullSentinelInt)
-        #expect(rhsGroupRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
-        #expect(runtimeString(kk_match_group_value(rhsGroupRaw)) == "cd")
+        #expect(groupIndex(matchRaw, named: "lhs") == 1)
+        #expect(groupIndex(matchRaw, named: "rhs") == 2)
+        #expect(groupValue(matchRaw, named: "lhs") == "ab")
+        #expect(groupValue(matchRaw, named: "rhs") == "cd")
     }
 
     @Test
@@ -62,10 +70,8 @@ struct RuntimeRegexNamedGroupTests {
         defer { lease.release() }
         let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
         let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
-        let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let missing = group(groupsRaw, named: "missing")
-        #expect(missing == runtimeNullSentinelInt)
+        #expect(groupIndex(matchRaw, named: "missing") == -1)
     }
 
     @Test
@@ -73,14 +79,14 @@ struct RuntimeRegexNamedGroupTests {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let listRaw = __kk_regex_group_name_list(regexRaw)
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            Issue.record("Expected RuntimeSetBox")
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+              let listBox = tryCast(ptr, to: RuntimeListBox.self) else {
+            Issue.record("Expected RuntimeListBox")
             return
         }
-        let names = Set(setBox.elements.map { runtimeString($0) })
+        let names = Set(listBox.elements.map { runtimeString($0) })
         #expect(names == Set(["year", "month", "day"]))
     }
 
@@ -89,14 +95,14 @@ struct RuntimeRegexNamedGroupTests {
         let lease = RuntimeTestIsolationLease(lockSet: .all)
         defer { lease.release() }
         let regexRaw = makeRegex("(\\d+)-(\\d+)")
-        let setRaw = kk_regex_group_names(regexRaw)
+        let listRaw = __kk_regex_group_name_list(regexRaw)
 
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
-              let setBox = tryCast(ptr, to: RuntimeSetBox.self) else {
-            Issue.record("Expected RuntimeSetBox")
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+              let listBox = tryCast(ptr, to: RuntimeListBox.self) else {
+            Issue.record("Expected RuntimeListBox")
             return
         }
-        #expect(setBox.elements.isEmpty)
+        #expect(listBox.elements.isEmpty)
     }
 }
 #endif

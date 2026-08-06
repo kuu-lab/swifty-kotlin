@@ -38,6 +38,28 @@ struct RuntimeRegexTests {
         }
     }
 
+    private func makeStringRaw(_ value: String) -> Int {
+        value.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
+            }
+        }
+    }
+
+    private func matchValue(_ matchRaw: Int) -> String {
+        runtimeString(__kk_match_result_group_value(matchRaw, 0))
+    }
+
+    private func matchGroupValues(_ matchRaw: Int) -> [String] {
+        (0 ..< __kk_match_result_group_count(matchRaw)).map {
+            runtimeString(__kk_match_result_group_value(matchRaw, $0))
+        }
+    }
+
+    private func namedGroupIndex(_ matchRaw: Int, _ name: String) -> Int {
+        __kk_match_result_group_index_of_name(matchRaw, makeStringRaw(name))
+    }
+
     @Test
     func matchResultValueAndGroupValues() {
         let regexRaw = withFlatString("(ab)(cd)") { data, length, byteCount, hash in
@@ -48,8 +70,8 @@ struct RuntimeRegexTests {
         }
 
         #expect(matchRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_result_value(matchRaw)) == "abcd")
-        #expect(runtimeListStrings(kk_match_result_groupValues(matchRaw)) == ["abcd", "ab", "cd"])
+        #expect(matchValue(matchRaw) == "abcd")
+        #expect(matchGroupValues(matchRaw) == ["abcd", "ab", "cd"])
     }
 
     // MARK: - STDLIB-TEXT-FN-105: String.toRegex / toRegex(option) / toRegex(options)
@@ -60,7 +82,7 @@ struct RuntimeRegexTests {
             kk_string_toRegex_flat(data, length, byteCount, hash, nil)
         }
         #expect(regexRaw != runtimeNullSentinelInt)
-        let patternBack = runtimeString(kk_regex_pattern(regexRaw))
+        let patternBack = runtimeString(__kk_regex_pattern(regexRaw))
         #expect(patternBack == "[a-z]+")
     }
 
@@ -88,7 +110,7 @@ struct RuntimeRegexTests {
         #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "say HELLO world")
         #expect(matchRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_result_value(matchRaw)) == "HELLO")
+        #expect(matchValue(matchRaw) == "HELLO")
     }
 
     @Test
@@ -99,7 +121,7 @@ struct RuntimeRegexTests {
             kk_regex_create_with_option_flat(data, length, byteCount, hash, optionRaw, nil)
         }
         #expect(regexRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_regex_pattern(regexRaw)) == "^foo")
+        #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "^foo")
     }
 
     @Test
@@ -112,7 +134,7 @@ struct RuntimeRegexTests {
         #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "Hello WORLD!")
         #expect(matchRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_result_value(matchRaw)) == "WORLD")
+        #expect(matchValue(matchRaw) == "WORLD")
     }
 
     @Test
@@ -124,54 +146,29 @@ struct RuntimeRegexTests {
         #expect(regexRaw != runtimeNullSentinelInt)
         let matchRaw = regexFind(regexRaw, input: "abc123def")
         #expect(matchRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_result_value(matchRaw)) == "123")
+        #expect(matchValue(matchRaw) == "123")
     }
 
     @Test
-    func matchGroupCollectionGetAndRange() throws {
+    func matchGroupCollectionGetAndRange() {
         let regexRaw = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
         }
         let matchRaw = withFlatString("zzabcdyy") { data, length, byteCount, hash in
             kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
         }
-        let groupsRaw = kk_match_result_groups(matchRaw)
-        let lhsGroupRaw = withFlatString("lhs") { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
-        }
-        let rhsGroupRaw = withFlatString("rhs") { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
-        }
+        let lhsIndex = namedGroupIndex(matchRaw, "lhs")
+        let rhsIndex = namedGroupIndex(matchRaw, "rhs")
 
-        #expect(lhsGroupRaw != runtimeNullSentinelInt)
-        #expect(rhsGroupRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
-        #expect(runtimeString(kk_match_group_value(rhsGroupRaw)) == "cd")
+        #expect(lhsIndex == 1)
+        #expect(rhsIndex == 2)
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, lhsIndex)) == "ab")
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, rhsIndex)) == "cd")
 
-        let lhsRangeRaw = kk_match_group_range(lhsGroupRaw)
-        let rhsRangeRaw = kk_match_group_range(rhsGroupRaw)
-
-        let lhsPtr = try #require(
-            UnsafeMutableRawPointer(bitPattern: lhsRangeRaw),
-            "Expected range boxes for named groups"
-        )
-        let rhsPtr = try #require(
-            UnsafeMutableRawPointer(bitPattern: rhsRangeRaw),
-            "Expected range boxes for named groups"
-        )
-        let lhsRange = try #require(
-            tryCast(lhsPtr, to: RuntimeRangeBox.self),
-            "Expected range boxes for named groups"
-        )
-        let rhsRange = try #require(
-            tryCast(rhsPtr, to: RuntimeRangeBox.self),
-            "Expected range boxes for named groups"
-        )
-
-        #expect(lhsRange.first == 2)
-        #expect(lhsRange.last == 3)
-        #expect(rhsRange.first == 4)
-        #expect(rhsRange.last == 5)
+        #expect(__kk_match_result_group_start(matchRaw, lhsIndex) == 2)
+        #expect(__kk_match_result_group_end(matchRaw, lhsIndex) == 3)
+        #expect(__kk_match_result_group_start(matchRaw, rhsIndex) == 4)
+        #expect(__kk_match_result_group_end(matchRaw, rhsIndex) == 5)
     }
 
     @Test
@@ -193,7 +190,7 @@ struct RuntimeRegexTests {
         let fromToRegex = withFlatString("\\d+") { data, length, byteCount, hash in
             kk_string_toRegex_flat(data, length, byteCount, hash, nil)
         }
-        #expect(runtimeString(kk_regex_pattern(fromToRegex)) == "\\d+")
+        #expect(runtimeString(__kk_regex_pattern(fromToRegex)) == "\\d+")
 
         let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
             kk_regex_create_with_option_flat(data, length, byteCount, hash, kk_box_int(3), nil)
@@ -224,12 +221,12 @@ struct RuntimeRegexTests {
             kk_regex_find_flat(wordRegex, data, length, byteCount, hash)
         }
         #expect(findRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_result_value(findRaw)) == "abc")
+        #expect(matchValue(findRaw) == "abc")
 
         let findAllRaw = withFlatString("ab12cd") { data, length, byteCount, hash in
             kk_regex_findAll_flat(wordRegex, data, length, byteCount, hash)
         }
-        let findAllValues = runtimeListElements(findAllRaw).map { runtimeString(kk_match_result_value($0)) }
+        let findAllValues = runtimeListElements(findAllRaw).map { matchValue($0) }
         #expect(findAllValues == ["ab", "cd"])
 
         let commaRegex = withFlatString(",") { data, length, byteCount, hash in
@@ -275,11 +272,8 @@ struct RuntimeRegexTests {
         let namedMatch = withFlatString("zzabcdyy") { data, length, byteCount, hash in
             kk_regex_find_flat(namedRegex, data, length, byteCount, hash)
         }
-        let groupsRaw = kk_match_result_groups(namedMatch)
-        let lhsGroupRaw = withFlatString("lhs") { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
-        }
-        #expect(lhsGroupRaw != runtimeNullSentinelInt)
-        #expect(runtimeString(kk_match_group_value(lhsGroupRaw)) == "ab")
+        let lhsIndex = namedGroupIndex(namedMatch, "lhs")
+        #expect(lhsIndex == 1)
+        #expect(runtimeString(__kk_match_result_group_value(namedMatch, lhsIndex)) == "ab")
     }
 }

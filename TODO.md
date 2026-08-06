@@ -327,9 +327,12 @@
 
 #### kotlin.text.Regex [M 番号なし・新設]（棚卸し 2026-07-01: 39 @_cdecl。正規表現エンジン = NSRegularExpression はブリッジ残留）
 
-- [ ] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
+- [x] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
   - 削除 kk_*: `kk_match_result_value/groupValues/range/groups/component1/component2/next`, `kk_match_group_collection_get_at/get/size`, `kk_match_group_value/range`, `kk_match_result_destructured(_match)`, `kk_match_result_destructured_component1..9`, `kk_regex_pattern`, `kk_regex_options`, `kk_regex_group_names`（`RuntimeRegex.swift`）
   - 内部のマッチ位置データ取得のみ `__kk_` 最小ブリッジに残す / 手順: T / diff: `regex_named_groups.kt` ほか既存 10 ケース
+  - 完了: `Stdlib/kotlin/text/MatchResult.kt`（MatchResult / MatchGroup / MatchGroupCollection / Destructured）と `Stdlib/kotlin/text/Regex.kt`（pattern / options / groupNames）を新設し、合成スタブ登録（`HeaderHelpers+SyntheticRegexStubs.swift`）・KIR 特殊経路（`CallLowerer+LegacyMemberLikeCalls.swift` の `pattern`）・Sema フォールバック（`CallTypeChecker+MemberCallFallbacks.swift`）・バックエンドの flat マッピング（`NativeEmitter+FunctionEmission.swift` の `kk_match_group_collection_get`）を撤去。残留ブリッジは位置データ取得のみ（`__kk_match_result_group_count/group_value/group_start/group_end/group_index_of_name/next_match`, `__kk_regex_pattern/option_mask/group_name_list`）
+  - **併せて修正したバグ**: (1) destructuring の `componentN()` 呼び出しが名前解決のみで lowering され、他型の同名 `component1()`（`kk_pair_first`）へ誤リンクしていた（`ExprLowerer+ControlFlowAndBlocks.swift` / `ControlFlowLowerer.swift` で解決済みシンボルを `.call(symbol:)` に伝播）。(2) nullable な `var` ローカルが null チェック後もスマートキャストされず `KSWIFTK-SEMA-0002` になっていた（`Analysis.swift` でローカル `var` を安定候補にし、`LocalDeclTypeChecker.swift` で再代入時に宣言型へ復帰）。(3) `a..b` の範囲式が期待型の名目 Range クラス（`IntRange`）に適合しなかった（`ExprTypeChecker+BinaryAndFlowInference.swift`）
+  - 回帰: `Scripts/diff_cases/match_result.kt` の `SKIP-DIFF` 解除、`destructuring_operator_class.kt` / `smartcast_mutable_local.kt` 新設、`MatchResultTypeTests` / `MatchGroupTypeTests` / `RegexAPISurfaceInventoryTests` / `RegexSemaLoweringTests` を source-backed 期待値へ更新、`DataFlowAndSemaRegressionTests+TryCatchInitializationAndIsCheckRules.swift` にスマートキャスト回帰 2 件追加
 - [ ] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
   - Kotlin 化: `String.toRegex`×3 / `matches` / `contains` / `replace(First)` / `split` のオーバーロード分岐・入力検証（下敷き: 死蔵 `Stdlib/kotlin/text/Regex.kt` はコメントアウト状態 — 実質新規実装）
   - `__kk_` 降格: `kk_regex_create(_with_option/_with_options)`, `kk_regex_from_literal`, `kk_regex_find(All)`, `kk_regex_matchEntire`, `kk_regex_matches`, `kk_regex_containsMatchIn`, `kk_regex_replace_lambda`, `kk_string_*_regex` 系エンジン呼び出し

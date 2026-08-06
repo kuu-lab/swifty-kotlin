@@ -3,11 +3,11 @@
 import Foundation
 import Testing
 
-/// STDLIB-TEXT-TYPE-007: Validates that the synthetic `kotlin.text.MatchGroup`
-/// class exists in the symbol table after sema, exposes the expected
-/// `value: String` and `range` properties wired to the runtime ABI link names,
-/// and that source-level access through `MatchResult.groups[..]` type-checks
-/// without diagnostics.
+/// STDLIB-TEXT-TYPE-007 / KSP-486: Validates that `kotlin.text.MatchGroup`
+/// exists in the symbol table after sema, exposes the expected `value: String`
+/// and `range` properties from bundled Kotlin (so without synthetic runtime
+/// links), and that source-level access through `MatchResult.groups[..]`
+/// type-checks without diagnostics.
 @Suite
 struct MatchGroupTypeTests {
 
@@ -51,8 +51,8 @@ struct MatchGroupTypeTests {
         #expect(info.kind == .property,
                        "MatchGroup.value should be a property")
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_group_value",
-            "MatchGroup.value must be wired to the kk_match_group_value runtime entry"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchGroup.value must be source-backed"
         )
     }
 
@@ -69,8 +69,8 @@ struct MatchGroupTypeTests {
         #expect(info.kind == .property,
                        "MatchGroup.range should be a property")
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_group_range",
-            "MatchGroup.range must be wired to the kk_match_group_range runtime entry"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchGroup.range must be source-backed"
         )
     }
 

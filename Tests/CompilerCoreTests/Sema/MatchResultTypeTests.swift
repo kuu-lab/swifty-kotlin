@@ -3,10 +3,10 @@
 import Foundation
 import Testing
 
-/// STDLIB-TEXT-TYPE-010: Validates that the synthetic `kotlin.text.MatchResult`
-/// sealed interface and its nested `MatchResult.Destructured` class are correctly
-/// registered in the symbol table after sema, with all expected properties and
-/// functions wired to their runtime ABI link names.
+/// STDLIB-TEXT-TYPE-010 / KSP-486: Validates that `kotlin.text.MatchResult` and
+/// its nested `MatchResult.Destructured` class are correctly registered in the
+/// symbol table after sema. The members are implemented in bundled Kotlin
+/// (`kotlin.text.MatchResult`), so they carry no synthetic runtime link name.
 @Suite
 struct MatchResultTypeTests {
 
@@ -43,11 +43,9 @@ struct MatchResultTypeTests {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
+        #expect(!syms.isEmpty, "MatchResult.value property must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_result_value"),
-            "MatchResult.value must link to kk_match_result_value; found: \(links)"
-        )
+        #expect(links.isEmpty, "MatchResult.value must be source-backed; found: \(links)")
     }
 
     // MARK: - 3. MatchResult.range: IntRange
@@ -56,11 +54,9 @@ struct MatchResultTypeTests {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
+        #expect(!syms.isEmpty, "MatchResult.range property must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        #expect(
-            links.contains("kk_match_result_range"),
-            "MatchResult.range must link to kk_match_result_range; found: \(links)"
-        )
+        #expect(links.isEmpty, "MatchResult.range must be source-backed; found: \(links)")
     }
 
     // MARK: - 4. MatchResult.groupValues: List<String>
@@ -73,8 +69,8 @@ struct MatchResultTypeTests {
             "MatchResult.groupValues property must be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groupValues",
-            "MatchResult.groupValues must link to kk_match_result_groupValues"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchResult.groupValues must be source-backed"
         )
     }
 
@@ -88,8 +84,8 @@ struct MatchResultTypeTests {
             "MatchResult.groups property must be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groups",
-            "MatchResult.groups must link to kk_match_result_groups"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchResult.groups must be source-backed"
         )
     }
 
@@ -103,8 +99,8 @@ struct MatchResultTypeTests {
             "MatchResult.next() function must be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_next",
-            "MatchResult.next() must link to kk_match_result_next"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchResult.next() must be source-backed"
         )
     }
 
@@ -118,8 +114,8 @@ struct MatchResultTypeTests {
             "MatchResult.destructured property must be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured",
-            "MatchResult.destructured must link to kk_match_result_destructured"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchResult.destructured must be source-backed"
         )
     }
 
@@ -148,8 +144,8 @@ struct MatchResultTypeTests {
             "MatchResult.Destructured.match property must be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured_match",
-            "MatchResult.Destructured.match must link to kk_match_result_destructured_match"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "MatchResult.Destructured.match must be source-backed"
         )
     }
 
@@ -161,11 +157,14 @@ struct MatchResultTypeTests {
             let fq = ["kotlin", "text", "MatchResult", "Destructured", "component\(index)"]
                 .map { interner.intern($0) }
             let syms = sema.symbols.lookupAll(fqName: fq)
-            let expectedLink = "kk_match_result_destructured_component\(index)"
+            #expect(
+                !syms.isEmpty,
+                "MatchResult.Destructured.component\(index)() must be registered"
+            )
             let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
             #expect(
-                links.contains(expectedLink),
-                "MatchResult.Destructured.component\(index)() must link to \(expectedLink); found: \(links)"
+                links.isEmpty,
+                "MatchResult.Destructured.component\(index)() must be source-backed; found: \(links)"
             )
         }
     }

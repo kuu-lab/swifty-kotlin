@@ -143,8 +143,9 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
+        // KSP-486: Regex.pattern (kotlin/text/Regex.kt) 用の内部ブリッジ
         RuntimeABIFunctionSpec(
-            name: "kk_regex_pattern",
+            name: "__kk_regex_pattern",
             parameters: [
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
@@ -152,29 +153,11 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-REGEX-096: Regex.options: Set<RegexOption>
+        // KSP-486: Regex.options 用の内部ブリッジ（RegexOption ordinal のビットマスク）
         RuntimeABIFunctionSpec(
-            name: "kk_regex_options",
+            name: "__kk_regex_option_mask",
             parameters: [
                 RuntimeABIParameter(name: "regex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_result_value",
-            parameters: [
-                RuntimeABIParameter(name: "matchResult", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_result_groupValues",
-            parameters: [
-                RuntimeABIParameter(name: "matchResult", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -248,9 +231,10 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // MatchResult.groups / MatchGroupCollection / MatchGroup
+        // KSP-486: MatchResult / MatchGroup（kotlin/text/MatchResult.kt）用の
+        // マッチ位置データ取得ブリッジ。
         RuntimeABIFunctionSpec(
-            name: "kk_match_result_groups",
+            name: "__kk_match_result_group_count",
             parameters: [
                 RuntimeABIParameter(name: "matchRaw", type: .intptr),
             ],
@@ -259,31 +243,9 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_get",
+            name: "__kk_match_result_group_value",
             parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_get_flat",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_get_at",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+                RuntimeABIParameter(name: "matchRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
@@ -291,27 +253,30 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_size",
+            name: "__kk_match_result_group_start",
             parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+                RuntimeABIParameter(name: "matchRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_match_group_value",
+            name: "__kk_match_result_group_end",
             parameters: [
-                RuntimeABIParameter(name: "groupRaw", type: .intptr),
+                RuntimeABIParameter(name: "matchRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_match_group_range",
+            name: "__kk_match_result_group_index_of_name",
             parameters: [
-                RuntimeABIParameter(name: "groupRaw", type: .intptr),
+                RuntimeABIParameter(name: "matchRaw", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -344,9 +309,9 @@ public extension RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        // STDLIB-REGEX-097: Regex.groupNames
+        // STDLIB-REGEX-097 / KSP-486: Regex.groupNames 用の内部ブリッジ
         RuntimeABIFunctionSpec(
-            name: "kk_regex_group_names",
+            name: "__kk_regex_group_name_list",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
