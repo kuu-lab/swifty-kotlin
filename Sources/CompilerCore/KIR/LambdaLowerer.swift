@@ -186,6 +186,7 @@ final class LambdaLowerer {
                 params: params,
                 bodyExpr: bodyExpr,
                 effectiveParamCount: effectiveParamCount,
+                hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
                 functionType: functionType,
@@ -367,7 +368,11 @@ final class LambdaLowerer {
         } else {
             params
         }
-        let valueParamStart = needsClosureParam ? 1 : 0
+        // Value parameters start after the closure environment parameter (HOF
+        // lambdas) and after the explicit receiver parameter (receiver lambdas
+        // such as `DeepRecursiveScope<T, R>.(T) -> R`); without the receiver
+        // offset a named parameter would alias the receiver slot.
+        let valueParamStart = (needsClosureParam ? 1 : 0) + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
@@ -500,6 +505,14 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
+        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
+        // without dropping the receiver. Keep the raw lambda instead: call sites
+        // that consume such callables adapt them through
+        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
+        guard functionType.receiver == nil else {
+            return nil
+        }
         let createCallee: InternedString
         switch functionType.params.count {
         case 0:
@@ -1421,6 +1434,7 @@ final class LambdaLowerer {
         params: [InternedString],
         bodyExpr: ExprID,
         effectiveParamCount: Int,
+        hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
         functionType: FunctionType?,
@@ -1459,7 +1473,7 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
             // Handle receiver parameter if needed
-            if paramIndex == 0, functionType?.receiver != nil {
+            if paramIndex == 0, hasExplicitReceiverParam {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
@@ -1470,8 +1484,10 @@ final class LambdaLowerer {
         } else {
             params
         }
-        for (i, paramName) in effectiveParamNames.enumerated() where i < lambdaParameters.count {
-            driver.ctx.registerLambdaParam(symbol: lambdaParameters[i].symbol, forName: paramName)
+        // Named parameters follow the explicit receiver parameter, if any.
+        let valueParamStart = hasExplicitReceiverParam ? 1 : 0
+        for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
+            driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
         // Lower the body
