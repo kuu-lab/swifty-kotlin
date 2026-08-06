@@ -967,8 +967,15 @@ extension CallLowerer {
         }
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
-        // Virtual dispatch is only correct when no remapping occurred.
-        if loweredCallee == calleeName,
+        // Virtual dispatch is only correct when no remapping occurred; a
+        // declaration imported from a precompiled library is always named by
+        // its own mangled link name, which is not such a remapping.
+        let isImportedLibraryLink = chosenCallee.map { symbol in
+            !kirIsRuntimeBridgedCallee(symbol, sema: sema)
+                && sema.symbols.externalLinkName(for: symbol)
+                    .map { interner.intern($0) == loweredCallee } == true
+        } ?? false
+        if loweredCallee == calleeName || isImportedLibraryLink,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,

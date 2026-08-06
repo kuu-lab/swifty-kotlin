@@ -11,11 +11,14 @@
 /// method slots and require no change to the persisted `NominalLayout`.
 
 /// The interface's own instance properties that participate in itable dispatch,
-/// paired with the itable method slot each getter occupies. Deterministically
-/// ordered by symbol id so the dispatch site and the registration site agree.
+/// paired with the itable method slot each getter occupies. Ordered by property
+/// name so the dispatch site and the registration site agree even when they are
+/// in different compilation units (a precompiled library registers the getters,
+/// its consumer dispatches through them, and symbol ids differ between the two).
 func kirInterfacePropertyGetterSlots(
     interfaceSymbol: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    interner: StringInterner
 ) -> [(propertySymbol: SymbolID, slot: Int)] {
     guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
           let interfaceInfo = sema.symbols.symbol(interfaceSymbol),
@@ -27,16 +30,28 @@ func kirInterfacePropertyGetterSlots(
     let base = layout.vtableSize
     let properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
         .compactMap { id -> SymbolID? in
-            guard sema.symbols.symbol(id)?.kind == .property else { return nil }
+            guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `size`, `length`) are read through their external link, not
             // an itable slot — leave them out of the property getter table.
             if let linkName = sema.symbols.externalLinkName(for: id), !linkName.isEmpty {
                 return nil
             }
+            // Likewise for synthetic runtime members registered on an otherwise
+            // Kotlin-declared interface: only declarations that exist in Kotlin
+            // (source, or the same declaration imported from a precompiled
+            // library) own an itable getter slot.
+            guard property.declSite != nil || property.flags.contains(.importedLibrary) else {
+                return nil
+            }
             return id
         }
-        .sorted { $0.rawValue < $1.rawValue }
+        .sorted { lhs, rhs in
+            let lhsName = sema.symbols.symbol(lhs).map { interner.resolve($0.name) } ?? ""
+            let rhsName = sema.symbols.symbol(rhs).map { interner.resolve($0.name) } ?? ""
+            if lhsName != rhsName { return lhsName < rhsName }
+            return lhs.rawValue < rhs.rawValue
+        }
 
     return properties.enumerated().map { index, propertySymbol in
         (propertySymbol: propertySymbol, slot: base + index)
@@ -48,9 +63,10 @@ func kirInterfacePropertyGetterSlots(
 func kirInterfacePropertyGetterSlot(
     interfaceProperty: SymbolID,
     interfaceSymbol: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    interner: StringInterner
 ) -> Int? {
-    kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema)
+    kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
         .first { $0.propertySymbol == interfaceProperty }?
         .slot
 }
@@ -106,7 +122,11 @@ func appendObjectItablePropertyGetterRegistrations(
     }
 
     for interfaceSymbol in interfaceSupertypes {
-        let getterSlots = kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema)
+        let getterSlots = kirInterfacePropertyGetterSlots(
+            interfaceSymbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
         guard !getterSlots.isEmpty else {
             continue
         }
