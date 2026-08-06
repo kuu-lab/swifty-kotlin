@@ -12,24 +12,6 @@ import Testing
 @Suite
 struct UuidPutUuidSemaTests {
 
-    // MARK: - Shared fixture
-
-    private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
-        var result: (CompilationContext, SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try #require(ctx.sema)
-            result = (ctx, sema, ctx.interner)
-        }
-        return try #require(result)
-    }
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        let (_, sema, interner) = try makeSemaWithContext()
-        return (sema, interner)
-    }
-
     private func byteBufferSymbol(sema: SemaModule, interner: StringInterner) -> SymbolID? {
         let fq = ["java", "nio", "ByteBuffer"].map { interner.intern($0) }
         return sema.symbols.lookup(fqName: fq)
@@ -63,150 +45,154 @@ struct UuidPutUuidSemaTests {
         return !info.flags.contains(.synthetic) && sema.symbols.sourceFileID(for: sym) == uuidSourceFileID
     }
 
-    // MARK: - putUuid(index, uuid) overload
+    @Test func testPutUuid() throws {
+        let source = """
+        fun noop() {}
+        """
 
-    @Test
-    func testPutUuidExtensionFunctionIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        #expect(
-            isSourceBacked(sym: sym, ctx: ctx, sema: sema),
-            "ByteBuffer.putUuid(index, uuid) must be declared in Uuid.kt, not registered as a synthetic stub"
-        )
-    }
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
 
-    @Test
-    func testPutUuidHasByteBufferReceiver() throws {
-        let (sema, interner) = try makeSema()
-        let byteBufferSym = try #require(
-            byteBufferSymbol(sema: sema, interner: interner),
-            "java.nio.ByteBuffer must be registered"
-        )
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner),
-            "ByteBuffer.putUuid(index, uuid) extension function must be registered with ByteBuffer receiver"
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-        let receiverType = try #require(sig.receiverType)
-        guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
-            Issue.record("putUuid receiver must be a class type"); return
-        }
-        #expect(ct.classSymbol == byteBufferSym, "putUuid receiver must be java.nio.ByteBuffer")
-    }
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
 
-    @Test
-    func testPutUuidHasTwoParameters() throws {
-        let (sema, interner) = try makeSema()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-        #expect(sig.parameterTypes.count == 2, "putUuid(index, uuid) must take exactly 2 parameters")
-    }
+            // MARK: - putUuid(index, uuid) overload
 
-    @Test
-    func testPutUuidFirstParameterIsInt() throws {
-        let (sema, interner) = try makeSema()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-        #expect(sig.parameterTypes[0] == sema.types.intType, "putUuid first parameter (index) must be Int")
-    }
+            // === testPutUuidExtensionFunctionIsSourceBacked ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                #expect(
+                    isSourceBacked(sym: sym, ctx: ctx, sema: sema),
+                    "ByteBuffer.putUuid(index, uuid) must be declared in Uuid.kt, not registered as a synthetic stub"
+                )
+            }
 
-    @Test
-    func testPutUuidSecondParameterIsUuid() throws {
-        let (sema, interner) = try makeSema()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-
-        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
-
-        guard case .classType(let ct) = sema.types.kind(of: sig.parameterTypes[1]) else {
-            Issue.record("putUuid second parameter must be a class type"); return
-        }
-        #expect(ct.classSymbol == uuidSym, "putUuid second parameter (uuid) must be kotlin.uuid.Uuid")
-    }
-
-    @Test
-    func testPutUuidReturnsByteBuffer() throws {
-        let (sema, interner) = try makeSema()
-        let byteBufferSym = try #require(byteBufferSymbol(sema: sema, interner: interner))
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-        guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            Issue.record("putUuid return type must be a class type"); return
-        }
-        #expect(ct.classSymbol == byteBufferSym, "putUuid must return java.nio.ByteBuffer")
-    }
-
-    // MARK: - putUuid(uuid) single-parameter overload
-
-    @Test
-    func testPutUuidSingleOverloadIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
-        )
-        #expect(
-            isSourceBacked(sym: sym, ctx: ctx, sema: sema),
-            "ByteBuffer.putUuid(uuid) must be declared in Uuid.kt"
-        )
-    }
-
-    @Test
-    func testPutUuidSingleOverloadHasOneUuidParameter() throws {
-        let (sema, interner) = try makeSema()
-        let sym = try #require(
-            findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
-        )
-        let sig = try #require(sema.symbols.functionSignature(for: sym))
-        #expect(sig.parameterTypes.count == 1, "putUuid(uuid) must take exactly 1 parameter")
-
-        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
-        guard case .classType(let ct) = sema.types.kind(of: sig.parameterTypes[0]) else {
-            Issue.record("putUuid(uuid) parameter must be a class type"); return
-        }
-        #expect(ct.classSymbol == uuidSym, "putUuid(uuid) parameter must be kotlin.uuid.Uuid")
-    }
-
-    // MARK: - @ExperimentalUuidApi annotation
-
-    @Test
-    func testPutUuidIsTaggedExperimentalUuidApi() throws {
-        let (sema, interner) = try makeSema()
-        let interned = ["kotlin", "uuid", "putUuid"].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: interned)
-        #expect(!syms.isEmpty, "putUuid must be registered")
-        #expect(
-            syms.contains { sym in
-                sema.symbols.annotations(for: sym).contains {
-                    $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi"
+            // === testPutUuidHasByteBufferReceiver ===
+            do {
+                let byteBufferSym = try #require(
+                    byteBufferSymbol(sema: sema, interner: interner),
+                    "java.nio.ByteBuffer must be registered"
+                )
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner),
+                    "ByteBuffer.putUuid(index, uuid) extension function must be registered with ByteBuffer receiver"
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+                let receiverType = try #require(sig.receiverType)
+                guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
+                    Issue.record("putUuid receiver must be a class type"); return
                 }
-            },
-            "ByteBuffer.putUuid must carry @ExperimentalUuidApi"
-        )
-    }
+                #expect(ct.classSymbol == byteBufferSym, "putUuid receiver must be java.nio.ByteBuffer")
+            }
 
-    // MARK: - Both overloads distinct
+            // === testPutUuidHasTwoParameters ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+                #expect(sig.parameterTypes.count == 2, "putUuid(index, uuid) must take exactly 2 parameters")
+            }
 
-    @Test
-    func testPutUuidOverloadsAreDistinctSymbols() throws {
-        let (sema, interner) = try makeSema()
-        let single = try #require(
-            findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
-        )
-        let indexed = try #require(
-            findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
-        )
-        #expect(single != indexed, "putUuid(uuid) and putUuid(index, uuid) must be distinct symbols")
+            // === testPutUuidFirstParameterIsInt ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+                #expect(sig.parameterTypes[0] == sema.types.intType, "putUuid first parameter (index) must be Int")
+            }
+
+            // === testPutUuidSecondParameterIsUuid ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+
+                let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+                let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
+
+                guard case .classType(let ct) = sema.types.kind(of: sig.parameterTypes[1]) else {
+                    Issue.record("putUuid second parameter must be a class type"); return
+                }
+                #expect(ct.classSymbol == uuidSym, "putUuid second parameter (uuid) must be kotlin.uuid.Uuid")
+            }
+
+            // === testPutUuidReturnsByteBuffer ===
+            do {
+                let byteBufferSym = try #require(byteBufferSymbol(sema: sema, interner: interner))
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+                guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
+                    Issue.record("putUuid return type must be a class type"); return
+                }
+                #expect(ct.classSymbol == byteBufferSym, "putUuid must return java.nio.ByteBuffer")
+            }
+
+            // MARK: - putUuid(uuid) single-parameter overload
+
+            // === testPutUuidSingleOverloadIsSourceBacked ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
+                )
+                #expect(
+                    isSourceBacked(sym: sym, ctx: ctx, sema: sema),
+                    "ByteBuffer.putUuid(uuid) must be declared in Uuid.kt"
+                )
+            }
+
+            // === testPutUuidSingleOverloadHasOneUuidParameter ===
+            do {
+                let sym = try #require(
+                    findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
+                )
+                let sig = try #require(sema.symbols.functionSignature(for: sym))
+                #expect(sig.parameterTypes.count == 1, "putUuid(uuid) must take exactly 1 parameter")
+
+                let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+                let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
+                guard case .classType(let ct) = sema.types.kind(of: sig.parameterTypes[0]) else {
+                    Issue.record("putUuid(uuid) parameter must be a class type"); return
+                }
+                #expect(ct.classSymbol == uuidSym, "putUuid(uuid) parameter must be kotlin.uuid.Uuid")
+            }
+
+            // MARK: - @ExperimentalUuidApi annotation
+
+            // === testPutUuidIsTaggedExperimentalUuidApi ===
+            do {
+                let interned = ["kotlin", "uuid", "putUuid"].map { interner.intern($0) }
+                let syms = sema.symbols.lookupAll(fqName: interned)
+                #expect(!syms.isEmpty, "putUuid must be registered")
+                #expect(
+                    syms.contains { sym in
+                        sema.symbols.annotations(for: sym).contains {
+                            $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi"
+                        }
+                    },
+                    "ByteBuffer.putUuid must carry @ExperimentalUuidApi"
+                )
+            }
+
+            // MARK: - Both overloads distinct
+
+            // === testPutUuidOverloadsAreDistinctSymbols ===
+            do {
+                let single = try #require(
+                    findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
+                )
+                let indexed = try #require(
+                    findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
+                )
+                #expect(single != indexed, "putUuid(uuid) and putUuid(index, uuid) must be distinct symbols")
+            }
+        }
     }
 }
