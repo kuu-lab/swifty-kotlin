@@ -52,13 +52,33 @@ public func kk_array_is_empty(_ arrayRaw: Int) -> Int {
 
 // MARK: - Pair Functions (FUNC-002)
 
+/// Nominal type IDs of `kotlin.Pair`/`kotlin.Triple`, tagged onto every box
+/// these constructors hand back to Kotlin.
+///
+/// Both classes are declared in bundled Kotlin source (`kotlin/Tuples.kt`) but
+/// allocate through these bridges rather than `kk_object_new`, so without an
+/// explicit tag their instances carry no nominal identity and `is Pair<*, *>`
+/// answers false — which in turn breaks `Pair.equals`, whose first act is to
+/// safe-cast `other`. This mirrors how `kotlin.String` recovers its identity
+/// (`runtimeStringNominalTypeID`).
+///
+/// Only the constructors tag: `RuntimePairBox` doubles as an untyped 2-tuple
+/// for internal runtime state (e.g. a Comparator's function/closure pair in
+/// RuntimeComparator.swift), and those must stay invisible to `is`.
+let runtimePairNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Pair")
+let runtimeTripleNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Triple")
+
 @_cdecl("__kk_pair_new")
 public func kk_pair_new(_ first: Int, _ second: Int) -> Int {
-    registerRuntimeObject(RuntimePairBox(first: first, second: second))
+    let raw = registerRuntimeObject(RuntimePairBox(first: first, second: second))
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimePairNominalTypeID)
+    return raw
 }
 
 func runtimePairNew(firstValue: RuntimeValue, secondValue: RuntimeValue) -> Int {
-    registerRuntimeObject(RuntimePairBox(firstValue: firstValue, secondValue: secondValue))
+    let raw = registerRuntimeObject(RuntimePairBox(firstValue: firstValue, secondValue: secondValue))
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimePairNominalTypeID)
+    return raw
 }
 
 @_cdecl("__kk_pair_first")
@@ -115,7 +135,9 @@ public func kk_map_entry_to_pair(_ entryRaw: Int) -> Int {
 @_cdecl("__kk_triple_new")
 public func kk_triple_new(_ first: Int, _ second: Int, _ third: Int) -> Int {
     let box = RuntimeTripleBox(first: first, second: second, third: third)
-    return registerRuntimeObject(box)
+    let raw = registerRuntimeObject(box)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeTripleNominalTypeID)
+    return raw
 }
 
 @_cdecl("__kk_triple_first")

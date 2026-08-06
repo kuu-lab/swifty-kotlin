@@ -580,6 +580,13 @@ final class InlineLoweringPass: LoweringPass {
             inlineExitLabel = -1
         }
 
+        // Slots written from more than one place are branch merge points
+        // (`&&`/`||`/`?:` lower to a temporary each arm copies into). Retyping
+        // one of their writers below would redirect every reader to the
+        // replacement expression while the other writers keep filling the
+        // original, so they are left alone.
+        let mergeSlotExprs = multiplyWrittenExprs(in: inlineTarget.body)
+
         // Build a label remapping so that each inline expansion gets unique
         // label IDs. This prevents collisions when the same function is
         // inlined multiple times or when the inlined labels conflict with
@@ -830,7 +837,8 @@ final class InlineLoweringPass: LoweringPass {
             case let .copy(from, to):
                 let resolvedFrom = resolveAlias(of: from, aliases: localExprMap)
                 var resolvedTo = resolveAlias(of: to, aliases: localExprMap)
-                if let fromType = module.arena.exprType(resolvedFrom),
+                if !mergeSlotExprs.contains(to),
+                   let fromType = module.arena.exprType(resolvedFrom),
                    shouldRetypeInlineCopyTarget(
                        currentType: module.arena.exprType(resolvedTo),
                        fromType: fromType,
@@ -1205,12 +1213,14 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .copy(from, to):
-                lowered.append(
-                    .copy(
-                        from: resolveAlias(of: from, aliases: localExprMap),
-                        to: resolveAlias(of: to, aliases: localExprMap)
-                    )
-                )
+                // A copy defines its destination, so it clones like a call's
+                // result rather than merely resolving an alias: a temporary
+                // written from more than one branch (`&&`/`||`/`?:`) would
+                // otherwise be cloned by whichever branch happened to be
+                // rewritten into a call first and left dangling in the others.
+                let loweredFrom = resolveAlias(of: from, aliases: localExprMap)
+                let loweredTo = cloneOrReuseExpr(to, localExprMap: &localExprMap, module: module)
+                lowered.append(.copy(from: loweredFrom, to: loweredTo))
 
             case let .storeGlobal(value, symbol):
                 lowered.append(
@@ -1631,6 +1641,28 @@ final class InlineLoweringPass: LoweringPass {
             return true
         }
         return false
+    }
+
+    /// Expressions `body` writes from more than one instruction.
+    private func multiplyWrittenExprs(in body: [KIRInstruction]) -> Set<KIRExprID> {
+        var writeCounts: [KIRExprID: Int] = [:]
+        for instruction in body {
+            let written: KIRExprID? = switch instruction {
+            case let .copy(_, to): to
+            case let .call(_, _, _, result, _, _, _, _): result
+            case let .virtualCall(_, _, _, _, result, _, _, _): result
+            case let .binary(_, _, _, result): result
+            case let .unary(_, _, result): result
+            case let .constValue(result, _): result
+            case let .nullAssert(_, result): result
+            case let .loadGlobal(result, _): result
+            default: nil
+            }
+            if let written {
+                writeCounts[written, default: 0] += 1
+            }
+        }
+        return Set(writeCounts.filter { $0.value > 1 }.keys)
     }
 
     private func shouldRetypeInlineCopyTarget(

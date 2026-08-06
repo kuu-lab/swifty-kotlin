@@ -35,6 +35,21 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        // BUG-185: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
+        // the fallback, so it must not run when lhs is already non-null.
+        if op == .elvis {
+            return lowerShortCircuitElvisExpr(
+                exprID,
+                lhs: lhs,
+                rhs: rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let boundType: TypeID? = switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             boolType
@@ -587,37 +602,7 @@ extension CallLowerer {
         case .logicalOr:
             kirOp = .logicalOr
         case .elvis:
-            if boundType == stringType {
-                let rawResult = arena.appendTemporary(type: sema.types.nullableAnyType)
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_op_elvis"),
-                    arguments: [lhsID, rhsID],
-                    result: rawResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
-                instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [rawResult, stringTag],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_op_elvis"),
-                arguments: [lhsID, rhsID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
+            preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
             let rangeToCallee = sema.bindings.isUIntRangeExpr(exprID)
                 ? interner.intern("kk_uint_rangeTo")
@@ -746,6 +731,98 @@ extension CallLowerer {
         instructions.append(.copy(from: shortCircuitLiteral, to: result))
         instructions.append(.label(endLabel))
         return result
+    }
+
+    /// Lowers `?:` with proper short-circuit control flow.
+    ///
+    /// `lhs ?: rhs` behaves like `if (lhs != null) lhs else rhs`, so rhs is
+    /// only lowered behind a branch that is skipped when lhs is non-null. The
+    /// previous strict lowering handed both operands to `kk_op_elvis`, which
+    /// evaluated the fallback unconditionally: `x ?: return -1` always
+    /// returned, `x ?: throw e` always threw, and any fallback with side
+    /// effects always ran (BUG-185).
+    ///
+    /// A `String`-typed result keeps the `kk_any_to_string` conversion the
+    /// strict lowering applied to `kk_op_elvis`'s result -- both operands reach
+    /// here as single-word values, while the result is the flat aggregate --
+    /// but now applies it per branch.
+    private func lowerShortCircuitElvisExpr(
+        _ exprID: ExprID,
+        lhs: ExprID,
+        rhs: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boundType = sema.bindings.exprTypes[exprID]
+        let result = arena.appendTemporary(type: boundType)
+        let producesString = boundType == sema.types.stringType
+        let lhsID = driver.lowerExpr(
+            lhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let notNullLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: lhsID, target: notNullLabel))
+
+        let rhsID = driver.lowerExpr(
+            rhs,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if !driver.controlFlowLowerer.isTerminatedExpr(rhsID, arena: arena, sema: sema) {
+            emitElvisBranchResult(
+                rhsID, into: result, producesString: producesString,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.jump(endLabel))
+        }
+
+        instructions.append(.label(notNullLabel))
+        emitElvisBranchResult(
+            lhsID, into: result, producesString: producesString,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+        instructions.append(.label(endLabel))
+        return result
+    }
+
+    private func emitElvisBranchResult(
+        _ valueID: KIRExprID,
+        into result: KIRExprID,
+        producesString: Bool,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard producesString else {
+            instructions.append(.copy(from: valueID, to: result))
+            return
+        }
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
+        instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_any_to_string"),
+            arguments: [valueID, stringTag],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {
