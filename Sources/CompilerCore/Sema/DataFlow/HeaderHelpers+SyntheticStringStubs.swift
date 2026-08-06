@@ -1509,7 +1509,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "__kk_string_format_flat",
             returnType: stringType,
             parameters: [
                 (name: "format", type: stringType),
@@ -1522,7 +1522,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_locale_flat",
+            externalLinkName: "__kk_string_format_locale_flat",
             returnType: stringType,
             parameters: [
                 (name: "locale", type: types.makeNullable(localeType)),
@@ -1562,10 +1562,10 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
         // Kotlin: "...".format(vararg args: Any?) -> String
-        // Receiver is the format string; routes to kk_string_format.
+        // Receiver is the format string; routes to __kk_string_format_flat.
         registerSyntheticStringExtensionFunction(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "__kk_string_format_flat",
             receiverType: stringType,
             parameters: [
                 ("args", types.nullableAnyType, false, true),

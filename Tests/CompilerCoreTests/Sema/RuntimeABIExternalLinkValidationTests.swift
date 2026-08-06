@@ -149,7 +149,7 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
-            "__string_struct_get_length",
+            "__kk_string_struct_get_length",
         ]
     }
 
