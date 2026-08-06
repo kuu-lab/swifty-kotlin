@@ -72,6 +72,8 @@ extension DataFlowSemaPhase {
             } else {
                 []
             }
+            let nominalTypeParameters: [ImportedNominalTypeParameter] =
+                parseImportedNominalTypeParameters(token: metadataRecord.nominalTypeParameters)
             // P5-78: parse sealed subclass FQ names for cross-module exhaustiveness
             let sealedSubclassFQNames: [[InternedString]] = metadataRecord.sealedSubclassFQNames.compactMap { fqStr in
                 let parsed = fqStr.split(separator: ".").map { interner.intern(String($0)) }
@@ -116,6 +118,7 @@ extension DataFlowSemaPhase {
                 valueClassUnderlyingTypeSig: metadataRecord.valueClassUnderlyingTypeSig,
                 annotations: metadataRecord.annotations,
                 sealedSubclassFQNames: sealedSubclassFQNames,
+                nominalTypeParameters: nominalTypeParameters,
                 propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,

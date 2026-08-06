@@ -337,10 +337,10 @@ struct CommonLookupNames {
         initName = interner.intern("<init>")
         toName = interner.intern("to")
         pairName = interner.intern("Pair")
-        kkPairNewName = interner.intern("kk_pair_new")
-        kkPairFirstName = interner.intern("kk_pair_first")
-        kkPairSecondName = interner.intern("kk_pair_second")
+        kkPairNewName = interner.intern("__kk_pair_new")
+        kkPairFirstName = interner.intern("__kk_pair_first")
+        kkPairSecondName = interner.intern("__kk_pair_second")
         tripleName = interner.intern("Triple")
-        kkTripleNewName = interner.intern("kk_triple_new")
+        kkTripleNewName = interner.intern("__kk_triple_new")
     }
 }

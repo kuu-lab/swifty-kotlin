@@ -363,6 +363,13 @@ extension DataFlowSemaPhase {
         let slot: Int
     }
 
+    /// One type parameter of an imported nominal declaration. `rawIndex` is the
+    /// value used by the `T<raw>` spelling inside the library's type signatures.
+    struct ImportedNominalTypeParameter {
+        let rawIndex: Int
+        let variance: TypeVariance
+    }
+
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
         let mangledName: String
@@ -401,6 +408,7 @@ extension DataFlowSemaPhase {
         let valueClassUnderlyingTypeSig: String?
         let annotations: [MetadataAnnotationRecord]
         let sealedSubclassFQNames: [[InternedString]]
+        let nominalTypeParameters: [ImportedNominalTypeParameter]
         let propertyReceiverTypeSignature: String?
         let propertyGetterExternalLinkName: String?
         let abiReturnTypeSignature: String?
@@ -445,6 +453,7 @@ extension DataFlowSemaPhase {
             valueClassUnderlyingTypeSig: String? = nil,
             annotations: [MetadataAnnotationRecord] = [],
             sealedSubclassFQNames: [[InternedString]] = [],
+            nominalTypeParameters: [ImportedNominalTypeParameter] = [],
             propertyReceiverTypeSignature: String? = nil,
             propertyGetterExternalLinkName: String? = nil,
             abiReturnTypeSignature: String? = nil,
@@ -488,6 +497,7 @@ extension DataFlowSemaPhase {
             self.valueClassUnderlyingTypeSig = valueClassUnderlyingTypeSig
             self.annotations = annotations
             self.sealedSubclassFQNames = sealedSubclassFQNames
+            self.nominalTypeParameters = nominalTypeParameters
             self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
             self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
             self.abiReturnTypeSignature = abiReturnTypeSignature
@@ -624,7 +634,13 @@ extension DataFlowSemaPhase {
             cache: cache,
             isStdlibArtifact: isStdlibArtifact
         )
-        applyImportedNominalMetadata(binding, symbols: symbols, interner: interner, pendingSupertypeEdges: &pendingSupertypeEdges)
+        applyImportedNominalMetadata(
+            binding,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            pendingSupertypeEdges: &pendingSupertypeEdges
+        )
     }
 
     private func applyImportedBindingMetadata(
@@ -1010,12 +1026,27 @@ extension DataFlowSemaPhase {
     private func applyImportedNominalMetadata(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner,
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])]
     ) {
         let record = binding.record
         guard isNominalLayoutTargetSymbol(record.kind) else {
             return
+        }
+
+        // Member property types are stored unsubstituted (`T4926`), so consumers
+        // need the owner's declaration-order type parameters to project receiver
+        // type arguments onto them. Synthetic anchors already registered their own
+        // parameters against locally created symbols; leave those alone.
+        if !record.nominalTypeParameters.isEmpty,
+           types.nominalTypeParameterSymbols(for: binding.symbol).isEmpty
+        {
+            let typeParameterSymbols = record.nominalTypeParameters.map { typeParameter in
+                SymbolID(rawValue: Self.syntheticTypeParameterBase - Int32(truncatingIfNeeded: typeParameter.rawIndex))
+            }
+            types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
+            types.setNominalTypeParameterVariances(record.nominalTypeParameters.map(\.variance), for: binding.symbol)
         }
 
         // Restore the parent link for imported nominal types (e.g. nested enum

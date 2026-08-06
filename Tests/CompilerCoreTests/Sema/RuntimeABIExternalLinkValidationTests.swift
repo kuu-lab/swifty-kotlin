@@ -266,6 +266,15 @@ struct RuntimeABIExternalLinkValidationTests {
             else {
                 continue
             }
+            // An annotated `constructor(...)` consumes its pending link names so
+            // that they are not attributed to a later `fun` in the same file, but
+            // its ABI shape is not compared here — see DEBT-ABI-CTOR-001 in
+            // docs/runtime-abi-external-link-validation-gaps.md.
+            if isConstructorHeader(functionHeader), !functionHeader.contains(" fun ") {
+                pendingLinkNames.removeAll()
+                pendingScope = nil
+                continue
+            }
             let hasReceiver = (pendingScope?.kind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader)
             for linkName in pendingLinkNames {
                 declarations.append(
@@ -310,9 +319,16 @@ struct RuntimeABIExternalLinkValidationTests {
                 break
             }
         }
-        return header.contains(" fun ") || header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
-            ? header
-            : nil
+        let trimmed = header.trimmingCharacters(in: .whitespaces)
+        let isFunction = header.contains(" fun ") || trimmed.hasPrefix("fun ")
+        return isFunction || isConstructorHeader(header) ? header : nil
+    }
+
+    /// A bridged constructor (`@KsSymbolName("__kk_pair_new") constructor(...)`)
+    /// is an annotated declaration just like a bridged `fun`, but it takes no
+    /// receiver: the runtime entry point allocates and returns the new handle.
+    private func isConstructorHeader(_ header: String) -> Bool {
+        header.contains(" constructor(") || header.trimmingCharacters(in: .whitespaces).hasPrefix("constructor(")
     }
 
     private struct FunctionSignatureInfo {
@@ -327,7 +343,9 @@ struct RuntimeABIExternalLinkValidationTests {
     }
 
     private func functionSignatureInfo(in header: String) -> FunctionSignatureInfo? {
-        guard let funRange = header.range(of: "fun ") else {
+        let isConstructor = isConstructorHeader(header) && header.range(of: "fun ") == nil
+        let declarationKeyword = isConstructor ? "constructor" : "fun "
+        guard let funRange = header.range(of: declarationKeyword) else {
             return nil
         }
         let suffix = header[funRange.upperBound...]
@@ -335,7 +353,7 @@ struct RuntimeABIExternalLinkValidationTests {
             return nil
         }
         let namePrefix = suffix[..<openParen].trimmingCharacters(in: .whitespacesAndNewlines)
-        let receiverType = namePrefix.lastIndex(of: ".").map {
+        let receiverType = isConstructor ? nil : namePrefix.lastIndex(of: ".").map {
             String(namePrefix[..<$0]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 

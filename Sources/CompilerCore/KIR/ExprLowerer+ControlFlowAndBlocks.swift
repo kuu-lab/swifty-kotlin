@@ -2355,20 +2355,12 @@ extension ExprLowerer {
                 let componentName = interner.intern("component\(componentIndex)")
 
                 // Resolve componentN to externalLinkName when available (Pair, Triple, List, etc.)
-                let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
-                    named: componentName,
+                let resolved = resolveDestructuringComponentCallee(
+                    componentName: componentName,
                     receiverType: nonNullRhsType,
                     sema: sema,
                     interner: interner
                 )
-                let calleeName: InternedString = if let chosen = memberCandidates.first,
-                                                    let linkName = sema.symbols.externalLinkName(for: chosen),
-                                                    !linkName.isEmpty
-                {
-                    interner.intern(linkName)
-                } else {
-                    componentName
-                }
 
                 // Look up the symbol defined by Sema for this variable first,
                 // so we can use its per-component type (not the expression-level Unit type)
@@ -2379,9 +2371,10 @@ extension ExprLowerer {
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
                 emitNonThrowingCall(
-                    callee: calleeName,
+                    callee: resolved.callee,
                     arg: rhsID,
                     result: componentResult,
+                    symbol: resolved.symbol,
                     into: &instructions
                 )
 

@@ -1010,10 +1010,10 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerMember(name: "component1", returnType: keyType, externalLinkName: "kk_pair_first", flags: [.synthetic, .operatorFunction])
-        registerMember(name: "component2", returnType: valueType, externalLinkName: "kk_pair_second", flags: [.synthetic, .operatorFunction])
-        registerMember(name: "key", returnType: keyType, externalLinkName: "kk_pair_first")
-        registerMember(name: "value", returnType: valueType, externalLinkName: "kk_pair_second")
+        registerMember(name: "component1", returnType: keyType, externalLinkName: "__kk_pair_first", flags: [.synthetic, .operatorFunction])
+        registerMember(name: "component2", returnType: valueType, externalLinkName: "__kk_pair_second", flags: [.synthetic, .operatorFunction])
+        registerMember(name: "key", returnType: keyType, externalLinkName: "__kk_pair_first")
+        registerMember(name: "value", returnType: valueType, externalLinkName: "__kk_pair_second")
         if let pairType {
             registerMember(name: "toPair", returnType: pairType, externalLinkName: "kk_map_entry_to_pair")
         }

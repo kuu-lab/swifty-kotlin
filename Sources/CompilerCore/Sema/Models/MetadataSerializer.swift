@@ -82,6 +82,11 @@ package struct MetadataRecord {
     let propertyGetterAbiReturnTypeSignature: String?
     /// True for `var` properties/fields.
     package let isMutable: Bool
+    /// Declaration-order type parameters of a nominal declaration, encoded the
+    /// same way as inside type signatures (`T<raw>` uses the raw value), each
+    /// prefixed by its variance (`inv`, `in`, `out`). Consumers need them to
+    /// substitute receiver type arguments into member property types.
+    package let nominalTypeParameters: String?
 
     init(
         kind: SymbolKind,
@@ -124,7 +129,8 @@ package struct MetadataRecord {
         propertyGetterExternalLinkName: String? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
-        isMutable: Bool = false
+        isMutable: Bool = false,
+        nominalTypeParameters: String? = nil
     ) {
         self.kind = kind
         self.mangledName = mangledName
@@ -167,6 +173,7 @@ package struct MetadataRecord {
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
+        self.nominalTypeParameters = nominalTypeParameters
     }
 }
 
@@ -483,6 +490,24 @@ package final class MetadataEncoder {
         }
     }
 
+    /// Encode a nominal declaration's type parameters as `<variance>:<raw>`
+    /// entries, e.g. `out:4926,out:4927` for `class Pair<out A, out B>`. The raw
+    /// values match the `T<raw>` spellings used inside signature strings.
+    func serializeNominalTypeParameters(for nominal: SymbolID, types: TypeSystem) -> String? {
+        let typeParameterSymbols = types.nominalTypeParameterSymbols(for: nominal)
+        guard !typeParameterSymbols.isEmpty else { return nil }
+        let variances = types.nominalTypeParameterVariances(for: nominal)
+        let entries = typeParameterSymbols.enumerated().map { index, typeParamSymbol -> String in
+            let variance: String = switch index < variances.count ? variances[index] : .invariant {
+            case .invariant: "inv"
+            case .in: "in"
+            case .out: "out"
+            }
+            return "\(variance):\(typeParamSymbol.rawValue)"
+        }
+        return entries.joined(separator: ",")
+    }
+
     func buildRecord(
         for symbol: SemanticSymbol,
         symbols: SymbolTable,
@@ -675,9 +700,11 @@ package final class MetadataEncoder {
         var objectInitializerLinkName: String?
         var companionInitializerLinkName: String?
         var enumStaticInitLinkName: String?
+        var nominalTypeParameters: String?
 
         if Self.nominalKinds.contains(symbol.kind) {
             superFQName = computedSuperFQName
+            nominalTypeParameters = serializeNominalTypeParameters(for: symbol.id, types: types)
             if let layout = symbols.nominalLayout(for: symbol.id) {
                 declaredInstanceSizeWords = layout.instanceSizeWords
                 declaredFieldCount = layout.instanceFieldCount
@@ -791,7 +818,8 @@ package final class MetadataEncoder {
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
-            isMutable: isMutable
+            isMutable: isMutable,
+            nominalTypeParameters: nominalTypeParameters
         )
     }
 
@@ -897,6 +925,9 @@ package final class MetadataEncoder {
                 }
                 if let superFq = record.superFQName {
                     fields.append("superFq=\(superFq)")
+                }
+                if let typeParams = record.nominalTypeParameters {
+                    fields.append("typeParams=\(typeParams)")
                 }
                 if let companionFq = record.companionObjectFQName {
                     fields.append("companionFq=\(companionFq)")
@@ -1186,7 +1217,8 @@ final class MetadataDecoder {
                 propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
                 abiReturnTypeSignature: rec.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
-                isMutable: rec.isMutable
+                isMutable: rec.isMutable,
+                nominalTypeParameters: rec.nominalTypeParameters
             ))
         }
         return records
@@ -1235,6 +1267,7 @@ final class MetadataDecoder {
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
+        var nominalTypeParameters: String?
         var schemaVersion: String?
     }
 
@@ -1320,6 +1353,8 @@ final class MetadataDecoder {
             record.isMutable = value == "1" || value == "true"
         case "abiSig":
             record.abiReturnTypeSignature = value.isEmpty ? nil : value
+        case "typeParams":
+            record.nominalTypeParameters = value.isEmpty ? nil : value
         case "schema":
             record.schemaVersion = value
         default:

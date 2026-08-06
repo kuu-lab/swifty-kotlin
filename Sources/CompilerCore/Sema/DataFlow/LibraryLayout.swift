@@ -122,6 +122,24 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Parse a `typeParams=out:4926,out:4927` token into declaration-order
+    /// type parameters of an imported nominal declaration.
+    func parseImportedNominalTypeParameters(token: String?) -> [ImportedNominalTypeParameter] {
+        guard let token, !token.isEmpty else { return [] }
+        return token.split(separator: ",").compactMap { entry in
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2, let rawIndex = Int(parts[1]) else { return nil }
+            let variance: TypeVariance? = switch parts[0] {
+            case "inv": .invariant
+            case "in": .in
+            case "out": .out
+            default: nil
+            }
+            guard let variance else { return nil }
+            return ImportedNominalTypeParameter(rawIndex: rawIndex, variance: variance)
+        }
+    }
+
     private func parseImportedKeySlotPairs(
         token: String,
         diagnostics: DiagnosticEngine,
