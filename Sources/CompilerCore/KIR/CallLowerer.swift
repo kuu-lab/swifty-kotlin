@@ -869,20 +869,17 @@ final class CallLowerer {
             ))
             // KSP-500: box the seed function's result, same as the direct-seed-value
             // overload's rewrite in CollectionLiteralLoweringPass+CallRewriteFactories.
-            var boxedSeedResult = seedResult
-            if let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                for: sema.types.makeNonNullable(functionType.returnType),
+            let boxedSeedResult = boxValueForAnySlot(
+                seedResult,
+                sourceType: sema.types.makeNonNullable(functionType.returnType),
                 types: sema.types,
-                requireNonNull: true
-            ) {
-                boxedSeedResult = emitNonThrowingCall(
-                    callee: seedBoxCallee,
-                    arg: seedResult,
-                    resultType: sema.types.makeNonNullable(functionType.returnType),
-                    arena: arena,
-                    into: &instructions
-                )
-            }
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                resultType: sema.types.makeNonNullable(functionType.returnType),
+                requireNonNull: true,
+                into: &instructions
+            )
             // KSP-500: expand the nextFunction closure to (fnPtr, closureRaw) and
             // box its returned primitive — see the 1-arg case above for why this
             // can't be skipped (this call is constructed directly and never
@@ -931,17 +928,13 @@ final class CallLowerer {
             // kept as a defense-in-depth fallback) rewrite path; kk_box_int et al.
             // are idempotent, so double-boxing here would be harmless anyway.
             var seedArgument = loweredArgIDs[0]
-            if let seedType = sema.bindings.exprTypes[args[0].expr],
-               let seedBoxCallee = BoxingCalleeTable(interner: interner).boxCallee(
-                   for: seedType,
-                   types: sema.types,
-                   requireNonNull: false
-               )
-            {
-                seedArgument = emitNonThrowingCall(
-                    callee: seedBoxCallee,
-                    arg: seedArgument,
-                    resultType: sema.types.anyType,
+            if let seedType = sema.bindings.exprTypes[args[0].expr] {
+                seedArgument = boxValueForAnySlot(
+                    seedArgument,
+                    sourceType: seedType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
                     arena: arena,
                     into: &instructions
                 )

@@ -282,13 +282,19 @@ done
 
 requires_kotlinx_coroutines() {
   local target="$1"
+  local import_pattern='import[[:space:]]+kotlinx\.coroutines'
   if [[ -f "$target" ]]; then
-    rg -q 'import[[:space:]]+kotlinx\.coroutines' "$target"
+    grep -Eq "$import_pattern" "$target"
     return $?
   fi
   if [[ -d "$target" ]]; then
-    rg -q 'import[[:space:]]+kotlinx\.coroutines' --glob '*.kt' "$target"
-    return $?
+    local source_file
+    while IFS= read -r -d '' source_file; do
+      if grep -Eq "$import_pattern" "$source_file"; then
+        return 0
+      fi
+    done < <(find "$target" -type f -name '*.kt' -print0)
+    return 1
   fi
   return 1
 }

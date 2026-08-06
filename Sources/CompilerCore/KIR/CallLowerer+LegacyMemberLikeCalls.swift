@@ -277,6 +277,38 @@ extension CallLowerer {
             return true
         }()
 
+        // Iterable<T?>.requireNoNulls(): Sema binds the Sequence-source
+        // requireNoNulls extension as chosenCallee even for a non-Sequence
+        // Iterable/Collection receiver, so isSourceBackedTerminalCall is true and
+        // the terminal iterable-runtime fallback further below is skipped. The
+        // call then lowers to a source call that iterates the list as a Sequence
+        // and yields an empty result. Route non-Sequence iterable/collection
+        // receivers to the runtime kk_iterable_requireNoNulls, which validates the
+        // elements and returns the same collection (mirrors the kk_iterable_*
+        // dispatch used for any()/all()).
+        if args.isEmpty,
+           interner.resolve(calleeName) == "requireNoNulls"
+        {
+            let nonNullReceiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            )
+            if !isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner),
+               sema.bindings.isCollectionExpr(receiverExpr)
+                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner),
+               !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_iterable_requireNoNulls"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         if args.count == 1,
            interner.resolve(calleeName) == "sortedWith"
         {
@@ -3556,40 +3588,16 @@ extension CallLowerer {
                 func boxedFormatArgument(_ argExpr: ExprID, loweredArgID: KIRExprID) -> KIRExprID {
                     let argType = sema.bindings.exprTypes[argExpr] ?? sema.types.anyType
                     let nonNullArgType = sema.types.makeNonNullable(argType)
-                    let boxCallee: String? = switch sema.types.kind(of: nonNullArgType) {
-                    case .primitive(.int, _), .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-                        "kk_box_int"
-                    case .primitive(.boolean, _):
-                        "kk_box_bool"
-                    case .primitive(.long, _):
-                        "kk_box_long"
-                    case .primitive(.ulong, _):
-                        "kk_box_ulong"
-                    case .primitive(.float, _):
-                        "kk_box_float"
-                    case .primitive(.double, _):
-                        "kk_box_double"
-                    case .primitive(.char, _):
-                        "kk_box_char"
-                    default:
-                        nil
-                    }
-
-                    let boxedArg = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
+                    return boxValueForAnySlot(
+                        loweredArgID,
+                        sourceType: nonNullArgType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        resultType: sema.types.nullableAnyType,
+                        into: &instructions
                     )
-                    if let boxCallee {
-                        emitNonThrowingCall(
-                            callee: interner.intern(boxCallee),
-                            arg: loweredArgID,
-                            result: boxedArg,
-                            into: &instructions
-                        )
-                    } else {
-                        instructions.append(.copy(from: loweredArgID, to: boxedArg))
-                    }
-                    return boxedArg
                 }
 
                 let boxedArgIDs = zip(args, loweredArgIDs).map { arg, loweredArgID in
@@ -3609,6 +3617,7 @@ extension CallLowerer {
                         intType: intType,
                         anyType: sema.types.nullableAnyType,
                         types: sema.types,
+                        symbols: sema.symbols,
                         instructions: &instructions
                     )
                 }
