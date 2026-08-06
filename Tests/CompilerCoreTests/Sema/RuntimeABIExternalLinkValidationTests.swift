@@ -260,8 +260,18 @@ struct RuntimeABIExternalLinkValidationTests {
                 continue
             }
 
-            guard !pendingLinkNames.isEmpty,
-                  let functionHeader = functionHeader(startingAt: index, in: lines),
+            guard !pendingLinkNames.isEmpty else {
+                continue
+            }
+            if isConstructorDeclaration(line) {
+                // Constructor bridges are not modeled by this signature check;
+                // consume the pending annotations so they are not misattributed
+                // to the next function declaration in the same file.
+                pendingLinkNames.removeAll()
+                pendingScope = nil
+                continue
+            }
+            guard let functionHeader = functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
                 continue
@@ -287,6 +297,15 @@ struct RuntimeABIExternalLinkValidationTests {
         }
 
         return declarations
+    }
+
+    private func isConstructorDeclaration(_ line: String) -> Bool {
+        guard let constructorRange = line.range(of: "constructor") else {
+            return false
+        }
+        return line[constructorRange.upperBound...]
+            .drop(while: { $0 == " " })
+            .first == "("
     }
 
     private func ksSymbolNameArgument(in line: String) -> String? {
