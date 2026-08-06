@@ -463,7 +463,7 @@
 
 #### time / sequences / ranges
 
-- [ ] KSP-648: TimeMark/ComparableTimeMark を Kotlin 化する（削除 kk_*: `kk_time_mark_elapsed_now/has_passed_now/has_not_passed_now/plus_duration/minus_duration/minus_mark/compare` 7 — Duration 演算主体。実装先 `kotlin/time/TimeMark.kt`。diff 新規）
+- [x] KSP-648: TimeMark/ComparableTimeMark を Kotlin 化する（削除 kk_*: `kk_time_mark_elapsed_now/has_passed_now/has_not_passed_now/plus_duration/minus_duration/minus_mark/compare` 7 — Duration 演算主体。実装先 `kotlin/time/TimeMark.kt`。diff 新規）
 - [ ] KSP-649: TimeSource/Monotonic を Kotlin 化し ValueTimeMark を**新規実装**する（残留: `__kk_time_source_mark_now`/`__kk_time_source_monotonic_mark_now`/`__kk_time_source_as_clock`（単調クロック読み）。**本家 `TimeSource.Monotonic.ValueTimeMark`（value class）はリポジトリに存在しない — 新規追加**。前提: value class 対応の確認 + KSP-648）
 - [ ] KSP-650: TestTimeSource/AbstractLongTimeSource/AbstractDoubleTimeSource を Kotlin 化する（削除 kk_*: `kk_test_time_source_new/plus_assign/mark_now/read` 4。前提: KSP-648）
 - [ ] KSP-651: SequenceFactories を移設する（死蔵 `Stdlib/kotlin/sequences/SequenceFactories.kt`（112行・sequence{} ビルダー込み・完成度高）を bundled ツリーへ。kk_*: `kk_sequence_of`/`kk_empty_sequence`/`kk_sequence_generate(_noarg)` 4 → `__kk_` 降格 + Sema 未登録の孤立 `kk_sequence_of_single` の生死判定。特例: CallTypeChecker 6箇所（二重実装疑い含む）+ CollectionLiteralLoweringPass 3箇所 + `CallLowerer.swift` の generateSequence ハードコード撤去。前提: KSP-CAP-001（sequence{} 部分）。KSP-441 と同時か直後）
