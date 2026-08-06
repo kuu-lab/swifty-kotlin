@@ -12,8 +12,6 @@ symbol fq=kotlin.io.FileTreeWalk.onEnter.function kind=valueParameter vis=privat
 symbol fq=kotlin.io.FileTreeWalk.onLeave kind=function vis=public flags=synthetic sig=recv=kotlin.io.FileTreeWalk params=[(java.io.File) -> Unit] ret=kotlin.io.FileTreeWalk
 symbol fq=kotlin.io.FileTreeWalk.onLeave.function kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.FileTreeWalk.toList kind=function vis=public flags=synthetic sig=recv=kotlin.io.FileTreeWalk params=[] ret=kotlin.collections.List<out java.io.File>
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=testForEach kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=Unit
 symbol fq=testForEach.$0.dir kind=valueParameter vis=private flags=_
 symbol fq=testMaxDepth kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk

@@ -14,8 +14,6 @@ symbol fq=__local_12.i kind=local vis=private flags=_ type=Int
 symbol fq=__local_13.iClamped kind=local vis=private flags=_ type=Int
 symbol fq=__local_14.iAtLeast kind=local vis=private flags=_ type=Int
 symbol fq=__local_15.iAtMost kind=local vis=private flags=_ type=Int
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file flong_double_float_coercion package=_
   decl main fun main sym=main

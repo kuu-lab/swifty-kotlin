@@ -30,8 +30,6 @@ symbol fq=kotlin.collections.Set.contains kind=function vis=public flags=synthet
 symbol fq=kotlin.collections.linkedSetOf kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
 symbol fq=kotlin.collections.linkedSetOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.linkedSetOf.elements kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=linkedExtension kind=function vis=public flags=_ sig=recv=kotlin.collections.LinkedHashSet<String> params=[] ret=String
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedLinkedSets kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
