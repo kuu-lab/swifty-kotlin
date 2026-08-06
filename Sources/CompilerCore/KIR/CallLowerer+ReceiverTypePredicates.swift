@@ -1,6 +1,6 @@
 /// Receiver-type predicate helpers used by CallLowerer to dispatch
 /// member-call lowerings (Regex / StringBuilder / Sequence / Iterable /
-/// Collection / Map / Set / Array / Grouping / ArrayDeque etc.).
+/// Collection / Map / Set / Array / Grouping etc.).
 ///
 /// Split out from `CallLowerer+MemberCalls.swift` so that the dispatcher
 /// file stays focused on lowering control flow.
@@ -266,18 +266,6 @@ extension CallLowerer {
             return false
         }
         return knownNames.isMapLikeSymbol(symbol)
-    }
-
-    func isArrayDequeLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isArrayDequeSymbol(symbol)
     }
 
     func isConcreteCollectionLikeType(
