@@ -166,6 +166,7 @@ extension SemaCacheContextTests {
     @Test
     func testRunSemaCleanDifferentialVerificationAndStats() throws {
 
+
         let sources: [String] = [
             // testDifferentialVerificationUnresolvedFunction
             """
@@ -268,130 +269,71 @@ extension SemaCacheContextTests {
         try withTemporaryFiles(contents: sources) { paths in
 
             let ctx = makeCompilationContext(inputs: paths)
-
             try runSema(ctx)
 
-            let ast = try #require(ctx.ast)
-
-            let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
+            let cachedCtx = makeCompilationContext(inputs: paths, frontendFlags: ["sema-cache"])
+            try runSema(cachedCtx)
 
             // === testDifferentialVerificationUnresolvedFunction ===
 
             do {
-
                 let sample0Path = paths[0]
-
-                let source = sources[0]
-
-                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample0Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample0Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for unresolved function with and without cache"
                 )
-
             }
 
             // === testDifferentialVerificationClassAndMemberCall ===
 
             do {
-
                 let sample1Path = paths[1]
-
-                let source = sources[1]
-
-                let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample1Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample1Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for class member calls with and without cache"
                 )
-
             }
 
             // === testDifferentialVerificationBinaryOperator ===
 
             do {
-
                 let sample2Path = paths[2]
-
-                let source = sources[2]
-
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample2Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample2Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for binary operators with and without cache"
                 )
-
             }
 
             // === testDifferentialVerificationMultipleOverloads ===
 
             do {
-
                 let sample3Path = paths[3]
-
-                let source = sources[3]
-
-                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample3Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample3Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for overloaded functions with and without cache"
                 )
-
             }
 
             // === testDiagnosticSourceRangesCorrectWithCache ===
 
             do {
-
                 let sample4Path = paths[4]
-
-                let source = sources[4]
-
-                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
 
                 // Two identical failing calls at different lines must produce diagnostics
                 // that point to their respective (different) source locations.
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diags = ctxCached.diagnostics.diagnostics
+                let diags = diagnosticsForPath(sample4Path, in: cachedCtx)
 
                 // There should be at least two diagnostics for the two unresolved calls
                 let unresolvedDiags = diags.filter { $0.code == "KSWIFTK-SEMA-0023" }
@@ -410,67 +352,37 @@ extension SemaCacheContextTests {
                         )
                     }
                 }
-
             }
 
             // === testDifferentialVerificationInheritance ===
 
             do {
-
                 let sample5Path = paths[5]
-
-                let source = sources[5]
-
-                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample5Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample5Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for inheritance with and without cache"
                 )
-
             }
 
             // === testDifferentialVerificationCallableReference ===
 
             do {
-
                 let sample6Path = paths[6]
-
-                let source = sources[6]
-
-                let sample6Diagnostics = diagnosticsForPath(sample6Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample6Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample6Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for callable references with and without cache"
                 )
-
             }
 
             // === testScopeCacheStatisticsAreTracked ===
 
             do {
-
-                let sample7Path = paths[7]
-
-                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
-
                 let setup = makeSemaModule()
                 let interner = setup.interner
                 let symbols = setup.symbols
@@ -505,32 +417,19 @@ extension SemaCacheContextTests {
                 _ = cache.lookupInScope(barName, scope: scope)
                 #expect(cache.scopeHits == 1, "Unknown name should be a miss")
                 #expect(cache.scopeMisses == 2, "Miss count should increment")
-
             }
 
             // === testDifferentialVerificationLambda ===
 
             do {
-
                 let sample8Path = paths[8]
-
-                let source = sources[8]
-
-                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
-
-                let ctxNoCache = makeContextFromSource(source)
-                try runSema(ctxNoCache)
-                let diagsNoCache = ctxNoCache.diagnostics.diagnostics
-
-                let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
-                try runSema(ctxCached)
-                let diagsCached = ctxCached.diagnostics.diagnostics
+                let diagsNoCache = diagnosticsForPath(sample8Path, in: ctx)
+                let diagsCached = diagnosticsForPath(sample8Path, in: cachedCtx)
 
                 #expect(
                     diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
                     "Diagnostics must match for lambda expressions with and without cache"
                 )
-
             }
 
         }
