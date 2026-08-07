@@ -311,55 +311,6 @@ extension NativeEmitter {
             return declared
         }
 
-        /// Materialize a direct call through a function-typed parameter.
-        ///
-        /// Most source-backed higher-order functions are inlined before codegen,
-        /// so this path is normally unnecessary. A stdlib artifact also emits
-        /// auto-inline bodies, however, and those bodies may still contain a
-        /// call whose semantic symbol is the lambda parameter itself. Treat the
-        /// raw function handle as an LLVM function pointer instead of declaring
-        /// an external function named after the parameter (for example
-        /// `_action`).
-        func indirectFunctionParameter(_ symbol: SymbolID?) -> (function: LLVMFunction, valueArity: Int)? {
-            guard let symbol,
-                  let rawValue = parameterValues[symbol],
-                  let parameter = function.params.first(where: { $0.symbol == symbol }),
-                  let typeSystem,
-                  case let .functionType(functionType) = typeSystem.kind(of: typeSystem.makeNonNullable(parameter.type))
-            else {
-                return nil
-            }
-            let valueTypes = (functionType.receiver.map { [$0] } ?? []) + functionType.params
-            let parameterTypes = valueTypes.map {
-                loweredLLVMType(for: $0, lowering: typeLowering, defaultType: int64Type)
-            } + [outThrownPointerType]
-            guard let llvmFunctionType = bindings.functionType(
-                returnType: loweredLLVMType(
-                    for: functionType.returnType,
-                    lowering: typeLowering,
-                    defaultType: int64Type
-                ),
-                parameters: parameterTypes,
-                isVarArg: false
-            ) else {
-                return nil
-            }
-            guard let functionPointerType = bindings.pointerType(llvmFunctionType),
-                  let functionPointer = bindings.buildIntToPtr(
-                      builder,
-                      value: rawValue,
-                      type: functionPointerType,
-                      name: "param_fn_ptr_\(symbol.rawValue)"
-                  )
-            else {
-                return nil
-            }
-            return (
-                LLVMFunction(value: functionPointer, type: llvmFunctionType),
-                valueTypes.count
-            )
-        }
-
         func stringAggregateFields(
             _ value: LLVMCAPIBindings.LLVMValueRef,
             suffix: String
@@ -2647,7 +2598,6 @@ extension NativeEmitter {
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let calleeFunction: LLVMFunction?
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
-                let indirectParameter = indirectFunctionParameter(effectiveSymbol)
                 let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
                 let sourceExternalCallSignature = !isInternalCall
                     ? sourceExternalSignature(
@@ -2657,9 +2607,7 @@ extension NativeEmitter {
                     : nil
                 let shouldAppendThrownChannel = usesThrownChannel || isInternalCall || sourceExternalCallSignature != nil
 
-                if let indirectParameter {
-                    calleeFunction = indirectParameter.function
-                } else if let effectiveSymbol,
+                if let effectiveSymbol,
                    let internalFunction = internalFunctions[effectiveSymbol]
                 {
                     calleeFunction = internalFunction
@@ -2701,20 +2649,12 @@ extension NativeEmitter {
                 }
 
                 var callArguments = argumentValues
-                if let indirectParameter,
-                   callArguments.count == indirectParameter.valueArity + 1
-                {
-                    // Callable-value calls carry the raw function handle as
-                    // their first argument. The handle is the callee here,
-                    // not one of the function's value arguments.
-                    callArguments.removeFirst()
-                }
                 let internalSignature = internalSignature(for: effectiveSymbol)
                 let typedSignature = isInternalCall ? internalSignature : sourceExternalCallSignature
                 let isRuntimeCallbackRawABIInternalCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 if let parameterTypes = typedSignature?.parameters {
-                    callArguments = zip(callArguments, parameterTypes).enumerated().map { index, pair in
+                    callArguments = zip(argumentValues, parameterTypes).enumerated().map { index, pair in
                         let (argumentValue, parameterType) = pair
                         let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
                         if isRuntimeCallbackRawABIInternalCall {
@@ -2752,12 +2692,9 @@ extension NativeEmitter {
                         return argumentValue
                     }
                 }
-                let shouldBridgeExternalStringABI = !isInternalCall
-                    && indirectParameter == nil
-                    && sourceExternalCallSignature == nil
-                    && typeLowering != nil
+                let shouldBridgeExternalStringABI = !isInternalCall && sourceExternalCallSignature == nil && typeLowering != nil
                 if shouldBridgeExternalStringABI {
-                    callArguments = zip(callArguments, argumentTypes).enumerated().map { index, pair in
+                    callArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
                         let (argumentValue, argumentType) = pair
                         guard isStringAggregateType(argumentType) else {
                             return argumentValue
@@ -2769,7 +2706,7 @@ extension NativeEmitter {
                     }
                 }
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
-                if shouldAppendThrownChannel || indirectParameter != nil {
+                if shouldAppendThrownChannel {
                     if usesThrownChannel {
                         let thrownSlot = bindings.buildAlloca(
                             builder,
