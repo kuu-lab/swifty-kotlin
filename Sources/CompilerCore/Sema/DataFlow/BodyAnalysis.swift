@@ -327,7 +327,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                range: usageRange
             )
         }
     }
