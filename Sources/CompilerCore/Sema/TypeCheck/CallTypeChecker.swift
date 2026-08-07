@@ -900,34 +900,6 @@ final class CallTypeChecker {
             return unitType
         }
 
-        // --- Stdlib system timing calls: measureTimeMillis / measureTimeMicros / measureNanoTime ---
-        if let calleeName,
-           args.count == 1,
-           let timingKind = topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
-               locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ),
-           timingKind == .measureTimeMillis
-               || timingKind == .measureTimeMicros
-               || timingKind == .measureNanoTime
-        {
-            let longType = sema.types.longType
-            // Intentionally passing expectedType:nil: KIR lowering discards the
-            // lambda result and the synthetic stub enforces the () -> Unit shape.
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: nil
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: timingKind)
-            sema.bindings.bindExprType(id, type: longType)
-            return longType
-        }
-
         // --- Stdlib kotlin.time.measureTime { ... } (STDLIB-585) ---
         // Verify both the name and that the resolved symbol is the synthetic
         // kotlin.time.measureTime (not a user-defined function with the same name).

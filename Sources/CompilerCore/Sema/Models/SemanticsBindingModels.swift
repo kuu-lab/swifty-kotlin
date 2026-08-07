@@ -105,9 +105,6 @@ public enum StdlibSpecialCallKind: Equatable {
     case arrayConstructor
     case atomicIntArrayFactory
     case atomicLongArrayFactory
-    case measureTimeMillis
-    case measureTimeMicros
-    case measureNanoTime
     case measureTime
     case measureTimedValue
     case suspendCoroutineUninterceptedOrReturn

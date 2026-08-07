@@ -980,9 +980,9 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCallee == interner.intern("kk_system_currentTimeMillis")
-            || loweredCallee == interner.intern("kk_system_nanoTime")
-            || loweredCallee == interner.intern("kk_system_process_start_nanos")
+        if loweredCallee == interner.intern("__kk_system_currentTimeMillis")
+            || loweredCallee == interner.intern("__kk_system_nanoTime")
+            || loweredCallee == interner.intern("__kk_system_process_start_nanos")
             || loweredCallee == interner.intern("kk_system_gc")
             || loweredCallee == interner.intern("kk_runtime_getRuntime")
             || loweredCallee == interner.intern("kk_runtime_totalMemory")

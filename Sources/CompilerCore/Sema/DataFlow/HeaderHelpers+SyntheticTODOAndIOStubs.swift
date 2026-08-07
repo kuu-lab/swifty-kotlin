@@ -229,83 +229,8 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        registerSyntheticTopLevelFunction(
-            named: "exitProcess",
-            packageFQName: kotlinSystemPkg,
-            parameters: [(name: "status", type: types.intType)],
-            returnType: types.nothingType,
-            externalLinkName: "kk_system_exitProcess",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "getTimeMicros",
-            packageFQName: kotlinSystemPkg,
-            parameters: [],
-            returnType: types.longType,
-            externalLinkName: "kk_system_getTimeMicros",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "getTimeMillis",
-            packageFQName: kotlinSystemPkg,
-            parameters: [],
-            returnType: types.longType,
-            externalLinkName: "kk_system_getTimeMillis",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "getTimeNanos",
-            packageFQName: kotlinSystemPkg,
-            parameters: [],
-            returnType: types.longType,
-            externalLinkName: "kk_system_getTimeNanos",
-            symbols: symbols,
-            interner: interner
-        )
-
-        let blockFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.unitType
-        )))
-
-        registerSyntheticTopLevelFunction(
-            named: "measureTimeMicros",
-            packageFQName: kotlinSystemPkg,
-            parameters: [(name: "block", type: blockFunctionType)],
-            returnType: types.longType,
-            externalLinkName: "kk_system_measureTimeMicros",
-            stdlibSpecialCallKind: .measureTimeMicros,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "measureTimeMillis",
-            packageFQName: kotlinSystemPkg,
-            parameters: [(name: "block", type: blockFunctionType)],
-            returnType: types.longType,
-            externalLinkName: "kk_system_measureTimeMillis",
-            stdlibSpecialCallKind: .measureTimeMillis,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticTopLevelFunction(
-            named: "measureNanoTime",
-            packageFQName: kotlinSystemPkg,
-            parameters: [(name: "block", type: blockFunctionType)],
-            returnType: types.longType,
-            externalLinkName: "kk_system_measureNanoTime",
-            stdlibSpecialCallKind: .measureNanoTime,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-617: exitProcess / getTime* / measureTime* are declared in bundled
+        // Kotlin source (Stdlib/kotlin/system/), so no synthetic stub is registered.
 
         // --- kotlin.system.System object (STDLIB-131) ---
         let systemSymbol = ensureSyntheticObjectSymbol(
@@ -324,7 +249,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: systemSymbol,
             ownerType: systemType,
             name: "currentTimeMillis",
-            externalLinkName: "kk_system_currentTimeMillis",
+            externalLinkName: "__kk_system_currentTimeMillis",
             returnType: types.longType,
             parameters: [],
             symbols: symbols,
@@ -334,7 +259,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: systemSymbol,
             ownerType: systemType,
             name: "nanoTime",
-            externalLinkName: "kk_system_nanoTime",
+            externalLinkName: "__kk_system_nanoTime",
             returnType: types.longType,
             parameters: [],
             symbols: symbols,
@@ -344,7 +269,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: systemSymbol,
             ownerType: systemType,
             name: "processStartNanos",
-            externalLinkName: "kk_system_process_start_nanos",
+            externalLinkName: "__kk_system_process_start_nanos",
             returnType: types.longType,
             parameters: [],
             symbols: symbols,
