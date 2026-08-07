@@ -1034,7 +1034,6 @@ extension CodegenBackendIntegrationTests {
         let regexExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
         let optionExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let optionsSetExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let matchGroupCollectionExpr = arena.appendExpr(.intLiteral(43), type: types.intType)
 
         var nextTemp: Int32 = 200
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -1048,7 +1047,6 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: regexExpr, value: .intLiteral(42)),
             .constValue(result: optionExpr, value: .intLiteral(0)),
             .constValue(result: optionsSetExpr, value: .intLiteral(0)),
-            .constValue(result: matchGroupCollectionExpr, value: .intLiteral(43)),
         ]
 
         func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
@@ -1076,7 +1074,6 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
-        appendRegexCall("kk_match_group_collection_get", arguments: [matchGroupCollectionExpr, patternExpr])
         appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
@@ -1119,7 +1116,6 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_matchEntire",
             "kk_regex_containsMatchIn",
             "kk_regex_from_literal",
-            "kk_match_group_collection_get",
             "kk_regex_matches",
         ]
         for rawName in rawNames {

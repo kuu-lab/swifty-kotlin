@@ -3561,19 +3561,6 @@ extension CallLowerer {
                     return result
                 }
             }
-            if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               interner.resolve(calleeName) == "pattern"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_regex_pattern"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
         }
 
         // String stdlib: format(vararg args) (STDLIB-006)

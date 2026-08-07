@@ -541,9 +541,9 @@ struct RegexSemaLoweringTests {
         }
     }
 
-    // MARK: - 10. KIR lowering: named group access chain produces kk_match_group_collection_get
+    // MARK: - 10. KIR lowering: group access chains call the source-backed MatchGroupCollection.get
 
-    @Test func testNamedGroupAccessChainLowersToKkMatchGroupCollectionGet() throws {
+    @Test func testNamedGroupAccessChainLowersToSourceBackedGet() throws {
         let source = """
         fun test() {
             val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
@@ -558,13 +558,13 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_match_group_collection_get"),
-                Comment(rawValue: "KIR must contain kk_match_group_collection_get for named group access; found: \(callees)")
+                callees.contains("get"),
+                Comment(rawValue: "KIR must call the source-backed MatchGroupCollection.get for named group access; found: \(callees)")
             )
         }
     }
 
-    @Test func testGroupsByIndexLowersToKkMatchGroupCollectionGetAt() throws {
+    @Test func testGroupsByIndexLowersToSourceBackedGet() throws {
         let source = """
         fun test() {
             val r = Regex("(\\\\d+)-(\\\\w+)")
@@ -579,8 +579,8 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_match_group_collection_get_at"),
-                Comment(rawValue: "KIR must contain kk_match_group_collection_get_at for index-based group access; found: \(callees)")
+                callees.contains("get"),
+                Comment(rawValue: "KIR must call the source-backed MatchGroupCollection.get for index-based group access; found: \(callees)")
             )
         }
     }
@@ -606,12 +606,12 @@ struct RegexSemaLoweringTests {
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             #expect(
-                callees.contains("kk_match_result_component1"),
-                Comment(rawValue: "KIR must contain kk_match_result_component1; found: \(callees)")
+                callees.contains("component1"),
+                Comment(rawValue: "KIR must call the source-backed MatchResult.component1(); found: \(callees)")
             )
             #expect(
-                callees.contains("kk_match_result_component2"),
-                Comment(rawValue: "KIR must contain kk_match_result_component2; found: \(callees)")
+                callees.contains("component2"),
+                Comment(rawValue: "KIR must call the source-backed MatchResult.component2(); found: \(callees)")
             )
         }
     }

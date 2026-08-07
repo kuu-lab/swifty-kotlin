@@ -1725,16 +1725,16 @@ final class ControlFlowLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let resolvedCallee: InternedString = if let chosen = memberCandidates.first,
-                                                        let linkName = sema.symbols.externalLinkName(for: chosen),
-                                                        !linkName.isEmpty
-                {
-                    interner.intern(linkName)
+                let chosen = memberCandidates.first
+                let externalLinkName = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }
+                    .flatMap { $0.isEmpty ? nil : $0 }
+                let resolvedCallee: InternedString = if let externalLinkName {
+                    interner.intern(externalLinkName)
                 } else {
                     componentName
                 }
                 instructions.append(.call(
-                    symbol: nil,
+                    symbol: chosen,
                     callee: resolvedCallee,
                     arguments: [nextValueID],
                     result: componentResult,

@@ -13,8 +13,10 @@ extension ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        // Infer the type of the RHS initializer
-        let rhsType = driver.inferExpr(initializer, ctx: ctx, locals: &locals)
+        // Infer the type of the RHS initializer. `componentN()` is looked up on the
+        // non-null type so that a smart-cast nullable receiver resolves to the same
+        // member the KIR lowerer picks.
+        let rhsType = sema.types.makeNonNullable(driver.inferExpr(initializer, ctx: ctx, locals: &locals))
 
         // For each name, resolve componentN() on the RHS type
         for (index, name) in names.enumerated() {

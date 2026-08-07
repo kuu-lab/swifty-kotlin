@@ -1037,7 +1037,7 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
-        // External member property read (e.g. MatchResult?.value → kk_match_result_value).
+        // External member property read (e.g. StringBuilder?.length → kk_string_builder_length).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
         // to a property with an externalLinkName, emit the runtime call directly.
         // This mirrors tryLowerExternalMemberPropertyRead used by lowerMemberLikeCallExpr.

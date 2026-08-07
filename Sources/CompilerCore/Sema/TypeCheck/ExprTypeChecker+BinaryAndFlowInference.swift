@@ -424,8 +424,39 @@ extension ExprTypeChecker {
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
             preconditionFailure("Bitwise/shift binary operators must be parsed as infix member calls")
         }
-        sema.bindings.bindExprType(id, type: type)
-        return type
+        // Range 式は要素型（Int/Long/UInt/ULong）+ range マーカーで表現する。期待型が
+        // 同じ要素型の名目 Range クラスなら、その型を採用して `fun f(a: Int, b: Int):
+        // IntRange = a..b` のような宣言を型検査に通す。実行時表現は共通なので変換は不要。
+        let effectiveType = adaptedNominalRangeType(
+            id,
+            inferredType: type,
+            expectedType: expectedType,
+            sema: sema,
+            interner: interner
+        ) ?? type
+        sema.bindings.bindExprType(id, type: effectiveType)
+        return effectiveType
+    }
+
+    private func adaptedNominalRangeType(
+        _ id: ExprID,
+        inferredType: TypeID,
+        expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let expectedType,
+              sema.bindings.isRangeExpr(id),
+              let expectedElementType = nominalRangeElementType(
+                  for: expectedType,
+                  sema: sema,
+                  interner: interner
+              ),
+              expectedElementType == inferredType
+        else {
+            return nil
+        }
+        return sema.types.makeNonNullable(expectedType)
     }
 
     private func bindComparableUpperBoundOperatorFallback(

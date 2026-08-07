@@ -2361,11 +2361,14 @@ extension ExprLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let calleeName: InternedString = if let chosen = memberCandidates.first,
-                                                    let linkName = sema.symbols.externalLinkName(for: chosen),
-                                                    !linkName.isEmpty
-                {
-                    interner.intern(linkName)
+                // The chosen symbol is carried on the call so codegen resolves the exact
+                // callee and its ABI; name-only lookup collides with same-named
+                // componentN() members of other types.
+                let chosen = memberCandidates.first
+                let externalLinkName = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }
+                    .flatMap { $0.isEmpty ? nil : $0 }
+                let calleeName: InternedString = if let externalLinkName {
+                    interner.intern(externalLinkName)
                 } else {
                     componentName
                 }
@@ -2378,12 +2381,14 @@ extension ExprLowerer {
                 ])
                 let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
                 let componentResult = arena.appendTemporary(type: componentType)
-                emitNonThrowingCall(
+                instructions.append(.call(
+                    symbol: chosen,
                     callee: calleeName,
-                    arg: rhsID,
+                    arguments: [rhsID],
                     result: componentResult,
-                    into: &instructions
-                )
+                    canThrow: false,
+                    thrownResult: nil
+                ))
 
                 // Bind the destructured variable to the component result
                 if let symbol = candidates.first {

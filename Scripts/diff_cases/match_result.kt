@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 fun main() {
     // STDLIB-REGEX-095: MatchResult完全実装
 
@@ -19,10 +18,11 @@ fun main() {
         println(match.groupValues[1])
         println(match.groupValues[2])
 
-        // component1(), component2() destructuring
-        val (whole, user) = match
-        println(whole)
+        // destructured components
+        val (user, domain) = match.destructured
         println(user)
+        println(domain)
+        println(match.destructured.match.value)
     }
 
     // MatchGroupCollection index access

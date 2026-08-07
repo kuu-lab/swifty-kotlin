@@ -1087,6 +1087,8 @@ extension DataFlowSemaPhase {
             return ["kotlin", "Result"].map { interner.intern($0) }
         case "__bundled_kotlin/text/StringBuilder.kt":
             return ["kotlin", "text", "StringBuilder"].map { interner.intern($0) }
+        case "__bundled_kotlin/text/MatchResult.kt":
+            return ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
         case "__bundled_kotlin/uuid/Uuid.kt":
             return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
         case "__bundled_java/math/BigDecimal.kt":

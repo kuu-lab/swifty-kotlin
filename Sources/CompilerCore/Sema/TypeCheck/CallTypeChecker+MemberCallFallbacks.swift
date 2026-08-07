@@ -66,8 +66,6 @@ extension CallTypeChecker {
                     } ?? sema.types.anyType
                 case ("findAll", 1):
                     listMatchResultType
-                case ("pattern", 0):
-                    sema.types.stringType
                 default:
                     nil
                 }
@@ -82,46 +80,8 @@ extension CallTypeChecker {
             }
         }
 
-        if let matchResultSymbol {
-            let matchResultType = sema.types.make(.classType(ClassType(
-                classSymbol: matchResultSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            if nonNullReceiverType == matchResultType {
-                let nullableMatchResultType = sema.types.makeNullable(matchResultType)
-                let resultType: TypeID? = switch (memberName, args.count) {
-                case ("value", 0):
-                    sema.types.stringType
-                case ("groupValues", 0):
-                    if let listSymbol = sema.symbols.lookup(fqName: [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("List"),
-                    ]) {
-                        sema.types.make(.classType(ClassType(
-                            classSymbol: listSymbol,
-                            args: [.out(sema.types.stringType)],
-                            nullability: .nonNull
-                        )))
-                    } else {
-                        sema.types.anyType
-                    }
-                // STDLIB-REGEX-095: MatchResult complete implementation
-                case ("component1", 0), ("component2", 0):
-                    sema.types.stringType
-                case ("next", 0):
-                    nullableMatchResultType
-                default:
-                    nil
-                }
-                if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
+        // KSP-486: MatchResult / MatchGroup members are declared in bundled Kotlin
+        // and resolve through ordinary member lookup, so they need no fallback here.
         return nil
     }
 
