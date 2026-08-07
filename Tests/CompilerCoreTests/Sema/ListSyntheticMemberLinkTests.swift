@@ -1611,9 +1611,9 @@ struct ListSyntheticMemberLinkTests {
             }
 
             let addSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("add")]))
-            #expect(sema.symbols.externalLinkName(for: addSymbol) == "kk_mutable_collection_add")
+            #expect(sema.symbols.externalLinkName(for: addSymbol) == "__kk_mutable_collection_add")
             let addAllSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("addAll")]))
-            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_collection_addAll")
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "__kk_mutable_collection_addAll")
 
             let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
             let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))
@@ -1669,6 +1669,39 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected AbstractMutableCollection subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    /// `MutableSet<E> : Set<E>, MutableCollection<E>`; without the
+    /// MutableCollection supertype a `MutableSet` argument was rejected for a
+    /// `MutableCollection` parameter (KSWIFTK-SEMA-0002).
+    @Test
+    func testMutableSetIsAssignableToMutableCollectionParameter() throws {
+        let source = """
+        fun mutate(values: MutableCollection<Int>): Boolean = values.add(1)
+
+        fun run(): Boolean = mutate(mutableSetOf(1, 2))
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let mutableSetSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableSet")]))
+            let mutableCollectionSymbol = try #require(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableCollection")])
+            )
+
+            #expect(sema.symbols.directSupertypes(for: mutableSetSymbol).contains(mutableCollectionSymbol))
+            #expect(
+                sema.symbols.supertypeTypeArgs(for: mutableSetSymbol, supertype: mutableCollectionSymbol).count == 1
+            )
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Expected MutableSet to satisfy a MutableCollection parameter: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
         }
     }
 
@@ -2035,7 +2068,7 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(receiverName) == "mutableMap"
             })
             let mutableCallee = try #require(sema.bindings.callBinding(for: mutableCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: mutableCallee) == "kk_mutable_map_getOrPut")
+            #expect(sema.symbols.externalLinkName(for: mutableCallee) == "__kk_mutable_map_getOrPut")
         }
     }
 

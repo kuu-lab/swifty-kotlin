@@ -242,7 +242,7 @@ public func kk_set_subtract(_ setRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
 
-@_cdecl("kk_mutable_set_add")
+@_cdecl("__kk_mutable_set_add")
 public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -254,7 +254,7 @@ public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_set_remove")
+@_cdecl("__kk_mutable_set_remove")
 public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
           let index = set.elements.firstIndex(where: { runtimeValuesEqual($0, elem) })
@@ -265,7 +265,7 @@ public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
     return kk_box_bool(1)
 }
 
-@_cdecl("kk_mutable_set_clear")
+@_cdecl("__kk_mutable_set_clear")
 public func kk_mutable_set_clear(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return 0
@@ -274,22 +274,22 @@ public func kk_mutable_set_clear(_ setRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_set_addAll")
+@_cdecl("__kk_mutable_set_addAll")
 public func kk_mutable_set_addAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     kk_mutable_collection_addAll(setRaw, collectionRaw)
 }
 
-@_cdecl("kk_mutable_set_addAll_sequence")
+@_cdecl("__kk_mutable_set_addAll_sequence")
 public func kk_mutable_set_addAll_sequence(_ setRaw: Int, _ sequenceRaw: Int) -> Int {
     return runtimeMutableSetAddAllSequence(setRaw: setRaw, sequenceRaw: sequenceRaw)
 }
 
-@_cdecl("kk_mutable_set_addAll_iterable")
+@_cdecl("__kk_mutable_set_addAll_iterable")
 public func kk_mutable_set_addAll_iterable(_ setRaw: Int, _ iterableRaw: Int) -> Int {
     kk_mutable_collection_addAll_iterable(setRaw, iterableRaw)
 }
 
-@_cdecl("kk_mutable_set_removeAll")
+@_cdecl("__kk_mutable_set_removeAll")
 public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -309,7 +309,7 @@ public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     return kk_box_bool(set.elements.count != originalCount ? 1 : 0)
 }
 
-@_cdecl("kk_mutable_set_retainAll")
+@_cdecl("__kk_mutable_set_retainAll")
 public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
@@ -353,7 +353,7 @@ public func kk_emptyMap() -> Int {
     return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 }
 
-@_cdecl("kk_mutable_map_put")
+@_cdecl("__kk_mutable_map_put")
 public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
@@ -372,7 +372,7 @@ public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-@_cdecl("kk_mutable_map_remove")
+@_cdecl("__kk_mutable_map_remove")
 public func kk_mutable_map_remove(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let index = map.keys.firstIndex(where: { runtimeValuesEqual($0, key) })
@@ -386,7 +386,7 @@ public func kk_mutable_map_remove(_ mapRaw: Int, _ key: Int) -> Int {
     return map.values.remove(at: index)
 }
 
-@_cdecl("kk_mutable_map_clear")
+@_cdecl("__kk_mutable_map_clear")
 public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
     if let map = runtimeMapBox(from: mapRaw) {
         map.keys.removeAll()
@@ -395,7 +395,7 @@ public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_map_putAll")
+@_cdecl("__kk_mutable_map_putAll")
 public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
@@ -419,7 +419,7 @@ public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_mutable_map_plusAssign_pair")
+@_cdecl("__kk_mutable_map_plusAssign_pair")
 public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: pairRaw),
           let pairBox = tryCast(pointer, to: RuntimePairBox.self)

@@ -52,15 +52,15 @@ extension ABILoweringPass {
     static let typeParamBoxingBoundaryCallees: Set<String> = [
         "kk_pair_new",
         "kk_triple_new",
-        "kk_mutable_collection_add",
-        "kk_mutable_list_add",
-        "kk_mutable_list_add_at",
-        "kk_mutable_list_set",
-        "kk_mutable_set_add",
-        "kk_mutable_map_put",
-        "kk_mutable_map_putAll",
-        "kk_mutable_map_getOrPut",
-        "kk_mutable_map_plusAssign_pair",
+        "__kk_mutable_collection_add",
+        "__kk_mutable_list_add",
+        "__kk_mutable_list_add_at",
+        "__kk_mutable_list_set",
+        "__kk_mutable_set_add",
+        "__kk_mutable_map_put",
+        "__kk_mutable_map_putAll",
+        "__kk_mutable_map_getOrPut",
+        "__kk_mutable_map_plusAssign_pair",
     ]
 
     func boxingCallee(

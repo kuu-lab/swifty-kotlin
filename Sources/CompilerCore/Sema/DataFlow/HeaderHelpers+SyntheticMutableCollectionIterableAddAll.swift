@@ -8,7 +8,7 @@ extension DataFlowSemaPhase {
     ) {
         registerMutableCollectionIterableAddAllMember(
             ownerName: "MutableCollection",
-            externalLinkName: "kk_mutable_collection_addAll_iterable",
+            externalLinkName: "__kk_mutable_collection_addAll_iterable",
             flags: [.synthetic],
             symbols: symbols,
             types: types,
@@ -18,7 +18,7 @@ extension DataFlowSemaPhase {
         )
         registerMutableCollectionIterableAddAllMember(
             ownerName: "MutableList",
-            externalLinkName: "kk_mutable_list_addAll_iterable",
+            externalLinkName: "__kk_mutable_list_addAll_iterable",
             flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             types: types,
@@ -28,7 +28,7 @@ extension DataFlowSemaPhase {
         )
         registerMutableCollectionIterableAddAllMember(
             ownerName: "MutableSet",
-            externalLinkName: "kk_mutable_set_addAll_iterable",
+            externalLinkName: "__kk_mutable_set_addAll_iterable",
             flags: [.synthetic],
             symbols: symbols,
             types: types,

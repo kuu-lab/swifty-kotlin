@@ -249,8 +249,11 @@
   - 削除 kk_*: `RuntimeCollectionHOFGrouping.swift` の 11 関数 + `HeaderHelpers+SyntheticGroupingStubs.swift` の該当登録
 - [ ] KSP-435: Iterable/Collection 汎用を Kotlin 化（`kk_iterable_*` 12 関数, `kk_collection_*` 6 関数）
   - ブリッジ残留: 型タグディスパッチが必要な `kk_collection_size` 等は `__kk_` 降格を検討（着手時に rg で分類し、分類根拠をタスク PR に記載）
-- [ ] KSP-436: 可変操作の最小ブリッジを確定する（MutableList/Set/Map の `add`/`remove`/`clear`/`set`/`put` 系 33 関数）
-  - 原則ブリッジ残留（ストレージ直接変異）: `kk_mutable_*` を `__kk_` へ一括改名し、`removeIf`/`retainAll`/`replaceAll`/`fill`/`addAll` 系など述語・複合系のみ Kotlin 化。`CallLowerer+MemberCallEmission.swift` の該当特例を Kotlin 宣言経由に置換
+- [x] KSP-436: 可変操作の最小ブリッジを確定する（MutableList/Set/Map の `add`/`remove`/`clear`/`set`/`put` 系 33 関数）
+  - ストレージ直接変異は `__kk_mutable_*` ブリッジ残留（`kk_mutable_*` を一括改名）。`removeIf`/`replaceAll`/`fill` を `Stdlib/kotlin/collections/MutableCollections.kt` へ Kotlin 化し、`CallLowerer` の該当特例を削除
+  - `addAll`/`removeAll`/`retainAll`（Collection/Iterable/Sequence/Array 各オーバーロード）はブリッジ残留。合成メンバとして登録されていることが `MutableList<out Number>` などの use-site variance 検査（`KSWIFTK-SEMA-VAR-OUT`）の前提であり、Kotlin 拡張関数化すると射影レシーバへの書き込みを検出できなくなるため
+  - 併せて修正: `MutableSet` に `MutableCollection` スーパータイプが無く、`MutableSet` を `MutableCollection` 引数に渡せなかった（`KSWIFTK-SEMA-0002`）。`MutableCollection` の `remove`/`clear`/`removeAll`/`retainAll` はリンク名未登録でディスパッチできなかった
+  - 残課題: `MutableCollection<T>` レシーバの `size` は itable に無く未リンクになる（KSP-435 の Collection 汎用 Kotlin 化で対応）
 
 #### kotlin.sequences [M4 実行体]（KSP-441 が先頭。他は 441 完了後に並列可）
 

@@ -430,6 +430,7 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         setInterfaceSymbol: SymbolID,
         collectionInterfaceSymbol: SymbolID,
+        mutableCollectionInterfaceSymbol: SymbolID,
         mutableIterableInterfaceSymbol: SymbolID
     ) {
         let typeParamName = interner.intern("E")
@@ -461,10 +462,18 @@ extension DataFlowSemaPhase {
         )))
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: mutableSetInterfaceSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: mutableSetInterfaceSymbol)
-        symbols.setDirectSupertypes([setInterfaceSymbol, mutableIterableInterfaceSymbol], for: mutableSetInterfaceSymbol)
-        types.setNominalDirectSupertypes([setInterfaceSymbol, mutableIterableInterfaceSymbol], for: mutableSetInterfaceSymbol)
+        symbols.setDirectSupertypes(
+            [setInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+            for: mutableSetInterfaceSymbol
+        )
+        types.setNominalDirectSupertypes(
+            [setInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+            for: mutableSetInterfaceSymbol
+        )
         symbols.setSupertypeTypeArgs([.out(typeParamType)], for: mutableSetInterfaceSymbol, supertype: setInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: mutableSetInterfaceSymbol, supertype: setInterfaceSymbol)
+        symbols.setSupertypeTypeArgs([.invariant(typeParamType)], for: mutableSetInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.invariant(typeParamType)], for: mutableSetInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
         symbols.setSupertypeTypeArgs([.invariant(typeParamType)], for: mutableSetInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.invariant(typeParamType)], for: mutableSetInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
 
@@ -689,7 +698,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_add", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_add", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -728,7 +737,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_remove", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_remove", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -767,7 +776,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_clear", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_clear", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -812,7 +821,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_addAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_addAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -848,8 +857,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let overloads: [(params: [TypeID], external: String)] = [
-            ([typeParamType], "kk_mutable_set_add"),
-            ([collectionType], "kk_mutable_set_addAll"),
+            ([typeParamType], "__kk_mutable_set_add"),
+            ([collectionType], "__kk_mutable_set_addAll"),
         ]
 
         for overload in overloads {
@@ -916,7 +925,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_removeAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_removeAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -941,7 +950,7 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern("minusAssign")
         let memberFQName = mutableSetFQName + [memberName]
         guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.externalLinkName(for: symbolID) == "kk_mutable_set_remove"
+            symbols.externalLinkName(for: symbolID) == "__kk_mutable_set_remove"
         }) == nil else {
             return
         }
@@ -959,7 +968,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_remove", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_remove", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -985,7 +994,7 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern("minusAssign")
         let memberFQName = mutableSetFQName + [memberName]
         guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.externalLinkName(for: symbolID) == "kk_mutable_set_removeAll"
+            symbols.externalLinkName(for: symbolID) == "__kk_mutable_set_removeAll"
         }) == nil else {
             return
         }
@@ -1008,7 +1017,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_removeAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_removeAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -1053,7 +1062,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(mutableSetInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_mutable_set_retainAll", for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_set_retainAll", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
