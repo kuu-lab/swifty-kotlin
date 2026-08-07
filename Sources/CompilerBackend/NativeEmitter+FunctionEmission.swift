@@ -59,6 +59,26 @@ extension NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("failed to create entry block")
         }
 
+        // Dedicated builder for stack slots. Slots requested while a loop body is
+        // being emitted must be allocated in the entry block, otherwise every
+        // iteration allocates a fresh slot and long loops overflow the stack.
+        let allocaBuilder = bindings.createBuilder(context: context)
+        defer {
+            if let allocaBuilder {
+                bindings.disposeBuilder(allocaBuilder)
+            }
+        }
+
+        func buildEntrySlot(name: String, type: LLVMCAPIBindings.LLVMTypeRef? = nil) -> LLVMCAPIBindings.LLVMValueRef? {
+            bindings.buildEntryAlloca(
+                type: type ?? int64Type,
+                name: name,
+                entryBlock: entryBlock,
+                allocaBuilder: allocaBuilder,
+                fallbackBuilder: builder
+            )
+        }
+
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef] = [:]
         for instruction in function.body {
             guard case let .label(id) = instruction else {
@@ -174,7 +194,9 @@ extension NativeEmitter {
             zeroValue: zeroValue,
             context: context,
             module: llvmModule,
-            typeLowering: typeLowering
+            typeLowering: typeLowering,
+            entryBlock: entryBlock,
+            allocaBuilder: allocaBuilder
         )
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
@@ -590,7 +612,7 @@ extension NativeEmitter {
         }
 
         func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let slot = bindings.buildAlloca(builder, type: int64Type, name: name) else {
+            guard let slot = buildEntrySlot(name: name) else {
                 return nil
             }
             _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
@@ -2194,7 +2216,7 @@ extension NativeEmitter {
                             defaultType: int64Type
                         )
                         let localAlloca = copyTargetAllocas[result.rawValue]
-                            ?? bindings.buildAlloca(builder, type: debugStorageType, name: "dbg_\(varName)")
+                            ?? buildEntrySlot(name: "dbg_\(varName)", type: debugStorageType)
                         if let localAlloca {
                             if copyTargetAllocas[result.rawValue] == nil {
                                 _ = bindings.buildStore(builder, value: constLLVMValue, pointer: localAlloca)
@@ -2263,11 +2285,7 @@ extension NativeEmitter {
                     argumentCount: 1,
                     appendThrownChannel: true
                 ) {
-                    let thrownSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "notnull_thrown_\(instructionIndex)"
-                    )
+                    let thrownSlot = buildEntrySlot(name: "notnull_thrown_\(instructionIndex)")
                     if let thrownSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                         let callValue = bindings.buildCall(
@@ -2540,11 +2558,7 @@ extension NativeEmitter {
 
                 // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
                 if calleeName == "kk_channel_receive" {
-                    let outValueSlot = bindings.buildAlloca(
-                        builder,
-                        type: int64Type,
-                        name: "channel_out_value_\(instructionIndex)"
-                    )
+                    let outValueSlot = buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
                     if let outValueSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
                     }
@@ -2708,11 +2722,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "thrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -3068,11 +3078,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = bindings.buildAlloca(
-                            builder,
-                            type: int64Type,
-                            name: "vthrown_slot_\(instructionIndex)"
-                        )
+                        let thrownSlot = buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
