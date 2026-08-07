@@ -4,24 +4,17 @@ import Testing
 
 @Suite
 struct EnumAPISurfaceInventoryTests {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Enum surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
     @Test
     func testEnumAPISurfaceInventoryTestsInventory() throws {
         let sources: [String] = [
             """
+            package sample0
+            enum class Color { RED, BLUE }
+            fun noop() {}
+            """,
+            """
+            package sample1
+            enum class Direction { NORTH, SOUTH, EAST, WEST }
             fun noop() {}
             """,
         ]
@@ -31,7 +24,15 @@ struct EnumAPISurfaceInventoryTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            for (index, _) in sources.enumerated() {
+                let path = paths[index]
+                let pathDiagnostics = diagnosticsForPath(path, in: ctx)
+                #expect(
+                    !pathDiagnostics.contains(where: { $0.severity == .error }),
+                    "Enum surface should resolve without diagnostics: \(pathDiagnostics)"
+                )
+            }
 
             // === testEnumEntriesInterfaceIsRegisteredUnderKotlinEnums ===
             do {
@@ -101,83 +102,75 @@ struct EnumAPISurfaceInventoryTests {
                 #expect(sema.types.directNominalSupertypes(for: enumEntriesSymbol).contains(listSymbol))
                 #expect(sema.types.isNominalSubtypeSymbol(enumEntriesSymbol, of: listSymbol))
             }
-        }
-    }
 
-    @Test
-    func testEnumEntriesCompanionPropertyUsesKotlinEnumsEnumEntries() throws {
+            // === testEnumEntriesCompanionPropertyUsesKotlinEnumsEnumEntries ===
+            do {
 
-        let source = """
-        enum class Color { RED, BLUE }
-        fun noop() {}
-        """
-        let (sema, interner) = try makeSema(source: source)
-        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("EnumEntries"),
-        ]))
-        let entriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("Color"),
-            interner.intern("Companion"),
-            interner.intern("entries"),
-        ]))
-        let entriesType = try #require(sema.symbols.propertyType(for: entriesSymbol))
-        guard case let .classType(entriesClassType) = sema.types.kind(of: entriesType) else {
-            Issue.record("Color.entries should have EnumEntries<Color> type"); return
-        }
-        #expect(entriesClassType.classSymbol == enumEntriesSymbol)
-    }
+                let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("EnumEntries"),
+                ]))
+                let entriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern("Color"),
+                    interner.intern("Companion"),
+                    interner.intern("entries"),
+                ]))
+                let entriesType = try #require(sema.symbols.propertyType(for: entriesSymbol))
+                guard case let .classType(entriesClassType) = sema.types.kind(of: entriesType) else {
+                    Issue.record("Color.entries should have EnumEntries<Color> type"); return
+                }
+                #expect(entriesClassType.classSymbol == enumEntriesSymbol)
+            }
 
 // BUG: `EnumClass.values()` was completely unresolved ("No viable overload
-    // found" / "Unresolved reference 'values'") because no Sema symbol was
-    // ever registered for it — only the KIR/Lowering-phase synthesis existed,
-    // which ran too late to help Sema's call resolution.
+            // found" / "Unresolved reference 'values'") because no Sema symbol was
+            // ever registered for it — only the KIR/Lowering-phase synthesis existed,
+            // which ran too late to help Sema's call resolution.
 
-    @Test
-    func testEnumValuesIsRegisteredDirectlyOnEnumClass() throws {
+            // === testEnumValuesIsRegisteredDirectlyOnEnumClass ===
+            do {
 
-        let source = """
-        enum class Direction { NORTH, SOUTH, EAST, WEST }
-        fun noop() {}
-        """
-        let (sema, interner) = try makeSema(source: source)
-        let directionSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("Direction"),
-        ]))
-        #expect(sema.symbols.symbol(directionSymbol)?.kind == .enumClass)
+                let directionSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample1"),
+                    interner.intern("Direction"),
+                ]))
+                #expect(sema.symbols.symbol(directionSymbol)?.kind == .enumClass)
 
-        // `values()` must be registered directly on the enum class (not the
-        // companion): `Direction.values()` resolves via the class-name-receiver
-        // static-method lookup, which only searches the class's own FQ name.
-        let valuesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("Direction"),
-            interner.intern("values"),
-        ]))
-        let valuesInfo = try #require(sema.symbols.symbol(valuesSymbol))
-        #expect(valuesInfo.kind == .function)
-        #expect(sema.symbols.parentSymbol(for: valuesSymbol) == directionSymbol)
+                // `values()` must be registered directly on the enum class (not the
+                // companion): `Direction.values()` resolves via the class-name-receiver
+                // static-method lookup, which only searches the class's own FQ name.
+                let valuesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample1"),
+                    interner.intern("Direction"),
+                    interner.intern("values"),
+                ]))
+                let valuesInfo = try #require(sema.symbols.symbol(valuesSymbol))
+                #expect(valuesInfo.kind == .function)
+                #expect(sema.symbols.parentSymbol(for: valuesSymbol) == directionSymbol)
 
-        let signature = try #require(sema.symbols.functionSignature(for: valuesSymbol))
-        #expect(signature.receiverType == nil, "values() must be receiver-less so it resolves as a static member")
-        #expect(signature.parameterTypes.isEmpty)
+                let signature = try #require(sema.symbols.functionSignature(for: valuesSymbol))
+                #expect(signature.receiverType == nil, "values() must be receiver-less so it resolves as a static member")
+                #expect(signature.parameterTypes.isEmpty)
 
-        guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
-            Issue.record("Direction.values() should return Array<Direction>"); return
+                guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
+                    Issue.record("Direction.values() should return Array<Direction>"); return
+                }
+                let arraySymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("Array"),
+                ]))
+                #expect(returnClassType.classSymbol == arraySymbol)
+                guard let firstArg = returnClassType.args.first, case let .invariant(elementType) = firstArg else {
+                    Issue.record("Array<Direction> should carry Direction as its single invariant type argument"); return
+                }
+                guard case let .classType(elementClassType) = sema.types.kind(of: elementType) else {
+                    Issue.record("Array<Direction>'s element type should be the Direction class type"); return
+                }
+                #expect(elementClassType.classSymbol == directionSymbol)
+            }
         }
-        let arraySymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("Array"),
-        ]))
-        #expect(returnClassType.classSymbol == arraySymbol)
-        guard let firstArg = returnClassType.args.first, case let .invariant(elementType) = firstArg else {
-            Issue.record("Array<Direction> should carry Direction as its single invariant type argument"); return
-        }
-        guard case let .classType(elementClassType) = sema.types.kind(of: elementType) else {
-            Issue.record("Array<Direction>'s element type should be the Direction class type"); return
-        }
-        #expect(elementClassType.classSymbol == directionSymbol)
     }
-
 }
 #endif

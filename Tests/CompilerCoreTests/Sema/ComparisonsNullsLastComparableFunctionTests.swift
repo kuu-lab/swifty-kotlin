@@ -9,7 +9,12 @@ struct ComparisonsNullsLastComparableFunctionTests {
     func testComparisonsNullsLastComparableFunctionTestsInventory() throws {
         let sources: [String] = [
             """
-            fun noop() {}
+            package sample0
+            import kotlin.comparisons.nullsLast
+
+            fun makeComparator(): Comparator<Int?> {
+                return nullsLast<Int>()
+            }
             """,
         ]
         try withTemporaryFiles(contents: sources) { paths in
@@ -18,7 +23,13 @@ struct ComparisonsNullsLastComparableFunctionTests {
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = ctx
+
+            let path0 = paths[0]
+            let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+            #expect(
+                !path0Diagnostics.contains(where: { $0.severity == .error }),
+                "resolve: \(path0Diagnostics)"
+            )
 
             // === testNullsLastComparableLinksToNaturalRuntime ===
             do {
@@ -31,21 +42,17 @@ struct ComparisonsNullsLastComparableFunctionTests {
                     "nullsLast() (Comparable版) must link to kk_comparator_nulls_last_natural; found: \(nullsLastNaturalLinks)"
                 )
             }
+
+            // === testNullsLastComparableFunctionResolvesInSource ===
+            do {
+
+                let makeComparatorSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("sample0"),
+                    interner.intern("makeComparator"),
+                ]))
+                #expect(sema.symbols.functionSignature(for: makeComparatorSymbol) != nil)
+            }
         }
-    }
-
-    @Test
-    func testNullsLastComparableFunctionResolvesInSource() throws {
-
-        let ctx = makeContextFromSource("""
-        import kotlin.comparisons.nullsLast
-
-        fun makeComparator(): Comparator<Int?> {
-            return nullsLast<Int>()
-        }
-        """)
-        try runSema(ctx)
-        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
 }

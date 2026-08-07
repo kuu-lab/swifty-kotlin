@@ -74,6 +74,23 @@ struct TypeConstraintBoundsTests {
 
                     class Box<T> where T : Base, T : Derived
 
+            """,
+
+            // whereClauseAndMultipleUpperBoundsArePreservedInAST
+            """
+            package sample7
+                    class Animal
+
+                    fun <T : Comparable<T>> clamp(value: T, min: T, max: T): T = when {
+                        value < min -> min
+                        value > max -> max
+                        else -> value
+                    }
+
+                    fun <T> maxItem(a: T, b: T): T where T : Comparable<T> = if (a > b) a else b
+
+                    fun <T> processItem(v: T): String where T : Comparable<T>, T : Any = v.toString()
+
             """
         ]
 
@@ -130,54 +147,44 @@ struct TypeConstraintBoundsTests {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
             }
+            // whereClauseAndMultipleUpperBoundsArePreservedInAST
+            do {
+                let samplePath = paths[7]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
-        }
-    }
+                assertNoDiagnostic("KSWIFTK-SEMA-0305", in: sampleDiags)
 
-    @Test func whereClauseAndMultipleUpperBoundsArePreservedInAST() throws {
-        let source = """
-        class Animal
-
-        fun <T : Comparable<T>> clamp(value: T, min: T, max: T): T = when {
-            value < min -> min
-            value > max -> max
-            else -> value
-        }
-
-        fun <T> maxItem(a: T, b: T): T where T : Comparable<T> = if (a > b) a else b
-
-        fun <T> processItem(v: T): String where T : Comparable<T>, T : Any = v.toString()
-        """
-
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-
-        let ast = try requireTestValue(ctx.ast, "Missing AST")
-        let file = try requireTestValue(ast.files.first, "Missing file")
-
-        func function(named targetName: String) throws -> FunDecl {
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(fun) = decl,
-                      ctx.interner.resolve(fun.name) == targetName
-                else {
-                    continue
+                let ast = try #require(ctx.ast)
+                guard let fileID = ctx.sourceManager.fileID(forPath: samplePath) else {
+                    Issue.record("Missing file ID for sample7"); return
                 }
-                return fun
+                let file = try #require(ast.files.first { $0.fileID == fileID })
+
+                func function(named targetName: String) throws -> FunDecl {
+                    for declID in file.topLevelDecls {
+                        guard let decl = ast.arena.decl(declID),
+                              case let .funDecl(fun) = decl,
+                              ctx.interner.resolve(fun.name) == targetName
+                        else {
+                            continue
+                        }
+                        return fun
+                    }
+                    throw MissingFunctionDeclaration(name: targetName)
+                }
+
+                let clamp = try function(named: "clamp")
+                #expect(clamp.typeParams.first?.upperBounds.count == 1)
+
+                let maxItem = try function(named: "maxItem")
+                #expect(maxItem.typeParams.first?.upperBounds.count == 1)
+
+                let processItem = try function(named: "processItem")
+                #expect(processItem.typeParams.first?.upperBounds.count == 2)
             }
-            throw MissingFunctionDeclaration(name: targetName)
+
         }
-
-        let clamp = try function(named: "clamp")
-        #expect(clamp.typeParams.first?.upperBounds.count == 1)
-
-        let maxItem = try function(named: "maxItem")
-        #expect(maxItem.typeParams.first?.upperBounds.count == 1)
-
-        let processItem = try function(named: "processItem")
-        #expect(processItem.typeParams.first?.upperBounds.count == 2)
     }
-
 
 
     // DEBT-SEMA-002 (migrated from Scripts/diff_cases/error_type_inference.kt / DEBT-DIFF-006):
