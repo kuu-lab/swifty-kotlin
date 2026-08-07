@@ -273,6 +273,9 @@ extension LambdaLowerer {
         case let .blockExpr(stmts, trailing, _):
             return stmts.contains(where: check) || trailing.map(check) ?? false
         case let .call(callee, _, args, _):
+            if callResolvesToImplicitReceiverMember(exprID, sema: sema) {
+                return true
+            }
             return check(callee) || args.contains { check($0.expr) }
         case let .memberCall(receiver, _, _, args, _),
              let .safeMemberCall(receiver, _, _, args, _):
@@ -320,6 +323,17 @@ extension LambdaLowerer {
         default:
             return false
         }
+    }
+
+    /// An unqualified `compute()` whose callee is a member function is `this.compute()`,
+    /// so the enclosing implicit receiver has to be captured by the lambda.
+    private func callResolvesToImplicitReceiverMember(_ callExprID: ExprID, sema: SemaModule) -> Bool {
+        guard let chosenCallee = sema.bindings.callBinding(for: callExprID)?.chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosenCallee)
+        else {
+            return false
+        }
+        return signature.receiverType != nil
     }
 
     private func checkFunctionBody(

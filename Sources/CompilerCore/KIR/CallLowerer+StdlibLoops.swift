@@ -10,8 +10,8 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .repeatLoop,
-              args.count == 2
+        guard args.count == 2,
+              isBundledRepeatCall(exprID, sema: sema, interner: interner)
         else {
             return nil
         }
@@ -125,6 +125,26 @@ extension CallLowerer {
         let unitExpr = arena.appendExpr(.unit, type: unitType)
         instructions.append(.constValue(result: unitExpr, value: .unit))
         return unitExpr
+    }
+
+    /// KSP-604: `repeat` is declared in bundled Kotlin (`Stdlib/kotlin/Standard.kt`),
+    /// so the call is identified by the resolved callee symbol instead of a name or a
+    /// synthetic-stub marker. A user-defined `repeat` resolves elsewhere and is lowered
+    /// as a normal call.
+    private func isBundledRepeatCall(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+              let repeatSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"),
+                  interner.intern("repeat"),
+              ])
+        else {
+            return false
+        }
+        return chosenCallee == repeatSymbol
     }
 
     func lowerMeasureTimeMillisCallExpr(
