@@ -1,12 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
+@Suite
+struct CodegenBackendDwarfAndInstructionLocationTrackingTests {
+
+    @Test
     func testLLVMBackendDebugObjectContainsDwarfSections() throws {
-        let bindings = try XCTUnwrap(LLVMCAPIBindings.loadUsable())
-        XCTAssertTrue(bindings.debugInfoAvailable)
+        let bindings = try #require(LLVMCAPIBindings.loadUsable())
+        #expect(bindings.debugInfoAvailable)
 
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()
@@ -60,14 +64,15 @@ extension CodegenBackendIntegrationTests {
         let debugData = try Data(contentsOf: URL(fileURLWithPath: debugObjPath))
         let noDebugData = try Data(contentsOf: URL(fileURLWithPath: noDebugObjPath))
 
-        XCTAssertGreaterThan(debugData.count, 0)
-        XCTAssertGreaterThan(noDebugData.count, 0)
-        XCTAssertGreaterThan(
-            debugData.count, noDebugData.count,
+        #expect(debugData.count > 0)
+        #expect(noDebugData.count > 0)
+        #expect(
+            debugData.count > noDebugData.count,
             "Debug object should be larger due to DWARF sections"
         )
     }
 
+    @Test
     func testInstructionLocationsPreservedThroughTransformFunctions() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -98,12 +103,12 @@ extension CodegenBackendIntegrationTests {
         }
 
         if case let .function(transformed)? = arena.decl(KIRDeclID(rawValue: 0)) {
-            XCTAssertEqual(transformed.instructionLocations.count, 2)
-            XCTAssertNil(transformed.instructionLocations[0])
-            XCTAssertNil(transformed.instructionLocations[1])
+            #expect(transformed.instructionLocations.count == 2)
+            #expect(transformed.instructionLocations[0] == nil)
+            #expect(transformed.instructionLocations[1] == nil)
         } else {
-            XCTFail("Expected function declaration")
+            Issue.record("Expected function declaration")
         }
     }
 }
-
+#endif
