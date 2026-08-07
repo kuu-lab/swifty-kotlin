@@ -53,7 +53,9 @@ final class CodegenPhase: CompilerPhase {
                 // Object emission is serialized per-process on Linux because
                 // LLVM target state is not thread-safe; cross-process locking is
                 // unnecessary because each `kswiftc` process has its own LLVM
-                // context and output path. The link step still uses a file lock.
+                // context and output path. The link step uses a per-`LinkPhase`
+                // unique autolink stub path and a separate cross-process toolchain
+                // lock to protect concurrent Linux `swiftc` invocations.
                 try CodegenCriticalSection.withLinuxExecutableCodegenProcessLock(target: ctx.options.target) {
                     try backend.emitObject(
                         module: kir,
