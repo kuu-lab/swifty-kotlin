@@ -250,4 +250,43 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    /// KSP-643: count* は bundled Kotlin 実装（Stdlib/kotlin/BitOperations.kt）に移行済み。
+    /// BUG-015 の Long 版（Sema は通るが KIR で消えていた）もここで固定する。
+    @Test
+    func testBitCountFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(255.countOneBits())
+                println((-1).countOneBits())
+                println(Int.MIN_VALUE.countLeadingZeroBits())
+                println(1.countLeadingZeroBits())
+                println(0.countTrailingZeroBits())
+                println(1024.countTrailingZeroBits())
+                println(255L.countOneBits())
+                println(Long.MAX_VALUE.countOneBits())
+                println(255L.countLeadingZeroBits())
+                println(0L.countLeadingZeroBits())
+                println(0L.countTrailingZeroBits())
+                println(1024L.countTrailingZeroBits())
+            }
+            """,
+            expectedOutput: """
+            8
+            32
+            0
+            31
+            32
+            10
+            8
+            63
+            56
+            64
+            64
+            10
+
+            """
+        )
+    }
 }

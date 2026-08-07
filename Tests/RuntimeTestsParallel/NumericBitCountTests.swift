@@ -2,6 +2,9 @@
 import Testing
 @testable import Runtime
 
+// KSP-643: countOneBits / countLeadingZeroBits / countTrailingZeroBits are implemented in
+// bundled Kotlin source (Stdlib/kotlin/BitOperations.kt); their runtime entry points are gone.
+// The remaining bit-manipulation entry points are covered here.
 @Suite
 struct NumericBitCountTests {
     private func isPowerOfTwo32(_ value: Int) -> Bool {
@@ -12,117 +15,6 @@ struct NumericBitCountTests {
     private func isPowerOfTwo64(_ value: Int) -> Bool {
         let bits = UInt(bitPattern: value)
         return bits != 0 && (bits & (bits &- 1)) == 0
-    }
-
-    // MARK: - Int Bit Count Tests (32-bit semantics)
-
-    @Test
-    func testIntCountOneBitsBasicValues() {
-        #expect(kk_int_countOneBits(0) == 0)
-        #expect(kk_int_countOneBits(1) == 1)
-        #expect(kk_int_countOneBits(2) == 1)
-        #expect(kk_int_countOneBits(3) == 2)
-        #expect(kk_int_countOneBits(0xFFFFFFFF) == 32)
-    }
-
-    @Test
-    func testIntCountOneBitsNegativeValues() {
-        #expect(kk_int_countOneBits(-1) == 32)
-        #expect(kk_int_countOneBits(-2) == 31)
-        #expect(kk_int_countOneBits(Int(Int32.min)) == 1)
-    }
-
-    @Test
-    func testIntCountLeadingZeroBitsBasicValues() {
-        #expect(kk_int_countLeadingZeroBits(0) == 32)
-        #expect(kk_int_countLeadingZeroBits(1) == 31)
-        #expect(kk_int_countLeadingZeroBits(0x80000000) == 0)
-        #expect(kk_int_countLeadingZeroBits(0x7FFFFFFF) == 1)
-    }
-
-    @Test
-    func testIntCountLeadingZeroBitsNegativeValues() {
-        #expect(kk_int_countLeadingZeroBits(-1) == 0)
-        #expect(kk_int_countLeadingZeroBits(Int(Int32.min)) == 0)
-    }
-
-    @Test
-    func testIntCountTrailingZeroBitsBasicValues() {
-        #expect(kk_int_countTrailingZeroBits(0) == 32)
-        #expect(kk_int_countTrailingZeroBits(1) == 0)
-        #expect(kk_int_countTrailingZeroBits(2) == 1)
-        #expect(kk_int_countTrailingZeroBits(4) == 2)
-        #expect(kk_int_countTrailingZeroBits(0x80000000) == 31)
-    }
-
-    @Test
-    func testIntCountTrailingZeroBitsNegativeValues() {
-        #expect(kk_int_countTrailingZeroBits(-1) == 0)
-        #expect(kk_int_countTrailingZeroBits(-2) == 1)
-        #expect(kk_int_countTrailingZeroBits(Int(Int32.min)) == 31)
-    }
-
-    // MARK: - Edge Case Tests
-
-    @Test
-    func testBitCountPowerOfTwoValues() {
-        for i in 0..<31 {
-            let powerOfTwo = 1 << i
-            #expect(kk_int_countOneBits(powerOfTwo) == 1, "2^\(i)")
-            #expect(kk_int_countTrailingZeroBits(powerOfTwo) == i, "2^\(i)")
-            #expect(kk_int_countLeadingZeroBits(powerOfTwo) == 31 - i, "2^\(i)")
-        }
-    }
-
-    @Test
-    func testBitCountComplementaryValues() {
-        for i in 0..<16 {
-            let value = 1 << i
-            let complement = ~value & 0xFFFFFFFF
-
-            let onesInValue = kk_int_countOneBits(value)
-            let onesInComplement = kk_int_countOneBits(complement)
-
-            #expect(onesInValue + onesInComplement == 32)
-        }
-    }
-
-    // MARK: - Regression Tests
-
-    @Test
-    func testBitCountRegressionForKnownValues() {
-        let knownValues: [(value: Int, expectedOnes: Int, expectedLeadingZeros: Int, expectedTrailingZeros: Int)] = [
-            (0, 0, 32, 32),
-            (1, 1, 31, 0),
-            (-1, 32, 0, 0),
-            (0x80000000, 1, 0, 31),
-            (0x7FFFFFFF, 31, 1, 0),
-            (0xFFFFFFFF, 32, 0, 0),
-            (Int(Int32.min), 1, 0, 31),
-            (Int(Int32.max), 31, 1, 0)
-        ]
-
-        for (value, expectedOnes, expectedLeadingZeros, expectedTrailingZeros) in knownValues {
-            #expect(kk_int_countOneBits(value) == expectedOnes, "value=\(value)")
-            #expect(kk_int_countLeadingZeroBits(value) == expectedLeadingZeros, "value=\(value)")
-            #expect(kk_int_countTrailingZeroBits(value) == expectedTrailingZeros, "value=\(value)")
-        }
-    }
-
-    @Test
-    func testBitCountWithBitManipulation() {
-        for value in [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023] {
-            var manualOnes = 0
-            var tempValue = value & 0xFFFFFFFF
-            for _ in 0..<32 {
-                if tempValue & 1 != 0 {
-                    manualOnes += 1
-                }
-                tempValue >>= 1
-            }
-
-            #expect(kk_int_countOneBits(value) == manualOnes, "value=\(value)")
-        }
     }
 
     @Test
