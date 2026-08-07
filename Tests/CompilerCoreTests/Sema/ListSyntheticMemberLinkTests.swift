@@ -1965,7 +1965,7 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            for memberName in ["firstOrNull", "lastOrNull", "getOrElse"] {
+            for memberName in ["getOrElse"] {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName

@@ -222,7 +222,7 @@ public fun <T> Set<T>.singleOrNull(): T? {
 /**
  * Returns `true` if every element of [elements] is contained in this set.
  */
-public fun <T> Set<T>.containsAll(elements: Collection<T>): Boolean {
+public fun <T> Set<T>.containsAll(elements: Collection<out T>): Boolean {
     for (element in elements) {
         if (!this.contains(element)) return false
     }
