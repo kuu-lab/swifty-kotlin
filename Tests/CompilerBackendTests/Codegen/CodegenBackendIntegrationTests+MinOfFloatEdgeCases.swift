@@ -1,10 +1,70 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import XCTest
+import Testing
 
-extension CodegenBackendIntegrationTests {
-    func testCodegenCompilesMinOfFloatEdgeCases() throws {
+private func runCodegenPipeline(
+    inputPath: String,
+    moduleName: String,
+    emit: EmitMode,
+    outputPath: String,
+    irFlags: [String] = []
+) throws -> CompilationContext {
+    let options = CompilerOptions(
+        moduleName: moduleName,
+        inputs: [inputPath],
+        outputPath: outputPath,
+        emit: emit,
+        target: defaultTargetTriple(),
+        irFlags: irFlags
+    )
+    let ctx = CompilationContext(
+        options: options,
+        sourceManager: SourceManager(),
+        diagnostics: DiagnosticEngine(),
+        interner: StringInterner()
+    )
+    try runToKIR(ctx)
+    try LoweringPhase().run(ctx)
+    if emit == .kirDump {
+        guard let kir = ctx.kir else {
+            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
+        }
+        let path = outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+    } else {
+        try CodegenPhase().run(ctx)
+    }
+    return ctx
+}
+
+@Suite
+struct CodegenBackendMinOfFloatEdgeCasesTests {
+    private func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == expected)
+        }
+    }
+
+    @Test func testCodegenCompilesMinOfFloatEdgeCases() throws {
         let source = """
         fun main() {
             println(minOf(3.5f, 1.2f))
@@ -26,7 +86,7 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    func testCodegenCompilesMinOfFloat3Args() throws {
+    @Test func testCodegenCompilesMinOfFloat3Args() throws {
         let source = """
         fun main() {
             println(minOf(3.5f, 1.2f, 2.8f))
@@ -49,7 +109,7 @@ extension CodegenBackendIntegrationTests {
     }
 
     // STDLIB-COMP-FN-040: minOf(a: Float, vararg other: Float) with 4 arguments
-    func testCodegenCompilesMinOfFloatVararg() throws {
+    @Test func testCodegenCompilesMinOfFloatVararg() throws {
         let source = """
         fun main() {
             println(minOf(3.5f, 1.2f, 2.8f, 0.1f))
@@ -69,9 +129,8 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
+            #expect(
+                normalizedStdout == """
                 0.1
                 -3.5
 
@@ -84,7 +143,7 @@ extension CodegenBackendIntegrationTests {
     // regardless of argument order, matching kotlinc's Math.min-backed behavior
     // (verified against `kotlinc` directly) rather than a plain `<` comparison,
     // which is always false for NaN operands and treats -0.0 == 0.0.
-    func testCodegenCompilesMinOfFloatNaNAndSignedZero() throws {
+    @Test func testCodegenCompilesMinOfFloatNaNAndSignedZero() throws {
         let source = """
         fun main() {
             println(minOf(1.0f, Float.NaN))
@@ -110,7 +169,7 @@ extension CodegenBackendIntegrationTests {
 
     // 3-arg and vararg minOf(Float) must propagate NaN through every pairwise
     // step, not just the first/last comparison.
-    func testCodegenCompilesMinOfFloatNaNMultiArg() throws {
+    @Test func testCodegenCompilesMinOfFloatNaNMultiArg() throws {
         let source = """
         fun main() {
             println(minOf(1.0f, Float.NaN, 2.0f))
@@ -136,7 +195,7 @@ extension CodegenBackendIntegrationTests {
 
     // Double shares the same lowering path as Float; verify NaN/signed-zero
     // handling holds for the wider type too.
-    func testCodegenCompilesMinOfDoubleNaNAndSignedZero() throws {
+    @Test func testCodegenCompilesMinOfDoubleNaNAndSignedZero() throws {
         let source = """
         fun main() {
             println(minOf(1.0, Double.NaN))
@@ -160,3 +219,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+#endif
