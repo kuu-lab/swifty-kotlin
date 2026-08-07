@@ -261,9 +261,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Uuid") { phase, symbols, types, interner in
             phase.registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "Serialization") { phase, symbols, types, interner in
-            phase.registerSyntheticSerializationStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "URI") { phase, symbols, types, interner in
             phase.registerSyntheticURIStubs(symbols: symbols, types: types, interner: interner)
         },
