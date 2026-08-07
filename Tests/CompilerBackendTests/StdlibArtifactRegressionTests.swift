@@ -1022,4 +1022,48 @@ final class StdlibArtifactRegressionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
+    /// an auto-inline overload of the bundled `kotlin.collections` source, so no
+    /// standalone body reaches the stdlib artifact. When such a call sits inside
+    /// a lambda that is itself spliced into its caller (here the `let` body),
+    /// the spliced instructions must be re-scanned for inline expansion;
+    /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
+    /// at link time (the `compiler_plugin_api` diff case failure mode).
+    func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val options: Map<String, String> = mapOf("k" to "v", "a" to "b")
+            val summary = options.entries.let { entries ->
+                entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }
+            }
+            println(summary)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "a=b,k=v\n")
+        }
+    }
 }

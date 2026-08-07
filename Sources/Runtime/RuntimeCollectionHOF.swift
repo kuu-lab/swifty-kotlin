@@ -183,7 +183,7 @@ public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThr
     return result
 }
 
-@_cdecl("kk_iterable_firstNotNullOf")
+@_cdecl("__kk_iterable_firstNotNullOf")
 public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -200,7 +200,7 @@ public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closu
     return handleCollectionLambdaThrow(thrown, outThrown)
 }
 
-@_cdecl("kk_iterable_firstNotNullOfOrNull")
+@_cdecl("__kk_iterable_firstNotNullOfOrNull")
 public func kk_iterable_firstNotNullOfOrNull(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -219,7 +219,7 @@ public func kk_iterable_firstNotNullOfOrNull(_ iterableRaw: Int, _ fnPtr: Int, _
 
 
 
-@_cdecl("kk_iterable_requireNoNulls")
+@_cdecl("__kk_iterable_requireNoNulls")
 public func kk_iterable_requireNoNulls(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
@@ -296,7 +296,7 @@ public func kk_map_toList(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
-@_cdecl("kk_iterable_any")
+@_cdecl("__kk_iterable_any")
 public func kk_iterable_any(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) ?? runtimeArrayBox(from: iterableRaw)?.elements else {
         invalidContainerPanic(#function, "iterable")
@@ -313,7 +313,7 @@ public func kk_iterable_any(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
     return 0
 }
 
-@_cdecl("kk_iterable_all")
+@_cdecl("__kk_iterable_all")
 public func kk_iterable_all(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: iterableRaw) ?? runtimeArrayBox(from: iterableRaw)?.elements else {
         invalidContainerPanic(#function, "iterable")
