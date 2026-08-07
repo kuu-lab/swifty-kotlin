@@ -245,6 +245,20 @@ extension ExprLowerer {
                     return result
                 }
 
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   let interfaceRead = driver.callLowerer.tryLowerInterfaceItablePropertyGetterRead(
+                       propertySymbol: symbol,
+                       loweredReceiverID: receiverExprID,
+                       resultType: resultType,
+                       sema: sema,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   )
+                {
+                    return interfaceRead
+                }
+
                 // A custom getter must run for implicit-receiver reads just as
                 // it does for an explicit `receiver.property` read.
                 if let symbol = sema.bindings.identifierSymbols[exprID],
@@ -427,6 +441,17 @@ extension ExprLowerer {
                     let resultType = boundType
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
+                    if let interfaceRead = driver.callLowerer.tryLowerInterfaceItablePropertyGetterRead(
+                        propertySymbol: symbol,
+                        loweredReceiverID: receiverExprID,
+                        resultType: resultType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) {
+                        return interfaceRead
+                    }
                     if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
                         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
