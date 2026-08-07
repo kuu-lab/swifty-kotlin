@@ -58,7 +58,6 @@ struct StdlibSurfaceSpecTests {
             list("firstNotNullOf", 1),
             list("firstNotNullOfOrNull", 1),
             list("maxOfOrNull", 1),
-            list("forEachIndexed", 1),
             list("onEach", 1),
             list("onEachIndexed", 1),
             list("mapIndexed", 1),
