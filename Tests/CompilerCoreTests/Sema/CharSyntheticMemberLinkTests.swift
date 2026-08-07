@@ -41,13 +41,9 @@ struct CharSyntheticMemberLinkTests {
 
         // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isDefined は
         // bundled Kotlin へ移行済みのため合成スタブの外部リンクを持たない。
+        // KSP-662: digitToInt(OrNull)/uppercaseChar/lowercaseChar/titlecaseChar も同様。
         let expected: [String: String] = [
             "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
-            "digitToInt": "kk_char_digitToInt",
-            "digitToIntOrNull": "kk_char_digitToIntOrNull",
-            "uppercaseChar": "kk_char_uppercaseChar",
-            "lowercaseChar": "kk_char_lowercaseChar",
-            "titlecaseChar": "kk_char_titlecaseChar",
             // New numeric conversion functions
             "toInt": "kk_char_toInt",
             "toDouble": "kk_char_toDouble",
@@ -64,22 +60,19 @@ struct CharSyntheticMemberLinkTests {
         }
     }
 
+    // KSP-662: Int.digitToChar() / Int.digitToChar(radix) は bundled Kotlin
+    // (kotlin.text.CharConversions) へ移行済みで、合成スタブの外部リンクを持たない。
     @Test func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        let expected: [(parameterCount: Int, expectedLink: String)] = [
-            (parameterCount: 0, expectedLink: "kk_char_digitToChar_radix"),
-            (parameterCount: 1, expectedLink: "kk_char_digitToChar_radix"),
-        ]
-
-        for item in expected {
+        for parameterCount in [0, 1] {
             #expect(externalLink(
                     for: "digitToChar",
-                    parameterCount: item.parameterCount,
+                    parameterCount: parameterCount,
                     sema: sema,
                     interner: interner,
                     receiverType: sema.types.intType
-                ) == item.expectedLink, "Int.digitToChar overload with \(item.parameterCount) parameter(s) should link to \(item.expectedLink)")
+                ) == nil, "Int.digitToChar overload with \(parameterCount) parameter(s) should resolve from bundled Kotlin")
         }
     }
 
@@ -260,16 +253,18 @@ struct CharSyntheticMemberLinkTests {
         }
     }
 
+    // KSP-662: ロケール依存・radix 付きオーバーロードも bundled Kotlin 側で定義され、
+    // 合成スタブの外部リンクを持たない（ロケール変換は __kk_char_*_locale ブリッジ経由）。
     @Test func testCharLocaleCaseStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        #expect(externalLink(for: "lowercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_lowercase_locale")
-        #expect(externalLink(for: "uppercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_uppercase_locale")
+        #expect(externalLink(for: "lowercase", parameterCount: 1, sema: sema, interner: interner) == nil)
+        #expect(externalLink(for: "uppercase", parameterCount: 1, sema: sema, interner: interner) == nil)
     }
 
     @Test func testCharDigitToIntOrNullRadixStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
-        #expect(externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner) == "kk_char_digitToIntOrNull_radix")
+        #expect(externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner) == nil)
     }
 
     @Test func testCharDigitToIntOrNullRadixResolvesInCallExpressions() throws {
@@ -321,14 +316,6 @@ struct CharSyntheticMemberLinkTests {
 
             let expectedFunctionLinks: [String: String] = [
                 "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
-                "digitToInt": "kk_char_digitToInt",
-                "digitToIntOrNull": "kk_char_digitToIntOrNull",
-                "uppercaseChar": "kk_char_uppercaseChar",
-                "lowercaseChar": "kk_char_lowercaseChar",
-                "uppercase": "kk_char_uppercase",
-                "lowercase": "kk_char_lowercase",
-                "titlecase": "kk_char_titlecase",
-                "titlecaseChar": "kk_char_titlecaseChar",
                 "toInt": "kk_char_toInt",
                 "toDouble": "kk_char_toDouble",
                 "toIntOrNull": "kk_char_toIntOrNull",

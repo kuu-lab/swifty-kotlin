@@ -250,4 +250,58 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
+
+    // KSP-662: Char 変換系は bundled Kotlin (kotlin.text.CharConversions) で実装され、
+    // Unicode ケースマッピングと digitOf テーブル参照だけを __kk_char_* ブリッジ経由で
+    // 行う。移行後の変換が実際にコンパイル・実行され正しい結果を返すことを検証する。
+    @Test
+    func testCharConversionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println('a'.uppercaseChar())
+                println('A'.lowercaseChar())
+                println('\\u00DF'.uppercaseChar())
+                println('\\u01C6'.titlecaseChar())
+                println('a'.uppercase())
+                println('\\u00DF'.uppercase())
+                println('\\u01C6'.titlecase())
+                println('7'.digitToInt())
+                println('f'.digitToInt(16))
+                println('z'.digitToIntOrNull())
+                println('g'.digitToIntOrNull(16))
+                println(7.digitToChar())
+                println(10.digitToChar(16))
+                try {
+                    '!'.digitToInt()
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-digit")
+                }
+                try {
+                    1.digitToChar(1)
+                } catch (e: IllegalArgumentException) {
+                    println("invalid-radix")
+                }
+            }
+            """,
+            expectedOutput: """
+            A
+            a
+            \u{00DF}
+            \u{01C5}
+            A
+            SS
+            \u{01C5}
+            7
+            15
+            null
+            null
+            7
+            A
+            invalid-digit
+            invalid-radix
+
+            """
+        )
+    }
 }

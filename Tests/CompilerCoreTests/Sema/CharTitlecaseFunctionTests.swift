@@ -5,8 +5,8 @@ import Testing
 /// STDLIB-TEXT-PROP-021: Validates that `kotlin.text.titlecase` resolves through
 /// Sema as a `Char` extension (Kotlin spec defines it as
 /// `fun Char.titlecase(): String`). The related no-arg `titlecaseChar()`
-/// overload returning `Char` is also exposed. Runtime link names involved:
-/// `kk_char_titlecase` and `kk_char_titlecaseChar`.
+/// overload returning `Char` is also exposed. KSP-662 以降は bundled Kotlin
+/// (kotlin.text.CharConversions) 実装のため、合成スタブの外部リンクを持たない。
 @Suite
 struct CharTitlecaseFunctionTests {
     @Test func testTitlecaseResolvesOnCharLiteralReceiver() throws {
@@ -48,8 +48,8 @@ struct CharTitlecaseFunctionTests {
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == sema.types.charType
                 && signature.parameterTypes.isEmpty
-        }, "Char.titlecase() must be registered as a synthetic extension function")
-        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_titlecase")
+        }, "Char.titlecase() must be registered as an extension function")
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
 
         let signature = try #require(sema.symbols.functionSignature(for: symbol))
         #expect(signature.returnType == sema.types.stringType, "Char.titlecase() should return String per Kotlin spec")
@@ -75,8 +75,8 @@ struct CharTitlecaseFunctionTests {
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == sema.types.charType
                 && signature.parameterTypes.isEmpty
-        }, "Char.titlecaseChar() must be registered as a synthetic extension function")
-        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_titlecaseChar")
+        }, "Char.titlecaseChar() must be registered as an extension function")
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
 
         let signature = try #require(sema.symbols.functionSignature(for: symbol))
         #expect(signature.returnType == sema.types.charType, "Char.titlecaseChar() should return Char per Kotlin spec")

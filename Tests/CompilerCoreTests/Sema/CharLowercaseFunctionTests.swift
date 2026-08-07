@@ -3,11 +3,11 @@
 import Foundation
 import Testing
 
-/// STDLIB-TEXT-PROP-020: Validates that `kotlin.text.lowercase` resolves through
-/// Sema as a `Char` extension (Kotlin spec defines it as
-/// `fun Char.lowercase(): String`). The runtime link name involved is
-/// `kk_char_lowercase`. A locale overload (`fun Char.lowercase(locale: Locale): String`)
-/// also resolves and links to `kk_char_lowercase_locale`.
+/// STDLIB-TEXT-PROP-020 / KSP-662: Validates that `kotlin.text.lowercase` resolves
+/// through Sema as a `Char` extension (Kotlin spec defines it as
+/// `fun Char.lowercase(): String`), together with its `Locale` overload. Both are
+/// implemented in bundled Kotlin (kotlin.text.CharConversions), so the resolved
+/// symbols carry no synthetic runtime link.
 @Suite
 struct CharLowercaseFunctionTests {
     @Test func testLowercaseResolvesOnCharLiteralReceiver() throws {
@@ -49,8 +49,8 @@ struct CharLowercaseFunctionTests {
             guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == sema.types.charType
                 && signature.parameterTypes.isEmpty
-        }, "Char.lowercase() must be registered as a synthetic extension function")
-        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_lowercase")
+        }, "Char.lowercase() must be registered as an extension function")
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
 
         let signature = try #require(sema.symbols.functionSignature(for: symbol))
         #expect(signature.returnType == sema.types.stringType, "Char.lowercase() should return String per Kotlin spec")
@@ -79,7 +79,7 @@ struct CharLowercaseFunctionTests {
             return signature.receiverType == sema.types.charType
                 && signature.parameterTypes.count == 1
         }, "Char.lowercase(Locale) overload must be registered")
-        #expect(sema.symbols.externalLinkName(for: localeOverload) == "kk_char_lowercase_locale")
+        #expect(sema.symbols.externalLinkName(for: localeOverload) == nil)
     }
 }
 #endif

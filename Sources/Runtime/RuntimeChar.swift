@@ -102,25 +102,67 @@ public func kk_char_toCodePoint(_ high: Int, _ low: Int) -> Int {
     return ((highValue - 0xD800) << 10) + (lowValue - 0xDC00) + 0x10000
 }
 
-@_cdecl("kk_char_uppercase")
-public func kk_char_uppercase(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
+// KSP-662: Char 変換系 (uppercase/lowercase/titlecase(Char)/digitToInt(OrNull)/
+// digitToChar) は kotlin.text の純 Kotlin 実装へ移行済み。ここには Unicode
+// ケースマッピング表とロケール依存変換だけを行うブリッジ (__kk_char_*) を残す。
+
+/// Unicode 完全大文字マッピング ('ß' → "SS" のような多文字マッピングを含む)。
+@_cdecl("__kk_char_uppercase_string")
+public func __kk_char_uppercase_string(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
         return charRuntimeMakeStringRaw("\u{FFFD}")
     }
     return charRuntimeMakeStringRaw(String(scalar).uppercased())
 }
 
-@_cdecl("kk_char_uppercaseChar")
-public func kk_char_uppercaseChar(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return value
+/// Unicode 完全小文字マッピング。
+@_cdecl("__kk_char_lowercase_string")
+public func __kk_char_lowercase_string(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return charRuntimeMakeStringRaw("\u{FFFD}")
     }
-    return runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) ?? value
+    return charRuntimeMakeStringRaw(String(scalar).lowercased())
 }
 
-@_cdecl("kk_char_uppercase_locale")
-public func kk_char_uppercase_locale(_ value: Int, _ localeRaw: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
+/// Unicode タイトルケースマッピング。
+@_cdecl("__kk_char_titlecase_string")
+public func __kk_char_titlecase_string(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return charRuntimeMakeStringRaw("\u{FFFD}")
+    }
+    return charRuntimeMakeStringRaw(scalar.properties.titlecaseMapping)
+}
+
+/// 単一符号位置に収まる大文字マッピング。多文字マッピングや未定義は -1。
+@_cdecl("__kk_char_uppercase_code")
+public func __kk_char_uppercase_code(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return -1
+    }
+    return runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) ?? -1
+}
+
+/// 単一符号位置に収まる小文字マッピング。未定義は -1。
+@_cdecl("__kk_char_lowercase_code")
+public func __kk_char_lowercase_code(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return -1
+    }
+    return runtimeFirstUnicodeScalarValue(String(scalar).lowercased(), fallback: -1)
+}
+
+/// 単一符号位置に収まるタイトルケースマッピング。多文字・未定義は -1。
+@_cdecl("__kk_char_titlecase_code")
+public func __kk_char_titlecase_code(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
+        return -1
+    }
+    return runtimeSingleUnicodeScalarValue(scalar.properties.titlecaseMapping) ?? -1
+}
+
+@_cdecl("__kk_char_uppercase_locale")
+public func __kk_char_uppercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
         return charRuntimeMakeStringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
@@ -129,25 +171,9 @@ public func kk_char_uppercase_locale(_ value: Int, _ localeRaw: Int) -> Int {
     return charRuntimeMakeStringRaw(String(scalar).uppercased(with: box.locale))
 }
 
-@_cdecl("kk_char_lowercase")
-public func kk_char_lowercase(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
-    }
-    return charRuntimeMakeStringRaw(String(scalar).lowercased())
-}
-
-@_cdecl("kk_char_lowercaseChar")
-public func kk_char_lowercaseChar(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return value
-    }
-    return runtimeFirstUnicodeScalarValue(String(scalar).lowercased(), fallback: value)
-}
-
-@_cdecl("kk_char_lowercase_locale")
-public func kk_char_lowercase_locale(_ value: Int, _ localeRaw: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
+@_cdecl("__kk_char_lowercase_locale")
+public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code) else {
         return charRuntimeMakeStringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
@@ -156,71 +182,10 @@ public func kk_char_lowercase_locale(_ value: Int, _ localeRaw: Int) -> Int {
     return charRuntimeMakeStringRaw(String(scalar).lowercased(with: box.locale))
 }
 
-@_cdecl("kk_char_titlecase")
-public func kk_char_titlecase(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
-    }
-    let titlecased = scalar.properties.titlecaseMapping
-    return charRuntimeMakeStringRaw(titlecased)
-}
-
-@_cdecl("kk_char_titlecaseChar")
-public func kk_char_titlecaseChar(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        return value
-    }
-    return runtimeSingleUnicodeScalarValue(scalar.properties.titlecaseMapping) ?? kk_char_uppercaseChar(value)
-}
-
-@_cdecl("kk_char_digitToInt")
-public func kk_char_digitToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let scalar = runtimeUnicodeScalar(value) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Char is not a digit")
-        return 0
-    }
-    if let digitValue = charBase10DigitValue(scalar) {
-        return digitValue
-    }
-    outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Char \(scalar) is not a digit")
-    return 0
-}
-
-@_cdecl("kk_char_digitToIntOrNull")
-public func kk_char_digitToIntOrNull(_ value: Int) -> Int {
-    guard let scalar = runtimeUnicodeScalar(value),
-          let digitValue = charBase10DigitValue(scalar)
-    else {
-        return runtimeNullSentinelInt
-    }
-    return digitValue
-}
-
-// MARK: - STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
-
-/// fun Char.digitToIntOrNull(radix: Int): Int?
-/// Returns the numeric digit value of this Char in the given radix (2..36),
-/// or null if the Char is not a valid digit.
-/// Throws IllegalArgumentException if radix is out of range.
-@_cdecl("kk_char_digitToIntOrNull_radix")
-public func kk_char_digitToIntOrNull_radix(
-    _ value: Int,
-    _ radix: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "radix \(radix) is out of the valid range 2..36"
-        )
-        return runtimeNullSentinelInt
-    }
-    let digitVal = charDigitValueForRadix(value)
-    guard digitVal >= 0, digitVal < radix else {
-        return runtimeNullSentinelInt
-    }
-    return digitVal
+/// `kotlin.text.digitOf` 相当: radix 上限を適用する前の生の桁値。桁でなければ -1。
+@_cdecl("__kk_char_digit_value")
+public func __kk_char_digit_value(_ code: Int) -> Int {
+    charDigitValueForRadix(code)
 }
 
 // Char arithmetic operators
@@ -426,34 +391,6 @@ public func kk_char_isJavaIdentifierStart(_ value: Int) -> Int {
     }
 }
 
-// MARK: - STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
-
-/// fun Char.digitToInt(radix: Int): Int
-/// Returns the numeric digit value of this Char in the given radix (2..36).
-/// Throws IllegalArgumentException if radix is out of range or char is not a valid digit.
-@_cdecl("kk_char_digitToInt_radix")
-public func kk_char_digitToInt_radix(
-    _ value: Int,
-    _ radix: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "radix \(radix) is out of the valid range 2..36"
-        )
-        return 0
-    }
-    let digitVal = charDigitValueForRadix(value)
-    guard digitVal >= 0, digitVal < radix else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "code point \(value) is not a valid digit in radix \(radix)"
-        )
-        return 0
-    }
-    return digitVal
-}
-
 /// Mirrors `kotlin.text.digitOf`: maps a Char code point to its raw digit value
 /// (before applying the radix bound), or -1 if it is not a recognized digit.
 ///
@@ -473,40 +410,6 @@ private func charDigitValueForRadix(_ code: Int) -> Int {
         return value
     }
     return -1
-}
-
-// MARK: - STDLIB-003-ABI-002: Char.Companion.digitToChar(digit: Int, radix: Int)
-
-/// fun Char.Companion.digitToChar(digit: Int, radix: Int): Char
-/// Returns the Char that represents the given digit value in the given radix (2..36).
-/// Throws IllegalArgumentException if radix or digit is out of range.
-@_cdecl("kk_char_digitToChar_radix")
-public func kk_char_digitToChar_radix(
-    _ digit: Int,
-    _ radix: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard radix >= 2, radix <= 36 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "radix \(radix) is out of the valid range 2..36"
-        )
-        return 0
-    }
-    guard digit >= 0, digit < radix else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "digit \(digit) is out of the valid range 0..<\(radix)"
-        )
-        return 0
-    }
-    // Kotlin spec (Int.digitToChar): digits < 10 map to '0'..'9', and digits
-    // >= 10 map to the UPPERCASE Latin letters 'A'..'Z'. Example from the docs:
-    // 10.digitToChar(16) == 'A', 20.digitToChar(36) == 'K'.
-    if digit < 10 {
-        return Int(("0" as UnicodeScalar).value) + digit
-    } else {
-        return Int(("A" as UnicodeScalar).value) + digit - 10
-    }
 }
 
 // MARK: - STDLIB-003-ABI-003: Char(code: Int) constructor

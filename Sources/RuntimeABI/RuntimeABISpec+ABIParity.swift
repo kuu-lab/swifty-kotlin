@@ -202,21 +202,6 @@ public extension RuntimeABISpec {
             p("value", .intptr),
             p("continuation", .intptr),
         ]),
-        abiParitySpec("kk_char_digitToChar_radix", parameters: [
-            p("digit", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_digitToInt_radix", parameters: [
-            p("value", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_char_digitToIntOrNull_radix", parameters: [
-            p("value", .intptr),
-            p("radix", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_char_fromCode", parameters: [
             p("code", .intptr),
             p("outThrown", .nullableIntptrPointer),
