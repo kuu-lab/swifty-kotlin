@@ -226,16 +226,16 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             #expect(
-                ir.contains("call i64 %lookup_fptr_"),
-                "String virtual dispatch should call reflected implementations with raw callback ABI"
+                ir.contains("call { i8*, i64, i64, i64 } %lookup_fptr_"),
+                "String virtual dispatch should call reflected implementations with the flat String ABI"
             )
             #expect(
-                ir.contains("virtual_callback_result"),
-                "Raw String virtual dispatch results should be bridged back to flat String ABI"
+                !ir.contains("virtual_callback_result"),
+                "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                !ir.contains("call { ptr, i64, i64, i64 } %lookup_fptr_"),
-                "Interface dispatch must not expect a flat String return from a raw callback implementation"
+                ir.contains("@kk_println_string_flat"),
+                "Virtual dispatch String result should be passed to the flat-string println runtime"
             )
         }
     }
@@ -894,7 +894,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(!ir.contains("@kk_string_equals("))
         #expect(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         #expect(ir.contains("@kk_println_string_flat"))
-        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
+        #expect(ir.contains("{ i8*, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
