@@ -832,7 +832,7 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         result.append(maybeUnbox(transformed))
         i = end
@@ -884,7 +884,7 @@ public func kk_list_bridge_windowed_transform(
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
         var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1(
+        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
             value: windowList,
