@@ -861,11 +861,6 @@ extension DataFlowSemaPhase {
             args: [.out(charSequenceType)],
             nullability: .nonNull
         )))
-        let sequenceOfStringType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(types.stringType)],
-            nullability: .nonNull
-        )))
         let sequenceOfPathType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,
             args: [.out(pathType)],
@@ -1034,36 +1029,6 @@ extension DataFlowSemaPhase {
             returnType: fileStoreType,
             externalLinkName: "kk_path_fileStore",
             symbols: symbols,
-            interner: interner
-        )
-
-        registerPathReadAttributesFunction(
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            optionsType: linkOptionType,
-            basicFileAttributesUpperBound: basicFileAttributesType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerPathFileAttributesViewFunction(
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            optionsType: linkOptionType,
-            fileAttributeViewUpperBound: fileAttributeViewType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerPathFileAttributesViewOrNullFunction(
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            optionsType: linkOptionType,
-            fileAttributeViewUpperBound: fileAttributeViewType,
-            symbols: symbols,
-            types: types,
             interner: interner
         )
 
@@ -1358,16 +1323,6 @@ extension DataFlowSemaPhase {
             returnType: types.stringType,
             externalLinkName: "kk_path_readText_charset",
             symbols: symbols,
-            interner: interner
-        )
-
-        registerPathUseLinesFunction(
-            ownerSymbol: pathSymbol,
-            receiverType: pathType,
-            sequenceOfStringType: sequenceOfStringType,
-            charsetType: charsetType,
-            symbols: symbols,
-            types: types,
             interner: interner
         )
 
@@ -1819,16 +1774,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_path_listDirectoryEntries",
             valueParameterHasDefaultValues: [true],
             symbols: symbols,
-            interner: interner
-        )
-
-        registerPathUseDirectoryEntriesFunction(
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            sequenceOfPathType: sequenceOfPathType,
-            globType: types.stringType,
-            symbols: symbols,
-            types: types,
             interner: interner
         )
 
