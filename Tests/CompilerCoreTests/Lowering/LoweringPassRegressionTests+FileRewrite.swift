@@ -231,7 +231,7 @@ extension LoweringPassRegressionTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
             #expect(callees.contains("kk_file_walk"))
-            #expect(callees.contains("kk_file_tree_walk_forEach"))
+            #expect(callees.contains("kk_list_forEach"))
             #expect(!callees.contains("walk"))
         }
     }
@@ -434,33 +434,6 @@ extension LoweringPassRegressionTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
             #expect(callees.contains("kk_path_walk"), "Path.walk() must lower to kk_path_walk")
-            #expect(!callees.contains("walk"))
-        }
-    }
-
-    // STDLIB-IO-PATH-FN-039: File.walk(direction:) must lower to kk_file_walk_with_direction
-    @Test
-    func testFileWalkWithDirectionRewrite() throws {
-        let source = """
-        import java.io.File
-        import kotlin.io.FileWalkDirection
-
-        fun main() {
-            File("/tmp/test").walk(FileWalkDirection.TOP_DOWN).toList()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkDirectionRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(callees.contains("kk_file_walk_with_direction"), "walk(direction:) must lower to kk_file_walk_with_direction")
-            #expect(callees.contains("kk_file_tree_walk_to_list"), "chained toList() on walk(direction:) result must be rewritten")
             #expect(!callees.contains("walk"))
         }
     }

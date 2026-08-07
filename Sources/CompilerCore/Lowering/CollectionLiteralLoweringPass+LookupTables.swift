@@ -570,19 +570,6 @@ struct CollectionLiteralLookupTables {
     var kkFileListFilesName: InternedString { fileIOLookup.kkFileListFilesName }
     var walkName: InternedString { fileIOLookup.walkName }
     var kkFileWalkName: InternedString { fileIOLookup.kkFileWalkName }
-    var kkFileWalkWithDirectionName: InternedString { fileIOLookup.kkFileWalkWithDirectionName }
-    var walkTopDownName: InternedString { fileIOLookup.walkTopDownName }
-    var kkFileWalkTopDownName: InternedString { fileIOLookup.kkFileWalkTopDownName }
-    var walkBottomUpName: InternedString { fileIOLookup.walkBottomUpName }
-    var kkFileWalkBottomUpName: InternedString { fileIOLookup.kkFileWalkBottomUpName }
-    var kkFileTreeWalkMaxDepthName: InternedString { fileIOLookup.kkFileTreeWalkMaxDepthName }
-    var kkFileTreeWalkToListName: InternedString { fileIOLookup.kkFileTreeWalkToListName }
-    var kkFileTreeWalkOnEnterName: InternedString { fileIOLookup.kkFileTreeWalkOnEnterName }
-    var kkFileTreeWalkOnLeaveName: InternedString { fileIOLookup.kkFileTreeWalkOnLeaveName }
-    var kkFileTreeWalkOnFailName: InternedString { fileIOLookup.kkFileTreeWalkOnFailName }
-    var kkFileTreeWalkForEachName: InternedString { fileIOLookup.kkFileTreeWalkForEachName }
-    var kkFileTreeWalkFilterName: InternedString { fileIOLookup.kkFileTreeWalkFilterName }
-    var kkFileTreeWalkSortedByName: InternedString { fileIOLookup.kkFileTreeWalkSortedByName }
     var readBytesName: InternedString { fileIOLookup.readBytesName }
     var kkFileReadBytesName: InternedString { fileIOLookup.kkFileReadBytesName }
     var appendBytesName: InternedString { fileIOLookup.appendBytesName }
