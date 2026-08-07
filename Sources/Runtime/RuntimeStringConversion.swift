@@ -1,5 +1,5 @@
 // String-to-type conversion functions (toInt, toDouble, toLong, toFloat,
-// toByte, toShort, toBoolean, toBigDecimal, toBigInteger, and their variants).
+// toByte, toShort, toBoolean, toBigDecimal, and their variants).
 // Split out from `RuntimeStringStdlib.swift`.
 
 import Foundation
@@ -489,7 +489,7 @@ public func kk_string_toByteOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
-// MARK: - STDLIB-TEXT-FN-083 / STDLIB-TEXT-FN-085: String.toBigDecimal() / String.toBigInteger()
+// MARK: - STDLIB-TEXT-FN-083: String.toBigDecimal()
 
 /// BigDecimal is represented as a boxed string in KSwiftK.
 /// The runtime validates the format and stores the string representation.
@@ -612,45 +612,6 @@ public func __kk_string_toBigDecimalOrNull_flat(
     }
     let box = RuntimeBigNumberBox(value: str, kind: .decimal)
     return registerRuntimeObject(box)
-}
-
-@_cdecl("__kk_string_toBigInteger")
-public func __kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    return kk_biginteger_fromString(strRaw, outThrown)
-}
-
-@_cdecl("__kk_string_toBigInteger_flat")
-public func __kk_string_toBigInteger_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    outThrown?.pointee = 0
-    return kk_biginteger_fromString(runtimeMakeStringRaw(str), outThrown)
-}
-
-@_cdecl("__kk_string_toBigIntegerOrNull")
-public func __kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
-    var thrown = 0
-    let raw = kk_biginteger_fromString(strRaw, &thrown)
-    return thrown == 0 ? raw : runtimeNullSentinelInt
-}
-
-@_cdecl("__kk_string_toBigIntegerOrNull_flat")
-public func __kk_string_toBigIntegerOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    var thrown = 0
-    let raw = kk_biginteger_fromString(runtimeMakeStringRaw(str), &thrown)
-    return thrown == 0 ? raw : runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_bignum_toString")

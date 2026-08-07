@@ -1433,26 +1433,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let bigIntegerSymbol = ensureClassSymbol(
-            named: "BigInteger",
-            in: javaMathPkg,
-            symbols: symbols,
-            interner: interner
-        )
         if let javaMathPkgSymbol {
             symbols.setParentSymbol(javaMathPkgSymbol, for: bigDecimalSymbol)
-            symbols.setParentSymbol(javaMathPkgSymbol, for: bigIntegerSymbol)
         }
         let bigDecimalType = types.make(.classType(ClassType(
             classSymbol: bigDecimalSymbol, args: [], nullability: .nonNull
         )))
         symbols.setPropertyType(bigDecimalType, for: bigDecimalSymbol)
-        let bigIntegerType = types.make(.classType(ClassType(
-            classSymbol: bigIntegerSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
-        let nullableBigIntegerType = types.makeNullable(bigIntegerType)
-
 
         // STDLIB-574: ByteArray / List<Int> internal representation
         let listIntType = makeListType(

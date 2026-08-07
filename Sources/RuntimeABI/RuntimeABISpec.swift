@@ -96,7 +96,6 @@ public enum RuntimeABISpec {
         arrayFunctions,
         atomicFunctions,
         base64Functions,
-        bigIntegerFunctions,
         bitwiseFunctions,
         booleanFunctions,
         boxingFunctions,
