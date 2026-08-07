@@ -529,17 +529,24 @@ extension CollectionLiteralConstructionLoweringPass {
                        let boxCallee = primitiveBoxCalleeName(
                            for: argType,
                            types: types,
+                           symbols: ctx.sema?.symbols,
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = emitNonThrowingCall(
-                            callee: boxCallee,
-                            arg: arg,
+                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                        emitBoxCallWithValueClassTag(
+                            boxCallee: boxCallee,
+                            value: arg,
+                            rawSourceKind: types.kind(of: argType),
+                            result: boxedResult,
                             resultType: types.anyType,
+                            types: types,
+                            symbols: ctx.sema?.symbols,
+                            interner: ctx.interner,
                             arena: module.arena,
                             into: &loweredBody
                         )
-                        storedArg = boxedArg
+                        storedArg = boxedResult
                     } else {
                         storedArg = arg
                     }
@@ -589,16 +596,24 @@ extension CollectionLiteralConstructionLoweringPass {
                let boxCallee = primitiveBoxCalleeName(
                    for: seedType,
                    types: sema.types,
+                   symbols: sema.symbols,
                    interner: ctx.interner
                )
             {
-                boxedArguments[0] = emitNonThrowingCall(
-                    callee: boxCallee,
-                    arg: arguments[0],
+                let boxedSeed = module.arena.appendTemporary(type: sema.types.anyType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: arguments[0],
+                    rawSourceKind: sema.types.kind(of: seedType),
+                    result: boxedSeed,
                     resultType: sema.types.anyType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: ctx.interner,
                     arena: module.arena,
                     into: &loweredBody
                 )
+                boxedArguments[0] = boxedSeed
             }
             loweredBody.append(.call(
                 symbol: nil,
