@@ -23,7 +23,38 @@ struct GenericInterfaceInheritanceTests {
         return try #require(result)
     }
 
-    @Test func testGenericInterfaceForwardsTypeParameterToSupertype() throws {
+    @Test
+    func testGenericInterfaceInheritanceTestsSourceResolution() throws {
+        let sources: [String] = [
+            """
+            package sample0
+            interface A<T> {
+                fun g(): T
+            }
+
+            interface B<T> : A<T>
+
+            fun useMember(b: B<Int>): Int = b.g()
+
+            fun upcast(b: B<Int>): A<Int> = b
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            // === testGenericInterfaceUpcastAndInheritedMemberResolve ===
+            do {
+                let path0 = paths[0]
+                let path0Diagnostics = diagnosticsForPath(path0, in: ctx)
+                #expect(!path0Diagnostics.contains(where: { $0.severity == .error }), "Expected testGenericInterfaceUpcastAndInheritedMemberResolve to resolve cleanly, got: \(path0Diagnostics)")
+            }
+        }
+    }
+
+    @Test
+    func testGenericInterfaceForwardsTypeParameterToSupertype() throws {
+
         let source = """
         interface A<T> {
             fun g(): T
@@ -49,24 +80,9 @@ struct GenericInterfaceInheritanceTests {
         )
     }
 
-    @Test func testGenericInterfaceUpcastAndInheritedMemberResolve() throws {
-        // Upcasting `B<Int>` to `A<Int>` and calling the inherited member both
-        // require the forwarded supertype arguments to be bound.
-        let source = """
-        interface A<T> {
-            fun g(): T
-        }
+    @Test
+    func testFunctionTypeSupertypeBindsFunctionInterface() throws {
 
-        interface B<T> : A<T>
-
-        fun useMember(b: B<Int>): Int = b.g()
-
-        fun upcast(b: B<Int>): A<Int> = b
-        """
-        _ = try makeSema(source: source)
-    }
-
-    @Test func testFunctionTypeSupertypeBindsFunctionInterface() throws {
         let source = """
         interface Producer<V> : () -> V
         """
@@ -89,5 +105,6 @@ struct GenericInterfaceInheritanceTests {
             sema.symbols.supertypeTypeArgs(for: producerSymbol, supertype: function0Symbol) == [.out(valueType)]
         )
     }
+
 }
 #endif

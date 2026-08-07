@@ -18,45 +18,95 @@ struct EnumAPISurfaceInventoryTests {
         return try #require(result)
     }
 
-    @Test func testEnumEntriesInterfaceIsRegisteredUnderKotlinEnums() throws {
-        let (sema, interner) = try makeSema()
-        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("EnumEntries"),
-        ]))
-        #expect(sema.symbols.symbol(enumEntriesSymbol)?.kind == .interface)
-        #expect(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("EnumEntries"),
-        ]) == nil)
-    }
+    @Test
+    func testEnumAPISurfaceInventoryTestsInventory() throws {
+        let sources: [String] = [
+            """
+            fun noop() {}
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
 
-    @Test func testEnumEntriesFunctionReturnsKotlinEnumsEnumEntries() throws {
-        let (sema, interner) = try makeSema()
-        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("EnumEntries"),
-        ]))
-        let functionSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("enumEntries"),
-        ]))
-        let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
-        guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
-            Issue.record("enumEntries<T>() should return EnumEntries<T>"); return
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            _ = ctx
+
+            // === testEnumEntriesInterfaceIsRegisteredUnderKotlinEnums ===
+            do {
+
+                let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("EnumEntries"),
+                ]))
+                #expect(sema.symbols.symbol(enumEntriesSymbol)?.kind == .interface)
+                #expect(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("EnumEntries"),
+                ]) == nil)
+            }
+
+            // === testEnumEntriesFunctionReturnsKotlinEnumsEnumEntries ===
+            do {
+
+                let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("EnumEntries"),
+                ]))
+                let functionSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("enumEntries"),
+                ]))
+                let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+                guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
+                    Issue.record("enumEntries<T>() should return EnumEntries<T>"); return
+                }
+                #expect(returnClassType.classSymbol == enumEntriesSymbol)
+                #expect(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enumEntries"),
+                ]) == nil)
+            }
+            // BUG: `EnumClass.entries.forEach { ... }` / `.size` reported "Unresolved
+            // member function" because `EnumEntries<T>` (a read-only List<T> subtype
+            // in real Kotlin) had no registered supertype at all, so neither the
+            // ordinary member-call resolver nor the collection member-call fallback
+            // ever discovered List's members on an EnumEntries-typed receiver.
+
+            // === testEnumEntriesInterfaceDeclaresListAsSupertype ===
+            do {
+
+                let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("enums"),
+                    interner.intern("EnumEntries"),
+                ]))
+                let listSymbol = try #require(sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ]))
+
+                // Both the SymbolTable's member-lookup supertype graph and the
+                // TypeSystem's nominal-subtype graph must agree: List member
+                // resolution walks the former, generic-substitution / nominal
+                // subtype checks (e.g. bindBundledIterableSourceFunction's
+                // isNominalSubtypeSymbol) walk the latter.
+                #expect(sema.symbols.directSupertypes(for: enumEntriesSymbol).contains(listSymbol))
+                #expect(sema.types.directNominalSupertypes(for: enumEntriesSymbol).contains(listSymbol))
+                #expect(sema.types.isNominalSubtypeSymbol(enumEntriesSymbol, of: listSymbol))
+            }
         }
-        #expect(returnClassType.classSymbol == enumEntriesSymbol)
-        #expect(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enumEntries"),
-        ]) == nil)
     }
 
-    @Test func testEnumEntriesCompanionPropertyUsesKotlinEnumsEnumEntries() throws {
+    @Test
+    func testEnumEntriesCompanionPropertyUsesKotlinEnumsEnumEntries() throws {
+
         let source = """
         enum class Color { RED, BLUE }
         fun noop() {}
@@ -79,11 +129,14 @@ struct EnumAPISurfaceInventoryTests {
         #expect(entriesClassType.classSymbol == enumEntriesSymbol)
     }
 
-    // BUG: `EnumClass.values()` was completely unresolved ("No viable overload
+// BUG: `EnumClass.values()` was completely unresolved ("No viable overload
     // found" / "Unresolved reference 'values'") because no Sema symbol was
     // ever registered for it — only the KIR/Lowering-phase synthesis existed,
     // which ran too late to help Sema's call resolution.
-    @Test func testEnumValuesIsRegisteredDirectlyOnEnumClass() throws {
+
+    @Test
+    func testEnumValuesIsRegisteredDirectlyOnEnumClass() throws {
+
         let source = """
         enum class Direction { NORTH, SOUTH, EAST, WEST }
         fun noop() {}
@@ -126,32 +179,5 @@ struct EnumAPISurfaceInventoryTests {
         #expect(elementClassType.classSymbol == directionSymbol)
     }
 
-    // BUG: `EnumClass.entries.forEach { ... }` / `.size` reported "Unresolved
-    // member function" because `EnumEntries<T>` (a read-only List<T> subtype
-    // in real Kotlin) had no registered supertype at all, so neither the
-    // ordinary member-call resolver nor the collection member-call fallback
-    // ever discovered List's members on an EnumEntries-typed receiver.
-    @Test func testEnumEntriesInterfaceDeclaresListAsSupertype() throws {
-        let (sema, interner) = try makeSema()
-        let enumEntriesSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("enums"),
-            interner.intern("EnumEntries"),
-        ]))
-        let listSymbol = try #require(sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]))
-
-        // Both the SymbolTable's member-lookup supertype graph and the
-        // TypeSystem's nominal-subtype graph must agree: List member
-        // resolution walks the former, generic-substitution / nominal
-        // subtype checks (e.g. bindBundledIterableSourceFunction's
-        // isNominalSubtypeSymbol) walk the latter.
-        #expect(sema.symbols.directSupertypes(for: enumEntriesSymbol).contains(listSymbol))
-        #expect(sema.types.directNominalSupertypes(for: enumEntriesSymbol).contains(listSymbol))
-        #expect(sema.types.isNominalSubtypeSymbol(enumEntriesSymbol, of: listSymbol))
-    }
 }
 #endif
