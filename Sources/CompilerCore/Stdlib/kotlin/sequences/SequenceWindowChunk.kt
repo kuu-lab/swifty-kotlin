@@ -242,6 +242,15 @@ public fun <T> Sequence<T>.windowed(
                     buffer.removeAt(0)
                     i = i + 1
                 }
+                // step > size: the buffer only ever holds up to `size` elements,
+                // so once it's drained the remaining `step - size` elements to
+                // skip before the next window must be pulled directly from the
+                // source and discarded (otherwise they wrongly reappear at the
+                // front of the next window's buffer fill).
+                while (i < step && sourceIterator.hasNext()) {
+                    sourceIterator.next()
+                    i = i + 1
+                }
             }
 
             fun makeWindow(): List<T> {
@@ -312,6 +321,15 @@ public fun <T, R> Sequence<T>.windowed(
                 var i = 0
                 while (i < step && buffer.isNotEmpty()) {
                     buffer.removeAt(0)
+                    i = i + 1
+                }
+                // step > size: the buffer only ever holds up to `size` elements,
+                // so once it's drained the remaining `step - size` elements to
+                // skip before the next window must be pulled directly from the
+                // source and discarded (otherwise they wrongly reappear at the
+                // front of the next window's buffer fill).
+                while (i < step && sourceIterator.hasNext()) {
+                    sourceIterator.next()
                     i = i + 1
                 }
             }
