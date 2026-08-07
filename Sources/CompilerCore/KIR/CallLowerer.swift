@@ -1469,10 +1469,10 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
-            if loweredCalleeName == interner.intern("kk_auto_closeable_create"),
+            if loweredCalleeName == interner.intern("__kk_auto_closeable_create"),
                let closeableSymbol = sema.types.closeableInterfaceSymbol
             {
-                // kk_auto_closeable_create wraps the close-action lambda in a
+                // __kk_auto_closeable_create wraps the close-action lambda in a
                 // lightweight object and hardcodes its close() method at
                 // itable slot 0 (see the kk_object_register_itable_method
                 // call inside it), but never registers that slot against the

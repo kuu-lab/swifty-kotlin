@@ -113,8 +113,9 @@ private let runtimeAutoCloseableCloseThunk: @convention(c) (Int, UnsafeMutablePo
 /// for itableDynamic dispatch is Closeable's, keyed by "kotlin.io.Closeable".
 private let runtimeCloseableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable")
 
-/// `AutoCloseable { closeAction }` factory.
-@_cdecl("kk_auto_closeable_create")
+/// `AutoCloseable { closeAction }` factory. KSP-611: the public factory is Kotlin
+/// source (Stdlib/kotlin/io/Closeable.kt) delegating to this demoted bridge.
+@_cdecl("__kk_auto_closeable_create")
 public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let resourceRaw = registerRuntimeObject(RuntimeAutoCloseableBox(fnPtr: fnPtr, closureRaw: closureRaw))
     _ = kk_object_register_itable_method(
@@ -129,58 +130,6 @@ public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     // — see the identical Comparator gap fixed in RuntimeComparator.swift.
     _ = kk_object_register_itable_iface(resourceRaw, Int(runtimeCloseableInterfaceTypeID), 0)
     return resourceRaw
-}
-
-/// Calls `close()` on a Closeable resource via interface/object dispatch,
-/// falling back to vtable slot 0 for compiler-allocated class instances.
-/// The vtable function pointer follows the standard compiler ABI:
-///   (self, outThrown) -> Int
-/// Returns 0 on success, or the thrown exception handle if close() threw.
-private func runtimeCloseableClose(_ resourceRaw: Int) -> Int {
-    guard resourceRaw != 0, resourceRaw != runtimeNullSentinelInt else {
-        return 0
-    }
-    var closeFnPtr = kk_itable_lookup(resourceRaw, 0, 0)
-    if closeFnPtr == 0, runtimeIsHeapObject(resourceRaw) {
-        closeFnPtr = kk_vtable_lookup(resourceRaw, 0)
-    }
-    guard closeFnPtr != 0 else { return 0 }
-    let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var closeThrown = 0
-    _ = closeFn(resourceRaw, &closeThrown)
-    return closeThrown
-}
-
-/// `resource.use { block }` — calls the block with the resource, then calls
-/// close() on the resource in a finally-style manner (regardless of whether
-/// the block threw), matching Kotlin's `use {}` semantics.
-/// Runtime signature: kk_use(resourceRaw, fnPtr, closureRaw, outThrown) -> R
-@_cdecl("kk_use")
-public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var blockThrown = 0
-    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: resourceRaw, outThrown: &blockThrown)
-
-    // Always close the resource (finally semantics)
-    let closeThrown = runtimeCloseableClose(resourceRaw)
-
-    // Kotlin use {} exception semantics:
-    // 1. If block threw and close() also threw, propagate the block exception
-    //    (close exception is suppressed — mirrors Kotlin's addSuppressed behavior).
-    // 2. If only block threw, propagate the block exception.
-    // 3. If only close() threw, propagate the close exception.
-    if blockThrown != 0 {
-        // Block threw — propagate the block exception (case 1 & 2).
-        // If close() also threw, attach it as a suppressed exception.
-        if closeThrown != 0 {
-            _ = kk_throwable_addSuppressed(blockThrown, closeThrown)
-        }
-        return handleCollectionLambdaThrow(blockThrown, outThrown)
-    }
-    if closeThrown != 0 {
-        // Only close() threw (case 3) — propagate it.
-        return handleCollectionLambdaThrow(closeThrown, outThrown)
-    }
-    return result
 }
 
 @_cdecl("kk_iterable_firstNotNullOf")

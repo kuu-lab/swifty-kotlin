@@ -968,7 +968,16 @@ extension CallLowerer {
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred.
-        if loweredCallee == calleeName,
+        // KSP-611: an imported interface member is also "remapped" to its own link
+        // name, which for an abstract member is an empty stub, so itable dispatch
+        // must still be attempted in that case; tryEmitVirtualDispatch falls back to
+        // the link name when the receiver has no resolvable itable entry.
+        let isImportedInterfaceMemberLink = chosenCallee.map { callee in
+            isImportedInterfaceMember(callee, sema: sema)
+                && sema.symbols.externalLinkName(for: callee)
+                    .map { interner.intern($0) == loweredCallee } ?? false
+        } ?? false
+        if loweredCallee == calleeName || isImportedInterfaceMemberLink,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
