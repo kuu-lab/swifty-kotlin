@@ -112,9 +112,9 @@ struct StringAppendFunctionTests {
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [sema.types.charType]
-                    && (sema.symbols.externalLinkName(for: symbolID)?.isEmpty ?? true)
+                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_char"
             },
-            "Expected Appendable.append(Char) to have no external link (StringBuilder source overrides)"
+            "Expected Appendable.append(Char) to link to __kk_string_builder_append_char"
         )
         #expect(
             appendSymbols.contains { symbolID in
@@ -128,9 +128,9 @@ struct StringAppendFunctionTests {
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 3
-                    && (sema.symbols.externalLinkName(for: symbolID)?.isEmpty ?? true)
+                    && sema.symbols.externalLinkName(for: symbolID) == "__kk_string_builder_append_range"
             },
-            "Expected Appendable.append(CharSequence?, Int, Int) to have no external link (StringBuilder source overrides)"
+            "Expected Appendable.append(CharSequence?, Int, Int) to link to __kk_string_builder_append_range"
         )
     }
 }
