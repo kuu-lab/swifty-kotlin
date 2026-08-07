@@ -79,7 +79,15 @@ struct LLVMEntryPointObjectEmitter {
         // the compiling user and not guessable.
         let objectURL = try makePrivateObjectURL()
         do {
-            try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+            // Keep the target machine alive inside the same Linux critical
+            // section as its creation, IR construction, emission, and
+            // disposal. LLVM target machines retain process-global target
+            // state, so splitting those operations across separate lock
+            // scopes still permits another worker to mutate that state while
+            // this wrapper is using it.
+            try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+                try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+            }
         } catch {
             // On success the caller owns the directory and removes it after linking; on failure it
             // never receives the path, so drop the private directory here to avoid leaking it.
@@ -117,25 +125,17 @@ struct LLVMEntryPointObjectEmitter {
         defer { bindings.disposeModule(module) }
 
         let triple = CodegenRuntimeSupport.targetTripleString(target)
-        // The wrapper has its own LLVM context, but target registration and
-        // native emission still touch LLVM process-global state on Linux.
-        let targetMachine = try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            bindings.setTarget(module, triple: triple)
+        bindings.setTarget(module, triple: triple)
 
-            guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
-                throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
-            }
-
-            guard bindings.applyTargetMachine(targetMachine, to: module) else {
-                bindings.disposeTargetMachine(targetMachine)
-                throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to apply target data layout to entry wrapper")
-            }
-            return targetMachine
+        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
+            throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
         }
         defer {
-            CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-                bindings.disposeTargetMachine(targetMachine)
-            }
+            bindings.disposeTargetMachine(targetMachine)
+        }
+
+        guard bindings.applyTargetMachine(targetMachine, to: module) else {
+            throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to apply target data layout to entry wrapper")
         }
 
         let primitiveTypes = try makePrimitiveTypes(context: context)
@@ -155,14 +155,12 @@ struct LLVMEntryPointObjectEmitter {
             functions: functions
         )
 
-        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            if let errorMessage = bindings.emitObject(
-                targetMachine: targetMachine,
-                module: module,
-                outputPath: objectURL.path
-            ) {
-                throw LLVMEntryPointObjectEmitterError.emissionFailed(errorMessage)
-            }
+        if let errorMessage = bindings.emitObject(
+            targetMachine: targetMachine,
+            module: module,
+            outputPath: objectURL.path
+        ) {
+            throw LLVMEntryPointObjectEmitterError.emissionFailed(errorMessage)
         }
     }
 
