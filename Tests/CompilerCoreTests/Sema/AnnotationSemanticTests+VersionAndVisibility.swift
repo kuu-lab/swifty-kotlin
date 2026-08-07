@@ -600,7 +600,7 @@ extension AnnotationSemanticTests {
                     sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")])
                 )
                 let myAnnotationSymbol = try #require(
-                    sema.symbols.lookup(fqName: [ctx.interner.intern("MyAnnotation")])
+                    sema.symbols.lookup(fqName: [ctx.interner.intern("sample12"), ctx.interner.intern("MyAnnotation")])
                 )
 
                 #expect(sema.symbols.symbol(myAnnotationSymbol)?.kind == .annotationClass)
@@ -697,7 +697,7 @@ extension AnnotationSemanticTests {
 
 
                 let sema = try #require(ctx.sema)
-                let symbolID = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("stabilizedApi")]).first)
+                let symbolID = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("sample21"), ctx.interner.intern("stabilizedApi")]).first)
                 let annotations = sema.symbols.annotations(for: symbolID)
                 let annotation = try #require(annotations.first(where: {
                     KnownCompilerAnnotation.wasExperimental.matches($0.annotationFQName)
@@ -761,8 +761,9 @@ extension AnnotationSemanticTests {
 
                 #expect(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Metadata")]) != nil)
 
+                let sample26 = interner.intern("sample26")
                 for name in ["Plain", "Face", "Singleton", "Color", "Marker"] {
-                    let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(name)]))
+                    let symbol = try #require(sema.symbols.lookup(fqName: [sample26, interner.intern(name)]))
                     let annotations = sema.symbols.annotations(for: symbol)
                     let v34 = annotations.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.metadata.qualifiedName })
                     #expect(
