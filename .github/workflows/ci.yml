@@ -318,6 +318,8 @@ jobs:
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - uses: actions/checkout@v7
+      - name: Prepare self-hosted runner
+        uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
         with:
