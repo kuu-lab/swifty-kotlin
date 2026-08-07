@@ -1999,6 +1999,33 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
     }
 
     @Test
+    /// A synthetic (negative) symbol must not share its C name with a real
+    /// symbol of the same magnitude and name: duplicate definitions get silently
+    /// renamed by LLVM and calls bind to whichever definition came first.
+    func testCodegenFunctionSymbolDistinguishesSyntheticSymbolsFromRealOnes() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+
+        func name(forSymbolRawValue rawValue: Int32) -> String {
+            CodegenSymbolSupport.cFunctionSymbol(
+                for: KIRFunction(
+                    symbol: SymbolID(rawValue: rawValue),
+                    name: interner.intern("get"),
+                    params: [],
+                    returnType: types.unitType,
+                    body: [.returnUnit],
+                    isSuspend: false,
+                    isInline: false
+                ),
+                interner: interner
+            )
+        }
+
+        #expect(name(forSymbolRawValue: 104_789) == "kk_fn_get_104789")
+        #expect(name(forSymbolRawValue: -104_789) == "kk_fn_get_s104789")
+    }
+
+    @Test
     func testCodegenFunctionSymbolUsesJvmNameAnnotationForFunction() {
         let interner = StringInterner()
         let symbols = SymbolTable()
