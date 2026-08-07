@@ -1,9 +1,9 @@
 @testable import CompilerCore
 import Testing
 
-/// STDLIB-TEXT-FN-110/111: Consolidated Sema coverage for `kotlin.text.String.trim`,
-/// `trimStart`, `trimEnd`, and `trimMargin`. A single `runSema(ctx)` resolves all
-/// source packages and each source is checked for the absence of errors.
+/// STDLIB-TEXT-FN-110/111/112: Consolidated Sema coverage for `kotlin.text.String.trim`,
+/// `trimStart`, `trimEnd`, `trimMargin`, and `trimIndent`. A single `runSema(ctx)`
+/// resolves all source packages and each source is checked for expected diagnostics.
 @Suite
 struct StringTrimFunctionTests {
     @Test
@@ -53,6 +53,22 @@ struct StringTrimFunctionTests {
                 return s.trimMargin(">")
             }
             """,
+            """
+            package sample4
+            fun main() {
+                val literal: String = "    hello".trimIndent()
+                val source: String = "  line"
+                val dedented: String = source.trimIndent()
+                val returnIsString: Int = "    abcde".trimIndent().length
+                val chained: String = "  abc".trimIndent().trim()
+            }
+            """,
+            """
+            package sample5
+            fun main() {
+                val s = "abc".trimIndent(1)
+            }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -67,6 +83,24 @@ struct StringTrimFunctionTests {
                 #expect(
                     errors.isEmpty,
                     "Expected \(name) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+            }
+
+            // === trimIndent ===
+            do {
+
+                let sample4Path = paths[4]
+                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
+                #expect(
+                    !(sample4Diagnostics.contains { $0.severity == .error }),
+                    "resolve: \(sample4Diagnostics)"
+                )
+
+                let sample5Path = paths[5]
+                let sample5Diagnostics = diagnosticsForPath(sample5Path, in: ctx)
+                #expect(
+                    sample5Diagnostics.contains { $0.severity == .error },
+                    "expected error for extra argument, got: \(sample5Diagnostics)"
                 )
             }
         }
