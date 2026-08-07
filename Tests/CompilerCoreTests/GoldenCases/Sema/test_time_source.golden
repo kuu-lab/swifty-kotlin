@@ -1,8 +1,6 @@
 symbol fq=__local_0.source kind=local vis=private flags=_ type=kotlin.time.TestTimeSource
 symbol fq=__local_1.mark1 kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
 symbol fq=__local_2.mark2 kind=local vis=private flags=_ type=kotlin.time.ComparableTimeMark
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.time.ComparableTimeMark kind=class vis=public flags=synthetic
 symbol fq=kotlin.time.ComparableTimeMark.minus#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.time.ComparableTimeMark params=[kotlin.time.ComparableTimeMark] ret=kotlin.time.Duration
 symbol fq=kotlin.time.ComparableTimeMark.minus.other kind=valueParameter vis=private flags=synthetic

@@ -1,8 +1,6 @@
 symbol fq=__local_0.len kind=local vis=private flags=_ type=Int
 symbol fq=golden.sema.usePlatformType kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Unit
 symbol fq=golden.sema.usePlatformType.$0.v kind=valueParameter vis=private flags=_
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file fplatform_type package=golden.sema
   decl golden.sema.usePlatformType fun usePlatformType sym=golden.sema.usePlatformType
 expr e@7:20 name(v) type=String ref=golden.sema.usePlatformType.$0.v

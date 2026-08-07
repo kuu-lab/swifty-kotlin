@@ -2348,32 +2348,6 @@ extension NativeEmitter {
                     continue
                 }
 
-                // Consolidated path for known void, zero-argument runtime calls.
-                if Self.knownVoidNoArgCallees.contains(calleeName) {
-                    if let runtimeFunction = declareExternalFunction(
-                        named: calleeName,
-                        argumentCount: 0,
-                        appendThrownChannel: false
-                    ) {
-                        _ = bindings.buildCall(
-                            builder,
-                            functionType: runtimeFunction.type,
-                            callee: runtimeFunction.value,
-                            arguments: [],
-                            name: "\(calleeName)_\(instructionIndex)"
-                        )
-                    }
-                    if usesThrownChannel, let thrownResult {
-                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
-                        } else {
-                            storeResult(thrownResult, zeroValue)
-                        }
-                    }
-                    storeResult(result, zeroValue)
-                    continue
-                }
-
                 if calleeName == "kk_println_float" || calleeName == "kk_println_double"
                     || calleeName == "kk_println_long" || calleeName == "kk_println_char"
                     || calleeName == "kk_println_bool" || calleeName == "kk_println_ulong"
@@ -2390,131 +2364,6 @@ extension NativeEmitter {
                             callee: printFunction.value,
                             arguments: [printValue],
                             name: "println_\(calleeName)_\(instructionIndex)"
-                        )
-                    }
-                    if usesThrownChannel, let thrownResult {
-                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
-                        } else {
-                            storeResult(thrownResult, zeroValue)
-                        }
-                    }
-                    storeResult(result, zeroValue)
-                    continue
-                }
-
-                if calleeName == "println", argumentValues.isEmpty {
-                    if let printFunction = declareExternalFunction(
-                        named: "kk_println_newline",
-                        argumentCount: 0,
-                        appendThrownChannel: false
-                    ) {
-                        _ = bindings.buildCall(
-                            builder,
-                            functionType: printFunction.type,
-                            callee: printFunction.value,
-                            arguments: [],
-                            name: "println_newline_\(instructionIndex)"
-                        )
-                    }
-                    if usesThrownChannel, let thrownResult {
-                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
-                        } else {
-                            storeResult(thrownResult, zeroValue)
-                        }
-                    }
-                    storeResult(result, zeroValue)
-                    continue
-                }
-
-                if (calleeName == "println" || calleeName == "kk_println_any"),
-                   arguments.count == 1,
-                   isStringAggregateExpr(arguments[0]),
-                   let typeLowering,
-                   let stringFields = stringAggregateFields(
-                       argumentValues[0],
-                       suffix: "println_\(instructionIndex)"
-                   ),
-                   let printFunction = declareExternalFunction(
-                       named: "kk_println_string_flat",
-                       parameterTypes: [
-                           typeLowering.dataPointerType,
-                           int64Type,
-                           int64Type,
-                           int64Type,
-                       ],
-                       returnType: int64Type
-                   )
-                {
-                    _ = bindings.buildCall(
-                        builder,
-                        functionType: printFunction.type,
-                        callee: printFunction.value,
-                        arguments: stringFields,
-                        name: "println_string_\(instructionIndex)"
-                    )
-                    if usesThrownChannel, let thrownResult {
-                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
-                        } else {
-                            storeResult(thrownResult, zeroValue)
-                        }
-                    }
-                    storeResult(result, zeroValue)
-                    continue
-                }
-
-                if (calleeName == "print" || calleeName == "kk_print_any"),
-                   arguments.count == 1,
-                   isStringAggregateExpr(arguments[0]),
-                   let typeLowering,
-                   let stringFields = stringAggregateFields(
-                       argumentValues[0],
-                       suffix: "print_\(instructionIndex)"
-                   ),
-                   let printFunction = declareExternalFunction(
-                       named: "kk_print_string_flat",
-                       parameterTypes: [
-                           typeLowering.dataPointerType,
-                           int64Type,
-                           int64Type,
-                           int64Type,
-                       ],
-                       returnType: int64Type
-                   )
-                {
-                    _ = bindings.buildCall(
-                        builder,
-                        functionType: printFunction.type,
-                        callee: printFunction.value,
-                        arguments: stringFields,
-                        name: "print_string_\(instructionIndex)"
-                    )
-                    if usesThrownChannel, let thrownResult {
-                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
-                        } else {
-                            storeResult(thrownResult, zeroValue)
-                        }
-                    }
-                    storeResult(result, zeroValue)
-                    continue
-                }
-
-                if calleeName == "println" || calleeName == "kk_println_any" {
-                    let printValue = argumentValues.first ?? zeroValue
-                    if let printFunction = declareExternalFunction(
-                        named: "kk_println_any",
-                        argumentCount: 1,
-                        appendThrownChannel: false
-                    ) {
-                        _ = bindings.buildCall(
-                            builder,
-                            functionType: printFunction.type,
-                            callee: printFunction.value,
-                            arguments: [printValue],
-                            name: "println_\(instructionIndex)"
                         )
                     }
                     if usesThrownChannel, let thrownResult {
@@ -3531,8 +3380,6 @@ extension NativeEmitter {
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
         case "__todo": argumentCount == 0 ? "kk_todo_noarg" : "kk_todo"
-        case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
-        case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
         case "__string_compareTo_flat": "kk_string_compareTo_flat"
         case "__string_concat": "kk_string_concat_flat"

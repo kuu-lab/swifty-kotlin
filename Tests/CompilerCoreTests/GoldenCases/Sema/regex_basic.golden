@@ -2,8 +2,6 @@ symbol fq=__local_0.regex kind=local vis=private flags=_ type=kotlin.text.Regex
 symbol fq=__local_1.found kind=local vis=private flags=_ type=kotlin.text.MatchResult?
 symbol fq=__local_2.r kind=local vis=private flags=_ type=kotlin.text.Regex
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.MatchResult kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.MatchResult.value kind=property vis=public flags=synthetic type=String
 symbol fq=kotlin.text.Regex#0 kind=class vis=public flags=synthetic

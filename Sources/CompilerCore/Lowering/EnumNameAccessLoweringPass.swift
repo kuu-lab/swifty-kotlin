@@ -19,12 +19,8 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         module.ensureFeaturesScanned()
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         return module.usedCallees.contains(nameCallee)
             || module.usedCallees.contains(ordinalCallee)
-            || module.usedCallees.contains(printlnCallee)
-            || module.usedCallees.contains(kkPrintlnAnyCallee)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -34,27 +30,12 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         }
         let nameCallee = ctx.interner.intern("name")
         let ordinalCallee = ctx.interner.intern("ordinal")
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
         let stringType = sema.types.stringType
         let intType = sema.types.intType
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []
             for instruction in function.body {
-                if let rewritten = rewriteEnumPrintlnCall(
-                    instruction: instruction,
-                    sema: sema,
-                    interner: ctx.interner,
-                    arena: module.arena,
-                    precedingInstructions: newBody,
-                    stringType: stringType,
-                    printlnCallee: printlnCallee,
-                    kkPrintlnAnyCallee: kkPrintlnAnyCallee
-                ) {
-                    newBody.append(contentsOf: rewritten)
-                    continue
-                }
                 let accessorAndReceiverAndResult: (InternedString, KIRExprID, KIRExprID?)? = switch instruction {
                 case let .call(_, callee, arguments, result, _, _, _, _):
                     if callee == nameCallee || callee == ordinalCallee, arguments.count == 1 {
@@ -155,62 +136,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return updated
         }
         module.recordLowering(Self.name)
-    }
-
-    private func rewriteEnumPrintlnCall(
-        instruction: KIRInstruction,
-        sema: SemaModule,
-        interner: StringInterner,
-        arena: KIRArena,
-        precedingInstructions: [KIRInstruction],
-        stringType: TypeID,
-        printlnCallee: InternedString,
-        kkPrintlnAnyCallee: InternedString
-    ) -> [KIRInstruction]? {
-        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction,
-              callee == printlnCallee || callee == kkPrintlnAnyCallee,
-              arguments.count == 1,
-              let classSymbol = enumClassSymbol(
-                  for: arguments[0],
-                  sema: sema,
-                  arena: arena,
-                  instructions: precedingInstructions
-              ),
-              let classSym = sema.symbols.symbol(classSymbol)
-        else {
-            return nil
-        }
-
-        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
-        let fqName = classSym.fqName + [helperName]
-        guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
-            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-        }) else {
-            return nil
-        }
-
-        let helperResult = arena.appendTemporary(type: stringType
-        )
-        return [
-            .call(
-                symbol: helperSymbol,
-                callee: helperName,
-                arguments: [arguments[0]],
-                result: helperResult,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ),
-            .call(
-                symbol: symbol,
-                callee: callee,
-                arguments: [helperResult],
-                result: result,
-                canThrow: canThrow,
-                thrownResult: thrownResult,
-                isSuperCall: isSuperCall
-            ),
-        ]
     }
 
     private func enumClassSymbol(

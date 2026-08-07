@@ -50,8 +50,6 @@ symbol fq=kotlin.charArrayOf kind=function vis=public flags=synthetic sig=recv=_
 symbol fq=kotlin.doubleArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Double] ret=kotlin.DoubleArray vararg=[1]
 symbol fq=kotlin.floatArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Float] ret=kotlin.FloatArray vararg=[1]
 symbol fq=kotlin.intArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.IntArray vararg=[1]
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.longArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Long] ret=kotlin.LongArray vararg=[1]
 symbol fq=kotlin.shortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ShortArray vararg=[1]
 symbol fq=longArrayOfLiteral kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
