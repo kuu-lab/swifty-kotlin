@@ -1272,6 +1272,12 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Tracks expressions whose expected type comes from a type annotation
+    /// written in source (a property or local declaration's `: Type`), as
+    /// opposed to an expected type the compiler synthesized while inferring a
+    /// call. Only source-declared expected types are authoritative enough to
+    /// contradict an explicit lambda parameter annotation with `Any`.
+    public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1711,6 +1717,17 @@ public final class BindingTable {
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark an expression as checked against a source-written type annotation
+    /// (see `sourceDeclaredExpectedTypeExprIDs`).
+    public func markSourceDeclaredExpectedType(_ expr: ExprID) {
+        sourceDeclaredExpectedTypeExprIDs.insert(expr)
+    }
+
+    /// Whether the expression's expected type was written in source.
+    public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
+        sourceDeclaredExpectedTypeExprIDs.contains(expr)
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.
