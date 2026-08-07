@@ -117,15 +117,25 @@ struct LLVMEntryPointObjectEmitter {
         defer { bindings.disposeModule(module) }
 
         let triple = CodegenRuntimeSupport.targetTripleString(target)
-        bindings.setTarget(module, triple: triple)
+        // The wrapper has its own LLVM context, but target registration and
+        // native emission still touch LLVM process-global state on Linux.
+        let targetMachine = try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            bindings.setTarget(module, triple: triple)
 
-        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
-            throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
+            guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
+                throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
+            }
+
+            guard bindings.applyTargetMachine(targetMachine, to: module) else {
+                bindings.disposeTargetMachine(targetMachine)
+                throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to apply target data layout to entry wrapper")
+            }
+            return targetMachine
         }
-        defer { bindings.disposeTargetMachine(targetMachine) }
-
-        guard bindings.applyTargetMachine(targetMachine, to: module) else {
-            throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to apply target data layout to entry wrapper")
+        defer {
+            CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+                bindings.disposeTargetMachine(targetMachine)
+            }
         }
 
         let primitiveTypes = try makePrimitiveTypes(context: context)
@@ -145,12 +155,14 @@ struct LLVMEntryPointObjectEmitter {
             functions: functions
         )
 
-        if let errorMessage = bindings.emitObject(
-            targetMachine: targetMachine,
-            module: module,
-            outputPath: objectURL.path
-        ) {
-            throw LLVMEntryPointObjectEmitterError.emissionFailed(errorMessage)
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            if let errorMessage = bindings.emitObject(
+                targetMachine: targetMachine,
+                module: module,
+                outputPath: objectURL.path
+            ) {
+                throw LLVMEntryPointObjectEmitterError.emissionFailed(errorMessage)
+            }
         }
     }
 
